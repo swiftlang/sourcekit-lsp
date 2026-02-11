@@ -16,6 +16,7 @@ import IndexStoreDB
 import SemanticIndex
 import SourceKitD
 import SourceKitLSP
+import SwiftExtensions
 
 extension SwiftLanguageService {
   /// Resolves an inlay hint by looking up the type definition location.
@@ -87,27 +88,14 @@ extension SwiftLanguageService {
       return nil
     }
 
-    // For local types, return the local declaration
-    if let location = typeInfo.symbolInfo.bestLocalDeclaration {
-      return location
-    }
+    let index = await sourceKitLSPServer?.workspaceForDocument(uri: snapshot.uri)?.index(checkedFor: .deletedFiles)
+    let locations = try await SourceKitLSP.definitionLocations(
+      for: typeInfo.symbolInfo,
+      originatorUri: snapshot.uri,
+      index: index,
+      languageService: self
+    ).locations
 
-    // For SDK types, fall back to generated interface
-    if typeInfo.symbolInfo.isSystem ?? false,
-      let systemModule = typeInfo.symbolInfo.systemModule
-    {
-      let interfaceDetails = try await self.openGeneratedInterface(
-        document: snapshot.uri,
-        moduleName: systemModule.moduleName,
-        groupName: systemModule.groupName,
-        symbolUSR: typeInfo.symbolInfo.usr
-      )
-      if let details = interfaceDetails {
-        let position = details.position ?? Position(line: 0, utf16index: 0)
-        return Location(uri: details.uri, range: Range(position))
-      }
-    }
-
-    return nil
+    return locations.only
   }
 }

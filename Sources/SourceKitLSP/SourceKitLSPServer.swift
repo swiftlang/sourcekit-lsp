@@ -790,6 +790,8 @@ extension SourceKitLSPServer: QueueBasedMessageHandler {
       await self.handleRequest(for: request, requestHandler: self.declaration)
     case let request as RequestAndReply<DefinitionRequest>:
       await self.handleRequest(for: request, requestHandler: self.definition)
+    case let request as RequestAndReply<TypeDefinitionRequest>:
+      await self.handleRequest(for: request, requestHandler: self.typeDefinition)
     case let request as RequestAndReply<DoccDocumentationRequest>:
       await self.handleRequest(for: request, requestHandler: self.doccDocumentation)
     case let request as RequestAndReply<DocumentColorRequest>:
@@ -1146,6 +1148,7 @@ extension SourceKitLSPServer {
       completionProvider: completionOptions,
       signatureHelpProvider: signatureHelpOptions,
       definitionProvider: .bool(true),
+      typeDefinitionProvider: .bool(true),
       implementationProvider: .bool(true),
       referencesProvider: .bool(true),
       documentHighlightProvider: .bool(true),
@@ -1974,27 +1977,6 @@ extension SourceKitLSPServer {
     return try await languageService.documentDiagnostic(req)
   }
 
-  /// Converts a location from the symbol index to an LSP location.
-  ///
-  /// - Parameter location: The symbol index location
-  /// - Returns: The LSP location
-  private nonisolated func indexToLSPLocation(_ location: SymbolLocation) -> Location? {
-    guard !location.path.isEmpty else { return nil }
-    return Location(
-      uri: location.documentUri,
-      range: Range(
-        Position(
-          // 1-based -> 0-based
-          // Note that we still use max(0, ...) as a fallback if the location is zero.
-          line: max(0, location.line - 1),
-          // Technically we would need to convert the UTF-8 column to a UTF-16 column. This would require reading the
-          // file. In practice they almost always coincide, so we accept the incorrectness here to avoid the file read.
-          utf16index: max(0, location.utf8Column - 1)
-        )
-      )
-    )
-  }
-
   func declaration(
     _ req: DeclarationRequest,
     workspace: Workspace,
@@ -2003,110 +1985,12 @@ extension SourceKitLSPServer {
     return try await languageService.declaration(req)
   }
 
-  /// Return the locations for jump to definition from the given `SymbolDetails`.
-  private func definitionLocations(
-    for symbol: SymbolDetails,
-    in uri: DocumentURI,
+  func typeDefinition(
+    _ req: TypeDefinitionRequest,
+    workspace: Workspace,
     languageService: any LanguageService
-  ) async throws -> [Location] {
-    // If this symbol is a module then generate a textual interface
-    if symbol.kind == .module {
-      // For module symbols, prefer using systemModule information if available
-      let moduleName: String
-      let groupName: String?
-
-      if let systemModule = symbol.systemModule {
-        moduleName = systemModule.moduleName
-        groupName = systemModule.groupName
-      } else if let name = symbol.name {
-        moduleName = name
-        groupName = nil
-      } else {
-        return []
-      }
-
-      let interfaceLocation = try await self.definitionInInterface(
-        moduleName: moduleName,
-        groupName: groupName,
-        symbolUSR: nil,
-        originatorUri: uri,
-        languageService: languageService
-      )
-      return [interfaceLocation]
-    }
-
-    if symbol.isSystem ?? false, let systemModule = symbol.systemModule {
-      let location = try await self.definitionInInterface(
-        moduleName: systemModule.moduleName,
-        groupName: systemModule.groupName,
-        symbolUSR: symbol.usr,
-        originatorUri: uri,
-        languageService: languageService
-      )
-      return [location]
-    }
-
-    guard let index = await self.workspaceForDocument(uri: uri)?.index(checkedFor: .deletedFiles) else {
-      if let bestLocalDeclaration = symbol.bestLocalDeclaration {
-        return [bestLocalDeclaration]
-      } else {
-        return []
-      }
-    }
-    guard let usr = symbol.usr else { return [] }
-    logger.info("Performing indexed jump-to-definition with USR \(usr)")
-    var occurrences = index.definitionOrDeclarationOccurrences(ofUSR: usr)
-    if symbol.isDynamic ?? true {
-      lazy var transitiveReceiverUsrs: [String]? = {
-        if let receiverUsrs = symbol.receiverUsrs {
-          return transitiveSubtypeClosure(
-            ofUsrs: receiverUsrs,
-            index: index
-          )
-        } else {
-          return nil
-        }
-      }()
-      occurrences += occurrences.flatMap {
-        let overriddenUsrs = index.occurrences(relatedToUSR: $0.symbol.usr, roles: .overrideOf).map(\.symbol.usr)
-        let overriddenSymbolDefinitions = overriddenUsrs.compactMap {
-          index.primaryDefinitionOrDeclarationOccurrence(ofUSR: $0)
-        }
-        // Only contain overrides that are children of one of the receiver types or their subtypes or extensions.
-        return overriddenSymbolDefinitions.filter { override in
-          override.relations.contains(where: {
-            guard $0.roles.contains(.childOf) else {
-              return false
-            }
-            if let transitiveReceiverUsrs, !transitiveReceiverUsrs.contains($0.symbol.usr) {
-              return false
-            }
-            return true
-          })
-        }
-      }
-    }
-
-    if occurrences.isEmpty {
-      if let bestLocalDeclaration = symbol.bestLocalDeclaration {
-        return [bestLocalDeclaration]
-      }
-      // Fallback: The symbol was not found in the index. This often happens with
-      // third-party binary frameworks or libraries where indexing data is missing.
-      // If module info is available, fallback to generating the textual interface.
-      if let systemModule = symbol.systemModule {
-        let location = try await self.definitionInInterface(
-          moduleName: systemModule.moduleName,
-          groupName: systemModule.groupName,
-          symbolUSR: symbol.usr,
-          originatorUri: uri,
-          languageService: languageService
-        )
-        return [location]
-      }
-    }
-
-    return occurrences.compactMap { indexToLSPLocation($0.location) }.sorted()
+  ) async throws -> LocationsOrLocationLinksResponse? {
+    return try await languageService.typeDefinition(req)
   }
 
   /// Returns the result of a `DefinitionRequest` by running a `SymbolInfoRequest`, inspecting
@@ -2152,11 +2036,48 @@ extension SourceKitLSPServer {
         // jump to the function's declaration).
         locations = [bestLocalDeclaration]
       } else {
-        locations = try await self.definitionLocations(
+        let index = await workspace.index(checkedFor: .deletedFiles)
+        let definitionResult = try await definitionLocations(
           for: symbol,
-          in: req.textDocument.uri,
+          originatorUri: req.textDocument.uri,
+          index: index,
           languageService: languageService
         )
+        locations = definitionResult.locations
+        // For dynamic symbols, also include overridden definitions
+        if let index, symbol.isDynamic ?? true, !definitionResult.indexOccurrences.isEmpty {
+          lazy var transitiveReceiverUsrs: [String]? = {
+            if let receiverUsrs = symbol.receiverUsrs {
+              return transitiveSubtypeClosure(
+                ofUsrs: receiverUsrs,
+                index: index
+              )
+            } else {
+              return nil
+            }
+          }()
+          // Use the occurrences already retrieved by definitionLocations to avoid duplicate index lookup
+          let overriddenLocations = definitionResult.indexOccurrences.flatMap { occurrence -> [Location] in
+            let overriddenUsrs = index.occurrences(relatedToUSR: occurrence.symbol.usr, roles: .overrideOf)
+              .map(\.symbol.usr)
+            let overriddenSymbolDefinitions = overriddenUsrs.compactMap {
+              index.primaryDefinitionOrDeclarationOccurrence(ofUSR: $0)
+            }
+            // Only contain overrides that are children of one of the receiver types or their subtypes or extensions.
+            return overriddenSymbolDefinitions.filter { override in
+              override.relations.contains(where: {
+                guard $0.roles.contains(.childOf) else {
+                  return false
+                }
+                if let transitiveReceiverUsrs, !transitiveReceiverUsrs.contains($0.symbol.usr) {
+                  return false
+                }
+                return true
+              })
+            }.compactMap { indexToLSPLocation($0.location) }
+          }
+          locations += overriddenLocations
+        }
       }
 
       // If the symbol's location is is where we initiated rename from, also show the declarations that the symbol
@@ -2228,36 +2149,6 @@ extension SourceKitLSPServer {
     }
     let remappedLocations = await workspace.buildServerManager.locationsAdjustedForCopiedFiles(indexBasedResponse)
     return .locations(remappedLocations)
-  }
-
-  /// Generate the generated interface for the given module, write it to disk and return the location to which to jump
-  /// to get to the definition of `symbolUSR`.
-  ///
-  /// `originatorUri` is the URI of the file from which the definition request is performed. It is used to determine the
-  /// compiler arguments to generate the generated interface.
-  func definitionInInterface(
-    moduleName: String,
-    groupName: String?,
-    symbolUSR: String?,
-    originatorUri: DocumentURI,
-    languageService: any LanguageService
-  ) async throws -> Location {
-    // Let openGeneratedInterface handle all the logic, including checking if we're already in the right interface
-    let documentForBuildSettings = originatorUri.buildSettingsFile
-
-    guard
-      let interfaceDetails = try await languageService.openGeneratedInterface(
-        document: documentForBuildSettings,
-        moduleName: moduleName,
-        groupName: groupName,
-        symbolUSR: symbolUSR
-      )
-    else {
-      throw ResponseError.unknown("Could not generate Swift Interface for \(moduleName)")
-    }
-    let position = interfaceDetails.position ?? Position(line: 0, utf16index: 0)
-    let loc = Location(uri: interfaceDetails.uri, range: Range(position))
-    return loc
   }
 
   func implementation(
@@ -2434,7 +2325,7 @@ extension SourceKitLSPServer {
 
     // TODO: Remove this workaround once https://github.com/swiftlang/swift/issues/75600 is fixed
     func indexToLSPLocation2(_ location: SymbolLocation) -> Location? {
-      return self.indexToLSPLocation(location)
+      return indexToLSPLocation(location)
     }
 
     // TODO: Remove this workaround once https://github.com/swiftlang/swift/issues/75600 is fixed
@@ -2478,7 +2369,7 @@ extension SourceKitLSPServer {
 
     // TODO: Remove this workaround once https://github.com/swiftlang/swift/issues/75600 is fixed
     func indexToLSPLocation2(_ location: SymbolLocation) -> Location? {
-      return self.indexToLSPLocation(location)
+      return indexToLSPLocation(location)
     }
 
     // TODO: Remove this workaround once https://github.com/swiftlang/swift/issues/75600 is fixed
@@ -2600,7 +2491,7 @@ extension SourceKitLSPServer {
 
     // TODO: Remove this workaround once https://github.com/swiftlang/swift/issues/75600 is fixed
     func indexToLSPLocation2(_ location: SymbolLocation) -> Location? {
-      return self.indexToLSPLocation(location)
+      return indexToLSPLocation(location)
     }
 
     // TODO: Remove this workaround once https://github.com/swiftlang/swift/issues/75600 is fixed

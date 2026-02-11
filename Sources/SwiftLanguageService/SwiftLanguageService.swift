@@ -391,6 +391,7 @@ extension SwiftLanguageService {
           retriggerCharacters: [",", ":"]
         ),
         definitionProvider: nil,
+        typeDefinitionProvider: .bool(true),
         implementationProvider: .bool(true),
         referencesProvider: nil,
         documentHighlightProvider: .bool(true),
