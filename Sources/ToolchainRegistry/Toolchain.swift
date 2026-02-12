@@ -366,7 +366,7 @@ public final class Toolchain: Sendable {
           return libSearchPath
         }
         let frameworkPath = libPath.appending(components: "\(name).framework", name)
-        if FileManager.default.isFile(at: frameworkPath) {
+        if searchFramework, FileManager.default.isFile(at: frameworkPath) {
           return frameworkPath
         }
         #if os(Windows)
