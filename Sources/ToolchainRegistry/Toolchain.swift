@@ -361,13 +361,13 @@ public final class Toolchain: Sendable {
       }
 
       func findDylib(named name: String, searchFramework: Bool = false) -> URL? {
-        let frameworkPath = libPath.appending(components: "\(name).framework", name)
-        if FileManager.default.isFile(at: frameworkPath) {
-          return frameworkPath
-        }
         let libSearchPath = libPath.appending(component: "lib\(name)\(dylibExtension)")
         if FileManager.default.isFile(at: libSearchPath) {
           return libSearchPath
+        }
+        let frameworkPath = libPath.appending(components: "\(name).framework", name)
+        if searchFramework, FileManager.default.isFile(at: frameworkPath) {
+          return frameworkPath
         }
         #if os(Windows)
         let binSearchPath = binPath.appending(component: "\(name)\(dylibExtension)")
