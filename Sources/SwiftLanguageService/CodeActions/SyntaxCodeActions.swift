@@ -25,6 +25,7 @@ let allSyntaxCodeActions: [any SyntaxCodeActionProvider.Type] = {
     ConvertJSONToCodableStruct.self,
     ConvertStringConcatenationToStringInterpolation.self,
     ConvertZeroParameterFunctionToComputedProperty.self,
+    ExpandTernaryExprCodeAction.self,
     FormatRawStringLiteral.self,
     MigrateToNewIfLetSyntax.self,
     OpaqueParameterToGeneric.self,
@@ -37,5 +38,6 @@ let allSyntaxCodeActions: [any SyntaxCodeActionProvider.Type] = {
 }()
 
 let supersededSourcekitdRefactoringActions: Set<String> = [
-  "source.refactoring.kind.simplify.long.number.literal"  // Superseded by AddSeparatorsToIntegerLiteral
+  "source.refactoring.kind.expand.ternary.expr",  // Superseded by ExpandTernaryExprCodeAction
+  "source.refactoring.kind.simplify.long.number.literal",  // Superseded by AddSeparatorsToIntegerLiteral
 ]
