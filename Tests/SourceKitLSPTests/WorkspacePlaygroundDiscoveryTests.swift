@@ -539,4 +539,230 @@ final class WorkspacePlaygroundDiscoveryTests: SourceKitLSPTestCase {
       XCTFail("Experimental capabilities expected to be a dictionary, got \(experimentalCapabilities as Any)")
     }
   }
+
+  // MARK: - workspace/playgrounds/refresh opt-in tests
+
+  func testPlaygroundInitialRefreshIsSentOnStartup() async throws {
+    let toolchainRegistry = ToolchainRegistry(toolchains: [try await Toolchain.forTestingWithSwiftPlay])
+    let refreshReceived = self.expectation(description: "Initial workspace/playgrounds/refresh received")
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Sources/MyLibrary/Test.swift": """
+        import Playgrounds
+
+        1️⃣#Playground("foo") {
+          print("foo")
+        }2️⃣
+        """
+      ],
+      capabilities: ClientCapabilities(experimental: [
+        WorkspacePlaygroundsRefreshRequest.method: .bool(true)
+      ]),
+      toolchainRegistry: toolchainRegistry,
+      preInitialization: { testClient in
+        testClient.handleSingleRequest { (_: WorkspacePlaygroundsRefreshRequest) in
+          refreshReceived.fulfill()
+          return VoidResponse()
+        }
+      }
+    )
+    try await fulfillmentOfOrThrow(refreshReceived)
+
+    let playgrounds = try await project.testClient.send(WorkspacePlaygroundsRequest())
+    XCTAssertEqual(
+      playgrounds,
+      [
+        Playground(
+          id: "MyLibrary/Test.swift:3:1",
+          label: "foo",
+          location: try project.location(from: "1️⃣", to: "2️⃣", in: "Test.swift")
+        )
+      ]
+    )
+  }
+
+  func testPlaygroundRefreshIsSentAfterFileChangedOnDisk() async throws {
+    let toolchainRegistry = ToolchainRegistry(toolchains: [try await Toolchain.forTestingWithSwiftPlay])
+    let initialRefresh = self.expectation(description: "Initial workspace/playgrounds/refresh")
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Sources/MyLibrary/Test.swift": """
+        import Playgrounds
+
+        1️⃣#Playground("foo") {
+          print("foo")
+        }2️⃣
+        """
+      ],
+      capabilities: ClientCapabilities(experimental: [
+        WorkspacePlaygroundsRefreshRequest.method: .bool(true)
+      ]),
+      toolchainRegistry: toolchainRegistry,
+      preInitialization: { testClient in
+        testClient.handleSingleRequest { (_: WorkspacePlaygroundsRefreshRequest) in
+          initialRefresh.fulfill()
+          return VoidResponse()
+        }
+      }
+    )
+
+    // Drain the initial refresh.
+    try await fulfillmentOfOrThrow(initialRefresh)
+
+    // Now change the file and wait for the follow-up refresh.
+    let (uri, newPositions) = try await project.testClient.withWaitingFor(WorkspacePlaygroundsRefreshRequest.self) {
+      try await project.changeFileOnDisk(
+        "Test.swift",
+        newMarkedContents: """
+          import Playgrounds
+
+          3️⃣#Playground("bar") {
+            print("bar")
+          }4️⃣
+          """,
+        synchronize: false
+      )
+    }
+
+    let playgrounds = try await project.testClient.send(WorkspacePlaygroundsRequest())
+    XCTAssertEqual(
+      playgrounds,
+      [
+        Playground(
+          id: "MyLibrary/Test.swift:3:1",
+          label: "bar",
+          location: Location(uri: uri, range: newPositions["3️⃣"]..<newPositions["4️⃣"])
+        )
+      ]
+    )
+  }
+
+  func testPlaygroundRefreshIsSentAfterFileDeleted() async throws {
+    let toolchainRegistry = ToolchainRegistry(toolchains: [try await Toolchain.forTestingWithSwiftPlay])
+    let initialRefresh = self.expectation(description: "Initial workspace/playgrounds/refresh")
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Sources/MyLibrary/Test.swift": """
+        import Playgrounds
+
+        #Playground("foo") {
+          print("foo")
+        }
+        """
+      ],
+      capabilities: ClientCapabilities(experimental: [
+        WorkspacePlaygroundsRefreshRequest.method: .bool(true)
+      ]),
+      toolchainRegistry: toolchainRegistry,
+      preInitialization: { testClient in
+        testClient.handleSingleRequest { (_: WorkspacePlaygroundsRefreshRequest) in
+          initialRefresh.fulfill()
+          return VoidResponse()
+        }
+      }
+    )
+
+    // Drain the initial refresh.
+    try await fulfillmentOfOrThrow(initialRefresh)
+
+    // Delete the file and wait for the follow-up refresh.
+    try await project.testClient.withWaitingFor(WorkspacePlaygroundsRefreshRequest.self) {
+      try await project.changeFileOnDisk("Test.swift", newMarkedContents: nil, synchronize: false)
+    }
+
+    let playgrounds = try await project.testClient.send(WorkspacePlaygroundsRequest())
+    XCTAssertEqual(playgrounds, [])
+  }
+
+  func testPlaygroundRefreshIsSentAfterFileAdded() async throws {
+    let toolchainRegistry = ToolchainRegistry(toolchains: [try await Toolchain.forTestingWithSwiftPlay])
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Sources/MyLibrary/Test.swift": ""
+      ],
+      capabilities: ClientCapabilities(experimental: [
+        WorkspacePlaygroundsRefreshRequest.method: .bool(true)
+      ]),
+      toolchainRegistry: toolchainRegistry
+    )
+
+    // The initial file is empty so no playgrounds are discovered and no initial refresh is sent.
+    // Add playground content to the file and wait for the refresh.
+    let (uri, positions) = try await project.testClient.withWaitingFor(WorkspacePlaygroundsRefreshRequest.self) {
+      try await project.changeFileOnDisk(
+        "Test.swift",
+        newMarkedContents: """
+          import Playgrounds
+
+          1️⃣#Playground("foo") {
+            print("foo")
+          }2️⃣
+          """,
+        synchronize: false
+      )
+    }
+
+    let playgrounds = try await project.testClient.send(WorkspacePlaygroundsRequest())
+    XCTAssertEqual(
+      playgrounds,
+      [
+        Playground(
+          id: "MyLibrary/Test.swift:3:1",
+          label: "foo",
+          location: Location(uri: uri, range: positions["1️⃣"]..<positions["2️⃣"])
+        )
+      ]
+    )
+  }
+
+  func testNoPlaygroundRefreshSentWhenPlaygroundsUnchanged() async throws {
+    let toolchainRegistry = ToolchainRegistry(toolchains: [try await Toolchain.forTestingWithSwiftPlay])
+    let initialRefresh = self.expectation(description: "Initial workspace/playgrounds/refresh")
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Sources/MyLibrary/Test.swift": """
+        import Playgrounds
+
+        #Playground("foo") {
+          print("foo")
+        }
+        """,
+        "Sources/MyLibrary/Helper.swift": """
+        func helperFunction() {}
+        """,
+      ],
+      capabilities: ClientCapabilities(experimental: [
+        WorkspacePlaygroundsRefreshRequest.method: .bool(true)
+      ]),
+      toolchainRegistry: toolchainRegistry,
+      preInitialization: { testClient in
+        testClient.handleSingleRequest { (_: WorkspacePlaygroundsRefreshRequest) in
+          initialRefresh.fulfill()
+          return VoidResponse()
+        }
+      }
+    )
+
+    // Drain the initial refresh.
+    try await fulfillmentOfOrThrow(initialRefresh)
+
+    // Install a persistent handler that fails if any unexpected refresh arrives.
+    project.testClient.handleMultipleRequests { (_: WorkspacePlaygroundsRefreshRequest) in
+      XCTFail("Unexpected workspace/playgrounds/refresh after non-playground file change")
+      return VoidResponse()
+    }
+
+    // Modify the non-playground helper file.
+    try await project.changeFileOnDisk(
+      "Helper.swift",
+      newMarkedContents: """
+        // A comment was added
+        func helperFunction() {}
+        """
+    )
+
+    // Flush all pending processing.
+    try await project.testClient.send(SynchronizeRequest())
+  }
+
 }

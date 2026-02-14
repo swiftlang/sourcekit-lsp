@@ -380,6 +380,29 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
     requestHandlers.value.append((requestHandler: requestHandler, isOneShot: false))
   }
 
+  /// Executes `operation` and waits until a request of the specified type is received from the server.
+  package func withWaitingFor<R: RequestType, Value>(
+    _: R.Type,
+    timeout: Duration = defaultTimeoutDuration,
+    pollingInterval: Duration = .milliseconds(10),
+    operation: () async throws -> Value,
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) async throws -> Value where R.Response == VoidResponse {
+    // Register a one-shot handler that records when the request arrives.
+    let received = AtomicBool(initialValue: false)
+    self.handleSingleRequest { (_: R) in
+      received.value = true
+      return VoidResponse()
+    }
+
+    let result = try await operation()
+    try await repeatUntilExpectedResult(timeout: timeout, sleepInterval: pollingInterval) {
+      received.value
+    }
+    return result
+  }
+
   // MARK: - Conformance to MessageHandler
 
   /// - Important: Implementation detail of `TestSourceKitLSPServer`. Do not call from tests.

@@ -1111,6 +1111,248 @@ final class WorkspaceTestDiscoveryTests: SourceKitLSPTestCase {
     let tests = try await project.testClient.send(WorkspaceTestsRequest())
     XCTAssertEqual(tests, [])
   }
+
+  // MARK: - workspace/tests/refresh opt-in tests
+
+  func testInitialRefreshIsSentOnStartup() async throws {
+    let refreshReceived = self.expectation(description: "Initial workspace/tests/refresh received")
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Tests/MyLibraryTests/MyTests.swift": """
+        import XCTest
+
+        1️⃣class MyTests: XCTestCase {
+          2️⃣func testMyLibrary() {}3️⃣
+        }4️⃣
+        """
+      ],
+      manifest: packageManifestWithTestTarget,
+      capabilities: ClientCapabilities(experimental: [
+        WorkspaceTestsRefreshRequest.method: .bool(true)
+      ]),
+      preInitialization: { testClient in
+        testClient.handleSingleRequest { (_: WorkspaceTestsRefreshRequest) in
+          refreshReceived.fulfill()
+          return VoidResponse()
+        }
+      }
+    )
+    try await fulfillmentOfOrThrow(refreshReceived)
+
+    let tests = try await project.testClient.send(WorkspaceTestsRequest())
+    XCTAssertEqual(
+      tests,
+      [
+        TestItem(
+          id: "MyLibraryTests.MyTests",
+          label: "MyTests",
+          location: try project.location(from: "1️⃣", to: "4️⃣", in: "MyTests.swift"),
+          children: [
+            TestItem(
+              id: "MyLibraryTests.MyTests/testMyLibrary()",
+              label: "testMyLibrary()",
+              location: try project.location(from: "2️⃣", to: "3️⃣", in: "MyTests.swift")
+            )
+          ]
+        )
+      ]
+    )
+  }
+
+  func testRefreshIsSentAfterFileChangedOnDisk() async throws {
+    let initialRefresh = self.expectation(description: "Initial workspace/tests/refresh")
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Tests/MyLibraryTests/MyTests.swift": """
+        import XCTest
+
+        1️⃣class MyTests: XCTestCase {
+          2️⃣func testMyLibrary() {}3️⃣
+        }4️⃣
+        """
+      ],
+      manifest: packageManifestWithTestTarget,
+      capabilities: ClientCapabilities(experimental: [
+        WorkspaceTestsRefreshRequest.method: .bool(true)
+      ]),
+      preInitialization: { testClient in
+        testClient.handleSingleRequest { (_: WorkspaceTestsRefreshRequest) in
+          initialRefresh.fulfill()
+          return VoidResponse()
+        }
+      }
+    )
+
+    // Drain the initial refresh.
+    try await fulfillmentOfOrThrow(initialRefresh)
+
+    // Now change the file and wait for the follow-up refresh.
+    let (uri, newPositions) = try await project.testClient.withWaitingFor(WorkspaceTestsRefreshRequest.self) {
+      try await project.changeFileOnDisk(
+        "MyTests.swift",
+        newMarkedContents: """
+          import XCTest
+
+          5️⃣class MyTests: XCTestCase {
+            6️⃣func testRenamedMethod() {}7️⃣
+          }8️⃣
+          """,
+        synchronize: false
+      )
+    }
+
+    let tests = try await project.testClient.send(WorkspaceTestsRequest())
+    XCTAssertEqual(
+      tests,
+      [
+        TestItem(
+          id: "MyLibraryTests.MyTests",
+          label: "MyTests",
+          location: Location(uri: uri, range: newPositions["5️⃣"]..<newPositions["8️⃣"]),
+          children: [
+            TestItem(
+              id: "MyLibraryTests.MyTests/testRenamedMethod()",
+              label: "testRenamedMethod()",
+              location: Location(uri: uri, range: newPositions["6️⃣"]..<newPositions["7️⃣"])
+            )
+          ]
+        )
+      ]
+    )
+  }
+
+  func testRefreshIsSentAfterFileDeleted() async throws {
+    let initialRefresh = self.expectation(description: "Initial workspace/tests/refresh")
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Tests/MyLibraryTests/MyTests.swift": """
+        import XCTest
+
+        class MyTests: XCTestCase {
+          func testMyLibrary() {}
+        }
+        """
+      ],
+      manifest: packageManifestWithTestTarget,
+      capabilities: ClientCapabilities(experimental: [
+        WorkspaceTestsRefreshRequest.method: .bool(true)
+      ]),
+      preInitialization: { testClient in
+        testClient.handleSingleRequest { (_: WorkspaceTestsRefreshRequest) in
+          initialRefresh.fulfill()
+          return VoidResponse()
+        }
+      }
+    )
+
+    // Drain the initial refresh.
+    try await fulfillmentOfOrThrow(initialRefresh)
+
+    // Delete the file and wait for the follow-up refresh.
+    try await project.testClient.withWaitingFor(WorkspaceTestsRefreshRequest.self) {
+      try await project.changeFileOnDisk("MyTests.swift", newMarkedContents: nil, synchronize: false)
+    }
+
+    let tests = try await project.testClient.send(WorkspaceTestsRequest())
+    XCTAssertEqual(tests, [])
+  }
+
+  func testRefreshIsSentAfterFileAdded() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Tests/MyLibraryTests/MyTests.swift": ""
+      ],
+      manifest: packageManifestWithTestTarget,
+      capabilities: ClientCapabilities(experimental: [
+        WorkspaceTestsRefreshRequest.method: .bool(true)
+      ])
+    )
+
+    // The initial file is empty so no tests are discovered and no initial refresh is sent.
+    // Add test content to the file and wait for the refresh.
+    let (uri, positions) = try await project.testClient.withWaitingFor(WorkspaceTestsRefreshRequest.self) {
+      try await project.changeFileOnDisk(
+        "MyTests.swift",
+        newMarkedContents: """
+          import XCTest
+
+          1️⃣class MyTests: XCTestCase {
+            2️⃣func testMyLibrary() {}3️⃣
+          }4️⃣
+          """,
+        synchronize: false
+      )
+    }
+
+    let tests = try await project.testClient.send(WorkspaceTestsRequest())
+    XCTAssertEqual(
+      tests,
+      [
+        TestItem(
+          id: "MyLibraryTests.MyTests",
+          label: "MyTests",
+          location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
+          children: [
+            TestItem(
+              id: "MyLibraryTests.MyTests/testMyLibrary()",
+              label: "testMyLibrary()",
+              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"])
+            )
+          ]
+        )
+      ]
+    )
+  }
+
+  func testNoRefreshSentWhenTestsUnchanged() async throws {
+    let initialRefresh = self.expectation(description: "Initial workspace/tests/refresh")
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Tests/MyLibraryTests/MyTests.swift": """
+        import XCTest
+
+        class MyTests: XCTestCase {
+          func testMyLibrary() {}
+        }
+        """,
+        "Tests/MyLibraryTests/Helper.swift": """
+        func helperFunction() {}
+        """,
+      ],
+      manifest: packageManifestWithTestTarget,
+      capabilities: ClientCapabilities(experimental: [
+        WorkspaceTestsRefreshRequest.method: .bool(true)
+      ]),
+      preInitialization: { testClient in
+        testClient.handleSingleRequest { (_: WorkspaceTestsRefreshRequest) in
+          initialRefresh.fulfill()
+          return VoidResponse()
+        }
+      }
+    )
+
+    // Drain the initial refresh.
+    try await fulfillmentOfOrThrow(initialRefresh)
+
+    // Install a persistent handler that fails if any unexpected refresh arrives.
+    project.testClient.handleMultipleRequests { (_: WorkspaceTestsRefreshRequest) in
+      XCTFail("Unexpected workspace/tests/refresh after non-test file change")
+      return VoidResponse()
+    }
+
+    // Modify the non-test helper file.
+    try await project.changeFileOnDisk(
+      "Helper.swift",
+      newMarkedContents: """
+        // A comment was added
+        func helperFunction() {}
+        """
+    )
+
+    // Flush all pending processing.
+    try await project.testClient.send(SynchronizeRequest())
+  }
+
 }
 
 extension TestItem {
