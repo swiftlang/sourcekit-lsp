@@ -23,15 +23,7 @@ extension SourceKitLSPServer {
   ///
   /// The returned list of playgrounds is not sorted. It should be sorted before being returned to the editor.
   private func playgrounds(in workspace: Workspace) async -> [Playground] {
-    // If files have recently been added to the workspace (which is communicated by a `workspace/didChangeWatchedFiles`
-    // notification, wait these changes to be reflected in the build server so we can include the updated files in the
-    // playgrounds.
-    await workspace.buildServerManager.waitForUpToDateBuildGraph()
-
-    let playgroundsFromSyntacticIndex = await workspace.syntacticIndex.playgrounds()
-
-    // We don't need to sort the playgrounds here because they will get sorted by `workspacePlaygrounds` request handler
-    return playgroundsFromSyntacticIndex
+    return await self.entrypointManager.playgrounds
   }
 
   func workspacePlaygrounds(_ req: WorkspacePlaygroundsRequest) async throws -> [Playground] {

@@ -96,6 +96,12 @@ package actor SourceKitLSPServer {
   /// the initializer.
   nonisolated(unsafe) package private(set) var sourcekitdCrashedWorkDoneProgress: SharedWorkDoneProgressManager!
 
+  /// Implicitly unwrapped optional so we can create an `EntrypointManager` that has a weak reference to
+  /// `SourceKitLSPServer`.
+  /// `nonisolated(unsafe)` because `indexProgressManager` will not be modified after it is assigned from the
+  /// initializer.
+  private(set) nonisolated(unsafe) var entrypointManager: EntryPointManager!
+
   /// Stores which workspace the given URI has been opened in.
   ///
   /// - Important: Must only be modified from `workspaceQueue`. This means that the value of `workspaceForUri`
@@ -184,6 +190,21 @@ package actor SourceKitLSPServer {
       tokenPrefix: "sourcekitd-crashed",
       title: "SourceKit-LSP: Restoring functionality",
       message: "Please run 'sourcekit-lsp diagnose' to file an issue"
+    )
+    self.entrypointManager = EntryPointManager(
+      sourceKitLSPServer: self,
+      onWorkspaceTestsChanged: {
+        logger.info("===onWorkspaceTestsChanged")
+        Task {
+          try await client.send(WorkspaceTestsRefreshRequest())
+        }
+      },
+      onWorkspacePlaygroundsChanged: {
+        logger.info("===onWorkspacePlaygroundsChanged")
+//        Task {
+//          try await client.send(Workspce)
+//        }
+      }
     )
   }
 
@@ -1591,6 +1612,9 @@ extension SourceKitLSPServer {
     for languageService in languageServices.values.flatMap(\.self) {
       await languageService.filesDidChange(notification.changes)
     }
+
+    // Trigger refresh entry points.
+    entrypointManager.refresh()
   }
 
   func setBackgroundIndexingPaused(_ request: SetOptionsRequest) async throws -> VoidResponse {
@@ -2689,6 +2713,23 @@ extension SourceKitLSPServer {
       await workspace.semanticIndexManager?.scheduleReindex()
     }
     return VoidResponse()
+  }
+
+  func workspaceTests(_ req: WorkspaceTestsRequest) async throws -> [TestItem] {
+    await self.entrypointManager.refreshAndWait()
+    return await self.entrypointManager.tests
+  }
+
+  func documentTests(
+    _ req: DocumentTestsRequest,
+    workspace: Workspace,
+    languageService: any LanguageService
+  ) async throws -> [TestItem] {
+    return try await self.entrypointManager.documentTests(
+      req,
+      workspace: workspace,
+      languageService: languageService
+    )
   }
 }
 

@@ -521,8 +521,6 @@ final class WorkspaceTestDiscoveryTests: SourceKitLSPTestCase {
       ]
     )
 
-    // After we have an in-memory change to the file, we can't use the semantic index to discover the tests anymore.
-    // Use the syntactic index instead.
     project.testClient.send(
       DidChangeTextDocumentNotification(
         textDocument: VersionedTextDocumentIdentifier(uri, version: 2),
@@ -532,6 +530,7 @@ final class WorkspaceTestDiscoveryTests: SourceKitLSPTestCase {
       )
     )
 
+    // In-memory change doesn't affect 'workspace/tests' results.
     let tests = try await project.testClient.send(WorkspaceTestsRequest())
     XCTAssertEqual(
       tests,
@@ -539,12 +538,12 @@ final class WorkspaceTestDiscoveryTests: SourceKitLSPTestCase {
         TestItem(
           id: "MyLibraryTests.MyTests",
           label: "MyTests",
-          location: Location(uri: uri, range: positions["1️⃣"]..<positions["6️⃣"]),
+          location: Location(uri: uri, range: positions["2️⃣"]..<positions["2️⃣"]),
           children: [
             TestItem(
-              id: "MyLibraryTests.MyTests/testMyLibraryUpdated()",
-              label: "testMyLibraryUpdated()",
-              location: Location(uri: uri, range: positions["3️⃣"]..<positions["5️⃣"])
+              id: "MyLibraryTests.MyTests/testMyLibrary()",
+              label: "testMyLibrary()",
+              location: Location(uri: uri, range: positions["4️⃣"]..<positions["4️⃣"])
             )
           ]
         )
@@ -560,8 +559,8 @@ final class WorkspaceTestDiscoveryTests: SourceKitLSPTestCase {
         "Tests/MyLibraryTests/MyFirstTests.swift": """
         import XCTest
 
-        1️⃣class MyFirstTests: XCTestCase {
-          2️⃣func testOne0️⃣() {
+        class 1️⃣MyFirstTests: XCTestCase {
+          func 2️⃣testOne0️⃣() {
           }3️⃣
         }4️⃣
         """,
@@ -592,12 +591,12 @@ final class WorkspaceTestDiscoveryTests: SourceKitLSPTestCase {
         TestItem(
           id: "MyLibraryTests.MyFirstTests",
           label: "MyFirstTests",
-          location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
+          location: Location(uri: uri, range: positions["1️⃣"]..<positions["1️⃣"]),
           children: [
             TestItem(
-              id: "MyLibraryTests.MyFirstTests/testOneUpdated()",
+              id: "MyLibraryTests.MyFirstTests/testOne()",
               label: "testOneUpdated()",
-              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"])
+              location: Location(uri: uri, range: positions["2️⃣"]..<positions["2️⃣"])
             )
           ]
         ),
@@ -681,6 +680,13 @@ final class WorkspaceTestDiscoveryTests: SourceKitLSPTestCase {
         """
     )
 
+    await withCheckedContinuation { cont in
+      project.testClient.handleSingleRequest { (_: WorkspaceTestsRefreshRequest) in
+        cont.resume()
+        return VoidResponse()
+      }
+    }
+
     let tests = try await project.testClient.send(WorkspaceTestsRequest())
     XCTAssertEqual(
       tests,
@@ -716,23 +722,12 @@ final class WorkspaceTestDiscoveryTests: SourceKitLSPTestCase {
       uri: uri
     )
 
+    // 'workspace/tests' only handles on-disk test cases.
+    // In-memory tests should be retrieved with 'textDocument/tests'.
     let tests = try await testClient.send(WorkspaceTestsRequest())
     XCTAssertEqual(
       tests,
-      [
-        TestItem(
-          id: "MyTests",
-          label: "MyTests",
-          location: Location(uri: uri, range: positions["1️⃣"]..<positions["6️⃣"]),
-          children: [
-            TestItem(
-              id: "MyTests/testSomething()",
-              label: "testSomething()",
-              location: Location(uri: uri, range: positions["3️⃣"]..<positions["5️⃣"])
-            )
-          ]
-        )
-      ]
+      []
     )
   }
 
@@ -863,10 +858,24 @@ final class WorkspaceTestDiscoveryTests: SourceKitLSPTestCase {
 
     try await project.changeFileOnDisk("MyTests.swift", newMarkedContents: nil)
 
+    await withCheckedContinuation { cont in
+      project.testClient.handleSingleRequest { (_: WorkspaceTestsRefreshRequest) in
+        cont.resume()
+        return VoidResponse()
+      }
+    }
+
     let testsAfterFileRemove = try await project.testClient.send(WorkspaceTestsRequest())
     XCTAssertEqual(testsAfterFileRemove, [])
 
     try await project.changeFileOnDisk("MyTests.swift", newMarkedContents: markedFileContents)
+
+    await withCheckedContinuation { cont in
+      project.testClient.handleSingleRequest { (_: WorkspaceTestsRefreshRequest) in
+        cont.resume()
+        return VoidResponse()
+      }
+    }
 
     let testsAfterFileReAdded = try await project.testClient.send(WorkspaceTestsRequest())
     XCTAssertEqual(testsAfterFileReAdded, expectedTests)
@@ -916,6 +925,7 @@ final class WorkspaceTestDiscoveryTests: SourceKitLSPTestCase {
       class NotQuiteTest: SomeClass {
         func testMyLibrary() {}
       }
+      
       """
 
     let project = try await IndexedSingleSwiftFileTestProject(originalContents, allowBuildFailure: true)
@@ -938,6 +948,14 @@ final class WorkspaceTestDiscoveryTests: SourceKitLSPTestCase {
     project.testClient.send(
       DidChangeWatchedFilesNotification(changes: [FileEvent(uri: project.fileURI, type: .changed)])
     )
+
+    await withCheckedContinuation { cont in
+      project.testClient.handleSingleRequest { (_: WorkspaceTestsRefreshRequest) in
+        cont.resume()
+        return VoidResponse()
+      }
+    }
+
     // Ensure that we handle the `DidChangeWatchedFilesNotification`.
     try await project.testClient.send(SynchronizeRequest())
 

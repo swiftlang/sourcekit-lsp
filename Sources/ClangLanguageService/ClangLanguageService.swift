@@ -663,8 +663,8 @@ extension ClangLanguageService {
     return nil
   }
 
-  package func syntacticTestItems(for snapshot: DocumentSnapshot) async -> [AnnotatedTestItem] {
-    return []
+  package func syntacticTestItems(for snapshot: DocumentSnapshot) async -> [AnnotatedTestItem]? {
+    return nil
   }
 
   package func syntacticPlaygrounds(
