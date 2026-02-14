@@ -40,11 +40,11 @@ final class WorkspaceTestDiscoveryTests: SourceKitLSPTestCase {
         "Tests/MyLibraryTests/MyTests.swift": """
         import XCTest
 
-        class 1️⃣MyTests: XCTestCase {
-          func 2️⃣testMyLibrary() {}
+        1️⃣class MyTests: XCTestCase {
+          2️⃣func testMyLibrary() {}3️⃣
           func unrelatedFunc() {}
           var testVariable: Int = 0
-        }
+        }4️⃣
         """
       ],
       manifest: packageManifestWithTestTarget,
@@ -58,18 +58,12 @@ final class WorkspaceTestDiscoveryTests: SourceKitLSPTestCase {
         TestItem(
           id: "MyLibraryTests.MyTests",
           label: "MyTests",
-          location: Location(
-            uri: try project.uri(for: "MyTests.swift"),
-            range: Range(try project.position(of: "1️⃣", in: "MyTests.swift"))
-          ),
+          location: try project.location(from: "1️⃣", to: "4️⃣", in: "MyTests.swift"),
           children: [
             TestItem(
               id: "MyLibraryTests.MyTests/testMyLibrary()",
               label: "testMyLibrary()",
-              location: Location(
-                uri: try project.uri(for: "MyTests.swift"),
-                range: Range(try project.position(of: "2️⃣", in: "MyTests.swift"))
-              )
+              location: try project.location(from: "2️⃣", to: "3️⃣", in: "MyTests.swift")
             )
           ]
         )
@@ -124,11 +118,11 @@ final class WorkspaceTestDiscoveryTests: SourceKitLSPTestCase {
         "Tests/MyLibraryTests/MyTests.swift": """
         import XCTest
 
-        class 1️⃣MyTests: XCTestCase {
-          func 2️⃣testMyLibrary() {}
+        1️⃣class MyTests: XCTestCase {
+          2️⃣func testMyLibrary() {}3️⃣
           func unrelatedFunc() {}
           var testVariable: Int = 0
-        }
+        }4️⃣
         """
       ],
       manifest: packageManifestWithTestTarget,
@@ -155,18 +149,12 @@ final class WorkspaceTestDiscoveryTests: SourceKitLSPTestCase {
         TestItem(
           id: "MyLibraryTests.MyTests",
           label: "MyTests",
-          location: Location(
-            uri: myTestsUri,
-            range: Range(try project.position(of: "1️⃣", in: "MyTests.swift"))
-          ),
+          location: try project.location(from: "1️⃣", to: "4️⃣", in: "MyTests.swift"),
           children: [
             TestItem(
               id: "MyLibraryTests.MyTests/testMyLibrary()",
               label: "testMyLibrary()",
-              location: Location(
-                uri: myTestsUri,
-                range: Range(try project.position(of: "2️⃣", in: "MyTests.swift"))
-              )
+              location: try project.location(from: "2️⃣", to: "3️⃣", in: "MyTests.swift")
             )
           ]
         )
@@ -183,9 +171,9 @@ final class WorkspaceTestDiscoveryTests: SourceKitLSPTestCase {
 
         class ClassThatMayInheritFromXCTest {}
 
-        3️⃣class NotQuiteTests: ClassThatMayInheritFromXCTest {
-          4️⃣func testSomething() {}5️⃣
-        }6️⃣
+        5️⃣class NotQuiteTests: ClassThatMayInheritFromXCTest {
+          6️⃣func testSomething() {}7️⃣
+        }8️⃣
         """
     )
 
@@ -198,7 +186,7 @@ final class WorkspaceTestDiscoveryTests: SourceKitLSPTestCase {
           label: "NotQuiteTests",
           location: Location(
             uri: myTestsUri,
-            range: newFilePositions["3️⃣"]..<newFilePositions["6️⃣"]
+            range: newFilePositions["5️⃣"]..<newFilePositions["8️⃣"]
           ),
           children: [
             TestItem(
@@ -206,7 +194,7 @@ final class WorkspaceTestDiscoveryTests: SourceKitLSPTestCase {
               label: "testSomething()",
               location: Location(
                 uri: myTestsUri,
-                range: newFilePositions["4️⃣"]..<newFilePositions["5️⃣"]
+                range: newFilePositions["6️⃣"]..<newFilePositions["7️⃣"]
               )
             )
           ]
@@ -323,9 +311,9 @@ final class WorkspaceTestDiscoveryTests: SourceKitLSPTestCase {
           }3️⃣
         }4️⃣
 
-        class 5️⃣MyOldTests: XCTestCase {
-          func 6️⃣testOld() {}
-        }
+        5️⃣class MyOldTests: XCTestCase {
+          6️⃣func testOld() {}7️⃣
+        }8️⃣
         """
       ],
       manifest: packageManifestWithTestTarget,
@@ -354,12 +342,12 @@ final class WorkspaceTestDiscoveryTests: SourceKitLSPTestCase {
         TestItem(
           id: "MyLibraryTests.MyOldTests",
           label: "MyOldTests",
-          location: try project.location(from: "5️⃣", to: "5️⃣", in: "MyTests.swift"),
+          location: try project.location(from: "5️⃣", to: "8️⃣", in: "MyTests.swift"),
           children: [
             TestItem(
               id: "MyLibraryTests.MyOldTests/testOld()",
               label: "testOld()",
-              location: try project.location(from: "6️⃣", to: "6️⃣", in: "MyTests.swift")
+              location: try project.location(from: "6️⃣", to: "7️⃣", in: "MyTests.swift")
             )
           ]
         ),
@@ -486,12 +474,12 @@ final class WorkspaceTestDiscoveryTests: SourceKitLSPTestCase {
         "Tests/MyLibraryTests/MyTests.swift": """
         import XCTest
 
-        1️⃣class 2️⃣MyTests: XCTestCase {
-          3️⃣func 4️⃣testMyLibrary0️⃣() {
-          }5️⃣
+        1️⃣class MyTests: XCTestCase {
+          2️⃣func testMyLibrary0️⃣() {
+          }3️⃣
           func unrelatedFunc() {}
           var testVariable: Int = 0
-        }6️⃣
+        }4️⃣
         """
       ],
       manifest: packageManifestWithTestTarget,
@@ -509,20 +497,18 @@ final class WorkspaceTestDiscoveryTests: SourceKitLSPTestCase {
         TestItem(
           id: "MyLibraryTests.MyTests",
           label: "MyTests",
-          location: Location(uri: uri, range: positions["2️⃣"]..<positions["2️⃣"]),
+          location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
           children: [
             TestItem(
               id: "MyLibraryTests.MyTests/testMyLibrary()",
               label: "testMyLibrary()",
-              location: Location(uri: uri, range: positions["4️⃣"]..<positions["4️⃣"])
+              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"])
             )
           ]
         )
       ]
     )
 
-    // After we have an in-memory change to the file, we can't use the semantic index to discover the tests anymore.
-    // Use the syntactic index instead.
     project.testClient.send(
       DidChangeTextDocumentNotification(
         textDocument: VersionedTextDocumentIdentifier(uri, version: 2),
@@ -539,12 +525,12 @@ final class WorkspaceTestDiscoveryTests: SourceKitLSPTestCase {
         TestItem(
           id: "MyLibraryTests.MyTests",
           label: "MyTests",
-          location: Location(uri: uri, range: positions["1️⃣"]..<positions["6️⃣"]),
+          location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
           children: [
             TestItem(
               id: "MyLibraryTests.MyTests/testMyLibraryUpdated()",
               label: "testMyLibraryUpdated()",
-              location: Location(uri: uri, range: positions["3️⃣"]..<positions["5️⃣"])
+              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"])
             )
           ]
         )
@@ -568,9 +554,9 @@ final class WorkspaceTestDiscoveryTests: SourceKitLSPTestCase {
         "Tests/MyLibraryTests/MySecondTests.swift": """
         import XCTest
 
-        class 5️⃣MySecondTests: XCTestCase {
-          func 6️⃣testTwo() {}
-        }
+        5️⃣class MySecondTests: XCTestCase {
+          6️⃣func testTwo() {}7️⃣
+        }8️⃣
         """,
       ],
       manifest: packageManifestWithTestTarget,
@@ -604,12 +590,12 @@ final class WorkspaceTestDiscoveryTests: SourceKitLSPTestCase {
         TestItem(
           id: "MyLibraryTests.MySecondTests",
           label: "MySecondTests",
-          location: try project.location(from: "5️⃣", to: "5️⃣", in: "MySecondTests.swift"),
+          location: try project.location(from: "5️⃣", to: "8️⃣", in: "MySecondTests.swift"),
           children: [
             TestItem(
               id: "MyLibraryTests.MySecondTests/testTwo()",
               label: "testTwo()",
-              location: try project.location(from: "6️⃣", to: "6️⃣", in: "MySecondTests.swift")
+              location: try project.location(from: "6️⃣", to: "7️⃣", in: "MySecondTests.swift")
             )
           ]
         ),
@@ -709,9 +695,9 @@ final class WorkspaceTestDiscoveryTests: SourceKitLSPTestCase {
       """
       import XCTest
 
-      1️⃣class 2️⃣MyTests: XCTestCase {
-        3️⃣func 4️⃣testSomething() {}5️⃣
-      }6️⃣
+      1️⃣class MyTests: XCTestCase {
+        2️⃣func testSomething() {}3️⃣
+      }4️⃣
       """,
       uri: uri
     )
@@ -723,12 +709,12 @@ final class WorkspaceTestDiscoveryTests: SourceKitLSPTestCase {
         TestItem(
           id: "MyTests",
           label: "MyTests",
-          location: Location(uri: uri, range: positions["1️⃣"]..<positions["6️⃣"]),
+          location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
           children: [
             TestItem(
               id: "MyTests/testSomething()",
               label: "testSomething()",
-              location: Location(uri: uri, range: positions["3️⃣"]..<positions["5️⃣"])
+              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"])
             )
           ]
         )
@@ -743,9 +729,9 @@ final class WorkspaceTestDiscoveryTests: SourceKitLSPTestCase {
       """
       import XCTest
 
-      class 1️⃣MyTests: XCTestCase {
-        func 2️⃣testSomething() {}
-      }
+      1️⃣class MyTests: XCTestCase {
+        2️⃣func testSomething() {}3️⃣
+      }4️⃣
       """
     )
 
@@ -756,12 +742,12 @@ final class WorkspaceTestDiscoveryTests: SourceKitLSPTestCase {
         TestItem(
           id: "MyTests",
           label: "MyTests",
-          location: Location(uri: project.fileURI, range: Range(project.positions["1️⃣"])),
+          location: Location(uri: project.fileURI, range: project.positions["1️⃣"]..<project.positions["4️⃣"]),
           children: [
             TestItem(
               id: "MyTests/testSomething()",
               label: "testSomething()",
-              location: Location(uri: project.fileURI, range: Range(project.positions["2️⃣"]))
+              location: Location(uri: project.fileURI, range: project.positions["2️⃣"]..<project.positions["3️⃣"])
             )
           ]
         )
@@ -916,6 +902,7 @@ final class WorkspaceTestDiscoveryTests: SourceKitLSPTestCase {
       class NotQuiteTest: SomeClass {
         func testMyLibrary() {}
       }
+
       """
 
     let project = try await IndexedSingleSwiftFileTestProject(originalContents, allowBuildFailure: true)

@@ -88,7 +88,8 @@ package actor DocumentationLanguageService: LanguageService, Sendable {
     // The DocumentationLanguageService does not do anything with document events
   }
 
-  package func syntacticTestItems(for snapshot: DocumentSnapshot) async -> [AnnotatedTestItem] {
+  package func syntacticTestItems(for snapshot: DocumentSnapshot) async -> [AnnotatedTestItem]? {
+    // We know documentation files have no test cases.
     return []
   }
 
