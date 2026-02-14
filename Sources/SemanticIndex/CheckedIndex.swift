@@ -551,7 +551,7 @@ private struct IndexOutOfDateChecker {
 
   private func modificationDateUncached(of uri: DocumentURI) throws -> ModificationTime {
     do {
-      guard var fileURL = uri.fileURL else {
+      guard let fileURL = uri.fileURL else {
         return .fileDoesNotExist
       }
       return .date(try fileURL.fileModificationDate)
