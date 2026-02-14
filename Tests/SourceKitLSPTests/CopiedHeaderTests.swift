@@ -193,4 +193,94 @@ class CopiedHeaderTests: SourceKitLSPTestCase {
     }
     XCTAssertEqual(info.location, try project.location(from: "1️⃣", to: "1️⃣", in: "Test.h"))
   }
+
+  func testJumpToCopiedHeaderJumpsToCopyIfOriginalDoesNotExist() async throws {
+    actor BuildServer: CustomBuildServer {
+      let inProgressRequestsTracker = CustomBuildServerInProgressRequestTracker()
+      private let projectRoot: URL
+
+      var headerCopyDestination: URL {
+        projectRoot.appending(components: "header-copy", "CopiedTest.h")
+      }
+
+      init(projectRoot: URL, connectionToSourceKitLSP: any Connection) {
+        self.projectRoot = projectRoot
+      }
+
+      func initializeBuildRequest(_ request: InitializeBuildRequest) async throws -> InitializeBuildResponse {
+        return try initializationResponseSupportingBackgroundIndexing(
+          projectRoot: projectRoot,
+          outputPathsProvider: false
+        )
+      }
+
+      func buildTargetSourcesRequest(_ request: BuildTargetSourcesRequest) -> BuildTargetSourcesResponse {
+        return BuildTargetSourcesResponse(items: [
+          SourcesItem(
+            target: .dummy,
+            sources: [
+              SourceItem(
+                uri: DocumentURI(projectRoot.appending(component: "Test.c")),
+                kind: .file,
+                generated: false,
+                dataKind: .sourceKit,
+                data: SourceKitSourceItemData(language: .c).encodeToLSPAny()
+              ),
+              SourceItem(
+                uri: DocumentURI(projectRoot.appending(component: "Test.h")),
+                kind: .file,
+                generated: false,
+                dataKind: .sourceKit,
+                data: SourceKitSourceItemData(
+                  language: .c,
+                  kind: .header,
+                  copyDestinations: [DocumentURI(headerCopyDestination)]
+                ).encodeToLSPAny()
+              ),
+            ]
+          )
+        ])
+      }
+
+      func textDocumentSourceKitOptionsRequest(
+        _ request: TextDocumentSourceKitOptionsRequest
+      ) throws -> TextDocumentSourceKitOptionsResponse? {
+        return TextDocumentSourceKitOptionsResponse(compilerArguments: [
+          request.textDocument.uri.pseudoPath, "-I", try headerCopyDestination.deletingLastPathComponent().filePath,
+        ])
+      }
+
+      func prepareTarget(_ request: BuildTargetPrepareRequest) async throws -> VoidResponse {
+        try FileManager.default.createDirectory(
+          at: headerCopyDestination.deletingLastPathComponent(),
+          withIntermediateDirectories: true
+        )
+        try await """
+        void hello();
+        """.writeWithRetry(to: headerCopyDestination)
+        return VoidResponse()
+      }
+    }
+
+    let project = try await CustomBuildServerTestProject(
+      files: [
+        "Test.c": """
+        #include <CopiedTest.h>
+
+        void test() {
+          1️⃣hello();
+        }
+        """
+      ],
+      buildServer: BuildServer.self,
+      enableBackgroundIndexing: true,
+    )
+    try await project.testClient.send(SynchronizeRequest(copyFileMap: true))
+
+    let (uri, positions) = try project.openDocument("Test.c")
+    let response = try await project.testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+    assertEqual(response?.locations?.map(\.uri), [try await DocumentURI(project.buildServer().headerCopyDestination)])
+  }
 }
