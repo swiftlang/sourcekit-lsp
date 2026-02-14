@@ -285,12 +285,13 @@ package actor SyntacticIndex: Sendable {
     )
   }
 
-  /// Gets all the tests in the syntactic index.
+  /// Gets the syntactically indexed tests for the given files.
   ///
   /// This waits for any pending document updates to be indexed before returning a result.
-  nonisolated package func tests() async -> [AnnotatedTestItem] {
+  nonisolated package func tests(in files: [DocumentURI]) async -> [AnnotatedTestItem] {
     let readTask = indexingQueue.async(metadata: .read) {
-      return await self.indexedSources.values.flatMap(\.tests)
+      let indexedSources = await self.indexedSources
+      return files.flatMap({ indexedSources[$0]?.tests ?? [] })
     }
     return await readTask.value
   }
