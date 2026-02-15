@@ -99,7 +99,7 @@ extension SourceKitLSPServer {
     for testSymbolOccurrences: [SymbolOccurrence],
     index: CheckedIndex?,
     resolveLocation: (DocumentURI, Position) -> Location
-  ) -> [AnnotatedTestItem] {
+  ) throws -> [AnnotatedTestItem] {
     // Arrange tests by the USR they are contained in. This allows us to emit test methods as children of test classes.
     // `occurrencesByParent[nil]` are the root test symbols that aren't a child of another test symbol.
     var occurrencesByParent: [String?: [SymbolOccurrence]] = [:]
@@ -113,7 +113,7 @@ extension SourceKitLSPServer {
         guard parentSymbol.kind == .extension else {
           continue
         }
-        guard let definition = index?.primaryDefinitionOrDeclarationOccurrence(ofUSR: parentSymbol.usr) else {
+        guard let definition = try index?.primaryDefinitionOrDeclarationOccurrence(ofUSR: parentSymbol.usr) else {
           logger.fault("Unable to find primary definition of extension '\(parentSymbol.usr)' containing tests")
           continue
         }
@@ -193,7 +193,7 @@ extension SourceKitLSPServer {
   /// This merges tests from the semantic index, the syntactic index and in-memory file states.
   ///
   /// The returned list of tests is not sorted. It should be sorted before being returned to the editor.
-  private func tests(in workspace: Workspace) async -> [AnnotatedTestItem] {
+  private func tests(in workspace: Workspace) async throws -> [AnnotatedTestItem] {
     // If files have recently been added to the workspace (which is communicated by a `workspace/didChangeWatchedFiles`
     // notification, wait these changes to be reflected in the build server so we can include the updated files in the
     // tests.
@@ -243,10 +243,10 @@ extension SourceKitLSPServer {
       } ?? []
     }.flatMap { $0 }
 
-    let semanticTestSymbolOccurrences = index?.unitTests().filter { return $0.canBeTestDefinition } ?? []
+    let semanticTestSymbolOccurrences = try index?.unitTests().filter { return $0.canBeTestDefinition } ?? []
 
     let testsFromSyntacticIndex = await workspace.syntacticIndex.tests()
-    let testsFromSemanticIndex = testItems(
+    let testsFromSemanticIndex = try testItems(
       for: semanticTestSymbolOccurrences,
       index: index,
       resolveLocation: { uri, position in Location(uri: uri, range: Range(position)) }
@@ -256,7 +256,7 @@ extension SourceKitLSPServer {
     let indexOnlyDiscardingDeletedFiles = await workspace.index(checkedFor: .deletedFiles)
 
     let syntacticTestsToInclude =
-      testsFromSyntacticIndex
+      try testsFromSyntacticIndex
       .compactMap { (item) -> AnnotatedTestItem? in
         let testItem = item.testItem
         if testItem.style == TestStyle.swiftTesting {
@@ -273,7 +273,7 @@ extension SourceKitLSPServer {
           // up-to-date. Include the tests from `testsFromFilesWithInMemoryState`.
           return nil
         }
-        if index?.hasAnyUpToDateUnit(for: testItem.location.uri) ?? false {
+        if try index?.hasAnyUpToDateUnit(for: testItem.location.uri) ?? false {
           // We don't have a test for this file in the semantic index but an up-to-date unit file. This means that the
           // index is up-to-date and has more knowledge that identifies a `TestItem` as not actually being a test, eg.
           // because it starts with `test` but doesn't appear in a class inheriting from `XCTestCase`.
@@ -285,7 +285,7 @@ extension SourceKitLSPServer {
         // a single XCTestCase subclass, so caching doesn't make sense here.
         // Also, this is only called for files containing test cases but for which the semantic index is out-of-date.
         if let filtered = testItem.filterUsing(
-          semanticSymbols: indexOnlyDiscardingDeletedFiles?.symbols(inFilePath: testItem.location.uri.pseudoPath)
+          semanticSymbols: try indexOnlyDiscardingDeletedFiles?.symbols(inFilePath: testItem.location.uri.pseudoPath)
         ) {
           return AnnotatedTestItem(testItem: filtered, isExtension: item.isExtension)
         }
@@ -298,7 +298,11 @@ extension SourceKitLSPServer {
 
   func workspaceTests(_ req: WorkspaceTestsRequest) async throws -> [TestItem] {
     return await self.workspaces
-      .concurrentMap { await self.tests(in: $0).prefixTestsWithModuleName(workspace: $0) }
+      .concurrentMap { workspace in
+        await orLog("Getting tests in workspace") {
+          try await self.tests(in: workspace).prefixTestsWithModuleName(workspace: workspace)
+        } ?? []
+      }
       .flatMap { $0 }
       .sorted { $0.testItem.location < $1.testItem.location }
       .mergingTestsInExtensions()
@@ -341,7 +345,7 @@ extension SourceKitLSPServer {
       }
 
       let testSymbols =
-        index.unitTests(referencedByMainFiles: [mainFileUri.pseudoPath])
+        try index.unitTests(referencedByMainFiles: [mainFileUri.pseudoPath])
         .filter { $0.canBeTestDefinition }
 
       if !testSymbols.isEmpty {
@@ -351,7 +355,7 @@ extension SourceKitLSPServer {
 
         // We have test symbols from the semantic index. Return them but also include the syntactically discovered
         // swift-testing tests, which aren't part of the semantic index.
-        return testItems(
+        return try testItems(
           for: testSymbols,
           index: index,
           resolveLocation: { uri, position in
@@ -364,7 +368,7 @@ extension SourceKitLSPServer {
           }
         ) + syntacticSwiftTestingTests
       }
-      if index.hasAnyUpToDateUnit(for: mainFileUri) {
+      if try index.hasAnyUpToDateUnit(for: mainFileUri) {
         // The semantic index is up-to-date and doesn't contain any tests. We don't need to do a syntactic fallback for
         // XCTest. We do still need to return swift-testing tests which don't have a semantic index.
         return syntacticSwiftTestingTests

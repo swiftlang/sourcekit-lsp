@@ -256,11 +256,14 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
       if indexFilesWithUpToDateUnit {
         return true
       }
-      let hasUpToDateUnit = index.checked(for: .modifiedFiles).hasUpToDateUnit(
-        for: fileInfo.sourceFile,
-        mainFile: fileInfo.mainFile,
-        outputPath: fileInfo.outputPath
-      )
+      let hasUpToDateUnit =
+        orLog("Checking if file has up-to-date unit") {
+          try index.checked(for: .modifiedFiles).hasUpToDateUnit(
+            for: fileInfo.sourceFile,
+            mainFile: fileInfo.mainFile,
+            outputPath: fileInfo.outputPath
+          )
+        } ?? true
       if hasUpToDateUnit {
         logger.debug("Not indexing \(fileInfo.file.forLogging) because index has an up-to-date unit")
         // We consider a file's index up-to-date if we have any up-to-date unit. Changing build settings does not
