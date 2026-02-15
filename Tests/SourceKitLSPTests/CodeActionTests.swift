@@ -1150,9 +1150,9 @@ final class CodeActionTests: SourceKitLSPTestCase {
                   range: positions["1️⃣"]..<positions["2️⃣"],
                   newText: #"""
                     """
-                    a
-                    bc
-                    d
+                      a
+                      bc
+                      d
                       """
                     """#
                 )

@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 @_spi(SourceKitLSP) import LanguageServerProtocol
+import SwiftBasicFormat
 import SwiftRefactor
 import SwiftSyntax
 
@@ -86,6 +87,10 @@ struct ConvertStringConcatenationToStringInterpolation: SyntaxRefactoringProvide
         lastSegment.trailingTrivia = .newline
         segments = StringLiteralSegmentListSyntax(segments.dropLast() + [lastSegment])
       }
+
+      // Re-introduce the indentation of the last multi-line string literal's
+      // closing quote to the entire string literal.
+      segments = segments.indented(by: closingQuoteTrivia, indentFirstLine: true)
     }
 
     let quoteToken: TokenSyntax =
@@ -98,10 +103,7 @@ struct ConvertStringConcatenationToStringInterpolation: SyntaxRefactoringProvide
       ? quoteToken.with(\.trailingTrivia, .newline)
       : quoteToken
 
-    let closingQuote: TokenSyntax =
-      hasMultilineString
-      ? quoteToken.with(\.leadingTrivia, closingQuoteTrivia)
-      : quoteToken
+    let closingQuote: TokenSyntax = quoteToken
 
     return syntax.with(
       \.elements,
