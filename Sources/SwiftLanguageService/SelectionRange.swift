@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 @_spi(SourceKitLSP) package import LanguageServerProtocol
+@_spi(SourceKitLSP) import SKLogging
 import SourceKitLSP
 import SwiftOperators
 import SwiftSyntax
@@ -381,19 +382,22 @@ extension ExprListSyntax: SelectionRangeProvider {
     }
 
     let table = OperatorTable.standardOperators
-    guard let foldedTree = try? table.foldSingle(sequenceExpression) else { return [] }
+    let foldedTree = orLog("Folding ExprListSyntax") {
+      try table.foldSingle(sequenceExpression)
+    }
+
+    guard let foldedTree = foldedTree else { return [] }
 
     let foldedTreeOffset = SourceLength(utf8Length: sequenceExpression.position.utf8Offset)
     let offsetInTree = position - foldedTreeOffset
 
-    guard let token = foldedTree.token(at: offsetInTree)?.parent else {
+    guard var operandNode = foldedTree.token(at: offsetInTree)?.parent else {
       return []
     }
 
     // Walk up from the token to the operand node
     // This is needed to avoid processing everything below the operand node two times, as everything below has already
     // been processed by the normal logic before hitting the ExprListSyntax
-    var operandNode = Syntax(token)
     while let parent = operandNode.parent {
       if parent.is(InfixOperatorExprSyntax.self) {
         break
