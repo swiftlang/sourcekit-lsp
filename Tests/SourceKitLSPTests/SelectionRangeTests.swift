@@ -18,7 +18,7 @@ import XCTest
 
 class SelectionRangeTests: XCTestCase {
 
-  // MARK: - StringsAndExpressions
+  // MARK: - Strings And Expressions
 
   func testStringLiteralWithCursorInWord() async throws {
     try await assertSelectionRanges(
@@ -179,7 +179,7 @@ class SelectionRangeTests: XCTestCase {
     )
   }
 
-  // MARK: - VariableAndConstantDeclaration
+  // MARK: - Variable And Constant Declaration
 
   func testSimpleVariableDeclaration() async throws {
     try await assertSelectionRanges(
@@ -351,7 +351,7 @@ class SelectionRangeTests: XCTestCase {
     )
   }
 
-  // MARK: - FunctionsAndMethods
+  // MARK: - Functions And Methods
 
   func testChainedMethodCalls() async throws {
     try await assertSelectionRanges(
@@ -771,7 +771,7 @@ class SelectionRangeTests: XCTestCase {
     )
   }
 
-  // MARK: - ClosuresAndFunctionTypes
+  // MARK: - Closures And Function Types
 
   func testSimpleClosure() async throws {
     try await assertSelectionRanges(
@@ -884,7 +884,7 @@ class SelectionRangeTests: XCTestCase {
     )
   }
 
-  // MARK: - ControlFlow
+  // MARK: - Control Flow
 
   func testIfStatement() async throws {
     try await assertSelectionRanges(
@@ -1073,7 +1073,7 @@ class SelectionRangeTests: XCTestCase {
     )
   }
 
-  // MARK: - ClassesAndStructs
+  // MARK: - Classes And Structs
 
   func testClassDeclaration() async throws {
     try await assertSelectionRanges(
@@ -1544,7 +1544,7 @@ class SelectionRangeTests: XCTestCase {
     )
   }
 
-  // MARK: - ErrorHandling
+  // MARK: - Error Handling
 
   func testThrowStatement() async throws {
     try await assertSelectionRanges(
@@ -1618,7 +1618,7 @@ class SelectionRangeTests: XCTestCase {
     )
   }
 
-  // MARK: - TypeCastingAndChecking
+  // MARK: - Type Casting And Checking
 
   func testTypeCheck() async throws {
     try await assertSelectionRanges(
@@ -1672,7 +1672,7 @@ class SelectionRangeTests: XCTestCase {
     )
   }
 
-  // MARK: - OptionalHandling
+  // MARK: - Optional Handling
 
   func testOptionalBinding() async throws {
     try await assertSelectionRanges(
@@ -1819,7 +1819,7 @@ class SelectionRangeTests: XCTestCase {
     )
   }
 
-  // MARK: - PatternMatching
+  // MARK: - Pattern Matching
 
   func testEnumCasePattern() async throws {
     try await assertSelectionRanges(
@@ -1877,7 +1877,7 @@ class SelectionRangeTests: XCTestCase {
     )
   }
 
-  // MARK: - AccessControl
+  // MARK: - Access Control
 
   func testPrivateModifier() async throws {
     try await assertSelectionRanges(
@@ -1923,7 +1923,7 @@ class SelectionRangeTests: XCTestCase {
     )
   }
 
-  // MARK: - MemoryManagement
+  // MARK: - Memory Management
 
   func testWeakReference() async throws {
     try await assertSelectionRanges(
@@ -2000,7 +2000,7 @@ class SelectionRangeTests: XCTestCase {
     )
   }
 
-  // MARK: - TupleAndArrayOperations
+  // MARK: - Tuple And Array Operations
 
   func testTupleCreation() async throws {
     try await assertSelectionRanges(
@@ -2084,7 +2084,7 @@ class SelectionRangeTests: XCTestCase {
     )
   }
 
-  // MARK: - AsyncAwait
+  // MARK: - Async Await
 
   func testAwaitExpression() async throws {
     try await assertSelectionRanges(
@@ -2155,7 +2155,7 @@ class SelectionRangeTests: XCTestCase {
     )
   }
 
-  // MARK: - PropertyWrappers
+  // MARK: - Property Wrappers
 
   func testPropertyWrapperUsage() async throws {
     try await assertSelectionRanges(
@@ -2189,7 +2189,7 @@ class SelectionRangeTests: XCTestCase {
     )
   }
 
-  // MARK: - KeyPaths
+  // MARK: - Key Paths
 
   func testKeyPathExpression() async throws {
     try await assertSelectionRanges(
@@ -2220,7 +2220,7 @@ class SelectionRangeTests: XCTestCase {
     )
   }
 
-  // MARK: - DynamicMemberLookup
+  // MARK: - Dynamic Member Lookup
 
   func testDynamicMemberLookup() async throws {
     try await assertSelectionRanges(
@@ -2242,7 +2242,7 @@ class SelectionRangeTests: XCTestCase {
     )
   }
 
-  // MARK: - TypeAliases
+  // MARK: - Type Aliases
 
   func testTypeAlias() async throws {
     try await assertSelectionRanges(
