@@ -104,9 +104,9 @@ class SelectionRangeTests: XCTestCase {
           let c = "Hel3️⃣lo, World!"
         """,
       expectedSelections: [
-        ["Hello", "Hello, World!"],
-        ["Hello", "Hello, World!"],
-        ["Hello", "Hello, World!"],
+        "1️⃣": ["Hello", "Hello, World!"],
+        "2️⃣": ["Hello", "Hello, World!"],
+        "3️⃣": ["Hello", "Hello, World!"],
       ]
     )
   }
@@ -362,7 +362,7 @@ class SelectionRangeTests: XCTestCase {
           .red3️⃣uce(0, 4️⃣+)
         """,
       expectedSelections: [
-        [
+        "1️⃣": [
           "0",
           "$0 > 0",
           "{ $0 > 0 }",
@@ -389,7 +389,7 @@ class SelectionRangeTests: XCTestCase {
             .reduce(0, +)
           """,
         ],
-        [
+        "2️⃣": [
           "2",
           "$0 * 2",
           "{ $0 * 2 }",
@@ -406,7 +406,7 @@ class SelectionRangeTests: XCTestCase {
             .reduce(0, +)
           """,
         ],
-        [
+        "3️⃣": [
           "reduce",
           "reduce(0, +)",
           """
@@ -416,7 +416,7 @@ class SelectionRangeTests: XCTestCase {
             .reduce(0, +)
           """,
         ],
-        [
+        "4️⃣": [
           "+",
           "0, +",
           "reduce(0, +)",
@@ -2277,6 +2277,15 @@ class SelectionRangeTests: XCTestCase {
     )
   }
 
+  /// Helper to test selection ranges for a single marker ("1️⃣") in the source.
+  ///
+  /// - Parameters:
+  ///   - markedSource: The source code string containing a single marker ("1️⃣") indicating the cursor position.
+  ///   - expectedSelections: The expected selection ranges, from innermost to outermost, as strings.
+  ///   - file: The file from which the test is called (default: current file).
+  ///   - line: The line from which the test is called (default: current line).
+  ///
+  /// This function wraps the multi-marker version for convenience when only one marker is present.
   func testSelectionRange(
     markedSource: String,
     expectedSelections: [String],
@@ -2285,15 +2294,25 @@ class SelectionRangeTests: XCTestCase {
   ) async throws {
     try await testSelectionRange(
       markedSource: markedSource,
-      expectedSelections: [expectedSelections],
+      expectedSelections: ["1️⃣": expectedSelections],
       file: file,
       line: line
     )
   }
 
+  /// Helper to test selection ranges for multiple markers in the source.
+  /// This function extracts marker positions from the source, sends selection range requests, and checks that the returned ranges match the expected selections for each marker.
+  /// The test does not fail if `expectedSelections` contains less selection ranges than the request returned.
+  /// This is done to avoid having to always list all selections for all tests.
+  ///
+  /// - Parameters:
+  ///   - markedSource: The source code string containing one or more markers (e.g., "1️⃣", "2️⃣") indicating cursor positions.
+  ///   - expectedSelections: A dictionary mapping marker strings to arrays of expected selection ranges (from innermost to outermost) as strings.
+  ///   - file: The file from which the test is called (default: current file).
+  ///   - line: The line from which the test is called (default: current line).
   func testSelectionRange(
     markedSource: String,
-    expectedSelections: [[String]],
+    expectedSelections: [String: [String]],
     file: StaticString = #filePath,
     line: UInt = #line
   ) async throws {
@@ -2301,13 +2320,13 @@ class SelectionRangeTests: XCTestCase {
 
     // check that all expectedSelections are valid
     XCTAssertEqual(
-      expectedSelections.count,
-      documentPositions.allMarkers.count,
-      "The number of markers and expected selections differ: \(documentPositions.allMarkers.count) markers vs \(expectedSelections.count) selections",
+      Set(expectedSelections.keys),
+      Set(documentPositions.allMarkers),
+      "The markers used in the source differ from those in the expected selections. Source: \(documentPositions.allMarkers) Expected: \(expectedSelections.keys)",
       file: file,
       line: line
     )
-    let flatMappedSelections = expectedSelections.flatMap { $0 }
+    let flatMappedSelections = expectedSelections.values.flatMap { $0 }
     XCTAssert(
       flatMappedSelections.allSatisfy { text.contains($0) },
       "The following expected selections are not contained in the source:\n \(flatMappedSelections.filter { !text.contains($0) }.joined(separator: "\n"))",
@@ -2320,15 +2339,16 @@ class SelectionRangeTests: XCTestCase {
     let uri = DocumentURI(for: .swift)
     testClient.openDocument(text, uri: uri)
 
-    for (index, marker) in documentPositions.allMarkers.enumerated() {
+    for marker in documentPositions.allMarkers {
       let position = documentPositions[marker]
-      let request = SelectionRangeRequest(textDocument: TextDocumentIdentifier(uri), positions: [position])
-      let response: SelectionRangeRequest.Response = try await testClient.send(request)
+      let response = try await testClient.send(
+        SelectionRangeRequest(textDocument: TextDocumentIdentifier(uri), positions: [position])
+      )
 
       let lineTable = LineTable(text)
 
-      let range = response[0]
-      let expected = expectedSelections[index]
+      let range = response.first ?? nil
+      let expected = expectedSelections[marker] ?? []
 
       var rangeIndex = 0
       var currentRange: SelectionRange? = range
@@ -2338,7 +2358,7 @@ class SelectionRangeTests: XCTestCase {
           selectString,
           expected[rangeIndex],
           selectionRangeMismatchMessage(
-            rangeIndex: rangeIndex,
+            marker: marker,
             expected: expected[rangeIndex],
             actual: String(selectString)
           ),
@@ -2352,12 +2372,12 @@ class SelectionRangeTests: XCTestCase {
     }
   }
 
-  func selectionRangeMismatchMessage(rangeIndex: Int, expected: String, actual: String) -> String {
+  func selectionRangeMismatchMessage(marker: String, expected: String, actual: String) -> String {
     let isMultiline = expected.contains("\n") || actual.contains("\n")
 
     if isMultiline {
       return """
-        Selection range mismatch at index \(rangeIndex):
+        Selection range mismatch for marker \(marker):
 
         Expected:
         \(expected)
@@ -2367,7 +2387,7 @@ class SelectionRangeTests: XCTestCase {
         """
     } else {
       return """
-        Selection range mismatch at index \(rangeIndex):
+        Selection range mismatch for marker \(marker):
           Expected: \(expected)
           Actual:   \(actual)
         """
@@ -2379,19 +2399,16 @@ class SelectionRangeTests: XCTestCase {
       return "<no selection range>"
     }
 
-    let lowerBoundOffset = lineTable.utf8OffsetOf(
+    let lowerBoundIndex = lineTable.stringIndexOf(
       line: selectionRange.range.lowerBound.line,
       utf16Column: selectionRange.range.lowerBound.utf16index
     )
-    let upperBoundOffset = lineTable.utf8OffsetOf(
+    let upperBoundIndex = lineTable.stringIndexOf(
       line: selectionRange.range.upperBound.line,
       utf16Column: selectionRange.range.upperBound.utf16index
     )
 
-    let utf8 = lineTable.content.utf8
-    let lowerBoundIndex = utf8.index(lineTable.content.startIndex, offsetBy: lowerBoundOffset)
-    let upperBoundIndex = utf8.index(lineTable.content.startIndex, offsetBy: upperBoundOffset)
-    let slice = utf8[lowerBoundIndex..<upperBoundIndex]
-    return String(decoding: slice, as: UTF8.self)
+    let slice = lineTable.content[lowerBoundIndex..<upperBoundIndex]
+    return String(slice)
   }
 }
