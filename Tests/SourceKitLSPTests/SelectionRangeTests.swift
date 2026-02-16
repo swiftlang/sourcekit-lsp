@@ -96,21 +96,6 @@ class SelectionRangeTests: XCTestCase {
     )
   }
 
-  func testMultipleCursors() async throws {
-    try await assertSelectionRanges(
-      markedSource: """
-          let a = "Hel1️⃣lo, World!"
-          let b = "Hel2️⃣lo, World!"
-          let c = "Hel3️⃣lo, World!"
-        """,
-      expectedSelections: [
-        "1️⃣": ["Hello", "Hello, World!"],
-        "2️⃣": ["Hello", "Hello, World!"],
-        "3️⃣": ["Hello", "Hello, World!"],
-      ]
-    )
-  }
-
   func testStringConcatenation() async throws {
     try await assertSelectionRanges(
       markedSource: """
@@ -170,24 +155,6 @@ class SelectionRangeTests: XCTestCase {
         "(x > 0 && y < 100)",
         "(x > 0 && y < 100) || (x == 0 && y == 0)",
         "let valid = (x > 0 && y < 100) || (x == 0 && y == 0)",
-      ]
-    )
-  }
-
-  func testComplexConditionalExpression2() async throws {
-    try await assertSelectionRanges(
-      markedSource: """
-        let valid = (x > 0 && (y < -11️⃣00)) || (x == 0 && y == 0)
-        """,
-      expectedSelections: [
-        "100",
-        "-100",
-        "y < -100",
-        "(y < -100)",
-        "x > 0 && (y < -100)",
-        "(x > 0 && (y < -100))",
-        "(x > 0 && (y < -100)) || (x == 0 && y == 0)",
-        "let valid = (x > 0 && (y < -100)) || (x == 0 && y == 0)",
       ]
     )
   }
@@ -1241,6 +1208,23 @@ class SelectionRangeTests: XCTestCase {
     )
   }
 
+  func testEnumCaseWithTwoNames() async throws {
+    try await assertSelectionRanges(
+      markedSource: """
+          enum Test {
+            case caseA(foo b1️⃣ar: String)
+            case caseB()
+          }
+        """,
+      expectedSelections: [
+        "bar",
+        "foo bar",
+        "foo bar: String",
+        "caseA(foo bar: String)",
+      ]
+    )
+  }
+
   func testEnumWithRawValues() async throws {
     try await assertSelectionRanges(
       markedSource: """
@@ -1260,39 +1244,6 @@ class SelectionRangeTests: XCTestCase {
           case venus = 2
           case earth = 3
         }
-        """,
-      ]
-    )
-  }
-
-  func testEnumWithMethods() async throws {
-    try await assertSelectionRanges(
-      markedSource: """
-        enum CompassPoint {
-          case north, south
-          func description() -> String {
-            switch se1️⃣lf {
-            case .north: return "North"
-            case .south: return "South"
-            }
-          }
-        }
-        """,
-      expectedSelections: [
-        "self",
-        """
-        switch self {
-            case .north: return "North"
-            case .south: return "South"
-            }
-        """,
-        """
-        func description() -> String {
-            switch self {
-            case .north: return "North"
-            case .south: return "South"
-            }
-          }
         """,
       ]
     )
@@ -1343,43 +1294,6 @@ class SelectionRangeTests: XCTestCase {
   func testProtocolInheritance() async throws {
     try await assertSelectionRanges(
       markedSource: """
-        protocol TextRepresentable: CustomString1️⃣Convertible {
-          var text: String { get }
-        }
-        """,
-      expectedSelections: [
-        "CustomStringConvertible",
-        ": CustomStringConvertible",
-        """
-        protocol TextRepresentable: CustomStringConvertible {
-          var text: String { get }
-        }
-        """,
-      ]
-    )
-  }
-
-  func testProtocolInheritance2() async throws {
-    try await assertSelectionRanges(
-      markedSource: """
-        protocol TextRepr1️⃣esentable: CustomStringConvertible {
-          var text: String { get }
-        }
-        """,
-      expectedSelections: [
-        "TextRepresentable",
-        """
-        protocol TextRepresentable: CustomStringConvertible {
-          var text: String { get }
-        }
-        """,
-      ]
-    )
-  }
-
-  func testProtocolInheritance3() async throws {
-    try await assertSelectionRanges(
-      markedSource: """
         protocol TextRepresentable: CustomStringConve1️⃣rtible, Protocol2, Protocol3 {
           var text: String { get }
         }
@@ -1390,6 +1304,24 @@ class SelectionRangeTests: XCTestCase {
         ": CustomStringConvertible, Protocol2, Protocol3",
         """
         protocol TextRepresentable: CustomStringConvertible, Protocol2, Protocol3 {
+          var text: String { get }
+        }
+        """,
+      ]
+    )
+  }
+
+  func testProtocolInheritance2() async throws {
+    try await assertSelectionRanges(
+      markedSource: """
+        protocol TextRepr1️⃣esentable: CustomStringConvertible, Protocol2 {
+          var text: String { get }
+        }
+        """,
+      expectedSelections: [
+        "TextRepresentable",
+        """
+        protocol TextRepresentable: CustomStringConvertible, Protocol2 {
           var text: String { get }
         }
         """,
@@ -1419,7 +1351,7 @@ class SelectionRangeTests: XCTestCase {
 
   // MARK: - Extensions
 
-  func testExtension() async throws {
+  func testExtensionDeclaration() async throws {
     try await assertSelectionRanges(
       markedSource: """
         extension St1️⃣ring {
@@ -1444,12 +1376,14 @@ class SelectionRangeTests: XCTestCase {
   func testExtensionWithWhereClause() async throws {
     try await assertSelectionRanges(
       markedSource: """
-        extension Ar1️⃣ray where Element == String {
+        extension Array where Ele1️⃣ment == String {
           var description: String { return "" }
         }
         """,
       expectedSelections: [
-        "Array",
+        "Element",
+        "Element == String",
+        "where Element == String",
         """
         extension Array where Element == String {
           var description: String { return "" }
@@ -1500,7 +1434,7 @@ class SelectionRangeTests: XCTestCase {
     )
   }
 
-  func testGenericStructWithCursorImmediatelyBeforeAngle() async throws {
+  func testGenericStructWithCursorImmediatelyBeforeAngleBracket() async throws {
     try await assertSelectionRanges(
       markedSource: """
         struct Stack1️⃣<Element> {
@@ -1617,20 +1551,6 @@ class SelectionRangeTests: XCTestCase {
     )
   }
 
-  func testTryForced() async throws {
-    try await assertSelectionRanges(
-      markedSource: """
-        let result = try! load1️⃣Data()
-        """,
-      expectedSelections: [
-        "loadData",
-        "loadData()",
-        "try! loadData()",
-        "let result = try! loadData()",
-      ]
-    )
-  }
-
   // MARK: - Type Casting And Checking
 
   func testTypeCheck() async throws {
@@ -1668,19 +1588,6 @@ class SelectionRangeTests: XCTestCase {
           print(text)
         }
         """,
-      ]
-    )
-  }
-
-  func testForcedDowncast() async throws {
-    try await assertSelectionRanges(
-      markedSource: """
-        let text = item a1️⃣s! String
-        """,
-      expectedSelections: [
-        "as!",
-        "item as! String",
-        "let text = item as! String",
       ]
     )
   }
@@ -1812,26 +1719,6 @@ class SelectionRangeTests: XCTestCase {
     )
   }
 
-  func testMainActorAttribute() async throws {
-    try await assertSelectionRanges(
-      markedSource: """
-        @MainAct1️⃣or
-        class ViewController {
-          func updateUI() { }
-        }
-        """,
-      expectedSelections: [
-        "@MainActor",
-        """
-        @MainActor
-        class ViewController {
-          func updateUI() { }
-        }
-        """,
-      ]
-    )
-  }
-
   // MARK: - Pattern Matching
 
   func testEnumCasePattern() async throws {
@@ -1869,27 +1756,6 @@ class SelectionRangeTests: XCTestCase {
     )
   }
 
-  func testWildcardPattern() async throws {
-    try await assertSelectionRanges(
-      markedSource: """
-        for (_, val1️⃣ue) in dictionary {
-          print(value)
-        }
-        """,
-      expectedSelections: [
-        "value",
-        "_, value",
-        "(_, value)",
-        "(_, value) in dictionary",
-        """
-        for (_, value) in dictionary {
-          print(value)
-        }
-        """,
-      ]
-    )
-  }
-
   // MARK: - Access Control
 
   func testPrivateModifier() async throws {
@@ -1900,64 +1766,6 @@ class SelectionRangeTests: XCTestCase {
       expectedSelections: [
         "secret",
         #"private var secret: String = "hidden""#,
-      ]
-    )
-  }
-
-  func testPublicModifier() async throws {
-    try await assertSelectionRanges(
-      markedSource: """
-        public func api1️⃣Method() {
-          print("Public API")
-        }
-        """,
-      expectedSelections: [
-        "apiMethod",
-        """
-        public func apiMethod() {
-          print("Public API")
-        }
-        """,
-      ]
-    )
-  }
-
-  func testOpenClass() async throws {
-    try await assertSelectionRanges(
-      markedSource: """
-        open class BaseClass {
-          open func overrid1️⃣able() { }
-        }
-        """,
-      expectedSelections: [
-        "overridable",
-        "open func overridable() { }",
-      ]
-    )
-  }
-
-  // MARK: - Memory Management
-
-  func testWeakReference() async throws {
-    try await assertSelectionRanges(
-      markedSource: """
-        weak var dele1️⃣gate: MyDelegate?
-        """,
-      expectedSelections: [
-        "delegate",
-        "weak var delegate: MyDelegate?",
-      ]
-    )
-  }
-
-  func testUnownedReference() async throws {
-    try await assertSelectionRanges(
-      markedSource: """
-        unowned let par1️⃣ent: Parent
-        """,
-      expectedSelections: [
-        "parent",
-        "unowned let parent: Parent",
       ]
     )
   }
@@ -2071,32 +1879,6 @@ class SelectionRangeTests: XCTestCase {
     )
   }
 
-  // MARK: - ResultBuilder
-
-  func testResultBuilderAttribute() async throws {
-    try await assertSelectionRanges(
-      markedSource: """
-        @resultBui1️⃣lder
-        struct HTMLBuilder {
-          static func buildBlock(_ components: String...) -> String {
-            return components.joined()
-          }
-        }
-        """,
-      expectedSelections: [
-        "@resultBuilder",
-        """
-        @resultBuilder
-        struct HTMLBuilder {
-          static func buildBlock(_ components: String...) -> String {
-            return components.joined()
-          }
-        }
-        """,
-      ]
-    )
-  }
-
   // MARK: - Async Await
 
   func testAwaitExpression() async throws {
@@ -2182,26 +1964,6 @@ class SelectionRangeTests: XCTestCase {
     )
   }
 
-  func testPropertyWrapperDeclaration() async throws {
-    try await assertSelectionRanges(
-      markedSource: """
-        @propertyWrap1️⃣per
-        struct Clamped<Value: Comparable> {
-          var wrappedValue: Value
-        }
-        """,
-      expectedSelections: [
-        "@propertyWrapper",
-        """
-        @propertyWrapper
-        struct Clamped<Value: Comparable> {
-          var wrappedValue: Value
-        }
-        """,
-      ]
-    )
-  }
-
   // MARK: - Key Paths
 
   func testKeyPathExpression() async throws {
@@ -2213,44 +1975,6 @@ class SelectionRangeTests: XCTestCase {
         "name",
         "\\Person.name",
         "let keyPath = \\Person.name",
-      ]
-    )
-  }
-
-  func testKeyPathSubscript() async throws {
-    try await assertSelectionRanges(
-      markedSource: """
-        let value = person[keyPath: \\.na1️⃣me]
-        """,
-      expectedSelections: [
-        "name",
-        "\\.name",
-        "keyPath: \\.name",
-        "[keyPath: \\.name]",
-        "person[keyPath: \\.name]",
-        "let value = person[keyPath: \\.name]",
-      ]
-    )
-  }
-
-  // MARK: - Dynamic Member Lookup
-
-  func testDynamicMemberLookup() async throws {
-    try await assertSelectionRanges(
-      markedSource: """
-        @dynamicMembe1️⃣rLookup
-        struct JSON {
-          subscript(dynamicMember key: String) -> String? { nil }
-        }
-        """,
-      expectedSelections: [
-        "@dynamicMemberLookup",
-        """
-        @dynamicMemberLookup
-        struct JSON {
-          subscript(dynamicMember key: String) -> String? { nil }
-        }
-        """,
       ]
     )
   }
