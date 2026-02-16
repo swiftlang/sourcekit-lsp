@@ -589,6 +589,7 @@ extension LabeledExprListSyntax: SelectionRangeProvider {}
 extension MacroExpansionExprSyntax: SelectionRangeProvider {}
 extension OperatorDeclSyntax: SelectionRangeProvider {}
 extension PlatformVersionSyntax: SelectionRangeProvider {}
+extension PrefixOperatorExprSyntax: SelectionRangeProvider {}
 extension RepeatStmtSyntax: SelectionRangeProvider {}
 extension ReturnClauseSyntax: SelectionRangeProvider {}
 extension ReturnStmtSyntax: SelectionRangeProvider {}

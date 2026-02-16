@@ -129,6 +129,19 @@ class SelectionRangeTests: XCTestCase {
     )
   }
 
+  func testNegativeIntegerLiteral() async throws {
+    try await assertSelectionRanges(
+      markedSource: """
+        let x = -101️⃣0
+        """,
+      expectedSelections: [
+        "100",
+        "-100",
+        "let x = -100",
+      ]
+    )
+  }
+
   func testFloatLiteral() async throws {
     try await assertSelectionRanges(
       markedSource: """
