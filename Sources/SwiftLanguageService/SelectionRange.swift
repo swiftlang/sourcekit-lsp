@@ -431,17 +431,22 @@ extension PatternBindingSyntax: SelectionRangeProvider {
   }
 }
 
-extension CodeBlockSyntax: SelectionRangeProvider {
+extension IfExprSyntax: SelectionRangeProvider {
   func calculateSelectionRanges(position: AbsolutePosition) -> [Range<AbsolutePosition>] {
-    if let ifExpression = self.parent?.as(IfExprSyntax.self),
-      let elseKeyword = ifExpression.elseKeyword,
-      ifExpression.elseBody?.id == self.id
+    var ranges: [Range<AbsolutePosition>] = []
+
+    if let elseKeyword = self.elseKeyword,
+      let elseBody = self.elseBody
     {
-      // Special case for if expression: when inside the else block add a range for selecting `else {...}`
-      return [elseKeyword.positionAfterSkippingLeadingTrivia..<self.endPositionBeforeTrailingTrivia]
+      // When inside the else block add a range for selecting `else {...}`
+      let range = elseKeyword.positionAfterSkippingLeadingTrivia..<elseBody.endPositionBeforeTrailingTrivia
+      if range.contains(position) {
+        ranges.append(range)
+      }
     }
 
-    return []
+    ranges.append(self.trimmedRange)
+    return ranges
   }
 }
 
@@ -575,7 +580,6 @@ extension GenericParameterListSyntax: SelectionRangeProvider {}
 extension GenericRequirementSyntax: SelectionRangeProvider {}
 extension GenericWhereClauseSyntax: SelectionRangeProvider {}
 extension GuardStmtSyntax: SelectionRangeProvider {}
-extension IfExprSyntax: SelectionRangeProvider {}
 extension ImplicitlyUnwrappedOptionalTypeSyntax: SelectionRangeProvider {}
 extension InheritanceClauseSyntax: SelectionRangeProvider {}
 extension InheritedTypeListSyntax: SelectionRangeProvider {}
