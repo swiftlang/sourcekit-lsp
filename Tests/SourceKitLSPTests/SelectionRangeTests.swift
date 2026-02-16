@@ -129,6 +129,15 @@ class SelectionRangeTests: XCTestCase {
     )
   }
 
+  func testFloatLiteral() async throws {
+    try await testSelectionRange(
+      markedSource: """
+        let x = 3.1️⃣5
+        """,
+      expectedSelections: ["3.5", "let x = 3.5"]
+    )
+  }
+
   func testBinaryExpression() async throws {
     try await testSelectionRange(
       markedSource: "let a = test(3 + 51️⃣)",
@@ -1013,7 +1022,7 @@ class SelectionRangeTests: XCTestCase {
   func testForLoopCursorInForKeyword() async throws {
     try await testSelectionRange(
       markedSource: "f1️⃣or i in 1...3 {}",
-      expectedSelections: ["for i in 1...3 {}"]
+      expectedSelections: ["for", "for i in 1...3 {}"]
     )
   }
 

@@ -298,20 +298,18 @@ extension FunctionParameterSyntax: SelectionRangeProvider {
       return [rangeWithoutComma]
     }
 
-    let firstNameRange = self.firstName.trimmedRange
+    var ranges: [Range<AbsolutePosition>] = []
 
     if let secondName = self.secondName {
-      // If the parameter has two names we return a range for just the name under the cursor,
-      // both names and the entire parameter.
-      let range = firstNameRange.lowerBound..<secondName.endPositionBeforeTrailingTrivia
-      if firstName.range.contains(position) {
-        return [firstNameRange, range, rangeWithoutComma]
-      } else if secondName.range.contains(position) {
-        return [secondName.trimmedRange, range, rangeWithoutComma]
+      // If the parameter has two names, add an additional range for selecting both names
+      let range = self.firstName.positionAfterSkippingLeadingTrivia..<secondName.endPositionBeforeTrailingTrivia
+      if range.contains(position) {
+        ranges.append(range)
       }
     }
 
-    return [firstNameRange, rangeWithoutComma]
+    ranges.append(rangeWithoutComma)
+    return ranges
   }
 }
 
@@ -352,18 +350,13 @@ extension EnumCaseParameterSyntax: SelectionRangeProvider {
 
     var ranges: [Range<AbsolutePosition>] = []
 
-    if let firstName = self.firstName {
-      if let secondName = self.secondName {
-        // The parameter has two names, first select the one with the cursor in it and then both
-        let range = firstName.positionAfterSkippingLeadingTrivia..<secondName.endPositionBeforeTrailingTrivia
-        if firstName.range.contains(position) {
-          ranges.append(firstName.trimmedRange)
-        } else if secondName.range.contains(position) {
-          ranges.append(secondName.trimmedRange)
-        }
+    if let firstName = self.firstName,
+      let secondName = self.secondName
+    {
+      // The parameter has two names, add a selection range for selecting both names
+      let range = firstName.positionAfterSkippingLeadingTrivia..<secondName.endPositionBeforeTrailingTrivia
+      if range.contains(position) {
         ranges.append(range)
-      } else {
-        ranges.append(firstName.trimmedRange)
       }
     }
 
@@ -491,17 +484,6 @@ extension MemberAccessExprSyntax: SelectionRangeProvider {
   }
 }
 
-extension IdentifierTypeSyntax: SelectionRangeProvider {
-  func calculateSelectionRanges(position: AbsolutePosition) -> [Range<AbsolutePosition>] {
-    if self.parent?.is(AttributeSyntax.self) ?? false {
-      // For attributes we don't want to create a range for just the attribute but rather always include the `@`
-      return []
-    }
-
-    return [self.trimmedRange]
-  }
-}
-
 extension AvailabilityArgumentSyntax: SelectionRangeProvider {
   func calculateSelectionRanges(position: AbsolutePosition) -> [Range<AbsolutePosition>] {
     if let trailingComma = self.trailingComma {
@@ -516,30 +498,39 @@ extension AvailabilityArgumentSyntax: SelectionRangeProvider {
 
 extension TokenSyntax: SelectionRangeProvider {
   func calculateSelectionRanges(position: AbsolutePosition) -> [Range<AbsolutePosition>] {
-    let parentTypes: [any SyntaxProtocol.Type] = [
-      LabeledExprSyntax.self,
-      AssociatedTypeDeclSyntax.self,
-      OperatorDeclSyntax.self,
-    ]
+    switch self.tokenKind {
+    case .identifier where self.parent?.parent?.is(AttributeSyntax.self) ?? false:
+      // For attributes we don't want to create a range for just the attribute name but rather always include the `@`
+      return []
 
-    if parentTypes.contains(where: { self.parent?.is($0) ?? false }) {
+    case .identifier where self.parent?.is(MacroExpansionExprSyntax.self) ?? false:
+      // For macro expansions we don't want to create a range for just the macro name but rather always include the `#`
+      return []
+
+    case .identifier where self.parent?.is(GenericParameterSyntax.self) ?? false:
+      // For generic parameters we want to handle the identifier in the `GenericParameter` node as we may have to
+      // include or exclude the trailing comma
+      return []
+
+    case .keyword(let keyword) where keyword == .as:
+      // The `as` keyword should always be handled by the `UnresolvedAsExpr` node as it also includes the `!` or `?`
+      return []
+
+    case .binaryOperator, .dollarIdentifier, .floatLiteral, .identifier, .integerLiteral, .keyword:
       return [self.trimmedRange]
-    }
 
-    if self.parent?.isProtocol((any DeclGroupSyntax).self) ?? false
+    case _
+    where self.parent?.isProtocol((any DeclGroupSyntax).self) ?? false
       || self.parent?.is(TypeAliasDeclSyntax.self) ?? false
       || self.parent?.is(FunctionDeclSyntax.self) ?? false
-    {
+      || self.parent?.is(InitializerDeclSyntax.self) ?? false
+      || self.parent?.is(MacroDeclSyntax.self) ?? false
+      || self.parent?.is(SubscriptDeclSyntax.self) ?? false:
       return [self.trimmedRange]
-    }
 
-    if case .keyword(let keyword) = self.tokenKind,
-      keyword == .async || keyword == .reasync
-    {
-      return [self.trimmedRange]
+    default:
+      return []
     }
-
-    return []
   }
 }
 
@@ -584,13 +575,11 @@ extension GenericParameterListSyntax: SelectionRangeProvider {}
 extension GenericRequirementSyntax: SelectionRangeProvider {}
 extension GenericWhereClauseSyntax: SelectionRangeProvider {}
 extension GuardStmtSyntax: SelectionRangeProvider {}
-extension IdentifierPatternSyntax: SelectionRangeProvider {}
 extension IfExprSyntax: SelectionRangeProvider {}
 extension ImplicitlyUnwrappedOptionalTypeSyntax: SelectionRangeProvider {}
 extension InheritanceClauseSyntax: SelectionRangeProvider {}
 extension InheritedTypeListSyntax: SelectionRangeProvider {}
 extension InitializerDeclSyntax: SelectionRangeProvider {}
-extension IntegerLiteralExprSyntax: SelectionRangeProvider {}
 extension KeyPathExprSyntax: SelectionRangeProvider {}
 extension LabeledExprListSyntax: SelectionRangeProvider {}
 extension MacroExpansionExprSyntax: SelectionRangeProvider {}
