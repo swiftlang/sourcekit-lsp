@@ -115,10 +115,6 @@ private func calculateRangesFor(
   position: AbsolutePosition
 ) -> [Range<AbsolutePosition>] {
   if let stringSegment = node.as(StringSegmentSyntax.self) {
-    // We have to use custom logic for string segments as they need the position.
-    // We cannot provide the position in the protocol as it may not always be correct due to the logic in findIntuitiveToken().
-    // For the string segment this does not matter as when we encounter a string segment node we can be sure that
-    // findIntuitiveToken() always returned the original token.
     return calculateSelectionRangesForStringSegment(stringSegment: stringSegment, position: position)
   }
 
@@ -152,7 +148,7 @@ private func calculateSelectionRangesForStringSegment(
   position: AbsolutePosition
 ) -> [Range<AbsolutePosition>] {
   // For string segments we first want to select just the word under the cursor.
-  // To determine words we use a simple heuristic: expand the selection until we hit any whitespace character.
+  // To determine words we use a simple heuristic: expand the selection until we hit any non-letter character.
   let offsetInString = position.utf8Offset - stringSegment.positionAfterSkippingLeadingTrivia.utf8Offset
 
   let text = stringSegment.content.text
@@ -222,7 +218,7 @@ extension FunctionCallExprSyntax: SelectionRangeProvider {
       //  .map { $0 * 2 }
       //  .reduce(0,| +)
       //
-      // when starting a selection from | we want to have a selection for `reduce(0, +)` in addition to selecting
+      // When starting a selection from | we want to have a selection for `reduce(0, +)` in addition to selecting
       // the entire function call (starting from `numbers`)
       return [
         memberAccess.declName.positionAfterSkippingLeadingTrivia..<self.endPositionBeforeTrailingTrivia,
@@ -239,7 +235,7 @@ extension SubscriptCallExprSyntax: SelectionRangeProvider {
   func calculateSelectionRanges(position: AbsolutePosition) -> [Range<AbsolutePosition>] {
     // For subscript calls we want to have a selection range for the entire subscript operator
     // including the `[]`
-    // example: given `matrix[2, |3]` we want to be able to select `[2, 3]`
+    // Example: given `matrix[2, |3]` we want to be able to select `[2, 3]`
 
     if self.arguments.range.contains(position) {
       let start = self.leftSquare.positionAfterSkippingLeadingTrivia
@@ -253,7 +249,7 @@ extension SubscriptCallExprSyntax: SelectionRangeProvider {
 
 extension LabeledExprSyntax: SelectionRangeProvider {
   func calculateSelectionRanges(position: AbsolutePosition) -> [Range<AbsolutePosition>] {
-    // for labeled expressions we want to be able to select just the label and expression without the comma
+    // For labeled expressions we want to be able to select just the label and expression without the comma
     let start = self.positionAfterSkippingLeadingTrivia
     let end = self.expression.endPositionBeforeTrailingTrivia
 
@@ -263,7 +259,7 @@ extension LabeledExprSyntax: SelectionRangeProvider {
 
 extension GenericParameterSyntax: SelectionRangeProvider {
   func calculateSelectionRanges(position: AbsolutePosition) -> [Range<AbsolutePosition>] {
-    // don't include the trailing comma in the selection, except if the parameter is the only one
+    // Don't include the trailing comma in the selection, except if the parameter is the only one
     if let parameterList = self.parent?.as(GenericParameterListSyntax.self),
       parameterList.count == 1
     {
@@ -389,8 +385,8 @@ extension ExprListSyntax: SelectionRangeProvider {
       return []
     }
 
-    // walk up from the token to the operand node
-    // this is needed to avoid processing everything below the operand node two times, as everything below has already
+    // Walk up from the token to the operand node
+    // This is needed to avoid processing everything below the operand node two times, as everything below has already
     // been processed by the normal logic before hitting the ExprListSyntax
     var operandNode = Syntax(token)
     while let parent = operandNode.parent {
@@ -421,14 +417,14 @@ extension PatternBindingSyntax: SelectionRangeProvider {
     }
 
     if patternBindingList.children(viewMode: .sourceAccurate).count > 1 {
-      // special case for pattern bindings like this: `let x = 1, y = 2, z = 3`
-      // here we want to be able to select only `y = 2`
+      // Special case for pattern bindings like this: `let x = 1, y = 2, z = 3`
+      // Here we want to be able to select only `y = 2`
       let start = self.positionAfterSkippingLeadingTrivia
       let end = self.trailingComma?.position ?? self.endPositionBeforeTrailingTrivia
       return [start..<end]
     }
 
-    // by default we don't want to create ranges for pattern bindings to avoid selecting `x = 0` in `let x = 0`
+    // By default we don't want to create ranges for pattern bindings to avoid selecting `x = 0` in `let x = 0`
     return []
   }
 }
@@ -439,7 +435,7 @@ extension CodeBlockSyntax: SelectionRangeProvider {
       let elseKeyword = ifExpression.elseKeyword,
       ifExpression.elseBody?.id == self.id
     {
-      // special case for if expression: when inside the else block add a range for selecting `else {...}`
+      // Special case for if expression: when inside the else block add a range for selecting `else {...}`
       return [elseKeyword.positionAfterSkippingLeadingTrivia..<self.endPositionBeforeTrailingTrivia]
     }
 
@@ -489,7 +485,7 @@ extension MemberAccessExprSyntax: SelectionRangeProvider {
 extension IdentifierTypeSyntax: SelectionRangeProvider {
   func calculateSelectionRanges(position: AbsolutePosition) -> [Range<AbsolutePosition>] {
     if self.parent?.is(AttributeSyntax.self) ?? false {
-      // for attributes we don't want to create a range for just the attribute but rather always include the `@`
+      // For attributes we don't want to create a range for just the attribute but rather always include the `@`
       return []
     }
 
@@ -538,7 +534,7 @@ extension TokenSyntax: SelectionRangeProvider {
   }
 }
 
-// default implementation used by all the nodes declared below
+// Default implementation used by all the nodes declared below
 private extension SelectionRangeProvider {
   func calculateSelectionRanges(position: AbsolutePosition) -> [Range<AbsolutePosition>] {
     return [self.trimmedRange]
