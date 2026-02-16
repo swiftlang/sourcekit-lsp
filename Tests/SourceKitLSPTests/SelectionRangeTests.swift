@@ -21,7 +21,7 @@ class SelectionRangeTests: XCTestCase {
   // MARK: - StringsAndExpressions
 
   func testStringLiteralWithCursorInWord() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         let a = "Hel1️⃣lo, World!"
         """,
@@ -34,7 +34,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testStringLiteralWithCursorInWord2() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         let a = "Hello, Wor1️⃣ld!"
         """,
@@ -47,7 +47,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testStringLiteralWithCursorInWord3() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         let a = "Hello, 1️⃣World!"
         """,
@@ -60,7 +60,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testStringLiteralWithCursorInWhitespace() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         let a = "Hello,1️⃣ World!"
         """,
@@ -73,7 +73,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testStringLiteralWithUnicodeChars() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         let a = "test 🚀 tes1️⃣t"
         """,
@@ -82,7 +82,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testStringLiteralWithStringInterpolation() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         func a() {
           let a = "Hello \\(w1️⃣o)rld"
@@ -97,7 +97,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testMultipleCursors() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
           let a = "Hel1️⃣lo, World!"
           let b = "Hel2️⃣lo, World!"
@@ -112,7 +112,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testStringConcatenation() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
           let x = "abc" + "def" + "ghi" + "jk1️⃣l" + "mno" + "pqr" + "stu" + "vwx" + "yz"
         """,
@@ -130,7 +130,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testFloatLiteral() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         let x = 3.1️⃣5
         """,
@@ -139,14 +139,14 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testBinaryExpression() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: "let a = test(3 + 51️⃣)",
       expectedSelections: ["5", "3 + 5", "test(3 + 5)"]
     )
   }
 
   func testComplexConditionalExpression() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         let valid = (x > 0 && y <1️⃣ 100) || (x == 0 && y == 0)
         """,
@@ -162,7 +162,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testComplexConditionalExpression2() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         let valid = (x > 0 && (y < -11️⃣00)) || (x == 0 && y == 0)
         """,
@@ -182,7 +182,7 @@ class SelectionRangeTests: XCTestCase {
   // MARK: - VariableAndConstantDeclaration
 
   func testSimpleVariableDeclaration() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         var sim1️⃣ple = 42
         """,
@@ -194,7 +194,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testMultipleBindingsInSingleDeclaration() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         let x = 1, 1️⃣y = 2, z = 3
         """,
@@ -207,7 +207,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testVariableWithExplicitType() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         let name: Str1️⃣ing = "Swift"
         """,
@@ -220,7 +220,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testLazyVariable() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         lazy var data = exp1️⃣ensive()
         """,
@@ -233,7 +233,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testComputedProperty() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         var fullName: String {
           return first1️⃣Name + " " + lastName
@@ -259,7 +259,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testPropertyWithGetterAndSetter() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         var temperature: Double {
           get {
@@ -283,7 +283,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testPropertyWithGetterAndSetterWithCursorInName() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         var temp1️⃣erature: Double {
           get {
@@ -305,7 +305,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testPropertyWithWillSetDidSet() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         var count: Int = 0 {
           willSet {
@@ -354,7 +354,7 @@ class SelectionRangeTests: XCTestCase {
   // MARK: - FunctionsAndMethods
 
   func testChainedMethodCalls() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         let result = numbers
           .filter { $0 > 1️⃣0 }
@@ -432,7 +432,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testNestedFunctionCalls() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         let result = max(min(va1️⃣lue, 100), 0)
         """,
@@ -448,7 +448,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testFunctionCallParameterExplicit() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         func a() {
           b(c, d: 1️⃣320)
@@ -464,7 +464,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testFunctionCallCursorAfterLastParameter() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: "test(a: 12, b: 31️⃣)",
       expectedSelections: [
         "3",
@@ -476,7 +476,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testFunctionCallWithNoArguments() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: "test(1️⃣)",
       expectedSelections: [
         "test()"
@@ -485,7 +485,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testSimpleFunctionDeclarationParameter() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         func greet(nam1️⃣e: String) -> String {
           return "Hello, \\(name)"
@@ -504,7 +504,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testSimpleFunctionDeclarationWithCursorAfterLastParameter() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: "func test(a: Int, b: Int1️⃣) {}",
       expectedSelections: [
         "Int",
@@ -515,7 +515,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testSimpleFunctionDeclarationName() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         func gre1️⃣et(name: String) -> String {
           return "Hello, \\(name)"
@@ -533,14 +533,14 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testFunctionDeclarationWithCursorImmediatelyBeforeParenthesis() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: "func foo1️⃣(a: Int) {}",
       expectedSelections: ["foo", "func foo(a: Int) {}"]
     )
   }
 
   func testFunctionDeclarationWithTwoNameParameter() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: "func test(abc de1️⃣f: String) {}",
       expectedSelections: [
         "def",
@@ -551,7 +551,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testFunctionWithMultipleParameters() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         func calculate(a: Int, b: I1️⃣nt, operation: (Int, Int) -> Int) -> Int {
           return operation(a, b)
@@ -571,7 +571,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testFunctionWithDefaultParameters() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         func greet(name: String, greeting: String = "Hel1️⃣lo") {
           print("\\(greeting), \\(name)")
@@ -587,7 +587,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testFunctionWithVariadicParameters() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         func sum(numbers: I1️⃣nt...) -> Int {
           return numbers.reduce(0, +)
@@ -602,7 +602,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testFunctionWithInoutParameter() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         func swap(a: inout In1️⃣t, b: inout Int) {
           let temp = a
@@ -620,7 +620,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testReturnType() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         func test() -> Str1️⃣ing {
           return "test"
@@ -639,7 +639,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testReturnTypeWithEffects() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         func test() async throws -> Str1️⃣ing {
           return "test"
@@ -658,7 +658,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testFunctionWithThrows() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         func processFile() thr1️⃣ows -> String {
           return try readFile()
@@ -676,7 +676,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testAsyncFunction() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         func fetchData() as1️⃣ync throws -> Data {
           return try await URLSession.shared.data(from: url)
@@ -690,7 +690,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testFunctionWithGenericParameter() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         func identity<1️⃣T>(value: T) -> T {
           return value
@@ -705,7 +705,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testFunctionWithGenericParameterCursorAfterGenericVariable() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: "func test<T1️⃣>() {}",
       expectedSelections: [
         "T",
@@ -716,7 +716,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testFunctionWithMultipleGenericParameters() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         func test<T1️⃣, S>(value: T) {}
         """,
@@ -730,7 +730,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testGenericParametersWithTrailingComma() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: "func test<T,1️⃣>() {}",
       expectedSelections: [
         "T,",
@@ -741,7 +741,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testGenericParametersWithTrailingComma2() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: "func test<T1️⃣,>() {}",
       expectedSelections: [
         "T,",
@@ -752,7 +752,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testFunctionWithWhereClause() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         func compare<T>(a: T, b: T) -> Bool where T: Co1️⃣mparable {
           return a < b
@@ -774,7 +774,7 @@ class SelectionRangeTests: XCTestCase {
   // MARK: - ClosuresAndFunctionTypes
 
   func testSimpleClosure() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         let closure = { (x: Int) -> Int in
           return x * 1️⃣2
@@ -799,7 +799,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testClosureCursorImmediatelyBeforeBrace() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
           let x = "abc".map 1️⃣{ $0 }
         """,
@@ -813,7 +813,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testTrailingClosure() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         numbers.map { nu1️⃣m in
           return num * 2
@@ -838,7 +838,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testShorthandClosureArgument() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         let doubled = numbers.map { $0 1️⃣* 2 }
         """,
@@ -854,7 +854,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testMultipleTrailingClosures() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         loadData { data in
           process(da1️⃣ta)
@@ -884,7 +884,7 @@ class SelectionRangeTests: XCTestCase {
   // MARK: - ControlFlow
 
   func testIfStatement() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         if x >1️⃣ 0 {
           print("positive")
@@ -903,7 +903,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testIfElseStatement() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         if x > 0 {
           print("positive")
@@ -932,7 +932,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testGuardStatement() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         guard let va1️⃣lue = optional else {
           return
@@ -951,7 +951,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testSwitchStatement() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         switch value {
         case .option1️⃣1:
@@ -981,7 +981,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testSwitchWithMultipleCases() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         switch value {
         case 1...5, 10.1️⃣..15:
@@ -1000,7 +1000,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testForLoop() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         for i in 1..<1️⃣10 {
           print(i)
@@ -1020,14 +1020,14 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testForLoopCursorInForKeyword() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: "f1️⃣or i in 1...3 {}",
       expectedSelections: ["for", "for i in 1...3 {}"]
     )
   }
 
   func testWhileLoop() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         while counter <1️⃣ 10 {
           counter += 1
@@ -1046,7 +1046,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testRepeatWhileLoop() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         repeat {
           counter +1️⃣= 1
@@ -1067,7 +1067,7 @@ class SelectionRangeTests: XCTestCase {
   // MARK: - ClassesAndStructs
 
   func testClassDeclaration() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         class MyC1️⃣lass: SuperClass, Protocol1 {
           var property: Int = 0
@@ -1085,7 +1085,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testClassDeclarationInheritance() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         class MyClass: SuperC1️⃣lass, Protocol1, Protocol2 {
           var property: Int = 0
@@ -1105,7 +1105,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testStructDeclaration() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         struct Po1️⃣int {
           var x: Double
@@ -1125,7 +1125,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testClassWithInitializer() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         class Person {
           let name: String
@@ -1147,7 +1147,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testDeinitializer() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         class Resource {
           deinit {
@@ -1172,7 +1172,7 @@ class SelectionRangeTests: XCTestCase {
   // MARK: - Enums
 
   func testSimpleEnum() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         enum Direction {
           case no1️⃣rth
@@ -1197,7 +1197,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testEnumWithAssociatedValues() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         enum Result {
           case success(val1️⃣ue: String)
@@ -1220,7 +1220,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testEnumWithRawValues() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         enum Planet: Int {
           case mercury = 1️⃣1
@@ -1244,7 +1244,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testEnumWithMethods() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         enum CompassPoint {
           case north, south
@@ -1279,7 +1279,7 @@ class SelectionRangeTests: XCTestCase {
   // MARK: - Protocols
 
   func testProtocolDeclaration() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         protocol Drawable {
           func dra1️⃣w()
@@ -1298,7 +1298,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testProtocolWithAssociatedType() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         protocol Container {
           associatedtype Ite1️⃣m
@@ -1319,7 +1319,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testProtocolInheritance() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         protocol TextRepresentable: CustomString1️⃣Convertible {
           var text: String { get }
@@ -1338,7 +1338,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testProtocolInheritance2() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         protocol TextRepr1️⃣esentable: CustomStringConvertible {
           var text: String { get }
@@ -1356,7 +1356,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testProtocolInheritance3() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         protocol TextRepresentable: CustomStringConve1️⃣rtible, Protocol2, Protocol3 {
           var text: String { get }
@@ -1376,7 +1376,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testProtocolComposition() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         func process(item: Codable & Hashab1️⃣le) {
           print(item)
@@ -1398,7 +1398,7 @@ class SelectionRangeTests: XCTestCase {
   // MARK: - Extensions
 
   func testExtension() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         extension St1️⃣ring {
           func reversed() -> String {
@@ -1420,7 +1420,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testExtensionWithWhereClause() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         extension Ar1️⃣ray where Element == String {
           var description: String { return "" }
@@ -1438,7 +1438,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testExtensionWithConformance() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         extension Array: CustomStr1️⃣ingConvertible where Element: CustomStringConvertible {
           var description: String { return "" }
@@ -1459,7 +1459,7 @@ class SelectionRangeTests: XCTestCase {
   // MARK: - Generics
 
   func testGenericStruct() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         struct Stack<Ele1️⃣ment> {
           var items: [Element] = []
@@ -1479,7 +1479,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testGenericStructWithCursorImmediatelyBeforeAngle() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         struct Stack1️⃣<Element> {
           var items: [Element] = []
@@ -1498,7 +1498,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testGenericFunction() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: "func te1️⃣st<T>() {}",
       expectedSelections: [
         "test",
@@ -1509,7 +1509,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testGenericConstraints() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         func findIndex<T>(of value: T, in array: [T]) -> Int? where T: Equat1️⃣able {
           return array.firstIndex(of: value)
@@ -1526,7 +1526,7 @@ class SelectionRangeTests: XCTestCase {
   // MARK: - Operators
 
   func testCustomOperator() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: "infix operator *1️⃣*: MultiplicationPrecedence",
       expectedSelections: [
         "**",
@@ -1538,7 +1538,7 @@ class SelectionRangeTests: XCTestCase {
   // MARK: - ErrorHandling
 
   func testThrowStatement() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         func validate() throws {
           throw ValidationErr1️⃣or.invalid
@@ -1558,7 +1558,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testDoCatchBlock() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         do {
           try riskyOper1️⃣ation()
@@ -1582,7 +1582,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testTryOptional() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         let result = try? load1️⃣Data()
         """,
@@ -1596,7 +1596,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testTryForced() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         let result = try! load1️⃣Data()
         """,
@@ -1612,7 +1612,7 @@ class SelectionRangeTests: XCTestCase {
   // MARK: - TypeCastingAndChecking
 
   func testTypeCheck() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         if item is Str1️⃣ing {
           print("It's a string")
@@ -1631,7 +1631,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testTypeDowncast() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         if let text = item as1️⃣? String {
           print(text)
@@ -1651,7 +1651,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testForcedDowncast() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         let text = item a1️⃣s! String
         """,
@@ -1666,7 +1666,7 @@ class SelectionRangeTests: XCTestCase {
   // MARK: - OptionalHandling
 
   func testOptionalBinding() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         if let na1️⃣me = optionalName {
           print(name)
@@ -1685,7 +1685,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testOptionalChaining() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         let count = person?.address?.str1️⃣eet?.count
         """,
@@ -1699,7 +1699,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testNilCoalescing() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         let name = optionalName ??1️⃣ "Default"
         """,
@@ -1712,7 +1712,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testImplicitlyUnwrappedOptional() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         var assumedString: Str1️⃣ing! = "An implicit string"
         """,
@@ -1728,7 +1728,7 @@ class SelectionRangeTests: XCTestCase {
   // MARK: - Attributes
 
   func testAvailableAttribute() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         @available(iOS 1️⃣15, *)
         func modernFeature() {
@@ -1751,7 +1751,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testDiscardableResultAttribute() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         @discardableRes1️⃣ult
         func compute() -> Int {
@@ -1771,7 +1771,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testEscapingAttribute() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         func perform(completion: @esc1️⃣aping () -> Void) {
           completion()
@@ -1791,7 +1791,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testMainActorAttribute() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         @MainAct1️⃣or
         class ViewController {
@@ -1813,7 +1813,7 @@ class SelectionRangeTests: XCTestCase {
   // MARK: - PatternMatching
 
   func testEnumCasePattern() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         if case .success(let val1️⃣ue) = result {
           print(value)
@@ -1834,7 +1834,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testTuplePattern() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         let (x, 1️⃣y, z) = point
         """,
@@ -1848,7 +1848,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testWildcardPattern() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         for (_, val1️⃣ue) in dictionary {
           print(value)
@@ -1871,7 +1871,7 @@ class SelectionRangeTests: XCTestCase {
   // MARK: - AccessControl
 
   func testPrivateModifier() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         private var secr1️⃣et: String = "hidden"
         """,
@@ -1883,7 +1883,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testPublicModifier() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         public func api1️⃣Method() {
           print("Public API")
@@ -1901,7 +1901,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testOpenClass() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         open class BaseClass {
           open func overrid1️⃣able() { }
@@ -1917,7 +1917,7 @@ class SelectionRangeTests: XCTestCase {
   // MARK: - MemoryManagement
 
   func testWeakReference() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         weak var dele1️⃣gate: MyDelegate?
         """,
@@ -1929,7 +1929,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testUnownedReference() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         unowned let par1️⃣ent: Parent
         """,
@@ -1943,7 +1943,7 @@ class SelectionRangeTests: XCTestCase {
   // MARK: - Subscripts
 
   func testSubscriptDeclaration() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         subscript(ind1️⃣ex: Int) -> Int {
           get { return array[index] }
@@ -1964,7 +1964,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testSubscriptUsage() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         let value = matrix[1️⃣2, 3]
         """,
@@ -1979,7 +1979,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testSubScriptUsageWithCursorImmediatelyBeforeSquare() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         let value = matrix1️⃣[2, 3]
         """,
@@ -1994,7 +1994,7 @@ class SelectionRangeTests: XCTestCase {
   // MARK: - TupleAndArrayOperations
 
   func testTupleCreation() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         let person = (name: "John", ag1️⃣e: 30)
         """,
@@ -2009,7 +2009,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testArrayLiteral() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         let numbers = [1, 2, 1️⃣3, 4, 5]
         """,
@@ -2023,7 +2023,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testDictionaryLiteral() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         let dict = ["key": "val1️⃣ue", "another": "item"]
         """,
@@ -2041,7 +2041,7 @@ class SelectionRangeTests: XCTestCase {
   // MARK: - Macros
 
   func testMacroUsage() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: "#warnin1️⃣g(\"This is deprecated\")",
       expectedSelections: [
         "#warning(\"This is deprecated\")"
@@ -2052,7 +2052,7 @@ class SelectionRangeTests: XCTestCase {
   // MARK: - ResultBuilder
 
   func testResultBuilderAttribute() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         @resultBui1️⃣lder
         struct HTMLBuilder {
@@ -2078,7 +2078,7 @@ class SelectionRangeTests: XCTestCase {
   // MARK: - AsyncAwait
 
   func testAwaitExpression() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         let data = await fetchDa1️⃣ta()
         """,
@@ -2092,7 +2092,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testAsyncLet() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         async let image1️⃣ = loadImage()
         """,
@@ -2104,7 +2104,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testTaskGroup() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         await withTaskGroup(of: Int.self) { gro1️⃣up in
           for i in 1...10 {
@@ -2149,7 +2149,7 @@ class SelectionRangeTests: XCTestCase {
   // MARK: - PropertyWrappers
 
   func testPropertyWrapperUsage() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         @Published var cou1️⃣nt: Int = 0
         """,
@@ -2161,7 +2161,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testPropertyWrapperDeclaration() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         @propertyWrap1️⃣per
         struct Clamped<Value: Comparable> {
@@ -2183,7 +2183,7 @@ class SelectionRangeTests: XCTestCase {
   // MARK: - KeyPaths
 
   func testKeyPathExpression() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         let keyPath = \\Person.na1️⃣me
         """,
@@ -2196,7 +2196,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testKeyPathSubscript() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         let value = person[keyPath: \\.na1️⃣me]
         """,
@@ -2214,7 +2214,7 @@ class SelectionRangeTests: XCTestCase {
   // MARK: - DynamicMemberLookup
 
   func testDynamicMemberLookup() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         @dynamicMembe1️⃣rLookup
         struct JSON {
@@ -2236,7 +2236,7 @@ class SelectionRangeTests: XCTestCase {
   // MARK: - TypeAliases
 
   func testTypeAlias() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         typealias StringDict1️⃣ionary = [String: String]
         """,
@@ -2248,7 +2248,7 @@ class SelectionRangeTests: XCTestCase {
   }
 
   func testGenericTypeAlias() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: """
         typealias Handler<T1️⃣> = (T) -> Void
         """,
@@ -2264,151 +2264,151 @@ class SelectionRangeTests: XCTestCase {
   // MARK: - Actors
 
   func testActorDeclaration() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: "actor Te1️⃣st {}",
       expectedSelections: ["Test", "actor Test {}"]
     )
   }
 
   func testActorDeclarationWithGenerics() async throws {
-    try await testSelectionRange(
+    try await assertSelectionRanges(
       markedSource: "actor Test<T1️⃣> {}",
       expectedSelections: ["T", "<T>", "Test<T>", "actor Test<T> {}"]
     )
   }
+}
 
-  /// Helper to test selection ranges for a single marker ("1️⃣") in the source.
-  ///
-  /// - Parameters:
-  ///   - markedSource: The source code string containing a single marker ("1️⃣") indicating the cursor position.
-  ///   - expectedSelections: The expected selection ranges, from innermost to outermost, as strings.
-  ///   - file: The file from which the test is called (default: current file).
-  ///   - line: The line from which the test is called (default: current line).
-  ///
-  /// This function wraps the multi-marker version for convenience when only one marker is present.
-  func testSelectionRange(
-    markedSource: String,
-    expectedSelections: [String],
-    file: StaticString = #filePath,
-    line: UInt = #line
-  ) async throws {
-    try await testSelectionRange(
-      markedSource: markedSource,
-      expectedSelections: ["1️⃣": expectedSelections],
-      file: file,
-      line: line
+/// Helper to test selection ranges for a single marker ("1️⃣") in the source.
+///
+/// - Parameters:
+///   - markedSource: The source code string containing a single marker ("1️⃣") indicating the cursor position.
+///   - expectedSelections: The expected selection ranges, from innermost to outermost, as strings.
+///   - file: The file from which the test is called (default: current file).
+///   - line: The line from which the test is called (default: current line).
+///
+/// This function wraps the multi-marker version for convenience when only one marker is present.
+private func assertSelectionRanges(
+  markedSource: String,
+  expectedSelections: [String],
+  file: StaticString = #filePath,
+  line: UInt = #line
+) async throws {
+  try await assertSelectionRanges(
+    markedSource: markedSource,
+    expectedSelections: ["1️⃣": expectedSelections],
+    file: file,
+    line: line
+  )
+}
+
+/// Helper to test selection ranges for multiple markers in the source.
+/// This function extracts marker positions from the source, sends selection range requests, and checks that the returned ranges match the expected selections for each marker.
+/// The test does not fail if `expectedSelections` contains less selection ranges than the request returned.
+/// This is done to avoid having to always list all selections for all tests.
+///
+/// - Parameters:
+///   - markedSource: The source code string containing one or more markers (e.g., "1️⃣", "2️⃣") indicating cursor positions.
+///   - expectedSelections: A dictionary mapping marker strings to arrays of expected selection ranges (from innermost to outermost) as strings.
+///   - file: The file from which the test is called (default: current file).
+///   - line: The line from which the test is called (default: current line).
+private func assertSelectionRanges(
+  markedSource: String,
+  expectedSelections: [String: [String]],
+  file: StaticString = #filePath,
+  line: UInt = #line
+) async throws {
+  let (documentPositions, text) = DocumentPositions.extract(from: markedSource)
+
+  // check that all expectedSelections are valid
+  XCTAssertEqual(
+    Set(expectedSelections.keys),
+    Set(documentPositions.allMarkers),
+    "The markers used in the source differ from those in the expected selections. Source: \(documentPositions.allMarkers) Expected: \(expectedSelections.keys)",
+    file: file,
+    line: line
+  )
+  let flatMappedSelections = expectedSelections.values.flatMap { $0 }
+  XCTAssert(
+    flatMappedSelections.allSatisfy { text.contains($0) },
+    "The following expected selections are not contained in the source:\n \(flatMappedSelections.filter { !text.contains($0) }.joined(separator: "\n"))",
+    file: file,
+    line: line
+  )
+
+  // check the actual returned ranges
+  let testClient = try await TestSourceKitLSPClient()
+  let uri = DocumentURI(for: .swift)
+  testClient.openDocument(text, uri: uri)
+
+  for marker in documentPositions.allMarkers {
+    let position = documentPositions[marker]
+    let response = try await testClient.send(
+      SelectionRangeRequest(textDocument: TextDocumentIdentifier(uri), positions: [position])
     )
-  }
 
-  /// Helper to test selection ranges for multiple markers in the source.
-  /// This function extracts marker positions from the source, sends selection range requests, and checks that the returned ranges match the expected selections for each marker.
-  /// The test does not fail if `expectedSelections` contains less selection ranges than the request returned.
-  /// This is done to avoid having to always list all selections for all tests.
-  ///
-  /// - Parameters:
-  ///   - markedSource: The source code string containing one or more markers (e.g., "1️⃣", "2️⃣") indicating cursor positions.
-  ///   - expectedSelections: A dictionary mapping marker strings to arrays of expected selection ranges (from innermost to outermost) as strings.
-  ///   - file: The file from which the test is called (default: current file).
-  ///   - line: The line from which the test is called (default: current line).
-  func testSelectionRange(
-    markedSource: String,
-    expectedSelections: [String: [String]],
-    file: StaticString = #filePath,
-    line: UInt = #line
-  ) async throws {
-    let (documentPositions, text) = DocumentPositions.extract(from: markedSource)
+    let lineTable = LineTable(text)
 
-    // check that all expectedSelections are valid
-    XCTAssertEqual(
-      Set(expectedSelections.keys),
-      Set(documentPositions.allMarkers),
-      "The markers used in the source differ from those in the expected selections. Source: \(documentPositions.allMarkers) Expected: \(expectedSelections.keys)",
-      file: file,
-      line: line
-    )
-    let flatMappedSelections = expectedSelections.values.flatMap { $0 }
-    XCTAssert(
-      flatMappedSelections.allSatisfy { text.contains($0) },
-      "The following expected selections are not contained in the source:\n \(flatMappedSelections.filter { !text.contains($0) }.joined(separator: "\n"))",
-      file: file,
-      line: line
-    )
+    let range = response.first ?? nil
+    let expected = expectedSelections[marker] ?? []
 
-    // check the actual returned ranges
-    let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI(for: .swift)
-    testClient.openDocument(text, uri: uri)
-
-    for marker in documentPositions.allMarkers {
-      let position = documentPositions[marker]
-      let response = try await testClient.send(
-        SelectionRangeRequest(textDocument: TextDocumentIdentifier(uri), positions: [position])
+    var rangeIndex = 0
+    var currentRange: SelectionRange? = range
+    while rangeIndex < expected.count {
+      let selectString = getStringOfSelectionRange(lineTable: lineTable, selectionRange: currentRange)
+      XCTAssertEqual(
+        selectString,
+        expected[rangeIndex],
+        selectionRangeMismatchMessage(
+          marker: marker,
+          expected: expected[rangeIndex],
+          actual: String(selectString)
+        ),
+        file: file,
+        line: line
       )
 
-      let lineTable = LineTable(text)
-
-      let range = response.first ?? nil
-      let expected = expectedSelections[marker] ?? []
-
-      var rangeIndex = 0
-      var currentRange: SelectionRange? = range
-      while rangeIndex < expected.count {
-        let selectString = getStringOfSelectionRange(lineTable: lineTable, selectionRange: currentRange)
-        XCTAssertEqual(
-          selectString,
-          expected[rangeIndex],
-          selectionRangeMismatchMessage(
-            marker: marker,
-            expected: expected[rangeIndex],
-            actual: String(selectString)
-          ),
-          file: file,
-          line: line
-        )
-
-        currentRange = currentRange?.parent
-        rangeIndex += 1
-      }
+      currentRange = currentRange?.parent
+      rangeIndex += 1
     }
   }
+}
 
-  func selectionRangeMismatchMessage(marker: String, expected: String, actual: String) -> String {
-    let isMultiline = expected.contains("\n") || actual.contains("\n")
+private func selectionRangeMismatchMessage(marker: String, expected: String, actual: String) -> String {
+  let isMultiline = expected.contains("\n") || actual.contains("\n")
 
-    if isMultiline {
-      return """
-        Selection range mismatch for marker \(marker):
+  if isMultiline {
+    return """
+      Selection range mismatch for marker \(marker):
 
-        Expected:
-        \(expected)
+      Expected:
+      \(expected)
 
-        Actual:
-        \(actual)
-        """
-    } else {
-      return """
-        Selection range mismatch for marker \(marker):
-          Expected: \(expected)
-          Actual:   \(actual)
-        """
-    }
+      Actual:
+      \(actual)
+      """
+  } else {
+    return """
+      Selection range mismatch for marker \(marker):
+        Expected: \(expected)
+        Actual:   \(actual)
+      """
+  }
+}
+
+private func getStringOfSelectionRange(lineTable: LineTable, selectionRange: SelectionRange?) -> String {
+  guard let selectionRange = selectionRange else {
+    return "<no selection range>"
   }
 
-  func getStringOfSelectionRange(lineTable: LineTable, selectionRange: SelectionRange?) -> String {
-    guard let selectionRange = selectionRange else {
-      return "<no selection range>"
-    }
+  let lowerBoundIndex = lineTable.stringIndexOf(
+    line: selectionRange.range.lowerBound.line,
+    utf16Column: selectionRange.range.lowerBound.utf16index
+  )
+  let upperBoundIndex = lineTable.stringIndexOf(
+    line: selectionRange.range.upperBound.line,
+    utf16Column: selectionRange.range.upperBound.utf16index
+  )
 
-    let lowerBoundIndex = lineTable.stringIndexOf(
-      line: selectionRange.range.lowerBound.line,
-      utf16Column: selectionRange.range.lowerBound.utf16index
-    )
-    let upperBoundIndex = lineTable.stringIndexOf(
-      line: selectionRange.range.upperBound.line,
-      utf16Column: selectionRange.range.upperBound.utf16index
-    )
-
-    let slice = lineTable.content[lowerBoundIndex..<upperBoundIndex]
-    return String(slice)
-  }
+  let slice = lineTable.content[lowerBoundIndex..<upperBoundIndex]
+  return String(slice)
 }
