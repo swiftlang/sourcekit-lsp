@@ -65,8 +65,12 @@ private func findIntuitiveToken(
     // The cursor is at the start of a boundary token (e.g. `test(a: 3, b: 2|)`)
     // here the user most likely wants to select the `2` and then `b: 2` instead of
     // selecting the entire function call, so we use the previous token
+
     let newToken = currentToken.previousToken(viewMode: .sourceAccurate) ?? currentToken
-    return (newToken, newToken.endPosition.advanced(by: -1))
+
+    if newToken.endPositionBeforeTrailingTrivia == position {
+      return (newToken, newToken.endPosition.advanced(by: -1))
+    }
   }
 
   return (currentToken, position)

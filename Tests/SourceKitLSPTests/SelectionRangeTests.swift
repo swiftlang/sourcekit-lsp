@@ -794,7 +794,12 @@ class SelectionRangeTests: XCTestCase {
       markedSource: """
           let x = "abc".map 1️⃣{ $0 }
         """,
-      expectedSelections: ["map", "map { $0 }", "\"abc\".map { $0 }"]
+      expectedSelections: [
+        "{ $0 }",
+        "map { $0 }",
+        #""abc".map { $0 }"#,
+        #"let x = "abc".map { $0 }"#,
+      ]
     )
   }
 
