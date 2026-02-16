@@ -28,7 +28,7 @@ class SelectionRangeTests: XCTestCase {
       expectedSelections: [
         "Hello",
         "Hello, World!",
-        "\"Hello, World!\"",
+        #""Hello, World!""#,
       ]
     )
   }
@@ -41,7 +41,7 @@ class SelectionRangeTests: XCTestCase {
       expectedSelections: [
         "World",
         "Hello, World!",
-        "\"Hello, World!\"",
+        #""Hello, World!""#,
       ]
     )
   }
@@ -54,7 +54,7 @@ class SelectionRangeTests: XCTestCase {
       expectedSelections: [
         "World",
         "Hello, World!",
-        "\"Hello, World!\"",
+        #""Hello, World!""#,
       ]
     )
   }
@@ -66,8 +66,8 @@ class SelectionRangeTests: XCTestCase {
         """,
       expectedSelections: [
         "Hello, World!",
-        "\"Hello, World!\"",
-        "let a = \"Hello, World!\"",
+        #""Hello, World!""#,
+        #"let a = "Hello, World!""#,
       ]
     )
   }
@@ -77,21 +77,21 @@ class SelectionRangeTests: XCTestCase {
       markedSource: """
         let a = "test 🚀 tes1️⃣t"
         """,
-      expectedSelections: ["test", "test 🚀 test", "\"test 🚀 test\""]
+      expectedSelections: ["test", "test 🚀 test", #""test 🚀 test""#]
     )
   }
 
   func testStringLiteralWithStringInterpolation() async throws {
     try await assertSelectionRanges(
-      markedSource: """
+      markedSource: #"""
         func a() {
-          let a = "Hello \\(w1️⃣o)rld"
+          let a = "Hello \(w1️⃣o)rld"
         }
-        """,
+        """#,
       expectedSelections: [
         "wo",
-        "\\(wo)",
-        "Hello \\(wo)rld",
+        #"\(wo)"#,
+        #"Hello \(wo)rld"#,
       ]
     )
   }
@@ -118,13 +118,13 @@ class SelectionRangeTests: XCTestCase {
         """,
       expectedSelections: [
         "jkl",
-        "\"jkl\"",
-        "\"abc\" + \"def\" + \"ghi\" + \"jkl\"",
-        "\"abc\" + \"def\" + \"ghi\" + \"jkl\" + \"mno\"",
-        "\"abc\" + \"def\" + \"ghi\" + \"jkl\" + \"mno\" + \"pqr\"",
-        "\"abc\" + \"def\" + \"ghi\" + \"jkl\" + \"mno\" + \"pqr\" + \"stu\"",
-        "\"abc\" + \"def\" + \"ghi\" + \"jkl\" + \"mno\" + \"pqr\" + \"stu\" + \"vwx\"",
-        "\"abc\" + \"def\" + \"ghi\" + \"jkl\" + \"mno\" + \"pqr\" + \"stu\" + \"vwx\" + \"yz\"",
+        #""jkl""#,
+        #""abc" + "def" + "ghi" + "jkl""#,
+        #""abc" + "def" + "ghi" + "jkl" + "mno""#,
+        #""abc" + "def" + "ghi" + "jkl" + "mno" + "pqr""#,
+        #""abc" + "def" + "ghi" + "jkl" + "mno" + "pqr" + "stu""#,
+        #""abc" + "def" + "ghi" + "jkl" + "mno" + "pqr" + "stu" + "vwx""#,
+        #""abc" + "def" + "ghi" + "jkl" + "mno" + "pqr" + "stu" + "vwx" + "yz""#,
       ]
     )
   }
@@ -214,7 +214,7 @@ class SelectionRangeTests: XCTestCase {
       expectedSelections: [
         "String",
         ": String",
-        "let name: String = \"Swift\"",
+        #"let name: String = "Swift""#,
       ]
     )
   }
@@ -241,9 +241,9 @@ class SelectionRangeTests: XCTestCase {
         """,
       expectedSelections: [
         "firstName",
-        "firstName + \" \"",
-        "firstName + \" \" + lastName",
-        "return firstName + \" \" + lastName",
+        #"firstName + " ""#,
+        #"firstName + " " + lastName"#,
+        #"return firstName + " " + lastName"#,
         """
         {
           return firstName + " " + lastName
@@ -306,47 +306,47 @@ class SelectionRangeTests: XCTestCase {
 
   func testPropertyWithWillSetDidSet() async throws {
     try await assertSelectionRanges(
-      markedSource: """
+      markedSource: #"""
         var count: Int = 0 {
           willSet {
-            print("About to set count to \\(new1️⃣Value)")
+            print("About to set count to \(new1️⃣Value)")
           }
           didSet {
-            print("Changed from \\(oldValue)")
+            print("Changed from \(oldValue)")
           }
         }
-        """,
+        """#,
       expectedSelections: [
         "newValue",
-        "\\(newValue)",
-        "About to set count to \\(newValue)",
-        "\"About to set count to \\(newValue)\"",
-        "print(\"About to set count to \\(newValue)\")",
-        """
+        #"\(newValue)"#,
+        #"About to set count to \(newValue)"#,
+        #""About to set count to \(newValue)""#,
+        #"print("About to set count to \(newValue)")"#,
+        #"""
         willSet {
-            print("About to set count to \\(newValue)")
+            print("About to set count to \(newValue)")
           }
-        """,
-        """
+        """#,
+        #"""
         {
           willSet {
-            print("About to set count to \\(newValue)")
+            print("About to set count to \(newValue)")
           }
           didSet {
-            print("Changed from \\(oldValue)")
+            print("Changed from \(oldValue)")
           }
         }
-        """,
-        """
+        """#,
+        #"""
         var count: Int = 0 {
           willSet {
-            print("About to set count to \\(newValue)")
+            print("About to set count to \(newValue)")
           }
           didSet {
-            print("Changed from \\(oldValue)")
+            print("Changed from \(oldValue)")
           }
         }
-        """,
+        """#,
       ]
     )
   }
@@ -486,19 +486,19 @@ class SelectionRangeTests: XCTestCase {
 
   func testSimpleFunctionDeclarationParameter() async throws {
     try await assertSelectionRanges(
-      markedSource: """
+      markedSource: #"""
         func greet(nam1️⃣e: String) -> String {
-          return "Hello, \\(name)"
+          return "Hello, \(name)"
         }
-        """,
+        """#,
       expectedSelections: [
         "name",
         "name: String",
-        """
+        #"""
         func greet(name: String) -> String {
-          return "Hello, \\(name)"
+          return "Hello, \(name)"
         }
-        """,
+        """#,
       ]
     )
   }
@@ -516,18 +516,18 @@ class SelectionRangeTests: XCTestCase {
 
   func testSimpleFunctionDeclarationName() async throws {
     try await assertSelectionRanges(
-      markedSource: """
+      markedSource: #"""
         func gre1️⃣et(name: String) -> String {
-          return "Hello, \\(name)"
+          return "Hello, \(name)"
         }
-        """,
+        """#,
       expectedSelections: [
         "greet",
-        """
+        #"""
         func greet(name: String) -> String {
-          return "Hello, \\(name)"
+          return "Hello, \(name)"
         }
-        """,
+        """#,
       ]
     )
   }
@@ -572,16 +572,16 @@ class SelectionRangeTests: XCTestCase {
 
   func testFunctionWithDefaultParameters() async throws {
     try await assertSelectionRanges(
-      markedSource: """
+      markedSource: #"""
         func greet(name: String, greeting: String = "Hel1️⃣lo") {
-          print("\\(greeting), \\(name)")
+          print("\(greeting), \(name)")
         }
-        """,
+        """#,
       expectedSelections: [
         "Hello",
-        "\"Hello\"",
-        "greeting: String = \"Hello\"",
-        "name: String, greeting: String = \"Hello\"",
+        #""Hello""#,
+        #"greeting: String = "Hello""#,
+        #"name: String, greeting: String = "Hello""#,
       ]
     )
   }
@@ -822,7 +822,10 @@ class SelectionRangeTests: XCTestCase {
       expectedSelections: [
         "num",
         "num in",
-        "num in\n  return num * 2",
+        """
+        num in
+          return num * 2
+        """,
         """
         { num in
           return num * 2
@@ -913,8 +916,8 @@ class SelectionRangeTests: XCTestCase {
         """,
       expectedSelections: [
         "negative",
-        "\"negative\"",
-        "print(\"negative\")",
+        #""negative""#,
+        #"print("negative")"#,
         """
         else {
           print("negative")
@@ -965,7 +968,10 @@ class SelectionRangeTests: XCTestCase {
       expectedSelections: [
         "option1",
         ".option1",
-        "case .option1:\n  print(\"one\")",
+        """
+        case .option1:
+          print("one")
+        """,
         """
         switch value {
         case .option1:
@@ -994,7 +1000,10 @@ class SelectionRangeTests: XCTestCase {
         "...",
         "10...15",
         "1...5, 10...15",
-        "case 1...5, 10...15:\n  print(\"in range\")",
+        """
+        case 1...5, 10...15:
+          print("in range")
+        """,
       ]
     )
   }
@@ -1158,8 +1167,8 @@ class SelectionRangeTests: XCTestCase {
       expectedSelections: [
         "Cleaning",
         "Cleaning up",
-        "\"Cleaning up\"",
-        "print(\"Cleaning up\")",
+        #""Cleaning up""#,
+        #"print("Cleaning up")"#,
         """
         deinit {
             print("Cleaning up")
@@ -1705,8 +1714,8 @@ class SelectionRangeTests: XCTestCase {
         """,
       expectedSelections: [
         "??",
-        "optionalName ?? \"Default\"",
-        "let name = optionalName ?? \"Default\"",
+        #"optionalName ?? "Default""#,
+        #"let name = optionalName ?? "Default""#,
       ]
     )
   }
@@ -1720,7 +1729,7 @@ class SelectionRangeTests: XCTestCase {
         "String",
         "String!",
         ": String!",
-        "var assumedString: String! = \"An implicit string\"",
+        #"var assumedString: String! = "An implicit string""#,
       ]
     )
   }
@@ -1877,7 +1886,7 @@ class SelectionRangeTests: XCTestCase {
         """,
       expectedSelections: [
         "secret",
-        "private var secret: String = \"hidden\"",
+        #"private var secret: String = "hidden""#,
       ]
     )
   }
@@ -2001,9 +2010,9 @@ class SelectionRangeTests: XCTestCase {
       expectedSelections: [
         "age",
         "age: 30",
-        "name: \"John\", age: 30",
-        "(name: \"John\", age: 30)",
-        "let person = (name: \"John\", age: 30)",
+        #"name: "John", age: 30"#,
+        #"(name: "John", age: 30)"#,
+        #"let person = (name: "John", age: 30)"#,
       ]
     )
   }
@@ -2029,11 +2038,11 @@ class SelectionRangeTests: XCTestCase {
         """,
       expectedSelections: [
         "value",
-        "\"value\"",
-        "\"key\": \"value\"",
-        "\"key\": \"value\", \"another\": \"item\"",
-        "[\"key\": \"value\", \"another\": \"item\"]",
-        "let dict = [\"key\": \"value\", \"another\": \"item\"]",
+        #""value""#,
+        #""key": "value""#,
+        #""key": "value", "another": "item""#,
+        #"["key": "value", "another": "item"]"#,
+        #"let dict = ["key": "value", "another": "item"]"#,
       ]
     )
   }
@@ -2042,9 +2051,9 @@ class SelectionRangeTests: XCTestCase {
 
   func testMacroUsage() async throws {
     try await assertSelectionRanges(
-      markedSource: "#warnin1️⃣g(\"This is deprecated\")",
+      markedSource: #"#warnin1️⃣g("This is deprecated")"#,
       expectedSelections: [
-        "#warning(\"This is deprecated\")"
+        #"#warning("This is deprecated")"#
       ]
     )
   }
@@ -2330,7 +2339,10 @@ private func assertSelectionRanges(
   let flatMappedSelections = expectedSelections.values.flatMap { $0 }
   XCTAssert(
     flatMappedSelections.allSatisfy { text.contains($0) },
-    "The following expected selections are not contained in the source:\n \(flatMappedSelections.filter { !text.contains($0) }.joined(separator: "\n"))",
+    """
+    The following expected selections are not contained in the source:
+    \(flatMappedSelections.filter { !text.contains($0) }.joined(separator: "\n"))
+    """,
     file: file,
     line: line
   )
