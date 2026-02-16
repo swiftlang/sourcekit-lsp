@@ -153,8 +153,8 @@ class SelectionRangeTests: XCTestCase {
 
   func testBinaryExpression() async throws {
     try await assertSelectionRanges(
-      markedSource: "let a = test(3 + 51️⃣)",
-      expectedSelections: ["5", "3 + 5", "test(3 + 5)"]
+      markedSource: "let a = 3 + 51️⃣",
+      expectedSelections: ["5", "3 + 5", "let a = 3 + 5"]
     )
   }
 

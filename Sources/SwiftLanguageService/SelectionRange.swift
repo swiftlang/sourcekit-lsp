@@ -50,6 +50,12 @@ private func findIntuitiveToken(
   at position: AbsolutePosition
 ) -> (TokenSyntax, AbsolutePosition)? {
   guard let currentToken = sourceFile.token(at: position) else {
+    if (sourceFile.endPositionBeforeTrailingTrivia...sourceFile.endPosition).contains(position),
+      // The last token is EOF, so we use the token just before EOF
+      let newToken = sourceFile.lastToken(viewMode: .sourceAccurate)?.previousToken(viewMode: .sourceAccurate)
+    {
+      return (newToken, newToken.endPosition.advanced(by: -1))
+    }
     return nil
   }
 
