@@ -310,18 +310,19 @@ extension FunctionParameterSyntax: SelectionRangeProvider {
   }
 }
 
-extension ClosureSignatureSyntax: SelectionRangeProvider {
+extension ClosureExprSyntax: SelectionRangeProvider {
   func calculateSelectionRanges(position: AbsolutePosition) -> [Range<AbsolutePosition>] {
-    // For closure signatures we add a selection for the signature + body content
     var ranges: [Range<AbsolutePosition>] = []
-    ranges.append(self.trimmedRange)
 
-    if let closureExpression = self.parent?.as(ClosureExprSyntax.self) {
-      let start = self.positionAfterSkippingLeadingTrivia
-      let end = closureExpression.statements.endPositionBeforeTrailingTrivia
+    if let signature = self.signature,
+      signature.range.contains(position)
+    {
+      let start = signature.positionAfterSkippingLeadingTrivia
+      let end = self.statements.endPositionBeforeTrailingTrivia
       ranges.append(start..<end)
     }
 
+    ranges.append(self.trimmedRange)
     return ranges
   }
 }
@@ -553,9 +554,9 @@ extension AttributeSyntax: SelectionRangeProvider {}
 extension AvailabilityArgumentListSyntax: SelectionRangeProvider {}
 extension AwaitExprSyntax: SelectionRangeProvider {}
 extension ClassDeclSyntax: SelectionRangeProvider {}
-extension ClosureExprSyntax: SelectionRangeProvider {}
 extension ClosureShorthandParameterListSyntax: SelectionRangeProvider {}
 extension ClosureShorthandParameterSyntax: SelectionRangeProvider {}
+extension ClosureSignatureSyntax: SelectionRangeProvider {}
 extension CompositionTypeElementListSyntax: SelectionRangeProvider {}
 extension ConditionElementListSyntax: SelectionRangeProvider {}
 extension ConditionElementSyntax: SelectionRangeProvider {}
