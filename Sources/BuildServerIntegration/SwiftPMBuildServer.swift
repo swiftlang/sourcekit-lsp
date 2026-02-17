@@ -767,35 +767,21 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
     arguments += options.swiftPMOrDefault.linkerFlags?.flatMap { ["-Xlinker", $0] } ?? []
     arguments += options.swiftPMOrDefault.buildToolsSwiftCompilerFlags?.flatMap { ["-Xbuild-tools-swiftc", $0] } ?? []
 
-    // add module cache path for faster preparation
+    // Add module cache path for faster preparation
     if let customCachePath = options.indexOrDefault.swiftModuleCachePath {
       if !customCachePath.isEmpty {
         arguments += ["-Xswiftc", "-module-cache-path", "-Xswiftc", customCachePath]
       }
     } else {
-      // try to use the user's build module cache first
-      let userBuildCache =
-        projectRoot
-        .appending(component: ".build")
-        .appending(component: destinationBuildParameters.triple.tripleString)
-        .appending(component: "ModuleCache")
+      let globalCache = Self.globalModuleCacheDirectory
+      try? FileManager.default.createDirectory(at: globalCache, withIntermediateDirectories: true)
 
-      let cacheToUse: URL
-      if FileManager.default.fileExists(atPath: userBuildCache.path) {
-        // reuse existing user build cache
-        cacheToUse = userBuildCache
-      } else {
-        // fall back to global module cache
-        let globalCache = FileManager.default.homeDirectoryForCurrentUser
-          .appending(components: ".cache", "sourcekit-lsp", "module-cache")
-        try? FileManager.default.createDirectory(at: globalCache, withIntermediateDirectories: true)
-
-        // clean up stale modules older than 30 days
+      // Clean up stale modules in a background task to avoid blocking build settings
+      Task.detached(priority: .utility) {
         Self.cleanupStaleModules(in: globalCache, olderThan: 30)
-        cacheToUse = globalCache
       }
 
-      arguments += ["-Xswiftc", "-module-cache-path", "-Xswiftc", cacheToUse.path]
+      arguments += ["-Xswiftc", "-module-cache-path", "-Xswiftc", globalCache.path]
     }
 
     switch options.backgroundPreparationModeOrDefault {
@@ -945,25 +931,53 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
     return TextDocumentSourceKitOptionsResponse(compilerArguments: compilerArgs)
   }
 
-  /// removes cached modules older than specified days
+  /// The platform-appropriate global module cache directory.
+  ///
+  /// - On macOS: `~/Library/Caches/org.swift.sourcekit-lsp/ModuleCache`
+  /// - On Linux: `$XDG_CACHE_HOME/sourcekit-lsp/ModuleCache` (falls back to `~/.cache/sourcekit-lsp/ModuleCache`)
+  /// - On Windows: `%LOCALAPPDATA%/sourcekit-lsp/ModuleCache`
+  package static var globalModuleCacheDirectory: URL {
+    #if os(macOS)
+    return FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
+      .appending(components: "org.swift.sourcekit-lsp", "ModuleCache")
+    #elseif os(Windows)
+    if let localAppData = ProcessInfo.processInfo.environment["LOCALAPPDATA"] {
+      return URL(fileURLWithPath: localAppData)
+        .appending(components: "sourcekit-lsp", "ModuleCache")
+    }
+    return FileManager.default.homeDirectoryForCurrentUser
+      .appending(components: ".cache", "sourcekit-lsp", "ModuleCache")
+    #else
+    if let xdgCacheHome = ProcessInfo.processInfo.environment["XDG_CACHE_HOME"] {
+      return URL(fileURLWithPath: xdgCacheHome)
+        .appending(components: "sourcekit-lsp", "ModuleCache")
+    }
+    return FileManager.default.homeDirectoryForCurrentUser
+      .appending(components: ".cache", "sourcekit-lsp", "ModuleCache")
+    #endif
+  }
+
+  /// Removes cached modules that haven't been accessed for more than the specified number of days.
   private static func cleanupStaleModules(in cacheDir: URL, olderThan days: Int) {
     let cutoffDate = Date().addingTimeInterval(-Double(days * 24 * 60 * 60))
 
     guard
       let enumerator = FileManager.default.enumerator(
         at: cacheDir,
-        includingPropertiesForKeys: [.contentModificationDateKey],
+        includingPropertiesForKeys: [.contentAccessDateKey],
         options: [.skipsHiddenFiles]
       )
     else { return }
 
     for case let fileURL as URL in enumerator {
-      guard let resourceValues = try? fileURL.resourceValues(forKeys: [.contentModificationDateKey]),
-        let modificationDate = resourceValues.contentModificationDate,
-        modificationDate < cutoffDate
+      guard let resourceValues = try? fileURL.resourceValues(forKeys: [.contentAccessDateKey]),
+        let accessDate = resourceValues.contentAccessDate,
+        accessDate < cutoffDate
       else { continue }
 
-      try? FileManager.default.removeItem(at: fileURL)
+      orLog("Removing stale module cache file") {
+        try FileManager.default.removeItem(at: fileURL)
+      }
     }
   }
 }

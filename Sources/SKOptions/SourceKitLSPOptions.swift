@@ -196,7 +196,9 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
 
     /// Path to the Swift module cache for background preparation.
     ///
-    /// If `nil` (default), SourceKit-LSP uses a global module cache at `~/.cache/sourcekit-lsp/module-cache`.
+    /// If `nil` (default), SourceKit-LSP uses a platform-appropriate global module cache
+    /// (macOS: `~/Library/Caches/org.swift.sourcekit-lsp/ModuleCache`,
+    ///  Linux: `$XDG_CACHE_HOME/sourcekit-lsp/ModuleCache` or `~/.cache/sourcekit-lsp/ModuleCache`).
     /// Set to empty string to disable module cache sharing.
     public var swiftModuleCachePath: String?
 
