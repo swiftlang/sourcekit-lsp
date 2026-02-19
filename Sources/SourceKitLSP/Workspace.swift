@@ -513,6 +513,7 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
     }
 
     await scheduleUpdateOfUnitOutputPathsInIndexIfNecessary()
+    await scheduleEntryPointsRefreshIfNecessary()
   }
 
   private func scheduleUpdateOfUnitOutputPathsInIndexIfNecessary() async {
@@ -530,6 +531,12 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
         let outputPaths = try await Set(self.buildServerManager.outputPathsInAllTargets())
         await self.uncheckedIndex?.setUnitOutputPaths(outputPaths)
       }
+    }
+  }
+
+  private func scheduleEntryPointsRefreshIfNecessary() async {
+    if capabilityRegistry.clientHasWorkspaceTestsRefreshSupport {
+      sourceKitLSPServer?.entryPointManager.refresh()
     }
   }
 

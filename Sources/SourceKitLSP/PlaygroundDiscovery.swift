@@ -23,7 +23,7 @@ extension SourceKitLSPServer {
   ///
   /// The returned list of playgrounds is not sorted. It should be sorted before being returned to the editor.
   private func playgrounds(in workspace: Workspace) async -> [Playground] {
-    return await self.entrypointManager.playgrounds
+    return await self.entryPointManager.playgrounds
   }
 
   func workspacePlaygrounds(_ req: WorkspacePlaygroundsRequest) async throws -> [Playground] {

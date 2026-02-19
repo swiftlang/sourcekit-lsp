@@ -100,7 +100,7 @@ package actor SourceKitLSPServer {
   /// `SourceKitLSPServer`.
   /// `nonisolated(unsafe)` because `indexProgressManager` will not be modified after it is assigned from the
   /// initializer.
-  private(set) nonisolated(unsafe) var entrypointManager: EntryPointManager!
+  private(set) nonisolated(unsafe) var entryPointManager: EntryPointManager!
 
   /// Stores which workspace the given URI has been opened in.
   ///
@@ -191,7 +191,7 @@ package actor SourceKitLSPServer {
       title: "SourceKit-LSP: Restoring functionality",
       message: "Please run 'sourcekit-lsp diagnose' to file an issue"
     )
-    self.entrypointManager = EntryPointManager(
+    self.entryPointManager = EntryPointManager(
       sourceKitLSPServer: self,
       onWorkspaceTestsChanged: {
         logger.info("===onWorkspaceTestsChanged")
@@ -1613,8 +1613,10 @@ extension SourceKitLSPServer {
       await languageService.filesDidChange(notification.changes)
     }
 
-    // Trigger refresh entry points.
-    entrypointManager.refresh()
+    if capabilityRegistry?.clientHasWorkspaceTestsRefreshSupport ?? false {
+      // Trigger refresh entry points.
+      entryPointManager.refresh()
+    }
   }
 
   func setBackgroundIndexingPaused(_ request: SetOptionsRequest) async throws -> VoidResponse {
@@ -2716,8 +2718,12 @@ extension SourceKitLSPServer {
   }
 
   func workspaceTests(_ req: WorkspaceTestsRequest) async throws -> [TestItem] {
-    await self.entrypointManager.refreshAndWait()
-    return await self.entrypointManager.tests
+    if self.capabilityRegistry?.clientHasWorkspaceTestsRefreshSupport ?? false {
+      // If the client supports 'workspace/tests/refresh', return the populated tests.
+      return await self.entryPointManager.latestWorkspaceTests
+    } else {
+      return await self.entryPointManager.workspaceTests() ?? []
+    }
   }
 
   func documentTests(
@@ -2725,7 +2731,7 @@ extension SourceKitLSPServer {
     workspace: Workspace,
     languageService: any LanguageService
   ) async throws -> [TestItem] {
-    return try await self.entrypointManager.documentTests(
+    return try await self.entryPointManager.documentTests(
       req,
       workspace: workspace,
       languageService: languageService

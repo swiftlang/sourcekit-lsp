@@ -106,6 +106,10 @@ package final actor CapabilityRegistry {
     return clientHasExperimentalCapability(DidChangeActiveDocumentNotification.method)
   }
 
+  package nonisolated var clientHasWorkspaceTestsRefreshSupport: Bool {
+    clientCapabilities.workspace?.tests?.refreshSupport == false
+  }
+
   package nonisolated func clientHasExperimentalCapability(_ name: String) -> Bool {
     guard case .dictionary(let experimentalCapabilities) = clientCapabilities.experimental else {
       return false

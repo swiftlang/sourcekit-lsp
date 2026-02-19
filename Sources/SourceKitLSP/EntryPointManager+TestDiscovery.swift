@@ -182,7 +182,7 @@ extension EntryPointManager {
 
   /// Return all the tests in the given workspace.
   ///
-  /// This merges tests from the semantic index, the syntactic index and in-memory file states.
+  /// This merges tests from the semantic index, the syntactic index.
   ///
   /// The returned list of tests is not sorted. It should be sorted before being returned to the editor.
   private func discoverTests(in workspace: Workspace) async -> [AnnotatedTestItem] {
@@ -190,37 +190,36 @@ extension EntryPointManager {
       return []
     }
 
+    // If files have recently been added to the workspace (which is communicated by a `workspace/didChangeWatchedFiles`
+    // notification, wait these changes to be reflected in the build server so we can include the updated files in the
+    // tests.
     await workspace.buildServerManager.waitForUpToDateBuildGraph()
-    await workspace.semanticIndexManager?.waitForUpToDateIndex()
-
-    if Task.isCancelled {
-      return []
-    }
 
     // Gather all tests classes and test methods. We include test from different sources:
     //  - All swift-syntax tests from syntactic index.
     //  - All XCTest tests from up-to-date semantic index.
-    //  - All XCTest tests from syntactic index
-    //  - For all files that have been modified since the last semantic index but that don't have any in-memory
-    //    modifications (ie. modifications that the user has made in the editor but not saved), include XCTests from
-    //    the syntactic test index
-    //  - For all files that don't have any in-memory modifications, include swift-testing tests from the syntactic test
-    //    index.
-    //  - All files that have in-memory modifications are syntactically scanned for tests here.
-    let index = await workspace.index(checkedFor: .deletedFiles)
-    let testsFromSemanticIndex = testItems(
-      for: index?.unitTests().filter { return $0.canBeTestDefinition } ?? [],
-      index: index,
-      // FIXME: Correct 'range'.
-      resolveLocation: { uri, position in Location(uri: uri, range: Range(position)) }
-    )
+    //  - All XCTest tests from syntactic index.
+    let index = await workspace.index(checkedFor: .modifiedFiles)
 
     if Task.isCancelled {
       return []
     }
 
     let testsFromSyntacticIndex = await workspace.syntacticIndex.tests()
+    let testsFromSemanticIndex = testItems(
+      for: index?.unitTests().filter { return $0.canBeTestDefinition } ?? [],
+      index: index,
+      // FIXME: Correct 'range'.
+      resolveLocation: { uri, position in Location(uri: uri, range: Range(position)) }
+    )
     let filesWithTestsFromSemanticIndex = Set(testsFromSemanticIndex.map(\.testItem.location.uri))
+
+    let indexOnlyDiscardingDeletedFiles = await workspace.index(checkedFor: .deletedFiles)
+
+    if Task.isCancelled {
+      return []
+    }
+
     let syntacticTestsToInclude = testsFromSyntacticIndex
       .compactMap { (item) -> AnnotatedTestItem? in
         let testItem = item.testItem
@@ -233,37 +232,43 @@ extension EntryPointManager {
           // don't need to include results from the syntactic index.
           return nil
         }
-//        if index?.hasAnyUpToDateUnit(for: testItem.location.uri) ?? false {
-//          // We don't have a test for this file in the semantic index but an up-to-date unit file. This means that the
-//          // index is up-to-date and has more knowledge that identifies a `TestItem` as not actually being a test, eg.
-//          // because it starts with `test` but doesn't appear in a class inheriting from `XCTestCase`.
-//          return nil
-//        }
+        if index?.hasAnyUpToDateUnit(for: testItem.location.uri) ?? false {
+          // We don't have a test for this file in the semantic index but an up-to-date unit file. This means that the
+          // index is up-to-date and has more knowledge that identifies a `TestItem` as not actually being a test, eg.
+          // because it starts with `test` but doesn't appear in a class inheriting from `XCTestCase`.
+          return nil
+        }
         // Filter out any test items that we know aren't actually tests based on the semantic index.
         // This might call `symbols(inFilePath:)` multiple times if there are multiple top-level test items (ie.
         // XCTestCase subclasses, swift-testing handled above) for the same file. In practice test files usually contain
         // a single XCTestCase subclass, so caching doesn't make sense here.
         // Also, this is only called for files containing test cases but for which the semantic index is out-of-date.
         if let filtered = testItem.filterUsing(
-          semanticSymbols: index?.symbols(inFilePath: testItem.location.uri.pseudoPath)
+          semanticSymbols: indexOnlyDiscardingDeletedFiles?.symbols(inFilePath: testItem.location.uri.pseudoPath)
         ) {
           return AnnotatedTestItem(testItem: filtered, isExtension: item.isExtension)
         }
         return nil
       }
 
-    return (testsFromSemanticIndex + syntacticTestsToInclude)
+    return testsFromSemanticIndex + syntacticTestsToInclude
   }
 
+  /// Collect all test cases from all the workspaces and merge it into a sorted list of the test cases.
+  ///
+  /// Note that this doesn't take in-memory modified documents into account.
   func workspaceTests() async -> [TestItem]? {
     return await self.sourceKitLSPServer?.workspaces
-      .concurrentMap { await self.discoverTests(in: $0).prefixTestsWithModuleName(workspace: $0) }
+      .concurrentMap {
+        await self.discoverTests(in: $0).prefixTestsWithModuleName(workspace: $0)
+      }
       .flatMap({ $0 })
       .mergingTestsInExtensions()
       .sorted { $0.location < $1.location }
       .deduplicatingIds()
   }
 
+  /// Collect tests case in a document.
   func documentTests(
     _ req: DocumentTestsRequest,
     workspace: Workspace,
@@ -272,6 +277,7 @@ extension EntryPointManager {
     return try await documentTestsWithoutMergingExtensions(req, workspace: workspace, languageService: languageService)
       .prefixTestsWithModuleName(workspace: workspace)
       .mergingTestsInExtensions()
+      .sorted { $0.location < $1.location }
       .deduplicatingIds()
   }
 

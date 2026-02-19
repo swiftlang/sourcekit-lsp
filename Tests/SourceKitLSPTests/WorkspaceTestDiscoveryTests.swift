@@ -680,13 +680,6 @@ final class WorkspaceTestDiscoveryTests: SourceKitLSPTestCase {
         """
     )
 
-    await withCheckedContinuation { cont in
-      project.testClient.handleSingleRequest { (_: WorkspaceTestsRefreshRequest) in
-        cont.resume()
-        return VoidResponse()
-      }
-    }
-
     let tests = try await project.testClient.send(WorkspaceTestsRequest())
     XCTAssertEqual(
       tests,
@@ -711,7 +704,7 @@ final class WorkspaceTestDiscoveryTests: SourceKitLSPTestCase {
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
 
-    let positions = testClient.openDocument(
+    let _ = testClient.openDocument(
       """
       import XCTest
 
@@ -858,24 +851,10 @@ final class WorkspaceTestDiscoveryTests: SourceKitLSPTestCase {
 
     try await project.changeFileOnDisk("MyTests.swift", newMarkedContents: nil)
 
-    await withCheckedContinuation { cont in
-      project.testClient.handleSingleRequest { (_: WorkspaceTestsRefreshRequest) in
-        cont.resume()
-        return VoidResponse()
-      }
-    }
-
     let testsAfterFileRemove = try await project.testClient.send(WorkspaceTestsRequest())
     XCTAssertEqual(testsAfterFileRemove, [])
 
     try await project.changeFileOnDisk("MyTests.swift", newMarkedContents: markedFileContents)
-
-    await withCheckedContinuation { cont in
-      project.testClient.handleSingleRequest { (_: WorkspaceTestsRefreshRequest) in
-        cont.resume()
-        return VoidResponse()
-      }
-    }
 
     let testsAfterFileReAdded = try await project.testClient.send(WorkspaceTestsRequest())
     XCTAssertEqual(testsAfterFileReAdded, expectedTests)
@@ -948,13 +927,6 @@ final class WorkspaceTestDiscoveryTests: SourceKitLSPTestCase {
     project.testClient.send(
       DidChangeWatchedFilesNotification(changes: [FileEvent(uri: project.fileURI, type: .changed)])
     )
-
-    await withCheckedContinuation { cont in
-      project.testClient.handleSingleRequest { (_: WorkspaceTestsRefreshRequest) in
-        cont.resume()
-        return VoidResponse()
-      }
-    }
 
     // Ensure that we handle the `DidChangeWatchedFilesNotification`.
     try await project.testClient.send(SynchronizeRequest())

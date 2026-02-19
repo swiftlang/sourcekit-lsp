@@ -15,7 +15,7 @@ actor EntryPointManager {
   private let onWorkspaceTestsChanged: () -> Void
   private let onWorkspacePlaygroundsChanged: () -> Void
 
-  private(set) var tests: [TestItem] = []
+  private(set) var latestWorkspaceTests: [TestItem] = []
   private(set) var playgrounds: [Playground] = []
 
   init(
@@ -49,8 +49,8 @@ actor EntryPointManager {
       if Task.isCancelled {
         return
       }
-      if let newTests = await self.workspaceTests(), newTests != tests {
-        tests = newTests
+      if let newTests = await self.workspaceTests(), newTests != latestWorkspaceTests {
+        latestWorkspaceTests = newTests
         self.onWorkspaceTestsChanged()
       }
       if let newPlaygrounds = await self.discoverPlaygrounds(), newPlaygrounds != playgrounds {
