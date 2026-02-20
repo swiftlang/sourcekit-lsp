@@ -49,7 +49,7 @@ private struct NotificationTimeoutError: Error, CustomStringConvertible {
   var description: String = "Failed to receive next notification within timeout"
 }
 
-private struct RefreshRequestTimeoutError: Error, CustomStringConvertible {
+private struct RequestWaitingTimeoutError: Error, CustomStringConvertible {
   let name: String
   var description: String { "Failed to receive request '\(name)' within timeout" }
 }
@@ -411,7 +411,7 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
       try await Task.sleep(for: pollingInterval)
     }
     XCTFail("Failed to receive request '\(R.method)' within timeout", file: file, line: line)
-    throw RefreshRequestTimeoutError(name: R.method)
+    throw RequestWaitingTimeoutError(name: R.method)
   }
 
   // MARK: - Conformance to MessageHandler

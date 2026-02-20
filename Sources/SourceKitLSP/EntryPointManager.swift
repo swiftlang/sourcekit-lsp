@@ -1,3 +1,15 @@
+//===----------------------------------------------------------------------===//
+//
+// This source file is part of the Swift.org open source project
+//
+// Copyright (c) 2014 - 2026 Apple Inc. and the Swift project authors
+// Licensed under Apache License v2.0 with Runtime Library Exception
+//
+// See https://swift.org/LICENSE.txt for license information
+// See https://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
+//
+//===----------------------------------------------------------------------===//
+
 internal import BuildServerIntegration
 import Foundation
 import IndexStoreDB
@@ -15,6 +27,7 @@ actor EntryPointManager {
   var onWorkspaceTestsChanged: (() -> Void)?
   var onWorkspacePlaygroundsChanged: (() -> Void)?
 
+  // Collected entry points in the workspaces.
   private(set) var latestWorkspaceTests: [TestItem] = []
   private(set) var playgrounds: [Playground] = []
 
@@ -22,12 +35,8 @@ actor EntryPointManager {
     self.sourceKitLSPServer = sourceKitLSPServer
   }
 
-  func clearTaskIfCurrent(task: Task<Void, any Error>) {
-    if self.currentRefreshTask == task {
-      self.currentRefreshTask = nil
-    }
-  }
-
+  /// Setup the callbacks for each entry point kind.
+  /// If `nil`, the entry point of the kind will not be monitored.
   func setCallbacks(
     onWorkspaceTestsChanged: (() -> Void)?,
     onWorkspacePlaygroundsChanged: (() -> Void)?,
@@ -61,6 +70,7 @@ actor EntryPointManager {
 
   private func refreshTestsImpl() async {
     guard let onWorkspaceTestsChanged, let sourceKitLSPServer else {
+      // 'onWorkspaceTestsChanged == nil' means the client is not interested in 'workspace/tests/refresh' request.
       return
     }
     let newTests = await TestDiscovery(sourceKitLSPServer: sourceKitLSPServer).workspaceTests()

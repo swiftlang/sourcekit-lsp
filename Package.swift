@@ -735,7 +735,7 @@ var installAction: Bool { hasEnvironmentVariable("SOURCEKIT_LSP_CI_INSTALL") }
 
 /// Assume that all the package dependencies are checked out next to sourcekit-lsp and use that instead of fetching a
 /// remote dependency.
-var useLocalDependencies: Bool { true }
+var useLocalDependencies: Bool { hasEnvironmentVariable("SWIFTCI_USE_LOCAL_DEPS") }
 
 /// Whether swift-syntax is being built as a single dynamic library instead of as a separate library per module.
 ///
