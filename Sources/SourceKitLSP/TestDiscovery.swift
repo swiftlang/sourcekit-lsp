@@ -304,7 +304,7 @@ struct TestDiscovery {
 
     let syntacticTests = await languageService.syntacticTestItems(for: snapshot)
 
-    // When `syntacticDocumentTests` returns `nil`, it indicates that it doesn't support syntactic test discovery.
+    // When `syntacticTestItems` returns `nil`, it indicates that it doesn't support syntactic test discovery.
     // In that case, the semantic index is the only source of tests we have and we thus want to show tests from the
     // semantic index, even if they are out-of-date. The alternative would be showing now tests after an edit to a file.
     let indexCheckLevel: IndexCheckLevel =

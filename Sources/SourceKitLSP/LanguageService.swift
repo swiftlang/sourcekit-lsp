@@ -545,10 +545,6 @@ package extension LanguageService {
     throw ResponseError.requestNotImplemented(GetReferenceDocumentRequest.self)
   }
 
-  func syntacticDocumentTests(for uri: DocumentURI, in workspace: Workspace) async throws -> [AnnotatedTestItem]? {
-    throw ResponseError.internalError("syntacticDocumentTests not implemented in \(Self.self) for \(uri)")
-  }
-
   func canonicalDeclarationPosition(of position: Position, in uri: DocumentURI) async -> Position? {
     logger.error("\(#function) not implemented in \(Self.self) for \(uri)")
     return nil
