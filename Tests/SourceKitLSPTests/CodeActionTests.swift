@@ -1143,6 +1143,63 @@ final class CodeActionTests: SourceKitLSPTestCase {
     )
   }
 
+  func testRemoveUnusedImportsFromActiveIfClause() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Test/Test.swift": """
+        1️⃣#if canImport(Darwin)
+        import Foundation
+        #endif
+        """
+      ],
+      manifest: """
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+            .target(
+              name: "Test",
+              swiftSettings: [.enableUpcomingFeature("MemberImportVisibility")]
+            )
+          ]
+        )
+        """,
+      capabilities: clientCapabilitiesWithCodeActionSupport,
+      enableBackgroundIndexing: true
+    )
+
+    let (uri, positions) = try project.openDocument("Test.swift")
+
+    let importResult = try await project.testClient.send(
+      CodeActionRequest(
+        range: Range(positions["1️⃣"]),
+        context: CodeActionContext(),
+        textDocument: TextDocumentIdentifier(uri)
+      )
+    )
+
+    let removeUnusedImportsCommand = try XCTUnwrap(
+      importResult?.codeActions?.first(where: {
+        $0.command?.command == RemoveUnusedImportsCommand.identifier
+      })?.command
+    )
+
+    project.testClient.handleSingleRequest { (request: ApplyEditRequest) -> ApplyEditResponse in
+      XCTAssertTrue(
+        request.edit.changes?[uri]?.contains(where: {
+          $0.newText.isEmpty
+        }) ?? false
+      )
+      return ApplyEditResponse(applied: true, failureReason: nil)
+    }
+
+    _ = try await project.testClient.send(
+      ExecuteCommandRequest(
+        command: removeUnusedImportsCommand.command,
+        arguments: removeUnusedImportsCommand.arguments
+      )
+    )
+  }
+
   func testRemoveUnusedImportsNotAvailableIfSourceFileHasError() async throws {
     let project = try await SwiftPMTestProject(
       files: [
