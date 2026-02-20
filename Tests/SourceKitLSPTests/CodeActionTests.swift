@@ -1147,7 +1147,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
     let project = try await SwiftPMTestProject(
       files: [
         "Test/Test.swift": """
-        1️⃣#if canImport(Darwin)
+        1️⃣#if FLAG
         import Foundation
         #endif
         """
@@ -1158,7 +1158,10 @@ final class CodeActionTests: SourceKitLSPTestCase {
           targets: [
             .target(
               name: "Test",
-              swiftSettings: [.enableUpcomingFeature("MemberImportVisibility")]
+              swiftSettings: [
+                .enableUpcomingFeature("MemberImportVisibility"),
+                .define("FLAG")
+              ]
             )
           ]
         )
@@ -1204,9 +1207,9 @@ final class CodeActionTests: SourceKitLSPTestCase {
     let project = try await SwiftPMTestProject(
       files: [
         "Test/Test.swift": """
-        1️⃣#if canImport(Darwin)
+        1️⃣#if FLAG
         import Darwin
-        #elseif canImport(Glibc)
+        #elseif INACTIVE
         import Glibc
         #endif
         """
@@ -1217,7 +1220,11 @@ final class CodeActionTests: SourceKitLSPTestCase {
           targets: [
             .target(
               name: "Test",
-              swiftSettings: [.enableUpcomingFeature("MemberImportVisibility")]
+              swiftSettings: [
+                .enableUpcomingFeature("MemberImportVisibility"),
+                .define("FLAG"),
+                .define("INACTIVE")
+              ]
             )
           ]
         )
