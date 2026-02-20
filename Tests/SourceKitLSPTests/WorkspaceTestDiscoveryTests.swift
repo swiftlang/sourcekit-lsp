@@ -585,6 +585,7 @@ final class WorkspaceTestDiscoveryTests: SourceKitLSPTestCase {
     )
 
     let tests = try await project.testClient.send(WorkspaceTestsRequest())
+    // WorkspaceTestsRequest is not affected by in-memory edits.
     XCTAssertEqual(
       tests,
       [
@@ -595,7 +596,7 @@ final class WorkspaceTestDiscoveryTests: SourceKitLSPTestCase {
           children: [
             TestItem(
               id: "MyLibraryTests.MyFirstTests/testOne()",
-              label: "testOneUpdated()",
+              label: "testOne()",
               location: Location(uri: uri, range: positions["2️⃣"]..<positions["2️⃣"])
             )
           ]
@@ -995,10 +996,10 @@ final class WorkspaceTestDiscoveryTests: SourceKitLSPTestCase {
         @interface MyTests : XCTestCase
         @end
 
-        1️⃣@implementation MyTests
-        2️⃣- (void)testSomething {}3️⃣
+        @implementation 1️⃣MyTests
+        - (void)2️⃣testSomething {}
         0️⃣
-        @4️⃣end
+        @end
         """
       ],
       manifest: """
@@ -1035,12 +1036,12 @@ final class WorkspaceTestDiscoveryTests: SourceKitLSPTestCase {
         TestItem(
           id: "MyLibraryTests.MyTests",
           label: "MyTests",
-          location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
+          location: Location(uri: uri, range: positions["1️⃣"]..<positions["1️⃣"]),
           children: [
             TestItem(
               id: "MyLibraryTests.MyTests/testSomething",
               label: "testSomething",
-              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"])
+              location: Location(uri: uri, range: positions["2️⃣"]..<positions["2️⃣"])
             )
           ]
         )

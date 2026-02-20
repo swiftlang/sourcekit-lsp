@@ -19,16 +19,15 @@ import SwiftExtensions
 
 /// `IndexDelegate` for the SourceKit workspace.
 actor SourceKitIndexDelegate: IndexDelegate {
-  /// Registered `MainFilesDelegate`s to notify when main files change.
-  var mainFilesChangedCallback: @Sendable () async -> Void
+  var indexChangedCallback: @Sendable () async -> Void
 
   /// The count of pending unit events. Whenever this transitions to 0, it represents a time where
   /// the index finished processing known events. Of course, that may have already changed by the
   /// time we are notified.
   let pendingUnitCount = AtomicInt32(initialValue: 0)
 
-  package init(mainFilesChangedCallback: @escaping @Sendable () async -> Void) {
-    self.mainFilesChangedCallback = mainFilesChangedCallback
+  package init(indexChangedCallback: @escaping @Sendable () async -> Void) {
+    self.indexChangedCallback = indexChangedCallback
   }
 
   nonisolated package func processingAddedPending(_ count: Int) {
@@ -56,6 +55,6 @@ actor SourceKitIndexDelegate: IndexDelegate {
 
   private func indexChanged() async {
     logger.debug("IndexStoreDB changed")
-    await mainFilesChangedCallback()
+    await indexChangedCallback()
   }
 }

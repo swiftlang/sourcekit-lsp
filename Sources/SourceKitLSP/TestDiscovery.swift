@@ -89,7 +89,13 @@ private func findInnermostSymbolRange(
   return bestRange
 }
 
-extension EntryPointManager {
+struct TestDiscovery {
+  weak let sourceKitLSPServer: SourceKitLSPServer?
+
+  init(sourceKitLSPServer: SourceKitLSPServer?) {
+    self.sourceKitLSPServer = sourceKitLSPServer
+  }
+
   /// Converts a flat list of test symbol occurrences to a hierarchical `TestItem` array, inferring the hierarchical
   /// structure from `childOf` relations between the symbol occurrences.
   ///
@@ -195,17 +201,18 @@ extension EntryPointManager {
     // tests.
     await workspace.buildServerManager.waitForUpToDateBuildGraph()
 
-    // Gather all tests classes and test methods. We include test from different sources:
-    //  - All swift-syntax tests from syntactic index.
-    //  - All XCTest tests from up-to-date semantic index.
-    //  - All XCTest tests from syntactic index.
-    let index = await workspace.index(checkedFor: .modifiedFiles)
-
     if Task.isCancelled {
       return []
     }
 
-    let testsFromSyntacticIndex = await workspace.syntacticIndex.tests()
+    // Gather all tests classes and test methods. We include test from different sources:
+    //  - All swift-syntax tests from syntactic index.
+    //  - All XCTest tests from up-to-date semantic index.
+    //  - All XCTest tests from syntactic index.
+
+    async let testsFromSyntacticIndex = workspace.syntacticIndex.tests()
+
+    let index = await workspace.index(checkedFor: .modifiedFiles)
     let testsFromSemanticIndex = testItems(
       for: index?.unitTests().filter { return $0.canBeTestDefinition } ?? [],
       index: index,
@@ -220,7 +227,7 @@ extension EntryPointManager {
       return []
     }
 
-    let syntacticTestsToInclude = testsFromSyntacticIndex
+    let syntacticTestsToInclude = await testsFromSyntacticIndex
       .compactMap { (item) -> AnnotatedTestItem? in
         let testItem = item.testItem
         if testItem.style == TestStyle.swiftTesting {

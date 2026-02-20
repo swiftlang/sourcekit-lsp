@@ -17,18 +17,23 @@ import SemanticIndex
 import SwiftExtensions
 @_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
-extension SourceKitLSPServer {
+struct PlaygroundDiscovery {
+  weak let sourceKitLSPServer: SourceKitLSPServer?
 
-  /// Return all the playgrounds in the given workspace.
-  ///
-  /// The returned list of playgrounds is not sorted. It should be sorted before being returned to the editor.
-  private func playgrounds(in workspace: Workspace) async -> [Playground] {
-    return await self.entryPointManager.playgrounds
+  init(sourceKitLSPServer: SourceKitLSPServer?) {
+    self.sourceKitLSPServer = sourceKitLSPServer
   }
 
-  func workspacePlaygrounds(_ req: WorkspacePlaygroundsRequest) async throws -> [Playground] {
-    return await self.workspaces
-      .concurrentMap { await self.playgrounds(in: $0) }
+  private func discoverPlaygrounds(in workspace: Workspace) async -> [Playground] {
+    let playgroundsFromSyntacticIndex = await workspace.syntacticIndex.playgrounds()
+
+    // We don't need to sort the playgrounds here because they will get sorted by `workspacePlaygrounds` request handler
+    return playgroundsFromSyntacticIndex
+  }
+
+  func workspacePlaygrounds() async -> [Playground]? {
+    return await sourceKitLSPServer?.workspaces
+      .concurrentMap { await self.discoverPlaygrounds(in: $0) }
       .flatMap { $0 }
       .sorted { $0.location < $1.location }
   }

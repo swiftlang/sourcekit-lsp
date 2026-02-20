@@ -191,21 +191,7 @@ package actor SourceKitLSPServer {
       title: "SourceKit-LSP: Restoring functionality",
       message: "Please run 'sourcekit-lsp diagnose' to file an issue"
     )
-    self.entryPointManager = EntryPointManager(
-      sourceKitLSPServer: self,
-      onWorkspaceTestsChanged: {
-        logger.info("===onWorkspaceTestsChanged")
-        Task {
-          try await client.send(WorkspaceTestsRefreshRequest())
-        }
-      },
-      onWorkspacePlaygroundsChanged: {
-        logger.info("===onWorkspacePlaygroundsChanged")
-//        Task {
-//          try await client.send(Workspce)
-//        }
-      }
-    )
+    self.entryPointManager = EntryPointManager(sourceKitLSPServer: self)
   }
 
   /// Await until the server has send the reply to the initialize request.
@@ -1077,6 +1063,26 @@ extension SourceKitLSPServer {
 
     assert(!self.workspaces.isEmpty)
 
+    do { // Setup EntryPointManager.
+      let onWorkspaceTestsChanged = capabilityRegistry!.clientHasWorkspaceTestsRefreshSupport ? { @Sendable [weak self] in
+        logger.info("===onWorkspaceTestsChanged")
+        Task {
+          _ = try await self?.client.send(WorkspaceTestsRefreshRequest())
+        }
+      } : nil
+      let onWorkspacePlaygroundsChanged = false ? { @Sendable [weak self] in
+        logger.info("===onWorkspacePlaygroundsChanged")
+        _ = self
+//        Task {
+//          try await client.send(Workspce)
+//        }
+      } : nil
+      await entryPointManager.setCallbacks(
+        onWorkspaceTestsChanged: onWorkspaceTestsChanged,
+        onWorkspacePlaygroundsChanged: onWorkspacePlaygroundsChanged
+      )
+    }
+
     let result = InitializeResult(
       capabilities: await self.serverCapabilities(
         for: req.capabilities,
@@ -1613,10 +1619,8 @@ extension SourceKitLSPServer {
       await languageService.filesDidChange(notification.changes)
     }
 
-    if capabilityRegistry?.clientHasWorkspaceTestsRefreshSupport ?? false {
-      // Trigger refresh entry points.
-      entryPointManager.refresh()
-    }
+    // Schedule updating entry point database.
+    await entryPointManager.refresh()
   }
 
   func setBackgroundIndexingPaused(_ request: SetOptionsRequest) async throws -> VoidResponse {
@@ -2719,10 +2723,11 @@ extension SourceKitLSPServer {
 
   func workspaceTests(_ req: WorkspaceTestsRequest) async throws -> [TestItem] {
     if self.capabilityRegistry?.clientHasWorkspaceTestsRefreshSupport ?? false {
-      // If the client supports 'workspace/tests/refresh', return the populated tests.
+      // If the client supports 'workspace/tests/refresh', return the pre-populated tests.
       return await self.entryPointManager.latestWorkspaceTests
     } else {
-      return await self.entryPointManager.workspaceTests() ?? []
+      // Otherwise, retrieve tests from the current index.
+      return await TestDiscovery(sourceKitLSPServer: self).workspaceTests() ?? []
     }
   }
 
@@ -2731,11 +2736,19 @@ extension SourceKitLSPServer {
     workspace: Workspace,
     languageService: any LanguageService
   ) async throws -> [TestItem] {
-    return try await self.entryPointManager.documentTests(
+    return try await TestDiscovery(sourceKitLSPServer: self).documentTests(
       req,
       workspace: workspace,
       languageService: languageService
     )
+  }
+
+  func workspacePlaygrounds(_ req: WorkspacePlaygroundsRequest) async throws -> [Playground] {
+    if self.capabilityRegistry?.clientHasWorkspaceTestsRefreshSupport ?? false {
+      return await self.entryPointManager.playgrounds
+    } else {
+      return await PlaygroundDiscovery(sourceKitLSPServer: self).workspacePlaygrounds() ?? []
+    }
   }
 }
 
