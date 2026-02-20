@@ -1063,20 +1063,17 @@ extension SourceKitLSPServer {
 
     assert(!self.workspaces.isEmpty)
 
-    do { // Setup EntryPointManager.
-      let onWorkspaceTestsChanged = capabilityRegistry!.clientHasWorkspaceTestsRefreshSupport ? { @Sendable [weak self] in
-        logger.info("===onWorkspaceTestsChanged")
-        Task {
-          _ = try await self?.client.send(WorkspaceTestsRefreshRequest())
-        }
-      } : nil
-      let onWorkspacePlaygroundsChanged = false ? { @Sendable [weak self] in
-        logger.info("===onWorkspacePlaygroundsChanged")
-        _ = self
-//        Task {
-//          try await client.send(Workspce)
-//        }
-      } : nil
+    do {  // Setup EntryPointManager.
+      let onWorkspaceTestsChanged =
+        capabilityRegistry!.clientHasWorkspaceTestsRefreshSupport
+        ? { [weak self] in
+          _ = Task { try await self?.client.send(WorkspaceTestsRefreshRequest()) }
+        } : nil
+      let onWorkspacePlaygroundsChanged =
+        capabilityRegistry!.clientHasWorkspacePlaygroundsRefreshSupport
+        ? { [weak self] in
+          _ = Task { try await self?.client.send(WorkspacePlaygroundsRefreshRequest()) }
+        } : nil
       await entryPointManager.setCallbacks(
         onWorkspaceTestsChanged: onWorkspaceTestsChanged,
         onWorkspacePlaygroundsChanged: onWorkspacePlaygroundsChanged

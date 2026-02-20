@@ -97,7 +97,7 @@ func createIndex(
   let supportsOutputPaths = initializationData?.outputPathsProvider ?? false
   if let indexStorePath, let indexDatabasePath, let libPath = await toolchainRegistry.default?.libIndexStore {
     do {
-      let indexDelegate = SourceKitIndexDelegate(indexChangedCallback: indexChangedCallback)
+      let indexDelegate = SourceKitIndexDelegate(callback: indexChangedCallback)
       let prefixMappings =
         (indexOptions.indexPrefixMap ?? [:])
         .map { PathMapping(original: $0.key, replacement: $0.value) }
@@ -384,7 +384,8 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
       options: options,
       connectionToClient: ConnectionToClient(sourceKitLSPServer: sourceKitLSPServer),
       buildServerHooks: hooks.buildServerHooks,
-      createMainFilesProvider: { [weak sourceKitLSPServer] (initializationData, mainFilesChangedCallback) -> (any MainFilesProvider)? in
+      createMainFilesProvider: {
+        [weak sourceKitLSPServer] (initializationData, mainFilesChangedCallback) -> (any MainFilesProvider)? in
         await createIndex(
           initializationData: initializationData,
           indexChangedCallback: {

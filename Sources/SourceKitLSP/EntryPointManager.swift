@@ -1,11 +1,11 @@
-import LanguageServerProtocol
-@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
-import SemanticIndex
-import IndexStoreDB
-import SwiftExtensions
-@_spi(SourceKitLSP) import SKLogging
-import Foundation
 internal import BuildServerIntegration
+import Foundation
+import IndexStoreDB
+import LanguageServerProtocol
+@_spi(SourceKitLSP) import SKLogging
+import SemanticIndex
+import SwiftExtensions
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 /// Manages discovered tests and playgrounds.
 actor EntryPointManager {

@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import BuildServerIntegration
+import BuildServerProtocol
 import Foundation
 package import IndexStoreDB
 @_spi(SourceKitLSP) import LanguageServerProtocol
@@ -227,7 +228,8 @@ struct TestDiscovery {
       return []
     }
 
-    let syntacticTestsToInclude = await testsFromSyntacticIndex
+    let syntacticTestsToInclude =
+      await testsFromSyntacticIndex
       .compactMap { (item) -> AnnotatedTestItem? in
         let testItem = item.testItem
         if testItem.style == TestStyle.swiftTesting {
@@ -302,6 +304,15 @@ struct TestDiscovery {
       language: snapshot.language
     )
 
+    // If we know the targets for the file and the file is not part of any test target, don't scan it for tests.
+    let targetIdentifiers = await workspace.buildServerManager.targets(for: mainFileUri)
+    let inTestTarget = await targetIdentifiers.asyncContains {
+      await workspace.buildServerManager.buildTarget(named: $0)?.tags.contains(.test) ?? false
+    }
+    if !targetIdentifiers.isEmpty && !inTestTarget {
+      return []
+    }
+
     let syntacticTests = await languageService.syntacticTestItems(for: snapshot)
 
     // When `syntacticTestItems` returns `nil`, it indicates that it doesn't support syntactic test discovery.
@@ -349,7 +360,9 @@ struct TestDiscovery {
     guard let syntacticTests else {
       return []
     }
-    let possiblyOutDatedSymbols = await workspace.index(checkedFor: .deletedFiles)?.symbols(inFilePath: snapshot.uri.pseudoPath)
+    let possiblyOutDatedSymbols = await workspace.index(checkedFor: .deletedFiles)?.symbols(
+      inFilePath: snapshot.uri.pseudoPath
+    )
     return syntacticTests.compactMap { test in
       if test.testItem.style == TestStyle.swiftTesting {
         return test

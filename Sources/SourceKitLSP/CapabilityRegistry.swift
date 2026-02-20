@@ -107,7 +107,11 @@ package final actor CapabilityRegistry {
   }
 
   package nonisolated var clientHasWorkspaceTestsRefreshSupport: Bool {
-    clientCapabilities.workspace?.tests?.refreshSupport == false
+    clientCapabilities.workspace?.tests?.refreshSupport == true
+  }
+
+  package nonisolated var clientHasWorkspacePlaygroundsRefreshSupport: Bool {
+    clientCapabilities.workspace?.playgrounds?.refreshSupport == true
   }
 
   package nonisolated func clientHasExperimentalCapability(_ name: String) -> Bool {
