@@ -45,6 +45,10 @@ package enum IndexCheckLevel {
   case inMemoryModifiedFiles(any InMemoryDocumentManager)
 }
 
+struct IndexClosedError: Error, CustomStringConvertible {
+  var description: String { "Index has been closed" }
+}
+
 /// A wrapper around `IndexStoreDB` that checks if returned symbol occurrences are up-to-date with regard to a
 /// `IndexCheckLevel`.
 ///
@@ -52,7 +56,14 @@ package enum IndexCheckLevel {
 package final class CheckedIndex {
   private var checker: IndexOutOfDateChecker
   package let unchecked: UncheckedIndex
-  private var index: IndexStoreDB { unchecked.underlyingIndexStoreDB }
+  private var index: IndexStoreDB {
+    get throws {
+      guard let underlyingIndexStoreDB = unchecked.underlyingIndexStoreDB else {
+        throw IndexClosedError()
+      }
+      return underlyingIndexStoreDB
+    }
+  }
 
   /// Maps the USR of a symbol to its name and the name of all its containers, from outermost to innermost.
   ///
@@ -90,8 +101,8 @@ package final class CheckedIndex {
     byUSR usr: String,
     roles: SymbolRole,
     _ body: (SymbolOccurrence) -> Bool
-  ) -> Bool {
-    index.forEachSymbolOccurrence(byUSR: usr, roles: roles) { occurrence in
+  ) throws -> Bool {
+    try index.forEachSymbolOccurrence(byUSR: usr, roles: roles) { occurrence in
       guard self.checker.isUpToDate(occurrence.location) else {
         return true  // continue
       }
@@ -99,12 +110,12 @@ package final class CheckedIndex {
     }
   }
 
-  package func occurrences(ofUSR usr: String, roles: SymbolRole) -> [SymbolOccurrence] {
-    return index.occurrences(ofUSR: usr, roles: roles).filter { checker.isUpToDate($0.location) }
+  package func occurrences(ofUSR usr: String, roles: SymbolRole) throws -> [SymbolOccurrence] {
+    return try index.occurrences(ofUSR: usr, roles: roles).filter { checker.isUpToDate($0.location) }
   }
 
-  package func occurrences(relatedToUSR usr: String, roles: SymbolRole) -> [SymbolOccurrence] {
-    return index.occurrences(relatedToUSR: usr, roles: roles).filter { checker.isUpToDate($0.location) }
+  package func occurrences(relatedToUSR usr: String, roles: SymbolRole) throws -> [SymbolOccurrence] {
+    return try index.occurrences(relatedToUSR: usr, roles: roles).filter { checker.isUpToDate($0.location) }
   }
 
   @discardableResult package func forEachCanonicalSymbolOccurrence(
@@ -114,8 +125,8 @@ package final class CheckedIndex {
     subsequence: Bool,
     ignoreCase: Bool,
     body: (SymbolOccurrence) -> Bool
-  ) -> Bool {
-    index.forEachCanonicalSymbolOccurrence(
+  ) throws -> Bool {
+    try index.forEachCanonicalSymbolOccurrence(
       containing: pattern,
       anchorStart: anchorStart,
       anchorEnd: anchorEnd,
@@ -132,8 +143,8 @@ package final class CheckedIndex {
   @discardableResult package func forEachCanonicalSymbolOccurrence(
     byName name: String,
     body: (SymbolOccurrence) -> Bool
-  ) -> Bool {
-    index.forEachCanonicalSymbolOccurrence(byName: name) { occurrence in
+  ) throws -> Bool {
+    try index.forEachCanonicalSymbolOccurrence(byName: name) { occurrence in
       guard self.checker.isUpToDate(occurrence.location) else {
         return true  // continue
       }
@@ -141,21 +152,21 @@ package final class CheckedIndex {
     }
   }
 
-  package func symbols(inFilePath path: String) -> [Symbol] {
-    guard self.hasAnyUpToDateUnit(for: DocumentURI(filePath: path, isDirectory: false)) else {
+  package func symbols(inFilePath path: String) throws -> [Symbol] {
+    guard try self.hasAnyUpToDateUnit(for: DocumentURI(filePath: path, isDirectory: false)) else {
       return []
     }
-    return index.symbols(inFilePath: path)
+    return try index.symbols(inFilePath: path)
   }
 
   /// Returns all unit test symbol in unit files that reference one of the main files in `mainFilePaths`.
-  package func unitTests(referencedByMainFiles mainFilePaths: [String]) -> [SymbolOccurrence] {
-    return index.unitTests(referencedByMainFiles: mainFilePaths).filter { checker.isUpToDate($0.location) }
+  package func unitTests(referencedByMainFiles mainFilePaths: [String]) throws -> [SymbolOccurrence] {
+    return try index.unitTests(referencedByMainFiles: mainFilePaths).filter { checker.isUpToDate($0.location) }
   }
 
   /// Returns all unit test symbols in the index.
-  package func unitTests() -> [SymbolOccurrence] {
-    return index.unitTests().filter { checker.isUpToDate($0.location) }
+  package func unitTests() throws -> [SymbolOccurrence] {
+    return try index.unitTests().filter { checker.isUpToDate($0.location) }
   }
 
   /// Return `true` if a unit file has been indexed for the given file path after its last modification date.
@@ -165,20 +176,24 @@ package final class CheckedIndex {
   /// This means that at least a single build configuration of this file has been indexed since its last modification.
   /// This method does not care about which target (identified by output path in the index) produced the up-to-date
   /// unit.
-  package func hasAnyUpToDateUnit(for uri: DocumentURI, mainFile: DocumentURI? = nil) -> Bool {
-    return checker.indexHasUpToDateUnit(for: uri, mainFile: mainFile, index: index)
+  package func hasAnyUpToDateUnit(for uri: DocumentURI, mainFile: DocumentURI? = nil) throws -> Bool {
+    return try checker.indexHasUpToDateUnit(for: uri, mainFile: mainFile, index: index)
   }
 
   /// Return `true` if a unit file with the given output path has been indexed after its last modification date of
   /// `uri`.
   ///
   /// If `outputPath` is `notSupported`, this behaves the same as `hasAnyUpToDateUnit`.
-  package func hasUpToDateUnit(for uri: DocumentURI, mainFile: DocumentURI? = nil, outputPath: OutputPath) -> Bool {
+  package func hasUpToDateUnit(
+    for uri: DocumentURI,
+    mainFile: DocumentURI? = nil,
+    outputPath: OutputPath
+  ) throws -> Bool {
     switch outputPath {
     case .path(let outputPath):
-      return checker.indexHasUpToDateUnit(for: uri, outputPath: outputPath, index: index)
+      return try checker.indexHasUpToDateUnit(for: uri, outputPath: outputPath, index: index)
     case .notSupported:
-      return self.hasAnyUpToDateUnit(for: uri, mainFile: mainFile)
+      return try self.hasAnyUpToDateUnit(for: uri, mainFile: mainFile)
     }
   }
 
@@ -206,20 +221,20 @@ package final class CheckedIndex {
 
   /// If there are any definition occurrences of the given USR, return these.
   /// Otherwise return declaration occurrences.
-  package func definitionOrDeclarationOccurrences(ofUSR usr: String) -> [SymbolOccurrence] {
-    let definitions = occurrences(ofUSR: usr, roles: [.definition])
+  package func definitionOrDeclarationOccurrences(ofUSR usr: String) throws -> [SymbolOccurrence] {
+    let definitions = try occurrences(ofUSR: usr, roles: [.definition])
     if !definitions.isEmpty {
       return definitions
     }
-    return occurrences(ofUSR: usr, roles: [.declaration])
+    return try occurrences(ofUSR: usr, roles: [.declaration])
   }
 
   /// Find a `SymbolOccurrence` that is considered the primary definition of the symbol with the given USR.
   ///
   /// If the USR has an ambiguous definition, the most important role of this function is to deterministically return
   /// the same result every time.
-  package func primaryDefinitionOrDeclarationOccurrence(ofUSR usr: String) -> SymbolOccurrence? {
-    let result = definitionOrDeclarationOccurrences(ofUSR: usr).sorted().first
+  package func primaryDefinitionOrDeclarationOccurrence(ofUSR usr: String) throws -> SymbolOccurrence? {
+    let result = try definitionOrDeclarationOccurrences(ofUSR: usr).sorted().first
     if result == nil {
       logger.error("Failed to find definition of \(usr) in index")
     }
@@ -244,15 +259,15 @@ package final class CheckedIndex {
   ///   }
   /// }
   /// ```
-  package func containerNames(of symbol: SymbolOccurrence) -> [String] {
+  package func containerNames(of symbol: SymbolOccurrence) throws -> [String] {
     // The container name of accessors is the container of the surrounding variable.
     let accessorOf = symbol.relations.filter { $0.roles.contains(.accessorOf) }
     if let primaryVariable = accessorOf.sorted().first {
       if accessorOf.count > 1 {
         logger.fault("Expected an occurrence to an accessor of at most one symbol, not multiple")
       }
-      if let primaryVariable = primaryDefinitionOrDeclarationOccurrence(ofUSR: primaryVariable.symbol.usr) {
-        return containerNames(of: primaryVariable)
+      if let primaryVariable = try primaryDefinitionOrDeclarationOccurrence(ofUSR: primaryVariable.symbol.usr) {
+        return try containerNames(of: primaryVariable)
       }
     }
 
@@ -279,7 +294,7 @@ package final class CheckedIndex {
     }
 
     if containerSymbol.kind == .extension,
-      let extendedSymbol = self.occurrences(relatedToUSR: containerSymbol.usr, roles: .extendedBy).first?.symbol
+      let extendedSymbol = try self.occurrences(relatedToUSR: containerSymbol.usr, roles: .extendedBy).first?.symbol
     {
       containerSymbol = extendedSymbol
     }
@@ -291,12 +306,12 @@ package final class CheckedIndex {
     // of these files. But we expect all all of these declarations to have the same parent container names and we don't
     // care about locations here.
     var containerDefinition: SymbolOccurrence?
-    forEachSymbolOccurrence(byUSR: containerSymbol.usr, roles: [.definition, .declaration]) { occurrence in
+    try forEachSymbolOccurrence(byUSR: containerSymbol.usr, roles: [.definition, .declaration]) { occurrence in
       containerDefinition = occurrence
       return false  // stop iteration
     }
     if let containerDefinition {
-      result = self.containerNames(of: containerDefinition) + [containerSymbol.name]
+      result = try self.containerNames(of: containerDefinition) + [containerSymbol.name]
     } else {
       result = [containerSymbol.name]
     }
@@ -310,7 +325,12 @@ package final class CheckedIndex {
 /// calling `underlyingIndexStoreDB`) and we don't accidentally call into the `IndexStoreDB` when we wanted a
 /// `CheckedIndex`.
 package final actor UncheckedIndex: Sendable {
-  package nonisolated let underlyingIndexStoreDB: IndexStoreDB
+  // Ideally, this would be an isolated member instead of a `ThreadSafeBox`, but that causes issues with the workarounds
+  // around https://github.com/swiftlang/swift/issues/75600 when all functions become async.
+  private nonisolated let _underlyingIndexStoreDB: ThreadSafeBox<IndexStoreDB?>
+  package nonisolated var underlyingIndexStoreDB: IndexStoreDB? {
+    _underlyingIndexStoreDB.value
+  }
 
   /// Whether the underlying `IndexStoreDB` uses has `useExplicitOutputUnits` enabled and thus needs to receive updates
   /// updates as output paths are added or removed from the project.
@@ -324,13 +344,24 @@ package final actor UncheckedIndex: Sendable {
       return nil
     }
     self.usesExplicitOutputPaths = usesExplicitOutputPaths
-    self.underlyingIndexStoreDB = index
+    self._underlyingIndexStoreDB = ThreadSafeBox(initialValue: index)
+  }
+
+  /// Close the index store, writing it to the `saved` directory on disk.
+  package func close() {
+    // IndexStoreDB writes the index to disk when the retain count of the `IndexStoreDB` object hits zero. We hope that
+    // nobody else still has a reference to `IndexStoreDB` here.
+    _underlyingIndexStoreDB.value = nil
   }
 
   /// Update the set of output paths that should be considered visible in the project. For example, if a source file is
   /// removed from all targets in the project but remains on disk, this allows the index to start excluding it.
   package func setUnitOutputPaths(_ paths: Set<String>) {
     guard usesExplicitOutputPaths else {
+      return
+    }
+    guard let underlyingIndexStoreDB else {
+      logger.error("Not setting unit output paths because the index was closed")
       return
     }
     let addedPaths = paths.filter { !unitOutputPaths.contains($0) }
@@ -346,12 +377,22 @@ package final actor UncheckedIndex: Sendable {
 
   /// Wait for IndexStoreDB to be updated based on new unit files written to disk.
   package nonisolated func pollForUnitChangesAndWait() {
-    self.underlyingIndexStoreDB.pollForUnitChangesAndWait()
+    guard let underlyingIndexStoreDB else {
+      logger.error("Not polling for unit changes because the index was closed")
+      return
+    }
+
+    underlyingIndexStoreDB.pollForUnitChangesAndWait()
   }
 
   /// Import the units for the given output paths into indexstore-db. Returns after the import has finished.
   package nonisolated func processUnitsForOutputPathsAndWait(_ outputPaths: some Collection<String>) {
-    self.underlyingIndexStoreDB.processUnitsForOutputPathsAndWait(outputPaths)
+    guard let underlyingIndexStoreDB else {
+      logger.error("Not processing units for output paths because the index was closed")
+      return
+    }
+
+    underlyingIndexStoreDB.processUnitsForOutputPathsAndWait(outputPaths)
   }
 }
 

@@ -24,7 +24,11 @@ extension UncheckedIndex: BuildServerIntegration.MainFilesProvider {
   package func mainFiles(containing uri: DocumentURI, crossLanguage: Bool) -> Set<DocumentURI> {
     let mainFiles: Set<DocumentURI>
     if let filePath = orLog("File path to get main files", { try uri.fileURL?.filePath }) {
-      let mainFilePaths = self.underlyingIndexStoreDB.mainFilesContainingFile(
+      guard let underlyingIndexStoreDB = self.underlyingIndexStoreDB else {
+        logger.error("Not checking main files for URI because index has been closed")
+        return []
+      }
+      let mainFilePaths = underlyingIndexStoreDB.mainFilesContainingFile(
         path: filePath,
         crossLanguage: crossLanguage
       )

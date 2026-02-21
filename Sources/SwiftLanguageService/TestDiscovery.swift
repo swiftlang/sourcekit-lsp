@@ -33,7 +33,9 @@ extension SwiftLanguageService {
       return nil
     }
     let snapshot = try documentManager.latestSnapshot(uri)
-    let semanticSymbols = await workspace.index(checkedFor: .deletedFiles)?.symbols(inFilePath: snapshot.uri.pseudoPath)
+    let semanticSymbols = try await workspace.index(checkedFor: .deletedFiles)?.symbols(
+      inFilePath: snapshot.uri.pseudoPath
+    )
     let xctestSymbols = await SyntacticSwiftXCTestScanner.findTestSymbols(
       in: snapshot,
       syntaxTreeManager: syntaxTreeManager

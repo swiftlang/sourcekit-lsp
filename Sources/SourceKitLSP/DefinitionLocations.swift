@@ -104,7 +104,7 @@ package func definitionLocations(
   guard let usr = symbol.usr else { return DefinitionLocationsResult(locations: []) }
   logger.info("Performing indexed jump-to-definition with USR \(usr)")
 
-  let occurrences = index.definitionOrDeclarationOccurrences(ofUSR: usr)
+  let occurrences = try index.definitionOrDeclarationOccurrences(ofUSR: usr)
 
   if occurrences.isEmpty {
     if let bestLocalDeclaration = symbol.bestLocalDeclaration {

@@ -504,7 +504,11 @@ package final actor SemanticIndexManager {
             logger.info("Not indexing \(uri.forLogging) because its output file could not be determined")
             continue
           }
-          if !indexFilesWithUpToDateUnits, modifiedFilesIndex.hasUpToDateUnit(for: uri, outputPath: outputPath) {
+          let hasUpToDateUnit =
+            orLog("Checking if modified file has up-to-date unit") {
+              try modifiedFilesIndex.hasUpToDateUnit(for: uri, outputPath: outputPath)
+            } ?? true
+          if !indexFilesWithUpToDateUnits, hasUpToDateUnit {
             continue
           }
           // If this is a source file, just index it.
@@ -549,9 +553,11 @@ package final actor SemanticIndexManager {
         )
         continue
       }
-      if !indexFilesWithUpToDateUnits,
-        modifiedFilesIndex.hasUpToDateUnit(for: uri, mainFile: mainFile, outputPath: outputPath)
-      {
+      let hasUpToDateUnit =
+        orLog("Checking if modified file has up-to-date unit") {
+          try modifiedFilesIndex.hasUpToDateUnit(for: uri, mainFile: mainFile, outputPath: outputPath)
+        } ?? true
+      if !indexFilesWithUpToDateUnits, hasUpToDateUnit {
         continue
       }
       guard let language = await buildServerManager.defaultLanguage(for: uri, in: targetAndOutputPath.key) else {
