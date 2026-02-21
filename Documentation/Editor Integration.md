@@ -13,6 +13,12 @@ If `sourcekit-lsp` is in your `$PATH` or is discoverable by using `xcrun --find 
 
 You can read more about BBEdit's LSP support and configuration hints [here](https://www.barebones.com/support/bbedit/lsp-notes.html).
 
+## JetBrains IDEs
+
+[Noctule](https://noctule.dev) is a 3rd-party extension to provide cross-platform support for Swift.
+
+By default, Noctule will try to detect `sourcekit-lsp` on a system. But you can configure the toolchain to use in the settings. Please [refer to Noctule's website](https://noctule.dev/docs/configuration/) to learn how to do that.
+
 ## Nova
 
 You can use SourceKit-LSP with Nova by using the [Icarus](http://panic.com/open-in-nova/extension?id=panic.Icarus) extension.
