@@ -1686,6 +1686,70 @@ final class CodeActionTests: SourceKitLSPTestCase {
     )
   }
 
+  func testMoveMembersToExtension() async throws {
+    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
+    let uri = DocumentURI(for: .swift)
+
+    let positions = testClient.openDocument(
+      """
+      1️⃣class Foo {
+        2️⃣func foo() {
+          print("Hello world!")
+        }3️⃣
+
+        func bar() {
+          print("Hello world!")
+        }
+      }4️⃣
+      """,
+      uri: uri
+    )
+
+    let request = CodeActionRequest(
+      range: positions["2️⃣"]..<positions["3️⃣"],
+      context: .init(),
+      textDocument: TextDocumentIdentifier(uri)
+    )
+    let result = try await testClient.send(request)
+
+    guard case .codeActions(let codeActions) = result else {
+      XCTFail("Expected code actions")
+      return
+    }
+
+    let expectedCodeAction = CodeAction(
+      title: "Move to extension",
+      kind: .refactorExtract,
+      diagnostics: nil,
+      edit: WorkspaceEdit(
+        changes: [
+          uri: [
+            TextEdit(
+              range: positions["1️⃣"]..<positions["4️⃣"],
+              newText: """
+                class Foo {
+
+                  func bar() {
+                    print("Hello world!")
+                  }
+                }
+
+                extension Foo {
+                  func foo() {
+                    print("Hello world!")
+                  }
+                }
+                """
+            )
+          ]
+        ]
+      ),
+      command: nil
+    )
+
+    XCTAssertTrue(codeActions.contains(expectedCodeAction))
+  }
+
   func testConvertFunctionZeroParameterToComputedProperty() async throws {
     let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
     let uri = DocumentURI(for: .swift)
