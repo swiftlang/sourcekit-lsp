@@ -323,9 +323,7 @@ extension ClosureExprSyntax: SelectionRangeProvider {
   func calculateSelectionRanges(position: AbsolutePosition) -> [Range<AbsolutePosition>] {
     var ranges: [Range<AbsolutePosition>] = []
 
-    if let signature = self.signature,
-      signature.range.contains(position)
-    {
+    if let signature = self.signature, signature.range.contains(position) {
       let start = signature.positionAfterSkippingLeadingTrivia
       let end = self.statements.endPositionBeforeTrailingTrivia
       ranges.append(start..<end)
@@ -441,9 +439,7 @@ extension IfExprSyntax: SelectionRangeProvider {
   func calculateSelectionRanges(position: AbsolutePosition) -> [Range<AbsolutePosition>] {
     var ranges: [Range<AbsolutePosition>] = []
 
-    if let elseKeyword = self.elseKeyword,
-      let elseBody = self.elseBody
-    {
+    if let elseKeyword = self.elseKeyword, let elseBody = self.elseBody {
       // When inside the else block add a range for selecting `else {...}`
       let range = elseKeyword.positionAfterSkippingLeadingTrivia..<elseBody.endPositionBeforeTrailingTrivia
       if range.contains(position) {

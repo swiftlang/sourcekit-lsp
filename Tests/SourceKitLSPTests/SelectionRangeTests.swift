@@ -2158,6 +2158,5 @@ private func getStringOfSelectionRange(lineTable: LineTable, selectionRange: Sel
     utf16Column: selectionRange.range.upperBound.utf16index
   )
 
-  let slice = lineTable.content[lowerBoundIndex..<upperBoundIndex]
-  return String(slice)
+  return String(lineTable.content[lowerBoundIndex..<upperBoundIndex])
 }
