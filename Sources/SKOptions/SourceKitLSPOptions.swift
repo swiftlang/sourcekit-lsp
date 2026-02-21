@@ -194,14 +194,6 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     /// Number of seconds to wait for an update index store task to finish before terminating it.
     public var updateIndexStoreTimeout: Int?
 
-    /// Path to the Swift module cache for background preparation.
-    ///
-    /// If `nil` (default), SourceKit-LSP uses a platform-appropriate global module cache
-    /// (macOS: `~/Library/Caches/org.swift.sourcekit-lsp/ModuleCache`,
-    ///  Linux: `$XDG_CACHE_HOME/sourcekit-lsp/ModuleCache` or `~/.cache/sourcekit-lsp/ModuleCache`).
-    /// Set to empty string to disable module cache sharing.
-    public var swiftModuleCachePath: String?
-
     public var maxCoresPercentageToUseForBackgroundIndexingOrDefault: Double {
       return maxCoresPercentageToUseForBackgroundIndexing ?? 1
     }
@@ -217,13 +209,11 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     public init(
       indexPrefixMap: [String: String]? = nil,
       maxCoresPercentageToUseForBackgroundIndexing: Double? = nil,
-      updateIndexStoreTimeout: Int? = nil,
-      swiftModuleCachePath: String? = nil
+      updateIndexStoreTimeout: Int? = nil
     ) {
       self.indexPrefixMap = indexPrefixMap
       self.maxCoresPercentageToUseForBackgroundIndexing = maxCoresPercentageToUseForBackgroundIndexing
       self.updateIndexStoreTimeout = updateIndexStoreTimeout
-      self.swiftModuleCachePath = swiftModuleCachePath
     }
 
     static func merging(base: IndexOptions, override: IndexOptions?) -> IndexOptions {
@@ -231,8 +221,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
         indexPrefixMap: override?.indexPrefixMap ?? base.indexPrefixMap,
         maxCoresPercentageToUseForBackgroundIndexing: override?.maxCoresPercentageToUseForBackgroundIndexing
           ?? base.maxCoresPercentageToUseForBackgroundIndexing,
-        updateIndexStoreTimeout: override?.updateIndexStoreTimeout ?? base.updateIndexStoreTimeout,
-        swiftModuleCachePath: override?.swiftModuleCachePath ?? base.swiftModuleCachePath
+        updateIndexStoreTimeout: override?.updateIndexStoreTimeout ?? base.updateIndexStoreTimeout
       )
     }
   }
