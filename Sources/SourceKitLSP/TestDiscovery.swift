@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import BuildServerIntegration
+import BuildServerProtocol
 import Foundation
 package import IndexStoreDB
 @_spi(SourceKitLSP) import LanguageServerProtocol
@@ -89,7 +90,13 @@ private func findInnermostSymbolRange(
   return bestRange
 }
 
-extension SourceKitLSPServer {
+struct TestDiscovery {
+  weak let sourceKitLSPServer: SourceKitLSPServer?
+
+  init(sourceKitLSPServer: SourceKitLSPServer?) {
+    self.sourceKitLSPServer = sourceKitLSPServer
+  }
+
   /// Converts a flat list of test symbol occurrences to a hierarchical `TestItem` array, inferring the hierarchical
   /// structure from `childOf` relations between the symbol occurrences.
   ///
@@ -142,23 +149,16 @@ extension SourceKitLSPServer {
     /// individual test.
     func testItem(
       for testSymbolOccurrence: SymbolOccurrence,
-      documentManager: DocumentManager,
       context: [String]
     ) -> AnnotatedTestItem {
-      let symbolPosition: Position
-      if let snapshot = try? documentManager.latestSnapshot(
-        testSymbolOccurrence.location.documentUri
-      ) {
-        symbolPosition = snapshot.position(of: testSymbolOccurrence.location)
-      } else {
-        // Technically, we always need to convert UTF-8 columns to UTF-16 columns, which requires reading the file.
-        // In practice, they are almost always the same.
-        // We chose to avoid hitting the file system even if it means that we might report an incorrect column.
-        symbolPosition = Position(
-          line: testSymbolOccurrence.location.line - 1,  // 1-based -> 0-based
-          utf16index: testSymbolOccurrence.location.utf8Column - 1
-        )
-      }
+      // Technically, we always need to convert UTF-8 columns to UTF-16 columns, which requires reading the file.
+      // In practice, they are almost always the same.
+      // We chose to avoid hitting the file system even if it means that we might report an incorrect column.
+      let symbolPosition = Position(
+        line: testSymbolOccurrence.location.line - 1,  // 1-based -> 0-based
+        utf16index: testSymbolOccurrence.location.utf8Column - 1
+      )
+
       let id = (context + [testSymbolOccurrence.symbol.name]).joined(separator: "/")
       let location = resolveLocation(testSymbolOccurrence.location.documentUri, symbolPosition)
 
@@ -166,7 +166,7 @@ extension SourceKitLSPServer {
         occurrencesByParent[testSymbolOccurrence.symbol.usr, default: []]
         .sorted()
         .map {
-          testItem(for: $0, documentManager: documentManager, context: context + [testSymbolOccurrence.symbol.name])
+          testItem(for: $0, context: context + [testSymbolOccurrence.symbol.name])
         }
       return AnnotatedTestItem(
         testItem: TestItem(
@@ -182,81 +182,54 @@ extension SourceKitLSPServer {
       )
     }
 
-    let documentManager = self.documentManager
     return occurrencesByParent[nil, default: []]
       .sorted()
-      .map { testItem(for: $0, documentManager: documentManager, context: []) }
+      .map { testItem(for: $0, context: []) }
   }
 
   /// Return all the tests in the given workspace.
   ///
-  /// This merges tests from the semantic index, the syntactic index and in-memory file states.
+  /// This merges tests from the semantic index, the syntactic index.
   ///
   /// The returned list of tests is not sorted. It should be sorted before being returned to the editor.
-  private func tests(in workspace: Workspace) async -> [AnnotatedTestItem] {
+  private func discoverTests(in workspace: Workspace) async -> [AnnotatedTestItem] {
+    if Task.isCancelled {
+      return []
+    }
+
     // If files have recently been added to the workspace (which is communicated by a `workspace/didChangeWatchedFiles`
     // notification, wait these changes to be reflected in the build server so we can include the updated files in the
     // tests.
     await workspace.buildServerManager.waitForUpToDateBuildGraph()
 
+    if Task.isCancelled {
+      return []
+    }
+
     // Gather all tests classes and test methods. We include test from different sources:
-    //  - For all files that have been not been modified since they were last indexed in the semantic index, include
-    //    XCTests from the semantic index.
-    //  - For all files that have been modified since the last semantic index but that don't have any in-memory
-    //    modifications (ie. modifications that the user has made in the editor but not saved), include XCTests from
-    //    the syntactic test index
-    //  - For all files that don't have any in-memory modifications, include swift-testing tests from the syntactic test
-    //    index.
-    //  - All files that have in-memory modifications are syntactically scanned for tests here.
-    let index = await workspace.index(checkedFor: .inMemoryModifiedFiles(documentManager))
+    //  - All swift-syntax tests from syntactic index.
+    //  - All XCTest tests from up-to-date semantic index.
+    //  - All XCTest tests from syntactic index.
 
-    // TODO: Remove this workaround once https://github.com/swiftlang/swift/issues/75600 is fixed
-    func documentManagerHasInMemoryModifications(_ uri: DocumentURI) -> Bool {
-      return documentManager.fileHasInMemoryModifications(uri)
-    }
+    async let testsFromSyntacticIndex = workspace.syntacticIndex.tests()
 
-    let snapshotsWithInMemoryState = documentManager.openDocuments.filter { uri in
-      // Use the index to check for in-memory modifications so we can re-use its cache. If no index exits, ask the
-      // document manager directly.
-      if let index {
-        return index.fileHasInMemoryModifications(uri)
-      } else {
-        return documentManagerHasInMemoryModifications(uri)
-      }
-    }.compactMap { uri in
-      orLog("Getting snapshot of open document") {
-        try documentManager.latestSnapshot(uri)
-      }
-    }
-
-    let testsFromFilesWithInMemoryState = await snapshotsWithInMemoryState.concurrentMap {
-      (snapshot) -> [AnnotatedTestItem] in
-      // When secondary language services can provide tests, we need to query them for tests as well. For now there is
-      // too much overhead associated with calling `documentTestsWithoutMergingExtensions` for language services that
-      // don't have any test discovery functionality.
-      return await orLog("Getting document tests for \(snapshot.uri)") {
-        try await self.documentTestsWithoutMergingExtensions(
-          DocumentTestsRequest(textDocument: TextDocumentIdentifier(snapshot.uri)),
-          workspace: workspace,
-          languageService: self.primaryLanguageService(for: snapshot.uri, snapshot.language, in: workspace)
-        )
-      } ?? []
-    }.flatMap { $0 }
-
-    let semanticTestSymbolOccurrences = index?.unitTests().filter { return $0.canBeTestDefinition } ?? []
-
-    let testsFromSyntacticIndex = await workspace.syntacticIndex.tests()
+    let index = await workspace.index(checkedFor: .modifiedFiles)
     let testsFromSemanticIndex = testItems(
-      for: semanticTestSymbolOccurrences,
+      for: index?.unitTests().filter { return $0.canBeTestDefinition } ?? [],
       index: index,
+      // FIXME: Correct 'range'.
       resolveLocation: { uri, position in Location(uri: uri, range: Range(position)) }
     )
     let filesWithTestsFromSemanticIndex = Set(testsFromSemanticIndex.map(\.testItem.location.uri))
 
     let indexOnlyDiscardingDeletedFiles = await workspace.index(checkedFor: .deletedFiles)
 
+    if Task.isCancelled {
+      return []
+    }
+
     let syntacticTestsToInclude =
-      testsFromSyntacticIndex
+      await testsFromSyntacticIndex
       .compactMap { (item) -> AnnotatedTestItem? in
         let testItem = item.testItem
         if testItem.style == TestStyle.swiftTesting {
@@ -266,11 +239,6 @@ extension SourceKitLSPServer {
         if filesWithTestsFromSemanticIndex.contains(testItem.location.uri) {
           // If we have an semantic tests from this file, then the semantic index is up-to-date for this file. We thus
           // don't need to include results from the syntactic index.
-          return nil
-        }
-        if snapshotsWithInMemoryState.contains(where: { $0.uri == testItem.location.uri }) {
-          // If the file has been modified in the editor, the syntactic index (which indexes on-disk files) is no longer
-          // up-to-date. Include the tests from `testsFromFilesWithInMemoryState`.
           return nil
         }
         if index?.hasAnyUpToDateUnit(for: testItem.location.uri) ?? false {
@@ -292,19 +260,24 @@ extension SourceKitLSPServer {
         return nil
       }
 
-    // We don't need to sort the tests here because they will get sorted by `workspaceTests` request handler
-    return testsFromSemanticIndex + syntacticTestsToInclude + testsFromFilesWithInMemoryState
+    return testsFromSemanticIndex + syntacticTestsToInclude
   }
 
-  func workspaceTests(_ req: WorkspaceTestsRequest) async throws -> [TestItem] {
-    return await self.workspaces
-      .concurrentMap { await self.tests(in: $0).prefixTestsWithModuleName(workspace: $0) }
-      .flatMap { $0 }
-      .sorted { $0.testItem.location < $1.testItem.location }
+  /// Collect all test cases from all the workspaces and merge it into a sorted list of the test cases.
+  ///
+  /// Note that this doesn't take in-memory modified documents into account.
+  func workspaceTests() async -> [TestItem]? {
+    return await self.sourceKitLSPServer?.workspaces
+      .concurrentMap {
+        await self.discoverTests(in: $0).prefixTestsWithModuleName(workspace: $0)
+      }
+      .flatMap({ $0 })
       .mergingTestsInExtensions()
+      .sorted { $0.location < $1.location }
       .deduplicatingIds()
   }
 
+  /// Collect tests case in a document.
   func documentTests(
     _ req: DocumentTestsRequest,
     workspace: Workspace,
@@ -313,6 +286,7 @@ extension SourceKitLSPServer {
     return try await documentTestsWithoutMergingExtensions(req, workspace: workspace, languageService: languageService)
       .prefixTestsWithModuleName(workspace: workspace)
       .mergingTestsInExtensions()
+      .sorted { $0.location < $1.location }
       .deduplicatingIds()
   }
 
@@ -321,15 +295,27 @@ extension SourceKitLSPServer {
     workspace: Workspace,
     languageService: any LanguageService
   ) async throws -> [AnnotatedTestItem] {
-    let snapshot = try self.documentManager.latestSnapshot(req.textDocument.uri)
+    guard let documentManager = self.sourceKitLSPServer?.documentManager else {
+      return []
+    }
+    let snapshot = try documentManager.latestSnapshot(req.textDocument.uri)
     let mainFileUri = await workspace.buildServerManager.mainFile(
       for: req.textDocument.uri,
       language: snapshot.language
     )
 
-    let syntacticTests = try await languageService.syntacticDocumentTests(for: req.textDocument.uri, in: workspace)
+    // If we know the targets for the file and the file is not part of any test target, don't scan it for tests.
+    let targetIdentifiers = await workspace.buildServerManager.targets(for: mainFileUri)
+    let inTestTarget = await targetIdentifiers.asyncContains {
+      await workspace.buildServerManager.buildTarget(named: $0)?.tags.contains(.test) ?? false
+    }
+    if !targetIdentifiers.isEmpty && !inTestTarget {
+      return []
+    }
 
-    // We `syntacticDocumentTests` returns `nil`, it indicates that it doesn't support syntactic test discovery.
+    let syntacticTests = await languageService.syntacticTestItems(for: snapshot)
+
+    // When `syntacticTestItems` returns `nil`, it indicates that it doesn't support syntactic test discovery.
     // In that case, the semantic index is the only source of tests we have and we thus want to show tests from the
     // semantic index, even if they are out-of-date. The alternative would be showing now tests after an edit to a file.
     let indexCheckLevel: IndexCheckLevel =
@@ -370,8 +356,19 @@ extension SourceKitLSPServer {
         return syntacticSwiftTestingTests
       }
     }
-    // We don't have any up-to-date semantic index entries for this file. Syntactically look for tests.
-    return syntacticTests ?? []
+    // We don't have any up-to-date semantic index entries for this file. Use syntactically found tests but filtering out known non tests.
+    guard let syntacticTests else {
+      return []
+    }
+    let possiblyOutDatedSymbols = await workspace.index(checkedFor: .deletedFiles)?.symbols(
+      inFilePath: snapshot.uri.pseudoPath
+    )
+    return syntacticTests.compactMap { test in
+      if test.testItem.style == TestStyle.swiftTesting {
+        return test
+      }
+      return test.filterUsing(semanticSymbols: possiblyOutDatedSymbols)
+    }
   }
 }
 

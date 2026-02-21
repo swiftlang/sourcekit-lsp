@@ -49,6 +49,11 @@ private struct NotificationTimeoutError: Error, CustomStringConvertible {
   var description: String = "Failed to receive next notification within timeout"
 }
 
+private struct RequestWaitingTimeoutError: Error, CustomStringConvertible {
+  let name: String
+  var description: String { "Failed to receive request '\(name)' within timeout" }
+}
+
 /// A list of notifications that has been received by the SourceKit-LSP server but not handled from the test case yet.
 ///
 /// We can't use an `AsyncStream` for this because an `AsyncStream` is cancelled if a task that calls
@@ -378,6 +383,35 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
   /// Handle all requests of the given type that are sent to the client.
   package func handleMultipleRequests<R: RequestType>(_ requestHandler: @escaping RequestHandler<R>) {
     requestHandlers.value.append((requestHandler: requestHandler, isOneShot: false))
+  }
+
+  /// Execute the `operation` and wait for the specified Request.
+  package func withWaitingFor<R: RequestType, Value>(
+    _: R.Type,
+    timeout: Duration = defaultTimeoutDuration,
+    pollingInterval: Duration = .milliseconds(10),
+    operation: () async throws -> Value,
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) async throws -> Value where R.Response == VoidResponse {
+    // Set the single request handler.
+    let received = AtomicBool(initialValue: false)
+    self.handleSingleRequest { (_: R) in
+      received.value = true
+      return VoidResponse()
+    }
+
+    let result = try await operation()
+
+    // Wait for the request.
+    for _ in 0..<Int(timeout.seconds / pollingInterval.seconds) {
+      if received.value {
+        return result
+      }
+      try await Task.sleep(for: pollingInterval)
+    }
+    XCTFail("Failed to receive request '\(R.method)' within timeout", file: file, line: line)
+    throw RequestWaitingTimeoutError(name: R.method)
   }
 
   // MARK: - Conformance to MessageHandler
