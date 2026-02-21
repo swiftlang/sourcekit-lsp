@@ -1208,9 +1208,9 @@ final class CodeActionTests: SourceKitLSPTestCase {
       files: [
         "Test/Test.swift": """
         1️⃣#if FLAG
-        import Darwin
+        import Foundation
         #elseif INACTIVE
-        import Glibc
+        import Dispatch
         #endif
         """
       ],
