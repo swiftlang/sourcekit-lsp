@@ -506,15 +506,15 @@ extension AvailabilityArgumentSyntax: SelectionRangeProvider {
 extension TokenSyntax: SelectionRangeProvider {
   func calculateSelectionRanges(position: AbsolutePosition) -> [Range<AbsolutePosition>] {
     switch self.tokenKind {
-    case .identifier where self.parent?.parent?.is(AttributeSyntax.self) ?? false:
+    case .identifier where self.parent?.keyPathInParent == \AttributeSyntax.attributeName:
       // For attributes we don't want to create a range for just the attribute name but rather always include the `@`
       return []
 
-    case .identifier where self.parent?.is(MacroExpansionExprSyntax.self) ?? false:
+    case .identifier where self.keyPathInParent == \MacroExpansionExprSyntax.macroName:
       // For macro expansions we don't want to create a range for just the macro name but rather always include the `#`
       return []
 
-    case .identifier where self.parent?.is(GenericParameterSyntax.self) ?? false:
+    case .identifier where self.keyPathInParent == \GenericParameterSyntax.name:
       // For generic parameters we want to handle the identifier in the `GenericParameter` node as we may have to
       // include or exclude the trailing comma
       return []
@@ -524,15 +524,6 @@ extension TokenSyntax: SelectionRangeProvider {
       return []
 
     case .binaryOperator, .dollarIdentifier, .floatLiteral, .identifier, .integerLiteral, .keyword:
-      return [self.trimmedRange]
-
-    case _
-    where self.parent?.isProtocol((any DeclGroupSyntax).self) ?? false
-      || self.parent?.is(TypeAliasDeclSyntax.self) ?? false
-      || self.parent?.is(FunctionDeclSyntax.self) ?? false
-      || self.parent?.is(InitializerDeclSyntax.self) ?? false
-      || self.parent?.is(MacroDeclSyntax.self) ?? false
-      || self.parent?.is(SubscriptDeclSyntax.self) ?? false:
       return [self.trimmedRange]
 
     default:
