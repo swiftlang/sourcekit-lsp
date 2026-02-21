@@ -92,7 +92,7 @@ struct SyntaxHighlightingTokenParser {
     let values = sourcekitd.values
     switch uid {
     case values.completionKindKeyword, values.keyword:
-      return (.keyword, [])
+      return nil
     case values.attributeBuiltin:
       return (.modifier, [])
     case values.declModule:
@@ -160,9 +160,9 @@ struct SyntaxHighlightingTokenParser {
       values.refFunctionInfixOperator:
       return (.operator, [])
     case values.declMacro:
-      return (.macro, [.declaration])
+      return nil
     case values.refMacro:
-      return (.macro, [])
+      return nil
     case values.declVarStatic,
       values.declVarClass,
       values.declVarInstance:
@@ -186,16 +186,16 @@ struct SyntaxHighlightingTokenParser {
     case values.comment,
       values.commentMarker,
       values.commentURL:
-      return (.comment, [])
+      return nil
     case values.docComment,
       values.docCommentField:
-      return (.comment, [.documentation])
+      return nil
     case values.typeIdentifier:
       return (.type, [])
     case values.number:
-      return (.number, [])
+      return nil
     case values.string:
-      return (.string, [])
+      return nil
     case values.identifier:
       return (.identifier, [])
     default:
