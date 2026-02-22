@@ -106,7 +106,7 @@ actor MacroExpansionManager {
       keys.column: utf8Column + 1,
       keys.length: length,
       keys.actionUID: swiftLanguageService.sourcekitd.api.uid_get_from_cstr("source.refactoring.kind.expand.macro")!,
-      keys.compilerArgs: buildSettings?.compilerArgs as [any SKDRequestValue]?,
+      keys.compilerArgs: buildSettings?.compilerArgs(for: snapshot.uri) as [any SKDRequestValue]?,
     ])
 
     let dict = try await swiftLanguageService.send(sourcekitdRequest: \.semanticRefactoring, skreq, snapshot: snapshot)

@@ -90,7 +90,7 @@ extension SwiftLanguageService {
       keys.cancelOnSubsequentRequest: 0,
       keys.sourceFile: snapshot.uri.sourcekitdSourceFile,
       keys.primaryFile: snapshot.uri.primaryFile?.pseudoPath,
-      keys.compilerArgs: await self.compileCommand(for: uri, fallbackAfterTimeout: false)?.compilerArgs
+      keys.compilerArgs: await self.compileCommand(for: uri, fallbackAfterTimeout: false)?.compilerArgs(for: uri)
         as [any SKDRequestValue]?,
     ])
 

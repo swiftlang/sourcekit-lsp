@@ -80,7 +80,7 @@ actor DiagnosticReportManager {
     let reportTask: ReportTask
     if let buildSettings, !buildSettings.isFallback {
       reportTask = ReportTask {
-        return try await self.requestReport(with: snapshot, compilerArgs: buildSettings.compilerArgs)
+        return try await self.requestReport(with: snapshot, compilerArgs: buildSettings.compilerArgs(for: snapshot.uri))
       }
     } else {
       logger.log(

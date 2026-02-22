@@ -144,7 +144,7 @@ extension SwiftLanguageService {
       keys.offset: snapshot.utf8Offset(of: adjustedPosition),
       keys.sourceFile: snapshot.uri.sourcekitdSourceFile,
       keys.primaryFile: snapshot.uri.primaryFile?.pseudoPath,
-      keys.compilerArgs: compileCommand?.compilerArgs as [any SKDRequestValue]?,
+      keys.compilerArgs: compileCommand?.compilerArgs(for: snapshot.uri) as [any SKDRequestValue]?,
     ])
 
     let dict = try await send(sourcekitdRequest: \.signatureHelp, skreq, snapshot: snapshot)

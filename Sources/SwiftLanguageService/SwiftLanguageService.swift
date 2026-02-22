@@ -53,25 +53,40 @@ fileprivate extension Range {
   }
 }
 
-/// Explicitly excluded `DocumentURI` schemes.
-private let excludedDocumentURISchemes: [String] = [
-  "git",
-  "hg",
-]
+/// Returns true if the given document URI uses a non-file scheme and is not a reference
+/// document (such as a macro expansion or generated interface).
+///
+/// Some editors (like Visual Studio Code) use non-file URLs (e.g. `git:`, `hg:`) to manage
+/// source control diff bases for the active document. These non-file URIs require special
+/// handling because:
+///
+/// 1. They can lead to duplicate diagnostics in the Problems view.
+/// 2. sourcekitd does not properly handle non-file URLs when the `-working-directory` argument
+///    is passed, since it incorrectly applies the working directory to the input argument but
+///    not the internal primary file, leading sourcekitd to believe that the input file is
+///    missing. (SR-12196 / rdar://59400065)
+///
+/// Reference documents (macro expansions, generated interfaces) are excluded because they set
+/// `primaryFile` explicitly in sourcekitd requests, which allows sourcekitd to correctly
+/// determine the primary file without matching the source file against input files. Their
+/// compiler arguments reference real file paths that may need the working directory for
+/// resolution.
+private func isNonFileDocumentURI(_ uri: DocumentURI) -> Bool {
+  // Reference documents (sourcekit-lsp:// scheme) have a primaryFile set in sourcekitd
+  // requests, so the working directory bug doesn't affect them.
+  if uri.primaryFile != nil {
+    return false
+  }
+  return uri.fileURL == nil
+}
 
 /// Returns true if diagnostics should be emitted for the given document.
 ///
-/// Some editors (like Visual Studio Code) use non-file URLs to manage source control diff bases
-/// for the active document, which can lead to duplicate diagnostics in the Problems view.
-/// As a workaround we explicitly exclude those URIs and don't emit diagnostics for them.
-///
-/// Additionally, as of Xcode 11.4, sourcekitd does not properly handle non-file URLs when
-/// the `-working-directory` argument is passed since it incorrectly applies it to the input
-/// argument but not the internal primary file, leading sourcekitd to believe that the input
-/// file is missing.
+/// Diagnostics are suppressed for non-file, non-reference-document URIs to avoid duplicate
+/// diagnostics from source control diff bases and to work around the sourcekitd working
+/// directory bug (SR-12196).
 private func diagnosticsEnabled(for document: DocumentURI) -> Bool {
-  guard let scheme = document.scheme else { return true }
-  return !excludedDocumentURISchemes.contains(scheme)
+  return !isNonFileDocumentURI(document)
 }
 
 /// A swift compiler command derived from a `FileBuildSettingsChange`.
@@ -94,6 +109,39 @@ package struct SwiftCompileCommand: Sendable, Equatable, Hashable {
       self.compilerArgs = baseArgs
     }
     self.isFallback = settings.isFallback
+  }
+
+  /// Returns compiler arguments appropriate for the given document URI.
+  ///
+  /// If the document has a non-file URI scheme (e.g. `git:`, `hg:`, or other source control
+  /// schemes) and is not a reference document, the `-working-directory` flag and its value are
+  /// stripped from the arguments. This works around a sourcekitd bug (SR-12196) where the
+  /// working directory is incorrectly applied to non-file input paths, causing sourcekitd to
+  /// fail with "is not part of the input files".
+  ///
+  /// Reference documents (macro expansions, generated interfaces) are not affected because they
+  /// set `primaryFile` explicitly in sourcekitd requests, bypassing the input file matching
+  /// that causes the bug.
+  package func compilerArgs(for document: DocumentURI) -> [String] {
+    guard isNonFileDocumentURI(document) else {
+      return compilerArgs
+    }
+    return Self.removeWorkingDirectory(from: compilerArgs)
+  }
+
+  /// Removes the `-working-directory` flag and its associated value from the given arguments.
+  private static func removeWorkingDirectory(from args: [String]) -> [String] {
+    var result: [String] = []
+    var iterator = args.makeIterator()
+    while let arg = iterator.next() {
+      if arg == "-working-directory" {
+        // Skip the next argument (the working directory value)
+        _ = iterator.next()
+      } else {
+        result.append(arg)
+      }
+    }
+    return result
   }
 }
 
@@ -534,7 +582,7 @@ extension SwiftLanguageService {
       keys.enableStructure: 0,
       keys.enableDiagnostics: 0,
       keys.syntacticOnly: 1,
-      keys.compilerArgs: compileCommand?.compilerArgs as [any SKDRequestValue]?,
+      keys.compilerArgs: compileCommand?.compilerArgs(for: snapshot.uri) as [any SKDRequestValue]?,
     ])
   }
 

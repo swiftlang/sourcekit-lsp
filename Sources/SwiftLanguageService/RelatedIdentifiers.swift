@@ -73,7 +73,9 @@ extension SwiftLanguageService {
       keys.sourceFile: snapshot.uri.sourcekitdSourceFile,
       keys.primaryFile: snapshot.uri.primaryFile?.pseudoPath,
       keys.includeNonEditableBaseNames: includeNonEditableBaseNames ? 1 : 0,
-      keys.compilerArgs: await self.compileCommand(for: snapshot.uri, fallbackAfterTimeout: true)?.compilerArgs
+      keys.compilerArgs: await self.compileCommand(for: snapshot.uri, fallbackAfterTimeout: true)?.compilerArgs(
+        for: snapshot.uri
+      )
         as [any SKDRequestValue]?,
     ])
 
