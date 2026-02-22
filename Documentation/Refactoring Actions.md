@@ -86,6 +86,7 @@ The specific refactorings available depend on what code is selected or where the
 | Action | Trigger |
 |--------|---------|
 | **Remove Unused Imports** | Cursor on an import declaration (only available when file has no errors) |
+| **Remove Redundant Parentheses** | Cursor on a parenthesized expression that contains a redundant outer set of parentheses |
 
 ### Package.swift Manifest Editing
 
