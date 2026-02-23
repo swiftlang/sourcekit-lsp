@@ -122,6 +122,19 @@ extension SwiftLanguageService {
     ]
   }
 
+  private final class ImportCollector: SyntaxVisitor {
+    var imports: [ImportDeclSyntax] = []
+
+    init() {
+      super.init(viewMode: .sourceAccurate)
+    }
+
+    override func visit(_ node: ImportDeclSyntax) -> SyntaxVisitorContinueKind {
+      imports.append(node)
+      return .skipChildren
+    }
+  }
+
   func removeUnusedImports(_ command: RemoveUnusedImportsCommand) async throws {
     let snapshot = try await self.latestSnapshot(for: command.textDocument.uri)
     let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
@@ -199,7 +212,9 @@ extension SwiftLanguageService {
 
       // Only consider import declarations at the top level and ignore ones eg. inside `#if` clauses since those might
       // be inactive in the current build configuration and thus we can't reliably check if they are needed.
-      let importDecls = syntaxTree.statements.compactMap { $0.item.as(ImportDeclSyntax.self) }
+      let collector = ImportCollector()
+      collector.walk(syntaxTree)
+      let importDecls = collector.imports
 
       var declsToRemove: [ImportDeclSyntax] = []
 

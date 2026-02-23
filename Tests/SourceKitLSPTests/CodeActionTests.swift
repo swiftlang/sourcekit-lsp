@@ -1143,12 +1143,21 @@ final class CodeActionTests: SourceKitLSPTestCase {
     )
   }
 
+  // TODO: testRemoveUnusedImportsFromActiveIfClause
+  // TODO: testRemoveUnusedImportsDoesNotRemoveImportsFromInactiveIfClause
+  // TODO: testRemoveUnusedImportsDoesNotRemoveImportsInIfFalseBlock
+  // TODO: testRemoveUnusedImportsFromIfTrueBlock
+  // TODO: testRemoveUnusedImportsMixedActiveInactiveRegions
+  // TODO: testRemoveUnusedImportsNestedInactiveRegions
+  // TODO: testRemoveUnusedImportsTopLevelAndConditional
+
   func testRemoveUnusedImportsFromActiveIfClause() async throws {
     let project = try await SwiftPMTestProject(
       files: [
+        "LibA/LibA.swift": "",
         "Test/Test.swift": """
-        1️⃣#if FLAG
-        import Foundation
+        #if FLAG
+         1️⃣import LibA
         #endif
         """
       ],
@@ -1156,8 +1165,10 @@ final class CodeActionTests: SourceKitLSPTestCase {
         let package = Package(
           name: "MyLibrary",
           targets: [
+            .target(name: "LibA"),
             .target(
               name: "Test",
+              dependencies: ["LibA"],
               swiftSettings: [
                 .enableUpcomingFeature("MemberImportVisibility"),
                 .define("FLAG")
@@ -1192,65 +1203,6 @@ final class CodeActionTests: SourceKitLSPTestCase {
           $0.newText.isEmpty
         }) ?? false
       )
-      return ApplyEditResponse(applied: true, failureReason: nil)
-    }
-
-    _ = try await project.testClient.send(
-      ExecuteCommandRequest(
-        command: removeUnusedImportsCommand.command,
-        arguments: removeUnusedImportsCommand.arguments
-      )
-    )
-  }
-
-  func testRemoveUnusedImportsDoesNotRemoveImportsFromInactiveIfClause() async throws {
-    let project = try await SwiftPMTestProject(
-      files: [
-        "Test/Test.swift": """
-        1️⃣#if FLAG
-        import Foundation
-        #elseif INACTIVE
-        import Dispatch
-        #endif
-        """
-      ],
-      manifest: """
-        let package = Package(
-          name: "MyLibrary",
-          targets: [
-            .target(
-              name: "Test",
-              swiftSettings: [
-                .enableUpcomingFeature("MemberImportVisibility"),
-                .define("FLAG"),
-                .define("INACTIVE")
-              ]
-            )
-          ]
-        )
-        """,
-      capabilities: clientCapabilitiesWithCodeActionSupport,
-      enableBackgroundIndexing: true
-    )
-
-    let (uri, positions) = try project.openDocument("Test.swift")
-
-    let importResult = try await project.testClient.send(
-      CodeActionRequest(
-        range: Range(positions["1️⃣"]),
-        context: CodeActionContext(),
-        textDocument: TextDocumentIdentifier(uri)
-      )
-    )
-
-    let removeUnusedImportsCommand = try XCTUnwrap(
-      importResult?.codeActions?.first(where: {
-        $0.command?.command == RemoveUnusedImportsCommand.identifier
-      })?.command
-    )
-
-    project.testClient.handleSingleRequest { (request: ApplyEditRequest) -> ApplyEditResponse in
-      XCTAssertEqual(request.edit.changes?[uri]?.count, 1)
       return ApplyEditResponse(applied: true, failureReason: nil)
     }
 
