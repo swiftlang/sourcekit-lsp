@@ -122,16 +122,71 @@ extension SwiftLanguageService {
     ]
   }
 
-  private final class ImportCollector: SyntaxVisitor {
-    var imports: [ImportDeclSyntax] = []
+  private final class ActiveRegionImportCollector: SyntaxVisitor {
 
-    init() {
+    let activeDefines: Set<String>
+    var imports: [ImportDeclSyntax] = []
+    private var activeRegionStack: [Bool] = [true]
+
+    init(activeDefines: Set<String>) {
+      self.activeDefines = activeDefines
       super.init(viewMode: .sourceAccurate)
     }
 
+    private var isActive: Bool {
+      activeRegionStack.last ?? true
+    }
+
     override func visit(_ node: ImportDeclSyntax) -> SyntaxVisitorContinueKind {
-      imports.append(node)
+      if isActive {
+        imports.append(node)
+      }
       return .skipChildren
+    }
+
+    override func visit(_ node: IfConfigDeclSyntax) -> SyntaxVisitorContinueKind {
+
+      for clause in node.clauses {
+
+        let conditionIsTrue: Bool
+
+        if let condition = clause.condition {
+          conditionIsTrue = evaluate(condition)
+        } else {
+          // #else
+          conditionIsTrue = true
+        }
+
+        if conditionIsTrue {
+          activeRegionStack.append(isActive)
+
+          if let elements = clause.elements {
+            walk(elements)
+          }
+
+          activeRegionStack.removeLast()
+          break  // 🚨 CRITICAL — stop after first true clause
+        }
+      }
+
+      return .skipChildren
+    }
+
+    private func evaluate(_ expr: ExprSyntax) -> Bool {
+
+      if let ident = expr.as(DeclReferenceExprSyntax.self)?.baseName.text {
+        return activeDefines.contains(ident)
+      }
+
+      if expr.description.trimmingCharacters(in: .whitespacesAndNewlines) == "true" {
+        return true
+      }
+
+      if expr.description.trimmingCharacters(in: .whitespacesAndNewlines) == "false" {
+        return false
+      }
+
+      return false
     }
   }
 
@@ -143,6 +198,13 @@ extension SwiftLanguageService {
         "Cannot remove unused imports because the build settings for the file could not be determined"
       )
     }
+
+    let activeDefines: Set<String> = Set(
+      compileCommand.compilerArgs.compactMap { arg -> String? in
+        guard arg.hasPrefix("-D") else { return nil }
+        return String(arg.dropFirst(2))
+      }
+    )
 
     // We need to fake a file path instead of some other URI scheme because the sourcekitd diagnostics request complains
     // that the source file is not part of the input files for arbitrary scheme URLs.
@@ -212,7 +274,7 @@ extension SwiftLanguageService {
 
       // Only consider import declarations at the top level and ignore ones eg. inside `#if` clauses since those might
       // be inactive in the current build configuration and thus we can't reliably check if they are needed.
-      let collector = ImportCollector()
+      let collector = ActiveRegionImportCollector(activeDefines: activeDefines)
       collector.walk(syntaxTree)
       let importDecls = collector.imports
 
@@ -255,6 +317,10 @@ extension SwiftLanguageService {
         }
 
         declsToRemove.append(importDecl)
+      }
+
+      if declsToRemove.isEmpty {
+        return
       }
 
       guard let sourceKitLSPServer else {
