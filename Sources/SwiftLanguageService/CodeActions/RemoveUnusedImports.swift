@@ -165,7 +165,7 @@ extension SwiftLanguageService {
           }
 
           activeRegionStack.removeLast()
-          break  // 🚨 CRITICAL — stop after first true clause
+          break  // CRITICAL — stop after first true clause
         }
       }
 
