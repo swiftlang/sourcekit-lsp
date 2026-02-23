@@ -344,14 +344,22 @@ extension SourceKitLSPServer {
         index.unitTests(referencedByMainFiles: [mainFileUri.pseudoPath])
         .filter { $0.canBeTestDefinition }
 
+      // Syntactically discovered XCTest items that are not covered by the semantic index.
+      // `filterUsing(semanticSymbols:)` already passes through any item whose name doesn't appear in the
+      // semantic index (e.g. classes inside inactive `#if` regions), so we just need to include the
+      // syntactic XCTest results here rather than discarding them when the index branch is taken.
+      var syntacticXCTestItems: [AnnotatedTestItem] {
+        syntacticTests?.filter { $0.testItem.style == TestStyle.xcTest } ?? []
+      }
+
       if !testSymbols.isEmpty {
         let documentSymbols = await orLog("Getting document symbols for test ranges") {
           try await languageService.documentSymbol(DocumentSymbolRequest(textDocument: req.textDocument))
         }
 
         // We have test symbols from the semantic index. Return them but also include the syntactically discovered
-        // swift-testing tests, which aren't part of the semantic index.
-        return testItems(
+        // swift-testing tests and any XCTest tests that were not indexed (e.g. tests inside inactive `#if` regions).
+        let semanticXCTestItems = testItems(
           for: testSymbols,
           index: index,
           resolveLocation: { uri, position in
@@ -362,12 +370,16 @@ extension SourceKitLSPServer {
             }
             return Location(uri: uri, range: Range(position))
           }
-        ) + syntacticSwiftTestingTests
+        )
+        let semanticXCTestIDs = Set(semanticXCTestItems.map { $0.testItem.id })
+        let unindexedXCTests = syntacticXCTestItems.filter { !semanticXCTestIDs.contains($0.testItem.id) }
+        return semanticXCTestItems + syntacticSwiftTestingTests + unindexedXCTests
       }
       if index.hasAnyUpToDateUnit(for: mainFileUri) {
         // The semantic index is up-to-date and doesn't contain any tests. We don't need to do a syntactic fallback for
         // XCTest. We do still need to return swift-testing tests which don't have a semantic index.
-        return syntacticSwiftTestingTests
+        // Also include any syntactic XCTest items passed through by `filterUsing`, e.g. from inactive `#if` regions.
+        return syntacticSwiftTestingTests + syntacticXCTestItems
       }
     }
     // We don't have any up-to-date semantic index entries for this file. Syntactically look for tests.
