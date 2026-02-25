@@ -38,6 +38,7 @@ extension SourceKitLSPOptions {
         servicePlugin: try pluginPaths.servicePlugin.filePath
       ),
       backgroundIndexing: backgroundIndexing,
+      reportSyntacticHighlightInSemanticTokens: true,
       experimentalFeatures: experimentalFeatures,
       swiftPublishDiagnosticsDebounceDuration: 0,
       workDoneProgressDebounceDuration: 0
