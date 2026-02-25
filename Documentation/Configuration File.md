@@ -57,6 +57,7 @@ The structure of the file is currently not guaranteed to be stable. Options may 
   - `noLazy`: Prepare a target without generating object files but do not do lazy type checking and function body skipping. This uses SwiftPM's `--experimental-prepare-for-indexing-no-lazy` flag.
   - `enabled`: Prepare a target without generating object files.
 - `cancelTextDocumentRequestsOnEditAndClose: boolean`: Whether sending a `textDocument/didChange` or `textDocument/didClose` notification for a document should cancel all pending requests for that document.
+- `reportSyntacticHighlightInSemanticTokens: boolean`: Whether the response for `textDocument/semanticTokens` should include semantic tokens for syntactic and semantic highlighting or just semantic highlighting.
 - `experimentalFeatures: ("on-type-formatting"|"structured-logs")[]`: Experimental features that are enabled.
 - `swiftPublishDiagnosticsDebounceDuration: number`: The time that `SwiftLanguageService` should wait after an edit before starting to compute diagnostics and sending a `PublishDiagnosticsNotification`.
 - `workDoneProgressDebounceDuration: number`: When a task is started that should be displayed to the client as a work done progress, how many milliseconds to wait before actually starting the work done progress. This prevents flickering of the work done progress in the client for short-lived index tasks which end within this duration.

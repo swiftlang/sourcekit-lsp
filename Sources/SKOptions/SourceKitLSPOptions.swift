@@ -385,6 +385,16 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     return cancelTextDocumentRequestsOnEditAndClose ?? true
   }
 
+  /// Whether the response for `textDocument/semanticTokens` should include semantic tokens for syntactic and semantic
+  /// highlighting or just semantic highlighting. This should be enabled in cases where the syntactic grammar
+  /// (e.g. TextMate or tree-sitter) used by an editor is insufficient for properly highlighting the source code. This
+  /// can happen for example happen when using complex string interpolations or nested raw strings.
+  public var reportSyntacticHighlightInSemanticTokens: Bool? = nil
+
+  public var reportSyntacticHighlightInSemanticTokensOrDefault: Bool {
+    return reportSyntacticHighlightInSemanticTokens ?? false
+  }
+
   /// Experimental features that are enabled.
   public var experimentalFeatures: Set<ExperimentalFeature>? = nil
 
@@ -474,6 +484,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     backgroundPreparationMode: BackgroundPreparationMode? = nil,
     preparationBatchingStrategy: PreparationBatchingStrategy? = nil,
     cancelTextDocumentRequestsOnEditAndClose: Bool? = nil,
+    reportSyntacticHighlightInSemanticTokens: Bool? = nil,
     experimentalFeatures: Set<ExperimentalFeature>? = nil,
     swiftPublishDiagnosticsDebounceDuration: Double? = nil,
     workDoneProgressDebounceDuration: Double? = nil,
@@ -495,6 +506,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     self.backgroundPreparationMode = backgroundPreparationMode
     self.preparationBatchingStrategy = preparationBatchingStrategy
     self.cancelTextDocumentRequestsOnEditAndClose = cancelTextDocumentRequestsOnEditAndClose
+    self.reportSyntacticHighlightInSemanticTokens = reportSyntacticHighlightInSemanticTokens
     self.experimentalFeatures = experimentalFeatures
     self.swiftPublishDiagnosticsDebounceDuration = swiftPublishDiagnosticsDebounceDuration
     self.workDoneProgressDebounceDuration = workDoneProgressDebounceDuration
@@ -560,6 +572,8 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
       preparationBatchingStrategy: override?.preparationBatchingStrategy ?? base.preparationBatchingStrategy,
       cancelTextDocumentRequestsOnEditAndClose: override?.cancelTextDocumentRequestsOnEditAndClose
         ?? base.cancelTextDocumentRequestsOnEditAndClose,
+      reportSyntacticHighlightInSemanticTokens: override?.reportSyntacticHighlightInSemanticTokens
+        ?? base.reportSyntacticHighlightInSemanticTokens,
       experimentalFeatures: override?.experimentalFeatures ?? base.experimentalFeatures,
       swiftPublishDiagnosticsDebounceDuration: override?.swiftPublishDiagnosticsDebounceDuration
         ?? base.swiftPublishDiagnosticsDebounceDuration,
