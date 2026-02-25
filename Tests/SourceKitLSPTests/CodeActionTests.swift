@@ -1637,6 +1637,45 @@ final class CodeActionTests: SourceKitLSPTestCase {
       []
     }
   }
+
+  func testMoveMemberCodeAction() async throws {
+    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
+      """
+      struct MyStruct {
+        1️⃣func myFunction() {}
+      }
+      """,
+      uri: uri
+    )
+
+    let request = CodeActionRequest(
+      range: Range(positions["1️⃣"]),
+      context: .init(),
+      textDocument: TextDocumentIdentifier(uri)
+    )
+    let result = try await testClient.send(request)
+
+    // Make sure we get a "Move to another type" action.
+    let moveMemberAction = result?.codeActions?.first { action in
+      return action.title == "Move to another type"
+    }
+    XCTAssertNotNil(moveMemberAction)
+  }
+
+  func testMoveMemberCodeActionNotOfferedForTopLevelCode() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣func topLevelFunction() {}
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { _, _ in
+      []
+    }
+  }
+
   func testConvertComputedPropertyToZeroParameterFunction() async throws {
     let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
     let uri = DocumentURI(for: .swift)
