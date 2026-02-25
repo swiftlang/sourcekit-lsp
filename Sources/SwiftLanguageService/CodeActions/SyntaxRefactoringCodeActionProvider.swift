@@ -113,6 +113,17 @@ extension RemoveSeparatorsFromIntegerLiteral: SyntaxRefactoringCodeActionProvide
   }
 }
 
+extension RemoveRedundantParentheses: SyntaxRefactoringCodeActionProvider {
+  package static var title: String { "Remove Redundant Parentheses" }
+
+  static func nodeToRefactor(in scope: SyntaxCodeActionScope) -> Input? {
+    return scope.innermostNodeContainingRange?.findParentOfSelf(
+      ofType: TupleExprSyntax.self,
+      stoppingIf: { $0.is(CodeBlockSyntax.self) || $0.is(MemberBlockSyntax.self) }
+    )
+  }
+}
+
 extension ConvertZeroParameterFunctionToComputedProperty: SyntaxRefactoringCodeActionProvider {
   package static var title: String { "Convert to computed property" }
 
