@@ -747,20 +747,27 @@ extension SwiftLanguageService {
       .cursorInfo
 
     let symbolDocumentations = cursorInfoResults.compactMap { (cursorInfo) -> String? in
+      let filteredAnnotatedDeclaration: String?
+      if let annotated = cursorInfo.annotatedDeclaration {
+        filteredAnnotatedDeclaration = filterUnderscoredAttributes(from: annotated)
+      } else {
+        filteredAnnotatedDeclaration = nil
+      }
+      
       if let documentation = cursorInfo.documentation {
         var result = ""
-        if let annotatedDeclaration = cursorInfo.annotatedDeclaration {
+        if let filteredAnnotated = filteredAnnotatedDeclaration {
           let markdownDecl =
             orLog("Convert XML declaration to Markdown") {
-              try xmlDocumentationToMarkdown(annotatedDeclaration)
-            } ?? annotatedDeclaration
+              try xmlDocumentationToMarkdown(filteredAnnotated)
+            } ?? filteredAnnotated
           result += "\(markdownDecl)\n"
         }
         result += documentation
         return result
-      } else if let annotated: String = cursorInfo.annotatedDeclaration {
+      } else if let filteredAnnotated = filteredAnnotatedDeclaration {
         return """
-          \(orLog("Convert XML to Markdown") { try xmlDocumentationToMarkdown(annotated) } ?? annotated)
+          \(orLog("Convert XML to Markdown") { try xmlDocumentationToMarkdown(filteredAnnotated) } ?? filteredAnnotated)
           """
       } else {
         return nil
@@ -1355,4 +1362,60 @@ extension SwiftLanguageService {
 
     return false
   }
+}
+
+/// Filters underscored attributes from XML documentation.
+private func filterUnderscoredAttributes(from xmlString: String) -> String {
+  guard let xml = try? XMLDocument(xmlString: xmlString),
+        let root = xml.rootElement() else {
+    return xmlString
+  }
+  
+  let declarationElements: [XMLElement]
+  if root.name == "Declaration" {
+    declarationElements = [root]
+  } else if let declarations = try? root.nodes(forXPath: ".//Declaration") {
+    declarationElements = declarations.compactMap { $0 as? XMLElement }
+  } else {
+    return xmlString
+  }
+  
+  for declaration in declarationElements {
+    guard let originalText = declaration.stringValue else { continue }
+    
+    let filteredText = filterUnderscoredAttributesFromText(originalText)
+    
+    if filteredText != originalText {
+      declaration.setStringValue(filteredText, resolvingEntities: false)
+    }
+  }
+  
+  return root.xmlString
+}
+
+/// Filters underscored attributes from a declaration text string.
+private func filterUnderscoredAttributesFromText(_ text: String) -> String {
+  var result = text
+  
+  let pattern = #"@_\w+(?:\([^)]*\))?[\s\n]*"#
+  
+  guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else {
+    return text
+  }
+  
+  var previousResult = ""
+  while result != previousResult {
+    previousResult = result
+    let nsString = result as NSString
+    let matches = regex.matches(in: result, options: [], range: NSRange(location: 0, length: nsString.length))
+    
+    for match in matches.reversed() {
+      result = (result as NSString).replacingCharacters(in: match.range, with: "") as String
+    }
+  }
+  
+  result = result.replacingOccurrences(of: #"[ \t]+"#, with: " ", options: .regularExpression)
+  result = result.replacingOccurrences(of: #"^\s+|\s+$"#, with: "", options: .regularExpression)
+  
+  return result
 }
