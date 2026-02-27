@@ -25,4 +25,11 @@ package protocol MainFilesProvider: Sendable {
   /// mainFilesContainingFile("foo.h") == Set(["foo.cpp", "bar.cpp"])
   /// ```
   func mainFiles(containing uri: DocumentURI, crossLanguage: Bool) async -> Set<DocumentURI>
+
+  /// Close and release any underlying resources (e.g. IndexStoreDB).
+  func close() async
+}
+
+extension MainFilesProvider {
+  package func close() async {}
 }
