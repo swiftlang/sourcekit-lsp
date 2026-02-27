@@ -971,6 +971,9 @@ package actor BuildServerManager: QueueBasedMessageHandler {
     guard let originalUri = cachedCopiedFileMap[location.uri] else {
       return location
     }
+    if let fileUrl = originalUri.fileURL, !FileManager.default.fileExists(at: fileUrl) {
+      return location
+    }
     // If we regularly get issues that the copied file is out-of-sync with its original, we can check that the contents
     // of the lines touched by the location match and only return the original URI if they do. For now, we avoid this
     // check due to its performance cost of reading files from disk.
