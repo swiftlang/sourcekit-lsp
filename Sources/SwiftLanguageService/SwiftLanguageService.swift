@@ -899,6 +899,7 @@ extension SwiftLanguageService {
       (retrieveSyntaxCodeActions, nil),
       (retrieveRefactorCodeActions, .refactor),
       (retrieveQuickFixCodeActions, .quickFix),
+      (retrieveAddMethodImplementationCodeActions, .quickFix),
       (retrieveRemoveUnusedImportsCodeAction, .sourceOrganizeImports),
     ]
     let wantedActionKinds = req.context.only
@@ -947,6 +948,27 @@ extension SwiftLanguageService {
     return await allSyntaxCodeActions.concurrentMap { provider in
       return provider.codeActions(in: scope)
     }.flatMap { $0 }
+  }
+
+  func retrieveAddMethodImplementationCodeActions(_ request: CodeActionRequest) async throws -> [CodeAction] {
+    guard
+      let sourceKitLSPServer,
+      let workspace = await sourceKitLSPServer.workspaceForDocument(
+        uri: request.textDocument.uri
+      )
+    else {
+      return []
+    }
+
+    let snapshot = try documentManager.latestSnapshot(
+      request.textDocument.uri
+    )
+
+    return AddMethodImplementation.codeActions(
+      diagnostics: request.context.diagnostics,
+      snapshot: snapshot,
+      workspace: workspace
+    )
   }
 
   func retrieveRefactorCodeActions(_ params: CodeActionRequest) async throws -> [CodeAction] {
