@@ -213,7 +213,8 @@ package class MultiFileTestProject {
   @discardableResult
   package func changeFileOnDisk(
     _ fileName: String,
-    newMarkedContents: String?
+    newMarkedContents: String?,
+    synchronize: Bool = true
   ) async throws -> (uri: DocumentURI, positions: DocumentPositions) {
     let uri = try self.uri(for: fileName)
     guard let url = uri.fileURL else {
@@ -244,8 +245,10 @@ package class MultiFileTestProject {
       changeType = .deleted
     }
     testClient.send(DidChangeWatchedFilesNotification(changes: [FileEvent(uri: uri, type: changeType)]))
-    // Ensure that we handle the `DidChangeWatchedFilesNotification`.
-    try await testClient.send(SynchronizeRequest())
+    if synchronize {
+      // Ensure that we handle the `DidChangeWatchedFilesNotification`.
+      try await testClient.send(SynchronizeRequest())
+    }
 
     return (uri, positions)
   }
