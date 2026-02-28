@@ -271,6 +271,8 @@ var targets: [Target] = [
     dependencies: [
       "SemanticIndex",
       "SKTestSupport",
+      "ToolchainRegistry",
+      .product(name: "IndexStoreDB", package: "indexstore-db"),
       .product(name: "SKLogging", package: "swift-tools-protocols"),
       .product(name: "ToolsProtocolsSwiftExtensions", package: "swift-tools-protocols"),
     ],
