@@ -1931,7 +1931,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
           )
         }
         XCTAssert(
-          codeActions.contains(expected),
+          Set(codeActions).isSuperset(of: expected),
           """
           Code actions did not contain expected at range \(startMarker)-\(endMarker):
           \(codeActions)
