@@ -26,7 +26,7 @@ import SemanticIndex
 package import SourceKitD
 package import SourceKitLSP
 import SwiftExtensions
-import SwiftParser
+@_spi(ExperimentalLanguageFeatures) public import SwiftParser
 import SwiftParserDiagnostics
 package import SwiftSyntax
 package import ToolchainRegistry
@@ -95,6 +95,28 @@ package struct SwiftCompileCommand: Sendable, Equatable, Hashable {
       self.compilerArgs = baseArgs
     }
     self.isFallback = settings.isFallback
+  }
+
+  /// Extract the `Parser.ExperimentalFeatures` from the compiler arguments.
+  ///
+  /// This scans the compiler arguments for `-enable-experimental-feature <name>` flags and maps them
+  /// to `Parser.ExperimentalFeatures` values so that the SwiftParser can parse the file correctly
+  /// with the same experimental features that the compiler would use.
+  package var experimentalFeatures: Parser.ExperimentalFeatures {
+    var features: Parser.ExperimentalFeatures = []
+    var iterator = compilerArgs.makeIterator()
+    while let arg = iterator.next() {
+      if arg == "-enable-experimental-feature", let featureName = iterator.next() {
+        // The feature name from the compiler flag may include a colon-separated
+        // availability suffix (e.g. "FeatureName:adoption"). Strip it before
+        // looking up the parser feature.
+        let baseName = featureName.firstIndex(of: ":").map { String(featureName[..<$0]) } ?? featureName
+        if let feature = Parser.ExperimentalFeatures(name: baseName) {
+          features.insert(feature)
+        }
+      }
+    }
+    return features
   }
 }
 
@@ -476,6 +498,10 @@ extension SwiftLanguageService {
         compileCommand: buildSettings
       )
       self.buildSettingsForOpenFiles[snapshot.uri] = buildSettings
+      await self.syntaxTreeManager.setExperimentalFeatures(
+        buildSettings?.experimentalFeatures ?? [],
+        for: snapshot.uri
+      )
       _ = await orLog("Re-opening document") {
         try await self.send(sourcekitdRequest: \.editorOpen, openReq, snapshot: snapshot)
       }
@@ -559,6 +585,10 @@ extension SwiftLanguageService {
 
       let buildSettings = await self.compileCommand(for: snapshot.uri, fallbackAfterTimeout: true)
       buildSettingsForOpenFiles[snapshot.uri] = buildSettings
+      await syntaxTreeManager.setExperimentalFeatures(
+        buildSettings?.experimentalFeatures ?? [],
+        for: snapshot.uri
+      )
 
       let req = openDocumentSourcekitdRequest(snapshot: snapshot, compileCommand: buildSettings)
       await orLog("Opening sourcekitd document") {
