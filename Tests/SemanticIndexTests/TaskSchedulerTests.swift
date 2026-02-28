@@ -10,10 +10,12 @@
 //
 //===----------------------------------------------------------------------===//
 
+@preconcurrency import IndexStoreDB
 @_spi(SourceKitLSP) import SKLogging
 import SKTestSupport
 import SemanticIndex
 import SwiftExtensions
+import ToolchainRegistry
 @_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
 
@@ -310,6 +312,39 @@ final class TaskSchedulerTests: SourceKitLSPTestCase {
 
     highPriorityTaskFinished.waitOrXCTFail()
     lowPriorityTaskFinished.waitOrXCTFail()
+  }
+
+  func testIndexStoreDBClosing() async throws {
+    guard let libIndexStore = await ToolchainRegistry.forTesting.default?.libIndexStore else {
+      throw XCTSkip("libIndexStore not available")
+    }
+
+    try await withTestScratchDir { tempDir in
+      let storePath = tempDir.appending(component: "store")
+      let dbPath = tempDir.appending(component: "db")
+      try FileManager.default.createDirectory(at: storePath, withIntermediateDirectories: true)
+      try FileManager.default.createDirectory(at: dbPath, withIntermediateDirectories: true)
+
+      weak var weakDB: IndexStoreDB?
+      let uncheckedIndex: UncheckedIndex
+
+      do {
+        let db = try IndexStoreDB(
+          storePath: storePath.filePath,
+          databasePath: dbPath.filePath,
+          library: IndexStoreLibrary(dylibPath: libIndexStore.filePath),
+          listenToUnitEvents: false
+        )
+        weakDB = db
+        uncheckedIndex = UncheckedIndex(db, usesExplicitOutputPaths: false)!
+      }
+
+      XCTAssertNotNil(weakDB)
+
+      await uncheckedIndex.close()
+
+      XCTAssertNil(weakDB)
+    }
   }
 
   func testScheduleTask() {

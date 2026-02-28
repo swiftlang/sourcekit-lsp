@@ -310,7 +310,26 @@ package final class CheckedIndex {
 /// calling `underlyingIndexStoreDB`) and we don't accidentally call into the `IndexStoreDB` when we wanted a
 /// `CheckedIndex`.
 package final actor UncheckedIndex: Sendable {
-  package nonisolated let underlyingIndexStoreDB: IndexStoreDB
+  /// Wrapper to store `IndexStoreDB` in `ThreadSafeBox` so `UncheckedIndex` can explicitly set it to `nil` and
+  /// deterministically trigger deinitialization of the underlying `IndexStoreDB` instance.
+  ///
+  /// `IndexStoreDB` is not `Sendable`, but access to this value is synchronized by the lock in
+  /// `ThreadSafeBox`, so marking this wrapper as `@unchecked Sendable` is safe.
+  private struct UncheckedSendableOptionalIndexStoreDB: @unchecked Sendable {
+    var indexStoreDB: IndexStoreDB?
+  }
+
+  private let indexStoreDB: ThreadSafeBox<UncheckedSendableOptionalIndexStoreDB>
+
+  package nonisolated var underlyingIndexStoreDB: IndexStoreDB {
+    let optionalIndexStoreDB = indexStoreDB.withLock { indexStoreDB in
+      indexStoreDB
+    }
+    guard let indexStoreDB = optionalIndexStoreDB.indexStoreDB else {
+      preconditionFailure("Tried to access an IndexStoreDB that was already closed")
+    }
+    return indexStoreDB
+  }
 
   /// Whether the underlying `IndexStoreDB` uses has `useExplicitOutputUnits` enabled and thus needs to receive updates
   /// updates as output paths are added or removed from the project.
@@ -324,7 +343,7 @@ package final actor UncheckedIndex: Sendable {
       return nil
     }
     self.usesExplicitOutputPaths = usesExplicitOutputPaths
-    self.underlyingIndexStoreDB = index
+    self.indexStoreDB = ThreadSafeBox(initialValue: UncheckedSendableOptionalIndexStoreDB(indexStoreDB: index))
   }
 
   /// Update the set of output paths that should be considered visible in the project. For example, if a source file is
@@ -352,6 +371,13 @@ package final actor UncheckedIndex: Sendable {
   /// Import the units for the given output paths into indexstore-db. Returns after the import has finished.
   package nonisolated func processUnitsForOutputPathsAndWait(_ outputPaths: some Collection<String>) {
     self.underlyingIndexStoreDB.processUnitsForOutputPathsAndWait(outputPaths)
+  }
+
+  /// Explicitly close the underlying `IndexStoreDB` instance and release it immediately.
+  package func close() {
+    indexStoreDB.withLock { indexStoreDB in
+      indexStoreDB.indexStoreDB = nil
+    }
   }
 }
 

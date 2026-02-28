@@ -641,6 +641,10 @@ package actor BuildServerManager: QueueBasedMessageHandler {
   /// which could result in the connection being reported as a leak. To avoid this problem, we want to explicitly shut
   /// down the build server when the `SourceKitLSPServer` gets shut down.
   package func shutdown() async {
+    // Close the index store before shutting down the build server so it is
+    // released deterministically rather than waiting for deallocation.
+    await self.mainFilesProvider?.value?.close()
+
     // Clear any pending work done progresses from the build server.
     self.workDoneProgressManagers.removeAll()
     guard let buildServerAdapter = try? await self.buildServerAdapterAfterInitialized else {
