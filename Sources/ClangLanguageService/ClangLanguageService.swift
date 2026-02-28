@@ -656,15 +656,8 @@ extension ClangLanguageService {
     return (remappedEdit ?? WorkspaceEdit(), symbolDetail?.usr)
   }
 
-  package func syntacticDocumentTests(
-    for uri: DocumentURI,
-    in workspace: Workspace
-  ) async throws -> [AnnotatedTestItem]? {
+  package func syntacticTestItems(for snapshot: DocumentSnapshot) async -> [AnnotatedTestItem]? {
     return nil
-  }
-
-  package func syntacticTestItems(for snapshot: DocumentSnapshot) async -> [AnnotatedTestItem] {
-    return []
   }
 
   package func syntacticPlaygrounds(

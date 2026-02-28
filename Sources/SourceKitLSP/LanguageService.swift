@@ -29,6 +29,7 @@ package enum LanguageServerState {
   case semanticFunctionalityDisabled
 }
 
+/// Extends ``LanguageServerProtocol.TestItem`` with metadata for internal processing.
 package struct AnnotatedTestItem: Sendable {
   /// The test item to be annotated
   package var testItem: TestItem
@@ -316,19 +317,14 @@ package protocol LanguageService: AnyObject, Sendable {
 
   func getReferenceDocument(_ req: GetReferenceDocumentRequest) async throws -> GetReferenceDocumentResponse
 
-  /// Perform a syntactic scan of the file at the given URI for test cases and test classes.
-  ///
-  /// This is used as a fallback to show the test cases in a file if the index for a given file is not up-to-date.
-  ///
-  /// A return value of `nil` indicates that this language service does not support syntactic test discovery.
-  func syntacticDocumentTests(for uri: DocumentURI, in workspace: Workspace) async throws -> [AnnotatedTestItem]?
-
-  /// Syntactically scans the file at the given URL for tests declared within it.
+  /// Syntactically scans the given snapshot for tests declared within it.
   ///
   /// Does not write the results to the index.
   ///
   /// The order of the returned tests is not defined. The results should be sorted before being returned to the editor.
-  func syntacticTestItems(for snapshot: DocumentSnapshot) async -> [AnnotatedTestItem]
+  ///
+  /// A return value of `nil` indicates that this language service does not support syntactic test discovery.
+  func syntacticTestItems(for snapshot: DocumentSnapshot) async -> [AnnotatedTestItem]?
 
   /// Returns the syntactically scanned playgrounds declared within the workspace.
   ///
@@ -549,10 +545,6 @@ package extension LanguageService {
 
   func getReferenceDocument(_ req: GetReferenceDocumentRequest) async throws -> GetReferenceDocumentResponse {
     throw ResponseError.requestNotImplemented(GetReferenceDocumentRequest.self)
-  }
-
-  func syntacticDocumentTests(for uri: DocumentURI, in workspace: Workspace) async throws -> [AnnotatedTestItem]? {
-    throw ResponseError.internalError("syntacticDocumentTests not implemented in \(Self.self) for \(uri)")
   }
 
   func canonicalDeclarationPosition(of position: Position, in uri: DocumentURI) async -> Position? {

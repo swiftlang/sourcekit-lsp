@@ -284,7 +284,7 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
           return []
         }
         return await sourceKitLSPServer.languageServices(for: snapshot.uri, snapshot.language, in: self).asyncFlatMap {
-          await $0.syntacticTestItems(for: snapshot)
+          await $0.syntacticTestItems(for: snapshot) ?? []
         }
       },
       syntacticPlaygrounds: { [weak self] (snapshot) in

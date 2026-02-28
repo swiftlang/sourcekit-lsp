@@ -2690,6 +2690,22 @@ extension SourceKitLSPServer {
     }
     return VoidResponse()
   }
+
+  func workspaceTests(_ req: WorkspaceTestsRequest) async throws -> [TestItem] {
+    return await TestDiscovery(sourceKitLSPServer: self).workspaceTests()
+  }
+
+  func documentTests(
+    _ req: DocumentTestsRequest,
+    workspace: Workspace,
+    languageService: any LanguageService
+  ) async throws -> [TestItem] {
+    return try await TestDiscovery(sourceKitLSPServer: self).documentTests(
+      req.textDocument.uri,
+      workspace: workspace,
+      languageService: languageService
+    )
+  }
 }
 
 private func languageClass(for language: Language) -> [Language] {
