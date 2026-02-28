@@ -192,6 +192,44 @@ final class HoverTests: SourceKitLSPTestCase {
       expectedRange: Position(line: 2, utf16index: 18)..<Position(line: 2, utf16index: 21)
     )
   }
+
+  func testHoverFiltersUnderscoredAttributes() async throws {
+    try await assertHover(
+      """
+      /// An atomic value.
+      @_frozen @_rawLayout(like: Int) @_staticExclusiveOnly struct 1️⃣Atomic {}
+      """,
+      expectedContent: """
+        ```swift
+        @frozen @_rawLayout(like: Int) @_staticExclusiveOnly struct Atomic
+        ```
+
+        An atomic value.
+        """,
+      expectedRange: Position(line: 1, utf16index: 61)..<Position(line: 1, utf16index: 67)
+    )
+  }
+
+  func testHoverDisplaysParametersCorrectly() async throws {
+    try await assertHover(
+      """
+      /// Initializes a value.
+      ///
+      /// - Parameter count: The number of items
+      func 1️⃣initValue(count: Int) {}
+      """,
+      expectedContent: """
+        ```swift
+        func initValue(count: Int)
+        ```
+
+        Initializes a value.
+
+        - Parameter count: The number of items
+        """,
+      expectedRange: Position(line: 3, utf16index: 5)..<Position(line: 3, utf16index: 14)
+    )
+  }
 }
 
 private func assertHover(
