@@ -19,6 +19,7 @@ let allSyntaxCodeActions: [any SyntaxCodeActionProvider.Type] = {
     AddDocumentation.self,
     AddSeparatorsToIntegerLiteral.self,
     ApplyDeMorganLaw.self,
+    ConvertComputedPropertyToStored.self,
     ConvertComputedPropertyToZeroParameterFunction.self,
     ConvertIfLetToGuard.self,
     ConvertIntegerLiteral.self,
@@ -38,5 +39,6 @@ let allSyntaxCodeActions: [any SyntaxCodeActionProvider.Type] = {
 }()
 
 let supersededSourcekitdRefactoringActions: Set<String> = [
-  "source.refactoring.kind.simplify.long.number.literal"  // Superseded by AddSeparatorsToIntegerLiteral
+  "source.refactoring.kind.convert.to.computed.property",  // Superseded by ConvertStoredPropertyToComputed
+  "source.refactoring.kind.simplify.long.number.literal",  // Superseded by AddSeparatorsToIntegerLiteral
 ]

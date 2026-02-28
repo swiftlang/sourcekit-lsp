@@ -72,6 +72,17 @@ extension AddSeparatorsToIntegerLiteral: SyntaxRefactoringCodeActionProvider {
   }
 }
 
+extension ConvertComputedPropertyToStored: SyntaxRefactoringCodeActionProvider {
+  static var title: String { "Convert to stored property" }
+
+  static func nodeToRefactor(in scope: SyntaxCodeActionScope) -> VariableDeclSyntax? {
+    return scope.innermostNodeContainingRange?.findParentOfSelf(
+      ofType: VariableDeclSyntax.self,
+      stoppingIf: { $0.is(CodeBlockSyntax.self) || $0.is(MemberBlockSyntax.self) || $0.is(AccessorBlockSyntax.self) }
+    )
+  }
+}
+
 extension FormatRawStringLiteral: SyntaxRefactoringCodeActionProvider {
   package static var title: String {
     "Convert string literal to minimal number of '#'s"
@@ -153,7 +164,7 @@ extension ConvertComputedPropertyToZeroParameterFunction: SyntaxRefactoringCodeA
   static func nodeToRefactor(in scope: SyntaxCodeActionScope) -> Input? {
     return scope.innermostNodeContainingRange?.findParentOfSelf(
       ofType: VariableDeclSyntax.self,
-      stoppingIf: { $0.is(CodeBlockSyntax.self) || $0.is(MemberBlockSyntax.self) }
+      stoppingIf: { $0.is(CodeBlockSyntax.self) || $0.is(MemberBlockSyntax.self) || $0.is(AccessorBlockSyntax.self) }
     )
   }
 }
