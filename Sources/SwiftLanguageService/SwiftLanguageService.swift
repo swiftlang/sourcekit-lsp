@@ -604,6 +604,7 @@ extension SwiftLanguageService {
     await diagnosticReportManager.removeItemsFromCache(with: notification.textDocument.uri)
     buildSettingsForOpenFiles[notification.textDocument.uri] = nil
     await syntaxTreeManager.clearSyntaxTrees(for: notification.textDocument.uri)
+    await syntaxTreeManager.clearExperimentalFeatures(for: notification.textDocument.uri)
     switch try? ReferenceDocumentURL(from: notification.textDocument.uri) {
     case .macroExpansion:
       break

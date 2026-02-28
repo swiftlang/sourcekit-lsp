@@ -145,6 +145,13 @@ actor SyntaxTreeManager {
   /// Remove all cached syntax trees for the given document, eg. when the document is closed.
   func clearSyntaxTrees(for uri: DocumentURI) {
     syntaxTreeComputations.removeAll(where: { $0.uri == uri })
+  }
+
+  /// Clear the stored experimental features for the given document.
+  ///
+  /// This should be called when a document is closed to match the `setExperimentalFeatures` call
+  /// made when the document is opened.
+  func clearExperimentalFeatures(for uri: DocumentURI) {
     experimentalFeaturesPerDocument.removeValue(forKey: uri)
   }
 }

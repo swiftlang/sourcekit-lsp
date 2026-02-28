@@ -821,37 +821,24 @@ final class SwiftPMIntegrationTests: SourceKitLSPTestCase {
       )
       """
 
-    let packageManifestPath = project.scratchDirectory.appending(component: "Package.swift")
-    try await newManifest.writeWithRetry(to: packageManifestPath)
-    project.testClient.send(
-      DidChangeWatchedFilesNotification(changes: [
-        FileEvent(uri: DocumentURI(packageManifestPath), type: .changed)
-      ])
+    try await project.changeFileOnDisk(
+      "Package.swift",
+      newMarkedContents: newManifest
     )
-    // Ensure that the DidChangeWatchedFilesNotification is handled before we continue.
-    _ = try await project.testClient.send(SynchronizeRequest())
 
     // After removing the experimental feature from Package.swift, the parser should
     // produce a proper syntax tree, and DocumentSymbolRequest should find the symbols.
-    // Wait for build settings to update and verify symbols are now found.
-    try await repeatUntilExpectedResult {
-      let response = try await project.testClient.send(
-        DocumentSymbolRequest(textDocument: TextDocumentIdentifier(uri))
-      )
-      guard case .documentSymbols(let symbols) = response else {
-        return false
-      }
-      // Check that we now find the struct Foo and var x
-      guard let fooSymbol = symbols.first(where: { $0.name == "Foo" }) else {
-        return false
-      }
-      guard fooSymbol.kind == .struct else {
-        return false
-      }
-      guard let xSymbol = fooSymbol.children?.first(where: { $0.name == "x" }) else {
-        return false
-      }
-      return xSymbol.kind == .property
+    let response = try await project.testClient.send(
+      DocumentSymbolRequest(textDocument: TextDocumentIdentifier(uri))
+    )
+    guard case .documentSymbols(let symbols) = response else {
+      XCTFail("Expected document symbols")
+      return
     }
+    // Check that we now find the struct Foo and var x
+    let fooSymbol = try XCTUnwrap(symbols.first(where: { $0.name == "Foo" }))
+    XCTAssertEqual(fooSymbol.kind, .struct)
+    let xSymbol = try XCTUnwrap(fooSymbol.children?.first(where: { $0.name == "x" }))
+    XCTAssertEqual(xSymbol.kind, .property)
   }
 }
