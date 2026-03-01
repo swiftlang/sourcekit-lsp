@@ -139,6 +139,37 @@ extension ConvertZeroParameterFunctionToComputedProperty: SyntaxRefactoringCodeA
   }
 }
 
+extension MoveMembersToExtension: SyntaxRefactoringCodeActionProvider {
+  static func codeActions(in scope: SyntaxCodeActionScope) -> [CodeAction] {
+
+    guard let node = nodeToRefactor(in: scope) else {
+      return []
+    }
+
+    guard let sourceEdits = try? Self.textRefactor(syntax: node, in: Context(range: scope.range)) else {
+      return []
+    }
+
+    guard let workspaceEdit = sourceEdits.asWorkspaceEdit(snapshot: scope.snapshot) else {
+      return []
+    }
+
+    return [
+      CodeAction(
+        title: Self.title,
+        kind: .refactorExtract,
+        edit: workspaceEdit
+      )
+    ]
+  }
+
+  package static var title: String { "Move to extension" }
+
+  static func nodeToRefactor(in scope: SyntaxCodeActionScope) -> Input? {
+    return scope.file
+  }
+}
+
 extension ConvertComputedPropertyToZeroParameterFunction: SyntaxRefactoringCodeActionProvider {
   package static var title: String { "Convert to zero parameter function" }
 
