@@ -169,7 +169,7 @@ actor LegacyBuildServer: MessageHandler, BuiltInBuildServer {
 
   package func didChangeWatchedFiles(notification: OnWatchedFilesDidChangeNotification) {}
 
-  package func prepare(request: BuildTargetPrepareRequest) async throws -> VoidResponse {
+  package func prepare(request: BuildTargetPrepareRequest) async throws -> BuildTargetPrepareResponse {
     throw ResponseError.methodNotFound(BuildTargetPrepareRequest.method)
   }
 

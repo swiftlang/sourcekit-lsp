@@ -915,7 +915,9 @@ package final actor SemanticIndexManager {
     // The targets sorted in reverse topological order, low-level targets before high-level targets. If topological
     // sorting fails, sorted in another deterministic way where the actual order doesn't matter.
     var sortedTargets: [BuildTargetIdentifier] =
-      await orLog("Sorting targets") { try await buildServerManager.topologicalSort(of: Array(filesByTarget.keys)) }
+      await orLog("Sorting targets") {
+        try await buildServerManager.targetsSortedForIndexing(Array(filesByTarget.keys))
+      }
       ?? Array(filesByTarget.keys).sorted { $0.uri.stringValue < $1.uri.stringValue }
 
     if Set(sortedTargets) != Set(filesByTarget.keys) {

@@ -652,7 +652,7 @@ class DefinitionTests: SourceKitLSPTestCase {
         ])
       }
 
-      func prepareTarget(_ request: BuildTargetPrepareRequest) async throws -> VoidResponse {
+      func prepareTarget(_ request: BuildTargetPrepareRequest) async throws -> BuildTargetPrepareResponse {
         try FileManager.default.createDirectory(
           at: headerCopyDestination.deletingLastPathComponent(),
           withIntermediateDirectories: true
@@ -661,7 +661,7 @@ class DefinitionTests: SourceKitLSPTestCase {
           at: projectRoot.appending(component: "Test.h"),
           to: headerCopyDestination
         )
-        return VoidResponse()
+        return BuildTargetPrepareResponse()
       }
     }
 

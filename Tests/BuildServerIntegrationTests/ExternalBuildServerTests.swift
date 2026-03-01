@@ -621,13 +621,13 @@ final class ExternalBuildServerTests: SourceKitLSPTestCase {
         return TextDocumentSourceKitOptionsResponse(compilerArguments: [request.textDocument.uri.pseudoPath])
       }
 
-      func prepareTarget(_ request: BuildTargetPrepareRequest) async throws -> VoidResponse {
+      func prepareTarget(_ request: BuildTargetPrepareRequest) async throws -> BuildTargetPrepareResponse {
         preparationStarted.fulfill()
         await assertThrowsError(try await Task.sleep(for: .seconds(defaultTimeout))) { error in
           XCTAssert(error is CancellationError)
         }
         preparationFinished.fulfill()
-        return VoidResponse()
+        return BuildTargetPrepareResponse()
       }
     }
 
