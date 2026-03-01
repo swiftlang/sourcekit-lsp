@@ -3,6 +3,7 @@ add_library(SwiftLanguageService STATIC
   AdjustPositionToStartOfIdentifier.swift
   ClosureCompletionFormat.swift
   CodeActions/AddDocumentation.swift
+  CodeActions/AddMissingImports.swift
   CodeActions/ApplyDeMorganLaw.swift
   CodeActions/ConvertIfLetToGuard.swift
   CodeActions/ConvertIntegerLiteral.swift
