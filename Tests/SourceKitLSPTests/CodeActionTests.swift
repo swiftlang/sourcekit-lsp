@@ -1855,54 +1855,30 @@ final class CodeActionTests: SourceKitLSPTestCase {
     let result = try await testClient.send(request)
 
     let codeActions = try XCTUnwrap(result?.codeActions)
-
-    // Make sure we get an add-file-header action
-    let addFileHeaderAction = codeActions.first { action in
-      return action.title == "Add file header"
-    }
+    let addFileHeaderAction = codeActions.first { $0.title == "Add file header" }
     XCTAssertNotNil(addFileHeaderAction, "Expected 'Add file header' code action")
 
-    // Verify the action has an edit
     let edit = try XCTUnwrap(addFileHeaderAction?.edit)
     let changes = try XCTUnwrap(edit.changes?[uri])
     XCTAssertEqual(changes.count, 1)
 
-    // Verify the edit inserts at position 0,0
     let textEdit = try XCTUnwrap(changes.first)
     XCTAssertEqual(textEdit.range.lowerBound.line, 0)
     XCTAssertEqual(textEdit.range.lowerBound.utf16index, 0)
-
-    // Verify the header contains expected placeholders (after substitution)
     XCTAssertTrue(textEdit.newText.contains("//"), "Header should contain comment markers")
   }
 
   func testAddFileHeaderNotShownWhenHeaderExists() async throws {
-    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
-    let uri = DocumentURI(for: .swift, testName: #function)
-    let positions = testClient.openDocument(
+    try await assertCodeActions(
       """
       // This is an existing header
       1️⃣import Foundation
 
       class MyClass {}
-      """,
-      uri: uri
-    )
-
-    let request = CodeActionRequest(
-      range: Range(positions["1️⃣"]),
-      context: .init(),
-      textDocument: TextDocumentIdentifier(uri)
-    )
-    let result = try await testClient.send(request)
-
-    let codeActions = try XCTUnwrap(result?.codeActions)
-
-    // Make sure we don't get an add-file-header action when header already exists
-    let addFileHeaderAction = codeActions.first { action in
-      return action.title == "Add file header"
+      """
+    ) { uri, positions in
+      []
     }
-    XCTAssertNil(addFileHeaderAction, "'Add file header' should not be shown when header exists")
   }
 
   func testAddFileHeaderNotShownWhenNotNearTop() async throws {
@@ -1930,11 +1906,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
     let result = try await testClient.send(request)
 
     let codeActions = try XCTUnwrap(result?.codeActions)
-
-    // Make sure we don't get an add-file-header action when cursor is not near top
-    let addFileHeaderAction = codeActions.first { action in
-      return action.title == "Add file header"
-    }
+    let addFileHeaderAction = codeActions.first { $0.title == "Add file header" }
     XCTAssertNil(addFileHeaderAction, "'Add file header' should not be shown when not near top of file")
   }
 

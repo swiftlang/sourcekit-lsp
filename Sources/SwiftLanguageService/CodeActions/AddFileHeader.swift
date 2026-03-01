@@ -49,9 +49,8 @@ import SwiftSyntax
 ///
 /// class MyClass {}
 /// ```
-package struct AddFileHeader: SyntaxCodeActionProvider {
-  /// Default file header template
-  static let defaultTemplate = """
+struct AddFileHeader: SyntaxCodeActionProvider {
+  private static let defaultTemplate = """
     //
     //  {filename}
     //  {project}
@@ -62,34 +61,21 @@ package struct AddFileHeader: SyntaxCodeActionProvider {
     """
 
   static func codeActions(in scope: SyntaxCodeActionScope) -> [CodeAction] {
-    // Only provide code action when cursor is at the start of the file or on the first token
-    let file = scope.file
-
-    // Check if file already has a header comment at the very beginning
-    if hasFileHeader(in: file) {
+    if hasFileHeader(in: scope.file) {
       return []
     }
 
-    // Only show the code action if the selection/cursor is near the top of the file
-    // (within the first meaningful content)
     guard isNearFileStart(scope: scope) else {
       return []
     }
 
-    let snapshot = scope.snapshot
-    let uri = snapshot.uri
-
-    // Extract file information
+    let uri = scope.snapshot.uri
     let filename = uri.fileURL?.lastPathComponent ?? uri.pseudoPath.components(separatedBy: "/").last ?? "Untitled"
     let projectName = extractProjectName(from: uri)
+    let template = scope.fileHeaderOptions?.template ?? Self.defaultTemplate
+    let author = scope.fileHeaderOptions?.author ?? ProcessInfo.processInfo.userName
+    let copyright = scope.fileHeaderOptions?.copyright ?? projectName
 
-    // Get header template from options or use default
-    let options = scope.fileHeaderOptions
-    let template = options?.template ?? Self.defaultTemplate
-    let author = options?.author ?? ProcessInfo.processInfo.userName
-    let copyright = options?.copyright ?? projectName
-
-    // Generate header content
     let headerContent = generateHeader(
       template: template,
       filename: filename,
@@ -118,14 +104,10 @@ package struct AddFileHeader: SyntaxCodeActionProvider {
     ]
   }
 
-  /// Check if the file already has a header comment at the beginning
   private static func hasFileHeader(in file: SourceFileSyntax) -> Bool {
-    // Check if the file starts with comment trivia
     guard let firstToken = file.firstToken(viewMode: .sourceAccurate) else {
       return false
     }
-
-    // Look for comment trivia at the very beginning of the file
     for piece in firstToken.leadingTrivia {
       switch piece {
       case .lineComment, .blockComment, .docLineComment, .docBlockComment:
@@ -133,78 +115,53 @@ package struct AddFileHeader: SyntaxCodeActionProvider {
       case .newlines, .spaces, .tabs:
         continue
       default:
-        // If we hit any other meaningful trivia before a comment, no header exists
         return false
       }
     }
-
     return false
   }
 
-  /// Check if the cursor/selection is near the start of the file
   private static func isNearFileStart(scope: SyntaxCodeActionScope) -> Bool {
-    // Consider "near file start" to be within the first statement or at position 0
-    let request = scope.request
-    let startLine = request.range.lowerBound.line
-
-    // Allow action if cursor is within first 5 lines
-    if startLine <= 5 {
+    if scope.request.range.lowerBound.line <= 5 {
       return true
     }
-
-    // Or if we're at the very first node
     if let firstStatement = scope.file.statements.first,
-       let firstToken = firstStatement.firstToken(viewMode: .sourceAccurate),
-       scope.range.lowerBound <= firstToken.endPosition
+      let firstToken = firstStatement.firstToken(viewMode: .sourceAccurate),
+      scope.range.lowerBound <= firstToken.endPosition
     {
       return true
     }
-
     return false
   }
 
-  /// Extract project name from file URI
   private static func extractProjectName(from uri: DocumentURI) -> String {
     guard let url = uri.fileURL else {
       return "MyProject"
     }
-
-    // Try to find a project directory by looking for common project markers
     var currentURL = url.deletingLastPathComponent()
     let fileManager = FileManager.default
-
-    for _ in 0..<10 {  // Limit directory traversal
+    for _ in 0..<10 {
       let path = currentURL.path
-
-      // Check for Package.swift (SwiftPM)
       if fileManager.fileExists(atPath: currentURL.appendingPathComponent("Package.swift").path) {
         return currentURL.lastPathComponent
       }
-
-      // Check for .xcodeproj
       if let contents = try? fileManager.contentsOfDirectory(atPath: path),
-         contents.contains(where: { $0.hasSuffix(".xcodeproj") })
+        contents.contains(where: { $0.hasSuffix(".xcodeproj") })
       {
         return currentURL.lastPathComponent
       }
-
-      // Check for .git (repository root)
       if fileManager.fileExists(atPath: currentURL.appendingPathComponent(".git").path) {
         return currentURL.lastPathComponent
       }
-
       let parent = currentURL.deletingLastPathComponent()
       if parent == currentURL {
         break
       }
       currentURL = parent
     }
-
-    // Fallback to parent directory name
     return url.deletingLastPathComponent().lastPathComponent
   }
 
-  /// Generate header content by replacing placeholders in template
   private static func generateHeader(
     template: String,
     filename: String,
