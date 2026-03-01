@@ -744,22 +744,43 @@ extension SwiftLanguageService {
   package func hover(_ req: HoverRequest) async throws -> HoverResponse? {
     let uri = req.textDocument.uri
     let position = req.position
+
+    var tokenRange: Range<Position>?
+    if let snapshot = try? await latestSnapshot(for: uri) {
+      let tree = await syntaxTreeManager.syntaxTree(for: snapshot)
+      if let token = tree.token(at: snapshot.absolutePosition(of: position)) {
+        tokenRange = snapshot.absolutePositionRange(of: token.trimmedRange)
+      }
+    }
+    
+    if let sourceKitLSPServer, let workspace = await sourceKitLSPServer.workspaceForDocument(uri: uri) {
+      let languageServices = await sourceKitLSPServer.languageServices(for: uri, .swift, in: workspace)
+      for languageService in languageServices where languageService !== self {
+        if var response = try? await languageService.hover(req) {
+          if response.range == nil {
+            response.range = tokenRange
+          }
+          return response
+        }
+      }
+    }
+    
     let cursorInfoResults = try await cursorInfo(uri, position..<position, fallbackSettingsAfterTimeout: false)
       .cursorInfo
 
     let symbolDocumentations = cursorInfoResults.compactMap { (cursorInfo) -> String? in
       if let documentation = cursorInfo.documentation {
         var result = ""
-        if let annotatedDeclaration = cursorInfo.annotatedDeclaration {
+        if let annotated = cursorInfo.annotatedDeclaration {
           let markdownDecl =
             orLog("Convert XML declaration to Markdown") {
-              try xmlDocumentationToMarkdown(annotatedDeclaration)
-            } ?? annotatedDeclaration
+              try xmlDocumentationToMarkdown(annotated)
+            } ?? annotated
           result += "\(markdownDecl)\n"
         }
         result += documentation
         return result
-      } else if let annotated: String = cursorInfo.annotatedDeclaration {
+      } else if let annotated = cursorInfo.annotatedDeclaration {
         return """
           \(orLog("Convert XML to Markdown") { try xmlDocumentationToMarkdown(annotated) } ?? annotated)
           """
@@ -792,15 +813,6 @@ extension SwiftLanguageService {
 
         \(documentationsWithSpacing.joined(separator: "\n\n---\n\n"))
         """
-    }
-
-    var tokenRange: Range<Position>?
-
-    if let snapshot = try? await latestSnapshot(for: uri) {
-      let tree = await syntaxTreeManager.syntaxTree(for: snapshot)
-      if let token = tree.token(at: snapshot.absolutePosition(of: position)) {
-        tokenRange = snapshot.absolutePositionRange(of: token.trimmedRange)
-      }
     }
 
     return HoverResponse(

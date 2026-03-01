@@ -192,12 +192,51 @@ final class HoverTests: SourceKitLSPTestCase {
       expectedRange: Position(line: 2, utf16index: 18)..<Position(line: 2, utf16index: 21)
     )
   }
+
+  func testHoverFiltersUnderscoredAttributes() async throws {
+    try await assertHover(
+      """
+      /// An atomic value.
+      @_alwaysEmitIntoClient @_spi(Internal) struct 1️⃣Atomic {}
+      """,
+      expectedContent: """
+        ```swift
+        struct Atomic
+        ```
+        An atomic value.
+        """
+    )
+  }
+
+  func testHoverDisplaysParametersCorrectly() async throws {
+    try await assertHover(
+      """
+      /// Initializes a value.
+      ///
+      /// - Parameter count: The number of items
+      func 1️⃣initValue2️⃣(count: Int) {}
+      """,
+      expectedContent: """
+        ```swift
+        func initValue(count: Int)
+        ```
+
+        Initializes a value.
+
+        ## Parameters
+        - `count`: The number of items
+
+        """,
+      expectedRangeMarker: ("1️⃣", "2️⃣")
+    )
+  }
 }
 
 private func assertHover(
   _ markedSource: String,
   expectedContent: String,
-  expectedRange: Range<Position>,
+  expectedRange: Range<Position>? = nil,
+  expectedRangeMarker: (String, String)? = nil,
   file: StaticString = #filePath,
   line: UInt = #line
 ) async throws {
@@ -211,7 +250,11 @@ private func assertHover(
   )
 
   let hover = try XCTUnwrap(response, file: file, line: line)
-  XCTAssertEqual(hover.range, expectedRange, file: file, line: line)
+  if let expectedRangeMarker {
+    XCTAssertEqual(hover.range, positions[expectedRangeMarker.0] ..< positions[expectedRangeMarker.1], file: file, line: line)
+  } else if let expectedRange {
+    XCTAssertEqual(hover.range, expectedRange, file: file, line: line)
+  }
   guard case let .markupContent(content) = hover.contents else {
     XCTFail("hover.contents is not .markupContents", file: file, line: line)
     return
