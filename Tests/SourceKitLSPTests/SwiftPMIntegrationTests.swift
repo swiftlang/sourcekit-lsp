@@ -762,4 +762,83 @@ final class SwiftPMIntegrationTests: SourceKitLSPTestCase {
       return try XCTUnwrap(postEditHoverResponse?.contents.markupContent?.value).contains("let x: String")
     }
   }
+
+  func testExperimentalFeaturesPassedToSyntaxTreeManager() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Test.swift": """
+        struct Foo {
+          var x: Int
+        }
+        """
+      ],
+      manifest: """
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+            .target(
+              name: "MyLibrary",
+              swiftSettings: [.enableExperimentalFeature("_test_EverythingUnexpected")]
+            )
+          ]
+        )
+        """
+    )
+
+    let (uri, _) = try project.openDocument("Test.swift")
+
+    // DocumentSymbolRequest uses SyntaxTreeManager directly (not sourcekitd).
+    // After package loading, build settings include -enable-experimental-feature _test_EverythingUnexpected,
+    // which gets extracted and passed to the parser via SyntaxTreeManager.
+    // With this feature, all content is parsed as unexpected nodes and statements are empty,
+    // so DocumentSymbolRequest should return empty symbols (no struct Foo, no var x).
+    let responseWithFeature = try await project.testClient.send(
+      DocumentSymbolRequest(textDocument: TextDocumentIdentifier(uri))
+    )
+    guard case .documentSymbols(let symbolsWithFeature) = responseWithFeature else {
+      XCTFail("Expected document symbols")
+      return
+    }
+
+    // With _test_EverythingUnexpected, all content is parsed as unexpected,
+    // so there should be no symbols found
+    XCTAssertTrue(
+      symbolsWithFeature.isEmpty,
+      "Expected no symbols with _test_EverythingUnexpected feature (all content parsed as unexpected)"
+    )
+
+    // Now update Package.swift to remove the experimental feature flag
+    let newManifest = """
+      // swift-tools-version: 5.7
+
+      import PackageDescription
+
+      let package = Package(
+        name: "MyLibrary",
+        targets: [
+          .target(name: "MyLibrary")
+        ]
+      )
+      """
+
+    try await project.changeFileOnDisk(
+      "Package.swift",
+      newMarkedContents: newManifest
+    )
+
+    // After removing the experimental feature from Package.swift, the parser should
+    // produce a proper syntax tree, and DocumentSymbolRequest should find the symbols.
+    let response = try await project.testClient.send(
+      DocumentSymbolRequest(textDocument: TextDocumentIdentifier(uri))
+    )
+    guard case .documentSymbols(let symbols) = response else {
+      XCTFail("Expected document symbols")
+      return
+    }
+    // Check that we now find the struct Foo and var x
+    let fooSymbol = try XCTUnwrap(symbols.first(where: { $0.name == "Foo" }))
+    XCTAssertEqual(fooSymbol.kind, .struct)
+    let xSymbol = try XCTUnwrap(fooSymbol.children?.first(where: { $0.name == "x" }))
+    XCTAssertEqual(xSymbol.kind, .property)
+  }
 }
