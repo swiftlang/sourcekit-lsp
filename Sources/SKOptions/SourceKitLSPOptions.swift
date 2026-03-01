@@ -290,6 +290,47 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     }
   }
 
+  /// Options for configuring the "Add file header" code action.
+  ///
+  /// The template can use the following placeholders:
+  /// - `{filename}` - The name of the file
+  /// - `{project}` - The project name (extracted from workspace folder name)
+  /// - `{year}` - The current year
+  /// - `{date}` - The current date in YYYY-MM-DD format
+  /// - `{author}` - The author name (from configuration or system user)
+  /// - `{copyright}` - The copyright text (from configuration)
+  public struct FileHeaderOptions: Sendable, Codable, Equatable {
+    /// The template for file headers. Supports placeholders like `{filename}`, `{project}`,
+    /// `{year}`, `{date}`, `{author}`, and `{copyright}`.
+    ///
+    /// Default: A standard file header template with filename, project, author, date, and copyright.
+    public var template: String?
+
+    /// The author name to use in file headers. If not specified, uses the system username.
+    public var author: String?
+
+    /// The copyright holder text. If not specified, uses the project name.
+    public var copyright: String?
+
+    public init(
+      template: String? = nil,
+      author: String? = nil,
+      copyright: String? = nil
+    ) {
+      self.template = template
+      self.author = author
+      self.copyright = copyright
+    }
+
+    static func merging(base: FileHeaderOptions, override: FileHeaderOptions?) -> FileHeaderOptions {
+      return FileHeaderOptions(
+        template: override?.template ?? base.template,
+        author: override?.author ?? base.author,
+        copyright: override?.copyright ?? base.copyright
+      )
+    }
+  }
+
   public enum BackgroundPreparationMode: String, Sendable, Codable, Equatable {
     /// Build a target to prepare it.
     case build
@@ -356,6 +397,13 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
   public var sourcekitdOrDefault: SourceKitDOptions {
     get { sourcekitd ?? .init() }
     set { sourcekitd = newValue }
+  }
+
+  /// Options for configuring the "Add file header" code action.
+  private var fileHeader: FileHeaderOptions?
+  public var fileHeaderOrDefault: FileHeaderOptions {
+    get { fileHeader ?? .init() }
+    set { fileHeader = newValue }
   }
 
   /// Default workspace type. Overrides workspace type selection logic.
@@ -468,6 +516,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     index: IndexOptions? = .init(),
     logging: LoggingOptions? = .init(),
     sourcekitd: SourceKitDOptions? = .init(),
+    fileHeader: FileHeaderOptions? = .init(),
     defaultWorkspaceType: WorkspaceType? = nil,
     generatedFilesPath: String? = nil,
     backgroundIndexing: Bool? = nil,
@@ -489,6 +538,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     self.index = index
     self.logging = logging
     self.sourcekitd = sourcekitd
+    self.fileHeader = fileHeader
     self.generatedFilesPath = generatedFilesPath
     self.defaultWorkspaceType = defaultWorkspaceType
     self.backgroundIndexing = backgroundIndexing
@@ -553,6 +603,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
       index: IndexOptions.merging(base: base.indexOrDefault, override: override?.index),
       logging: LoggingOptions.merging(base: base.loggingOrDefault, override: override?.logging),
       sourcekitd: SourceKitDOptions.merging(base: base.sourcekitdOrDefault, override: override?.sourcekitd),
+      fileHeader: FileHeaderOptions.merging(base: base.fileHeaderOrDefault, override: override?.fileHeader),
       defaultWorkspaceType: override?.defaultWorkspaceType ?? base.defaultWorkspaceType,
       generatedFilesPath: override?.generatedFilesPath ?? base.generatedFilesPath,
       backgroundIndexing: override?.backgroundIndexing ?? base.backgroundIndexing,

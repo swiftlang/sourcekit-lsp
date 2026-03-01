@@ -5,6 +5,7 @@ add_library(SwiftLanguageService STATIC
   CodeActions/AddDocumentation.swift
   CodeActions/ApplyDeMorganLaw.swift
   CodeActions/ConvertIfLetToGuard.swift
+  CodeActions/AddFileHeader.swift
   CodeActions/ConvertIntegerLiteral.swift
   CodeActions/ConvertJSONToCodableStruct.swift
   CodeActions/ConvertStringConcatenationToStringInterpolation.swift

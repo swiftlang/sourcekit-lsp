@@ -12,6 +12,7 @@
 
 @_spi(SourceKitLSP) import LanguageServerProtocol
 @_spi(SourceKitLSP) import SKLogging
+import SKOptions
 import SourceKitLSP
 import SwiftRefactor
 import SwiftSyntax
@@ -44,14 +45,19 @@ struct SyntaxCodeActionScope {
   /// The innermost node that contains the entire selected source range
   var innermostNodeContainingRange: Syntax?
 
+  /// Options for file header code action, if available.
+  var fileHeaderOptions: SourceKitLSPOptions.FileHeaderOptions?
+
   init?(
     snapshot: DocumentSnapshot,
     syntaxTree file: SourceFileSyntax,
-    request: CodeActionRequest
+    request: CodeActionRequest,
+    fileHeaderOptions: SourceKitLSPOptions.FileHeaderOptions? = nil
   ) {
     self.snapshot = snapshot
     self.request = request
     self.file = file
+    self.fileHeaderOptions = fileHeaderOptions
 
     guard let left = tokenForRefactoring(at: request.range.lowerBound, snapshot: snapshot, syntaxTree: file),
       let right = tokenForRefactoring(at: request.range.upperBound, snapshot: snapshot, syntaxTree: file)

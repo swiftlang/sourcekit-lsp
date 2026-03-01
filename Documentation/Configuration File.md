@@ -49,6 +49,10 @@ The structure of the file is currently not guaranteed to be stable. Options may 
   - `inputMirrorDirectory: string`: Write all input received by SourceKit-LSP on stdin to a file in this directory. Useful to record and replay an entire SourceKit-LSP session.
   - `outputMirrorDirectory: string`: Write all data sent from SourceKit-LSP to the client to a file in this directory. Useful to record the raw communication between SourceKit-LSP and the client on a low level.
 - `sourcekitd`: Options modifying the behavior of sourcekitd.
+- `fileHeader`: Options for configuring the "Add file header" code action.
+  - `template: string`: The template for file headers. Supports placeholders like `{filename}`, `{project}`, `{year}`, `{date}`, `{author}`, and `{copyright}`. Default: A standard file header template with filename, project, author, date, and copyright.
+  - `author: string`: The author name to use in file headers. If not specified, uses the system username.
+  - `copyright: string`: The copyright holder text. If not specified, uses the project name.
 - `defaultWorkspaceType: "buildServer"|"compilationDatabase"|"swiftPM"`: Default workspace type. Overrides workspace type selection logic.
 - `generatedFilesPath: string`: Directory in which generated interfaces and macro expansions should be stored.
 - `backgroundIndexing: boolean`: Whether background indexing is enabled.

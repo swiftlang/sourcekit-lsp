@@ -942,7 +942,13 @@ extension SwiftLanguageService {
     let snapshot = try documentManager.latestSnapshot(uri)
 
     let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
-    guard let scope = SyntaxCodeActionScope(snapshot: snapshot, syntaxTree: syntaxTree, request: request) else {
+    let fileHeaderOptions = sourceKitLSPServer?.options.fileHeaderOrDefault
+    guard let scope = SyntaxCodeActionScope(
+      snapshot: snapshot,
+      syntaxTree: syntaxTree,
+      request: request,
+      fileHeaderOptions: fileHeaderOptions
+    ) else {
       return []
     }
     return await allSyntaxCodeActions.concurrentMap { provider in

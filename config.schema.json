@@ -122,6 +122,28 @@
       },
       "type" : "object"
     },
+    "fileHeader" : {
+      "description" : "Options for configuring the \"Add file header\" code action.",
+      "markdownDescription" : "Options for configuring the \"Add file header\" code action.",
+      "properties" : {
+        "author" : {
+          "description" : "The author name to use in file headers. If not specified, uses the system username.",
+          "markdownDescription" : "The author name to use in file headers. If not specified, uses the system username.",
+          "type" : "string"
+        },
+        "copyright" : {
+          "description" : "The copyright holder text. If not specified, uses the project name.",
+          "markdownDescription" : "The copyright holder text. If not specified, uses the project name.",
+          "type" : "string"
+        },
+        "template" : {
+          "description" : "The template for file headers. Supports placeholders like `{filename}`, `{project}`, `{year}`, `{date}`, `{author}`, and `{copyright}`. Default: A standard file header template with filename, project, author, date, and copyright.",
+          "markdownDescription" : "The template for file headers. Supports placeholders like `{filename}`, `{project}`, `{year}`, `{date}`, `{author}`, and `{copyright}`. Default: A standard file header template with filename, project, author, date, and copyright.",
+          "type" : "string"
+        }
+      },
+      "type" : "object"
+    },
     "generatedFilesPath" : {
       "description" : "Directory in which generated interfaces and macro expansions should be stored.",
       "markdownDescription" : "Directory in which generated interfaces and macro expansions should be stored.",
