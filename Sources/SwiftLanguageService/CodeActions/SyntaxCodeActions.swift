@@ -17,6 +17,7 @@ import SwiftRefactor
 let allSyntaxCodeActions: [any SyntaxCodeActionProvider.Type] = {
   var result: [any SyntaxCodeActionProvider.Type] = [
     AddDocumentation.self,
+    AddFileHeader.self,
     AddSeparatorsToIntegerLiteral.self,
     ApplyDeMorganLaw.self,
     ConvertComputedPropertyToZeroParameterFunction.self,
