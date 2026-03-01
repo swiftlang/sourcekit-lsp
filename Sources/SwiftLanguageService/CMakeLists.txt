@@ -36,6 +36,7 @@ add_library(SwiftLanguageService STATIC
   RelatedIdentifiers.swift
   Rename.swift
   RewriteSourceKitPlaceholders.swift
+  SelectionRange.swift
   SemanticRefactorCommand.swift
   SemanticRefactoring.swift
   SemanticTokens.swift
