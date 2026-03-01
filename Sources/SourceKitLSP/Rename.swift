@@ -107,9 +107,11 @@ extension SourceKitLSPServer {
     usr: String,
     index: CheckedIndex,
     workspace: Workspace
-  ) async -> (swiftLanguageService: any NameTranslatorService, snapshot: DocumentSnapshot, location: SymbolLocation)? {
+  ) async throws -> (
+    swiftLanguageService: any NameTranslatorService, snapshot: DocumentSnapshot, location: SymbolLocation
+  )? {
     var reference: SymbolOccurrence? = nil
-    index.forEachSymbolOccurrence(byUSR: usr, roles: renameRoles) {
+    try index.forEachSymbolOccurrence(byUSR: usr, roles: renameRoles) {
       if $0.symbolProvider == .swift {
         reference = $0
         // We have found a reference from Swift. Stop iteration.
@@ -147,7 +149,7 @@ extension SourceKitLSPServer {
     workspace: Workspace,
     index: CheckedIndex
   ) async throws -> CrossLanguageName? {
-    let definitions = index.occurrences(ofUSR: usr, roles: [.definition])
+    let definitions = try index.occurrences(ofUSR: usr, roles: [.definition])
     if definitions.isEmpty {
       logger.error("No definitions for \(usr) found")
       return nil
@@ -198,7 +200,7 @@ extension SourceKitLSPServer {
     switch definitionLanguage.semanticKind {
     case .clang:
       let swiftName: String?
-      if let swiftReference = await getReferenceFromSwift(usr: usr, index: index, workspace: workspace) {
+      if let swiftReference = try await getReferenceFromSwift(usr: usr, index: index, workspace: workspace) {
         let isObjectiveCSelector = definitionLanguage == .objective_c && definitionSymbol.kind.isMethod
         swiftName = try await swiftReference.swiftLanguageService.translateClangNameToSwift(
           at: swiftReference.location,
@@ -224,7 +226,7 @@ extension SourceKitLSPServer {
       // Continue iteration if the symbol provider is not clang.
       // If we terminate early by returning `false` from the closure, `forEachSymbolOccurrence` returns `true`,
       // indicating that we have found a reference from clang.
-      let hasReferenceFromClang = !index.forEachSymbolOccurrence(byUSR: usr, roles: renameRoles) {
+      let hasReferenceFromClang = try !index.forEachSymbolOccurrence(byUSR: usr, roles: renameRoles) {
         return $0.symbolProvider != .clang
       }
       let clangName: String?
@@ -254,13 +256,13 @@ extension SourceKitLSPServer {
   /// class Inherited: Base { override func foo() {} }
   /// class OtherInherited: Base { override func foo() {} }
   /// ```
-  private func overridingAndOverriddenUsrs(of usr: String, index: CheckedIndex) -> [String] {
+  private func overridingAndOverriddenUsrs(of usr: String, index: CheckedIndex) throws -> [String] {
     var workList = [usr]
     var usrs: [String] = []
     while let usr = workList.popLast() {
       usrs.append(usr)
-      var relatedUsrs = index.occurrences(relatedToUSR: usr, roles: .overrideOf).map(\.symbol.usr)
-      relatedUsrs += index.occurrences(ofUSR: usr, roles: .overrideOf).flatMap { occurrence in
+      var relatedUsrs = try index.occurrences(relatedToUSR: usr, roles: .overrideOf).map(\.symbol.usr)
+      relatedUsrs += try index.occurrences(ofUSR: usr, roles: .overrideOf).flatMap { occurrence in
         occurrence.relations.filter { $0.roles.contains(.overrideOf) }.map(\.symbol.usr)
       }
       for overriddenUsr in relatedUsrs {
@@ -324,8 +326,8 @@ extension SourceKitLSPServer {
     // First, group all occurrences of that USR by the files they occur in.
     var locationsByFile: [DocumentURI: (renameLocations: [RenameLocation], symbolProvider: SymbolProviderKind)] = [:]
 
-    let usrsToRename = overridingAndOverriddenUsrs(of: usr, index: index)
-    let occurrencesToRename = usrsToRename.flatMap { index.occurrences(ofUSR: $0, roles: renameRoles) }
+    let usrsToRename = try overridingAndOverriddenUsrs(of: usr, index: index)
+    let occurrencesToRename = try usrsToRename.flatMap { try index.occurrences(ofUSR: $0, roles: renameRoles) }
     for occurrence in occurrencesToRename {
       let uri = occurrence.location.documentUri
 

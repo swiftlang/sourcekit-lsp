@@ -32,7 +32,7 @@ extension CheckedIndex {
     }
     // Find all occurrences of the symbol by name alone
     var topLevelSymbolOccurrences: [SymbolOccurrence] = []
-    forEachCanonicalSymbolOccurrence(byName: topLevelSymbolName) { symbolOccurrence in
+    try forEachCanonicalSymbolOccurrence(byName: topLevelSymbolName) { symbolOccurrence in
       topLevelSymbolOccurrences.append(symbolOccurrence)
       return true  // continue
     }
@@ -61,14 +61,14 @@ extension CheckedIndex {
     ofUSR usr: String,
     fetchSymbolGraph: (SymbolLocation) async throws -> String?
   ) async throws -> DocCSymbolInformation {
-    guard let topLevelSymbolOccurrence = primaryDefinitionOrDeclarationOccurrence(ofUSR: usr) else {
+    guard let topLevelSymbolOccurrence = try primaryDefinitionOrDeclarationOccurrence(ofUSR: usr) else {
       throw DocCCheckedIndexError.emptyDocCSymbolLink
     }
     let moduleName = topLevelSymbolOccurrence.location.moduleName
     var symbols = [topLevelSymbolOccurrence]
     // Find any parent symbols
     var symbolOccurrence: SymbolOccurrence = topLevelSymbolOccurrence
-    while let parentSymbolOccurrence = symbolOccurrence.parent(self) {
+    while let parentSymbolOccurrence = try symbolOccurrence.parent(self) {
       symbols.insert(parentSymbolOccurrence, at: 0)
       symbolOccurrence = parentSymbolOccurrence
     }
@@ -106,7 +106,7 @@ enum DocCCheckedIndexError: LocalizedError {
 }
 
 extension SymbolOccurrence {
-  func parent(_ index: CheckedIndex) -> SymbolOccurrence? {
+  func parent(_ index: CheckedIndex) throws -> SymbolOccurrence? {
     let allParentRelations =
       relations
       .filter { $0.roles.contains(.childOf) }
@@ -118,13 +118,13 @@ extension SymbolOccurrence {
       return nil
     }
     if parentRelation.symbol.kind == .extension {
-      let allSymbolOccurrences = index.occurrences(relatedToUSR: parentRelation.symbol.usr, roles: .extendedBy)
+      let allSymbolOccurrences = try index.occurrences(relatedToUSR: parentRelation.symbol.usr, roles: .extendedBy)
         .sorted()
       if allSymbolOccurrences.count > 1 {
         logger.debug("Extension \(parentRelation.symbol.usr) extends multiple symbols")
       }
       return allSymbolOccurrences.first
     }
-    return index.primaryDefinitionOrDeclarationOccurrence(ofUSR: parentRelation.symbol.usr)
+    return try index.primaryDefinitionOrDeclarationOccurrence(ofUSR: parentRelation.symbol.usr)
   }
 }
