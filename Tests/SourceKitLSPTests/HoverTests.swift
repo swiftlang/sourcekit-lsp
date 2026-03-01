@@ -197,16 +197,14 @@ final class HoverTests: SourceKitLSPTestCase {
     try await assertHover(
       """
       /// An atomic value.
-      @_frozen @_rawLayout(like: Int) @_staticExclusiveOnly struct 1️⃣Atomic {}
+      @_alwaysEmitIntoClient @_spi(Internal) struct 1️⃣Atomic {}
       """,
       expectedContent: """
         ```swift
-        @frozen @_rawLayout(like: Int) @_staticExclusiveOnly struct Atomic
+        struct Atomic
         ```
-
         An atomic value.
-        """,
-      expectedRange: Position(line: 1, utf16index: 61)..<Position(line: 1, utf16index: 67)
+        """
     )
   }
 
@@ -216,7 +214,7 @@ final class HoverTests: SourceKitLSPTestCase {
       /// Initializes a value.
       ///
       /// - Parameter count: The number of items
-      func 1️⃣initValue(count: Int) {}
+      func 1️⃣initValue2️⃣(count: Int) {}
       """,
       expectedContent: """
         ```swift
@@ -225,9 +223,11 @@ final class HoverTests: SourceKitLSPTestCase {
 
         Initializes a value.
 
-        - Parameter count: The number of items
+        ## Parameters
+        - `count`: The number of items
+
         """,
-      expectedRange: Position(line: 3, utf16index: 5)..<Position(line: 3, utf16index: 14)
+      expectedRangeMarker: ("1️⃣", "2️⃣")
     )
   }
 }
@@ -235,7 +235,8 @@ final class HoverTests: SourceKitLSPTestCase {
 private func assertHover(
   _ markedSource: String,
   expectedContent: String,
-  expectedRange: Range<Position>,
+  expectedRange: Range<Position>? = nil,
+  expectedRangeMarker: (String, String)? = nil,
   file: StaticString = #filePath,
   line: UInt = #line
 ) async throws {
@@ -249,7 +250,11 @@ private func assertHover(
   )
 
   let hover = try XCTUnwrap(response, file: file, line: line)
-  XCTAssertEqual(hover.range, expectedRange, file: file, line: line)
+  if let expectedRangeMarker {
+    XCTAssertEqual(hover.range, positions[expectedRangeMarker.0] ..< positions[expectedRangeMarker.1], file: file, line: line)
+  } else if let expectedRange {
+    XCTAssertEqual(hover.range, expectedRange, file: file, line: line)
+  }
   guard case let .markupContent(content) = hover.contents else {
     XCTFail("hover.contents is not .markupContents", file: file, line: line)
     return

@@ -112,71 +112,67 @@ package actor DocumentationLanguageService: LanguageService, Sendable {
 
   package func hover(_ req: HoverRequest) async throws -> HoverResponse? {
     guard let sourceKitLSPServer else {
-      throw ResponseError.requestNotImplemented(HoverRequest.self)
+      throw ResponseError.unknown("Language server is shutting down")
     }
     
-    let uri = req.textDocument.uri
-    let snapshot = try documentManager.latestSnapshot(uri)
-    
-    guard snapshot.language == .swift else {
-      throw ResponseError.requestNotImplemented(HoverRequest.self)
-    }
-    guard let workspace = await sourceKitLSPServer.workspaceForDocument(uri: req.textDocument.uri) else {
-      throw ResponseError.requestNotImplemented(HoverRequest.self)
+    guard let snapshot = try? documentManager.latestSnapshot(req.textDocument.uri),
+          snapshot.language == .swift,
+          let workspace = await sourceKitLSPServer.workspaceForDocument(uri: req.textDocument.uri) else {
+      return nil
     }
     
-    do {
-      let (symbolGraph, symbolUSR, overrideDocComments) = try await sourceKitLSPServer.primaryLanguageService(
-        for: snapshot.uri,
-        snapshot.language,
-        in: workspace
-      ).symbolGraph(for: snapshot, at: req.position)
-      
-      var moduleName: String? = nil
-      var catalogURL: URL? = nil
-      if let target = await workspace.buildServerManager.canonicalTarget(for: req.textDocument.uri) {
-        moduleName = await workspace.buildServerManager.moduleName(for: target)
-        catalogURL = await workspace.buildServerManager.doccCatalog(for: target)
-      }
-      
-      let doccResponse = try await documentationManager.renderDocCDocumentation(
-        symbolUSR: symbolUSR,
-        symbolGraph: symbolGraph,
-        overrideDocComments: overrideDocComments,
-        markupFile: nil,
-        moduleName: moduleName,
-        catalogURL: catalogURL
-      )
-      
-      guard let renderNodeData = doccResponse.renderNode.data(using: .utf8) else {
-        throw ResponseError.requestNotImplemented(HoverRequest.self)
-      }
-      let renderNode = try JSONDecoder().decode(RenderNode.self, from: renderNodeData)
-      
-      guard let markdown = renderNodeToMarkdown(renderNode) else {
-        throw ResponseError.requestNotImplemented(HoverRequest.self)
-      }
-      return HoverResponse(contents: .markupContent(MarkupContent(kind: .markdown, value: markdown)), range: nil)
-      
-    } catch {
-      throw ResponseError.requestNotImplemented(HoverRequest.self)
+    guard let (symbolGraph, symbolUSR, overrideDocComments) = try? await sourceKitLSPServer.primaryLanguageService(
+      for: snapshot.uri,
+      snapshot.language,
+      in: workspace
+    ).symbolGraph(for: snapshot, at: req.position) else {
+      return nil
     }
+    
+    var moduleName: String? = nil
+    var catalogURL: URL? = nil
+    if let target = await workspace.buildServerManager.canonicalTarget(for: req.textDocument.uri) {
+      moduleName = await workspace.buildServerManager.moduleName(for: target)
+      catalogURL = await workspace.buildServerManager.doccCatalog(for: target)
+    }
+    
+    guard let doccResponse = try? await documentationManager.renderDocCDocumentation(
+      symbolUSR: symbolUSR,
+      symbolGraph: symbolGraph,
+      overrideDocComments: overrideDocComments,
+      markupFile: nil,
+      moduleName: moduleName,
+      catalogURL: catalogURL
+    ) else {
+      return nil
+    }
+    
+    guard let renderNodeData = try? Data(doccResponse.renderNode.utf8),
+          let renderNode = try? JSONDecoder().decode(RenderNode.self, from: renderNodeData),
+          let markdown = renderNode.markdown else {
+      return nil
+    }
+    
+    return HoverResponse(contents: .markupContent(MarkupContent(kind: .markdown, value: markdown)), range: nil)
   }
-  
-  private func renderNodeToMarkdown(_ renderNode: RenderNode) -> String? {
+}
+
+extension RenderNode {
+  fileprivate var markdown: String? {
     var result = ""
     
-    let sections = renderNode.primaryContentSections
+    let sections = primaryContentSections
     for section in sections {
-      if let declSection = section as? DeclarationsRenderSection,
-         let declaration = declSection.declarations.first {
-        let sourceText = declaration.tokens.map { $0.text }.joined()
-        result += "```swift\n\(sourceText)\n```\n"
+      if let declSection = section as? DeclarationsRenderSection {
+        for declaration in declSection.declarations {
+          let sourceText = declaration.tokens.map(\.text).joined()
+          result += "```swift\n\(sourceText)\n```\n"
+        }
       }
     }
     
-    if let abstract = renderNode.abstract {
-      let abstractMarkdown = abstract.map { renderInlineContentToMarkdown($0) }.joined()
+    if let abstract = abstract {
+      let abstractMarkdown = abstract.map { $0.markdown }.joined()
       if !abstractMarkdown.isEmpty {
         result += "\(abstractMarkdown)\n\n"
       }
@@ -185,13 +181,13 @@ package actor DocumentationLanguageService: LanguageService, Sendable {
     for section in sections {
       if let contentSection = section as? ContentRenderSection {
         for contentBlock in contentSection.content {
-          result += renderBlockContentToMarkdown(contentBlock) + "\n"
+          result += contentBlock.markdown + "\n"
         }
       } else if let parametersSection = section as? ParametersRenderSection {
         result += "## Parameters\n"
         for param in parametersSection.parameters {
           result += "- `\(param.name)`: "
-          let paramContent = param.content.compactMap { renderBlockContentToMarkdown($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+          let paramContent = param.content.compactMap { $0.markdown.trimmingCharacters(in: .whitespacesAndNewlines) }
           result += paramContent.joined(separator: " ") + "\n"
         }
         result += "\n"
@@ -201,16 +197,18 @@ package actor DocumentationLanguageService: LanguageService, Sendable {
     let finalResult = result.trimmingCharacters(in: .whitespacesAndNewlines)
     return finalResult.isEmpty ? nil : finalResult
   }
-  
-  private func renderInlineContentToMarkdown(_ content: RenderInlineContent) -> String {
-    switch content {
+}
+
+extension RenderInlineContent {
+  fileprivate var markdown: String {
+    switch self {
     case .text(let text): return text
     case .codeVoice(let code): return "`\(code)`"
-    case .strong(let inline): return "**\(inline.map(renderInlineContentToMarkdown).joined())**"
-    case .emphasis(let inline): return "*\(inline.map(renderInlineContentToMarkdown).joined())*"
+    case .strong(let inline): return "**\(inline.map(\.markdown).joined())**"
+    case .emphasis(let inline): return "*\(inline.map(\.markdown).joined())*"
     case .reference(_, _, let overridingTitle, let overridingTitleInlineContent):
       if let titleContent = overridingTitleInlineContent {
-        return titleContent.map(renderInlineContentToMarkdown).joined()
+        return titleContent.map(\.markdown).joined()
       } else if let title = overridingTitle {
         return "`\(title)`"
       } else {
@@ -219,11 +217,13 @@ package actor DocumentationLanguageService: LanguageService, Sendable {
     default: return ""
     }
   }
-  
-  private func renderBlockContentToMarkdown(_ content: RenderBlockContent) -> String {
-    switch content {
+}
+
+extension RenderBlockContent {
+  fileprivate var markdown: String {
+    switch self {
     case .paragraph(let p):
-      return p.inlineContent.map(renderInlineContentToMarkdown).joined() + "\n"
+      return p.inlineContent.map(\.markdown).joined() + "\n"
     case .codeListing(_):
       return ""
     case .heading(let h):
