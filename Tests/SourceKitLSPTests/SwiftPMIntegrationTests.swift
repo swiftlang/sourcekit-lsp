@@ -826,6 +826,11 @@ final class SwiftPMIntegrationTests: SourceKitLSPTestCase {
       newMarkedContents: newManifest
     )
 
+    // Wait for the build server to update the build graph after Package.swift changes.
+    // SynchronizeRequest(index: true) calls buildServerManager.waitForUpToDateBuildGraph()
+    // which ensures SwiftPM has finished re-parsing Package.swift and updated build settings.
+    try await project.testClient.send(SynchronizeRequest(index: true))
+
     // After removing the experimental feature from Package.swift, the parser should
     // produce a proper syntax tree, and DocumentSymbolRequest should find the symbols.
     let response = try await project.testClient.send(
