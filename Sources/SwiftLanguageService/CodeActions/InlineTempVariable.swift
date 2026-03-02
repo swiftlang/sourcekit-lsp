@@ -50,16 +50,22 @@ import SwiftSyntax
     var textEdits: [TextEdit] = []
 
     // Replace each reference with the initializer value, adding parentheses when needed for precedence.
+    // Preserve the original trailing trivia (eg. spaces before the following operator) so surrounding
+    // spacing stays unchanged.
     for ref in references {
-      let replacementText = replacementTextForInlining(
+      let token = ref.baseName
+      let replacementCore = replacementTextForInlining(
         initializer: initializer,
         at: ref,
         in: codeBlock
       )
-      textEdits.append(TextEdit(
-        range: snapshot.range(of: ref),
-        newText: replacementText
-      ))
+      let replacementText = replacementCore + token.trailingTrivia.description
+      textEdits.append(
+        TextEdit(
+          range: snapshot.range(of: token),
+          newText: replacementText
+        )
+      )
     }
 
     // Remove the declaration (the entire code block item so we remove the newline too).
@@ -154,29 +160,23 @@ import SwiftSyntax
       return false
     }
 
-    // The reference is used as an operand if its parent is an expression that has multiple children
-    // (e.g. binary op, function call). In those cases we need parens for the inlined value.
-    guard let parent = reference.parent else {
-      return false
-    }
-
-    if parent.is(InfixOperatorExprSyntax.self) {
-      return true
-    }
-    if parent.is(SequenceExprSyntax.self) {
-      return true
-    }
-    if parent.is(TernaryExprSyntax.self) {
-      return true
-    }
-    if parent.is(FunctionCallExprSyntax.self) {
-      return true
-    }
-    if parent.is(SubscriptCallExprSyntax.self) {
-      return true
-    }
-    if parent.is(AwaitExprSyntax.self) || parent.is(TryExprSyntax.self) {
-      return true
+    // Walk up the ancestor chain: the reference may be nested (e.g. inside LabeledExprSyntax in a tuple),
+    // so we need to find if we're used as an operand in a binary/sequence expression.
+    var node: Syntax? = Syntax(reference)
+    while let n = node {
+      if n.is(CodeBlockItemSyntax.self) || n.is(CodeBlockSyntax.self) || n.is(MemberBlockItemSyntax.self) {
+        break
+      }
+      if n.is(InfixOperatorExprSyntax.self) || n.is(SequenceExprSyntax.self) {
+        return true
+      }
+      if n.is(TernaryExprSyntax.self) || n.is(FunctionCallExprSyntax.self) || n.is(SubscriptCallExprSyntax.self) {
+        return true
+      }
+      if n.is(AwaitExprSyntax.self) || n.is(TryExprSyntax.self) {
+        return true
+      }
+      node = n.parent
     }
 
     return false
@@ -212,9 +212,9 @@ private extension ExprSyntax {
   var isCompositeForInlining: Bool {
     switch self.kind {
     case .arrayExpr, .booleanLiteralExpr, .closureExpr, .declReferenceExpr, .dictionaryExpr,
-      .floatLiteralExpr, .integerLiteralExpr, .nilLiteralExpr, .stringLiteralExpr, .superExpr:
-      return false
-    case .memberAccessExpr:
+      .floatLiteralExpr, .forceUnwrapExpr, .functionCallExpr, .integerLiteralExpr, .memberAccessExpr,
+      .nilLiteralExpr, .optionalChainingExpr, .postfixOperatorExpr, .stringLiteralExpr, .superExpr,
+      .subscriptCallExpr:
       return false
     case .tupleExpr:
       if let single = self.as(TupleExprSyntax.self)?.elements.only, single.label == nil {
