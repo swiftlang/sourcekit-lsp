@@ -1835,6 +1835,130 @@ final class CodeActionTests: SourceKitLSPTestCase {
     }
   }
 
+  func testConvertLineCommentsToBlockComment() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣// This is a comment
+      // that spans multiple
+      // lines2️⃣
+      func example() {}
+      """,
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Convert Line Comments to Block Comment",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: """
+                    /*
+                     This is a comment
+                     that spans multiple
+                     lines
+                    */
+                    """
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testConvertSingleLineCommentToBlockComment() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣// Single line comment2️⃣
+      func example() {}
+      """,
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Convert Line Comments to Block Comment",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: "/* Single line comment*/"
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testConvertBlockCommentToLineComments() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣/*
+       This is a comment
+       that spans multiple
+       lines
+      */2️⃣
+      func example() {}
+      """,
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Convert Block Comment to Line Comments",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: """
+                    // This is a comment
+                    // that spans multiple
+                    // lines
+                    """
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testConvertSingleLineBlockCommentToLineComment() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣/* Single line block comment */2️⃣
+      func example() {}
+      """,
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Convert Block Comment to Line Comments",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: "// Single line block comment "
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
   /// Retrieves the code action at a set of markers and asserts that it matches a list of expected code actions.
   ///
   /// - Parameters:
