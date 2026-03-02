@@ -901,6 +901,7 @@ extension SwiftLanguageService {
       (retrieveRefactorCodeActions, .refactor),
       (retrieveQuickFixCodeActions, .quickFix),
       (retrieveRemoveUnusedImportsCodeAction, .sourceOrganizeImports),
+      (retrieveRemoveUnusedParameterCodeActions, .refactor),
     ]
     let wantedActionKinds = req.context.only
     let providers: [CodeActionProvider] = providersAndKinds.compactMap { (provider, kind) in
