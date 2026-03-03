@@ -1778,6 +1778,44 @@ final class CodeActionTests: SourceKitLSPTestCase {
       []
     }
   }
+  func testAddSendableAnnotation() async throws {
+    try await assertCodeActions(
+      """
+      func perform(callback: 1️⃣@escaping () -> Void) {
+          Task {
+              callback()
+          }
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      let pos = positions["1️⃣"]
+      return [
+        CodeAction(
+          title: "Add @Sendable",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [uri: [TextEdit(range: pos..<pos, newText: "@Sendable ")]]
+          )
+        ),
+      ]
+    }
+  }
+
+  func testAddSendableAnnotationNotOfferedWhenAlreadySendable() async throws {
+    try await assertCodeActions(
+      """
+      func perform(callback: 1️⃣@Sendable @escaping () -> Void) { }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { _, _ in
+      []
+    }
+  }
+
   func testConvertComputedPropertyToZeroParameterFunction() async throws {
     let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
     let uri = DocumentURI(for: .swift)
