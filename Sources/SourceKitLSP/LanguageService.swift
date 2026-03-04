@@ -31,7 +31,7 @@ package enum LanguageServerState {
 
 /// Extends ``LanguageServerProtocol.TestItem`` with metadata for internal processing.
 package struct AnnotatedTestItem: Sendable {
-  /// The test item to be annotated
+  /// The test item to be annotated.
   package var testItem: TestItem
 
   /// Whether the `TestItem` is an extension.

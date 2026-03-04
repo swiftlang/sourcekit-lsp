@@ -27,8 +27,8 @@ extension SwiftLanguageService {
   package func syntacticTestItems(
     for snapshot: DocumentSnapshot,
   ) async -> [AnnotatedTestItem]? {
-    // Don't use the `self.syntaxTreeManager` for snapshots with version number 0
-    // which indicates it's loaded from the disk.
+    // Don't use the `self.syntaxTreeManager` for snapshots with version number 0,
+    // which indicates they were loaded from disk.
     let syntaxTreeManager = snapshot.version != 0 ? self.syntaxTreeManager : SyntaxTreeManager()
     async let swiftTestingTests = SyntacticSwiftTestingTestScanner.findTestSymbols(
       in: snapshot,
