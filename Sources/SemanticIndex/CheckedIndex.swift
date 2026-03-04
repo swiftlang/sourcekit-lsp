@@ -411,20 +411,6 @@ private struct IndexOutOfDateChecker {
     case date(Date)
   }
 
-  private enum Error: Swift.Error, CustomStringConvertible {
-    case fileAttributesDontHaveModificationDate
-    case circularSymlink(URL)
-
-    var description: String {
-      switch self {
-      case .fileAttributesDontHaveModificationDate:
-        return "File attributes don't contain a modification date"
-      case .circularSymlink(let url):
-        return "Circular symlink at \(url)"
-      }
-    }
-  }
-
   /// Caches whether a document has modifications in `documentManager` that haven't been saved to disk yet.
   private var fileHasInMemoryModificationsCache: [DocumentURI: Bool] = [:]
 
@@ -563,37 +549,12 @@ private struct IndexOutOfDateChecker {
     }
   }
 
-  private static func modificationDate(atPath path: String) throws -> Date {
-    let attributes = try FileManager.default.attributesOfItem(atPath: path)
-    guard let modificationDate = attributes[FileAttributeKey.modificationDate] as? Date else {
-      throw Error.fileAttributesDontHaveModificationDate
-    }
-    return modificationDate
-  }
-
   private func modificationDateUncached(of uri: DocumentURI) throws -> ModificationTime {
     do {
       guard var fileURL = uri.fileURL else {
         return .fileDoesNotExist
       }
-      var modificationDate = try Self.modificationDate(atPath: fileURL.filePath)
-
-      var visited: Set<URL> = [fileURL]
-
-      // Get the maximum mtime in the symlink chain as the modification date of the URI. That way if either the symlink
-      // is changed to point to a different file or if the underlying file is modified, the modification time is
-      // updated.
-      while let relativeSymlinkDestination = try? FileManager.default.destinationOfSymbolicLink(
-        atPath: fileURL.filePath
-      ) {
-        fileURL = URL(fileURLWithPath: relativeSymlinkDestination, relativeTo: fileURL)
-        if !visited.insert(fileURL).inserted {
-          throw Error.circularSymlink(fileURL)
-        }
-        modificationDate = max(modificationDate, try Self.modificationDate(atPath: fileURL.filePath))
-      }
-
-      return .date(modificationDate)
+      return .date(try fileURL.fileModificationDate)
     } catch let error as NSError where error.domain == NSCocoaErrorDomain && error.code == NSFileReadNoSuchFileError {
       return .fileDoesNotExist
     }

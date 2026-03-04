@@ -235,19 +235,19 @@ struct TestDiscovery {
   /// Combine 'syntacticTests' and 'semanticTests'.
   ///
   ///  * Use 'syntacticTests' primarily
-  ///  * Filter out known non-tests from 'syntacticTests' based on 'maybeOutdatedIndex'
+  ///  * Filter out known non-tests from 'syntacticTests' based on 'index'
   ///  * Use 'semanticTests' items only if it's not in 'syntacticTests'.
   private func combineTests(
     syntacticTests: [AnnotatedTestItem],
     semanticTests: [AnnotatedTestItem]?,
-    maybeOutdatedIndex: CheckedIndex?,
+    index: CheckedIndex?,
     workspace: Workspace
   ) async throws -> [AnnotatedTestItem] {
     guard let semanticTests else {
       return syntacticTests
     }
 
-    var semanticTestsMap = [String: [AnnotatedTestItem]](grouping: semanticTests, by: { $0.testItem.id })
+    var semanticTestsMap = [String: [AnnotatedTestItem]](grouping: semanticTests, by: \.testItem.id)
 
     let syntacticTests = try syntacticTests.compactMap { item in
       // swift-testing test cases are only discovered by syntactic scans.
@@ -262,15 +262,14 @@ struct TestDiscovery {
       // This might call `symbols(inFilePath:)` multiple times if there are multiple top-level test items (ie.
       // XCTestCase subclasses, swift-testing handled above) for the same file. In practice test files usually contain
       // a single XCTestCase subclass, so caching doesn't make sense here.
-      // Also, this is only called for files containing test cases but for which the semantic index is out-of-date.
       return item.filterUsing(
-        semanticSymbols: try maybeOutdatedIndex?.symbols(inFilePath: item.testItem.location.uri.pseudoPath)
+        semanticSymbols: try index?.symbols(inFilePath: item.testItem.location.uri.pseudoPath)
       )
     }
 
     // 'semanticTestsMap.values' now contains the results to include. Fix-up the range info.
     let semanticTestsFixed = await fixSemanticTestRanges(
-      tests: semanticTestsMap.values.flatMap({ $0 }),
+      tests: semanticTestsMap.values.flatMap(\.self),
       workspace: workspace
     )
 
@@ -290,57 +289,80 @@ struct TestDiscovery {
 
     let documentManager = sourceKitLSPServer.documentManager
 
-    var testFiles = (try? await workspace.buildServerManager.projectTestFiles()) ?? Array(documentManager.openDocuments)
-
-    let index = await workspace.index(checkedFor: .inMemoryModifiedFiles(documentManager))
-    let maybeOutdatedIndex = await workspace.index(checkedFor: .deletedFiles);
+    let testFiles = (try? await workspace.buildServerManager.projectTestFiles()) ??
+      // Failed 'projectTestFiles()' indicates that there's no build server.
+      // Fall back to scan all open documents.
+      Array(documentManager.openDocuments)
 
     // Collect syntactic tests from the syntactic index, or scan on-demand if the file has in-memory modifications.
-    let partitionIdx = testFiles.partition(by: { uri in
-      index?.fileHasInMemoryModifications(uri) ?? documentManager.fileHasInMemoryModifications(uri)
-    })
-    let filesInSyntacticIndex = testFiles[..<partitionIdx]
-    let filesInMemory = testFiles[partitionIdx...]
+    var syntacticTests: [AnnotatedTestItem] = []
 
-    let testsFromSyntacticIndex = await workspace.syntacticIndex.tests(in: Array(filesInSyntacticIndex))
-    var testsFromInMemoryScan: [AnnotatedTestItem] = []
-    var filesToUseSemanticIndex: [DocumentURI] = []
-    for uri in filesInMemory {
-      guard let snapshot = try? documentManager.latestSnapshot(uri) else {
+    async let testsFromSyntacticIndex = workspace.syntacticIndex.tests()
+
+    // Maps each file path to a minimum required index timestamp.
+    // `.distantPast` means "accept semantic index results regardless of age".
+    var filePathsToUseSemanticIndex: [String: Date] = [:]
+    for uri in testFiles {
+      guard let fileURL = uri.fileURL, let filePath = try? fileURL.filePath else {
         continue
       }
-      if let scannedTests = await workspace.primaryLanguageService(for: uri)?.syntacticTestItems(for: snapshot) {
-        testsFromInMemoryScan += scannedTests
+      if let snapshot = try? documentManager.latestSnapshot(uri),
+         documentManager.snapshotHasInMemoryModifications(snapshot) {
+        // In-memory modified files. Perform syntactic scan now.
+        if let scannedTests = await workspace.primaryLanguageService(for: uri)?.syntacticTestItems(for: snapshot) {
+          syntacticTests += scannedTests
+          // The file has in-memory modifications, so the semantic index is out-of-date. Don't use it.
+        } else {
+          // Syntactic discovery not supported. Fallback to the semantic index even if it's outdated.
+          filePathsToUseSemanticIndex[filePath] = .distantPast
+        }
       } else {
-        // When `syntacticTestItems` returns `nil`, it indicates that it doesn't support syntactic test discovery.
-        // Fallback to semantic index even if it's outdated.
-        filesToUseSemanticIndex.append(uri)
+        // Other test files. Use syntactic index primarily.
+        if let tests = await testsFromSyntacticIndex[uri] {
+          syntacticTests += tests
+          // Supplement with semantic index if it's up to date.
+          filePathsToUseSemanticIndex[filePath] = orLog("Retrieving modification date for \(fileURL)") {
+            try fileURL.fileModificationDate
+          }
+        } else {
+          // Syntactic discovery not supported. Fallback to the semantic index even if it's outdated.
+          filePathsToUseSemanticIndex[filePath] = .distantPast
+        }
       }
     }
 
     // Collect tests from semantic index.
-    var symbolOccurrences: [SymbolOccurrence] = []
-    if let index, let maybeOutdatedIndex {
-      // FIXME: Instead of querying two times, get all the symbolOccurences and filter them here.
-      symbolOccurrences += try index.unitTests()
-      symbolOccurrences += try maybeOutdatedIndex.unitTests(
-        referencedByMainFiles: filesToUseSemanticIndex.map(\.pseudoPath)
-      )
+    let index = await workspace.index(checkedFor: .deletedFiles)
+    let symbolOccurrences = try index?.unitTests().filter { symbolOccurrence in
+      // Must be a definition.
+      guard symbolOccurrence.canBeTestDefinition else {
+        return false
+      }
+
+      // Only use up-to-date items.
+      guard
+        let fileModifiedDate = filePathsToUseSemanticIndex[symbolOccurrence.location.path],
+        symbolOccurrence.location.timestamp >= fileModifiedDate
+      else {
+        return false
+      }
+
+      return true
     }
-    let testsFromSemanticIndex = try testItems(
-      for: symbolOccurrences,
+    let semanticTests = try testItems(
+      for: symbolOccurrences ?? [],
       index: index
     )
 
     return try await combineTests(
-      syntacticTests: (testsFromSyntacticIndex + testsFromInMemoryScan),
-      semanticTests: testsFromSemanticIndex,
-      maybeOutdatedIndex: maybeOutdatedIndex,
+      syntacticTests: syntacticTests,
+      semanticTests: semanticTests,
+      index: index,
       workspace: workspace
     )
   }
 
-  /// Collect all test cases from all the workspaces and merge it into a sorted list of the test cases.
+  /// Collects all test cases from all workspaces and merges them into a sorted, deduplicated list.
   func workspaceTests() async -> [TestItem] {
     return await self.sourceKitLSPServer.workspaces
       .concurrentMap { workspace in
@@ -348,7 +370,7 @@ struct TestDiscovery {
           try await self.tests(in: workspace).prefixTestsWithModuleName(workspace: workspace)
         } ?? []
       }
-      .flatMap({ $0 })
+      .flatMap(\.self)
       .mergingTestsInExtensions()
       .sorted { $0.location < $1.location }
       .deduplicatingIds()
@@ -400,7 +422,7 @@ struct TestDiscovery {
         for: index?.unitTests(referencedByMainFiles: [mainFileUri.pseudoPath]) ?? [],
         index: index
       ),
-      maybeOutdatedIndex: await workspace.index(checkedFor: .deletedFiles),
+      index: await workspace.index(checkedFor: .deletedFiles),
       workspace: workspace
     )
   }
