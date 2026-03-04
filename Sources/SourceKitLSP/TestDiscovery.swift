@@ -185,51 +185,6 @@ struct TestDiscovery {
       .map { testItem(for: $0, context: []) }
   }
 
-  /// Fix the 'location.range' of test cases from the semantic index using 'textDocument/symbol' results.
-  private func fixSemanticTestRanges(
-    tests: [AnnotatedTestItem],
-    workspace: Workspace
-  ) async -> [AnnotatedTestItem] {
-
-    // Cached 'textDocument/symbol' result per document.
-    var _documentSymbols: [DocumentURI: DocumentSymbolResponse?] = [:]
-    func documentSymbols(in uri: DocumentURI) async throws -> DocumentSymbolResponse? {
-      if let cached = _documentSymbols[uri] {
-        return cached
-      }
-      guard let languageService = workspace.primaryLanguageService(for: uri) else {
-        return nil
-      }
-      let symbols = try await languageService.documentSymbol(
-        DocumentSymbolRequest(textDocument: TextDocumentIdentifier(uri))
-      )
-      _documentSymbols[uri] = symbols
-      return symbols
-    }
-
-    // Recursively fix up 'TestItem.location.range'.
-    func fixupLocation(item: inout TestItem, using documentSymbols: DocumentSymbolResponse) {
-      let fixedRange = findInnermostSymbolRange(
-        containing: item.location.range.lowerBound,
-        documentSymbolsResponse: documentSymbols
-      )
-      if let fixedRange {
-        item.location.range = fixedRange
-      }
-      for idx in item.children.indices {
-        fixupLocation(item: &item.children[idx], using: documentSymbols)
-      }
-    }
-
-    return await tests.asyncMap { (item) async -> AnnotatedTestItem in
-      var item = item
-      if let symbols = try? await documentSymbols(in: item.testItem.location.uri) {
-        fixupLocation(item: &item.testItem, using: symbols)
-      }
-      return item
-    }
-  }
-
   /// Combine 'syntacticTests' and 'semanticTests'.
   ///
   ///  * Use 'syntacticTests' primarily
@@ -238,8 +193,7 @@ struct TestDiscovery {
   private func combineTests(
     syntacticTests: [AnnotatedTestItem],
     semanticTests: [AnnotatedTestItem]?,
-    index: CheckedIndex?,
-    workspace: Workspace
+    index: CheckedIndex?
   ) async throws -> [AnnotatedTestItem] {
     guard let semanticTests else {
       return syntacticTests
@@ -265,13 +219,7 @@ struct TestDiscovery {
       )
     }
 
-    // 'semanticTestsMap.values' now contains the results to include. Fix-up the range info.
-    let semanticTestsFixed = await fixSemanticTestRanges(
-      tests: semanticTestsMap.values.flatMap(\.self),
-      workspace: workspace
-    )
-
-    return syntacticTests + semanticTestsFixed
+    return syntacticTests + semanticTestsMap.values.flatMap(\.self)
   }
 
   /// Return all the tests in the given workspace.
@@ -357,8 +305,7 @@ struct TestDiscovery {
     return try await combineTests(
       syntacticTests: syntacticTests,
       semanticTests: semanticTests,
-      index: index,
-      workspace: workspace
+      index: index
     )
   }
 
@@ -416,15 +363,45 @@ struct TestDiscovery {
       syntacticTests == nil ? .deletedFiles : .inMemoryModifiedFiles(documentManager)
     let index = await workspace.index(checkedFor: indexCheckLevel)
 
-    return try await combineTests(
+    let tests = try await combineTests(
       syntacticTests: syntacticTests ?? [],
       semanticTests: try testItems(
-        for: index?.unitTests(referencedByMainFiles: [mainFileUri.pseudoPath]) ?? [],
+        for: index?.unitTests(referencedByMainFiles: [mainFileUri.pseudoPath]).filter(\.canBeTestDefinition) ?? [],
         index: index
       ),
-      index: await workspace.index(checkedFor: .deletedFiles),
-      workspace: workspace
+      index: await workspace.index(checkedFor: .deletedFiles)
     )
+
+    // Recursively fix up 'TestItem.location.range' from semantic index.
+    func fixupLocation(item: inout TestItem, using documentSymbols: DocumentSymbolResponse) {
+      if item.location.range.isEmpty {
+        let fixedRange = findInnermostSymbolRange(
+          containing: item.location.range.lowerBound,
+          documentSymbolsResponse: documentSymbols
+        )
+        if let fixedRange {
+          item.location.range = fixedRange
+        }
+      }
+      for idx in item.children.indices {
+        fixupLocation(item: &item.children[idx], using: documentSymbols)
+      }
+    }
+
+    let symbols = await orLog("Getting 'textDocument/symbols' for \(uri)") {
+      try await languageService.documentSymbol(
+        DocumentSymbolRequest(textDocument: TextDocumentIdentifier(uri))
+      )
+    }
+    if let symbols {
+      return tests.map { item in
+        var item = item
+        fixupLocation(item: &item.testItem, using: symbols)
+        return item
+      }
+    }
+
+    return tests
   }
 }
 
