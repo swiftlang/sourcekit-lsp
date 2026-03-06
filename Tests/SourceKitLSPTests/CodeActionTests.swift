@@ -1333,6 +1333,68 @@ final class CodeActionTests: SourceKitLSPTestCase {
     )
   }
 
+  func testFlipRangeExpressionStride() async throws {
+    try await assertFlipRangeCodeAction(
+      """
+      for i in 1️⃣stride(from: 0, to: 10, by: 1)2️⃣ {
+          print(i)
+      }
+      """,
+      expectedNewText: "stride(from: 10, to: 0, by: -1)"
+    )
+  }
+
+  func testFlipRangeExpressionClosedRange() async throws {
+    try await assertFlipRangeCodeAction(
+      "let range = 1️⃣1...102️⃣",
+      expectedNewText: "(1...10).reversed()"
+    )
+  }
+
+  func testFlipRangeExpressionHalfOpenRange() async throws {
+    try await assertFlipRangeCodeAction(
+      "let range = 1️⃣1..<102️⃣",
+      expectedNewText: "(1..<10).reversed()"
+    )
+  }
+
+  /// Asserts that a "Flip range expression" code action is offered and its edit matches the expected text.
+  private func assertFlipRangeCodeAction(
+    _ markedSource: String,
+    expectedNewText: String,
+    testName: String = #function,
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) async throws {
+    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
+    let uri = DocumentURI(for: .swift, testName: testName)
+    let positions = testClient.openDocument(markedSource, uri: uri)
+    let range = positions["1️⃣"]..<positions["2️⃣"]
+    let result = try await testClient.send(
+      CodeActionRequest(
+        range: range,
+        context: .init(),
+        textDocument: TextDocumentIdentifier(uri)
+      )
+    )
+    guard case .codeActions(let codeActions) = result else {
+      XCTFail("Expected code actions", file: file, line: line)
+      return
+    }
+    let flipAction = codeActions.first { $0.title == "Flip range expression" }
+    guard let flipAction else {
+      XCTFail("Expected 'Flip range expression' action in \(codeActions)", file: file, line: line)
+      return
+    }
+    guard let edit = flipAction.edit, let changes = edit.changes, changes.count == 1,
+      let textEdits = changes.values.first, textEdits.count == 1
+    else {
+      XCTFail("Expected single edit for document in \(String(describing: flipAction.edit))", file: file, line: line)
+      return
+    }
+    XCTAssertEqual(textEdits[0].newText, expectedNewText, file: file, line: line)
+  }
+
   func testApplyDeMorganLawReducedBoolean() throws {
     try assertDeMorganTransform(
       input: "((((((a !== !(b || c)))) && !d)))",
@@ -1885,8 +1947,9 @@ final class CodeActionTests: SourceKitLSPTestCase {
           line: line
         )
       } else {
+        let expectedActions = expected(uri, positions)
         XCTAssert(
-          codeActions.contains(expected(uri, positions)),
+          expectedActions.allSatisfy { codeActions.contains($0) },
           """
           Code actions did not contain expected at range \(startMarker)-\(endMarker):
           \(codeActions)
