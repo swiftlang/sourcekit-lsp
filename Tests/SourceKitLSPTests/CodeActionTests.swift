@@ -487,6 +487,60 @@ final class CodeActionTests: SourceKitLSPTestCase {
     try await fulfillmentOfOrThrow(editReceived)
   }
 
+  func testAddSendableAnnotationToFunctionType() async throws {
+    try await assertCodeActions(
+      """
+      func perform(callback: 1️⃣() -> Void2️⃣) {}
+      """,
+      ranges: [("1️⃣", "2️⃣")],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Add @Sendable",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: "@Sendable () -> Void"
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testAddSendableAnnotationWithEscaping() async throws {
+    try await assertCodeActions(
+      """
+      func perform(callback: 1️⃣@escaping () -> Void2️⃣) {}
+      """,
+      ranges: [("1️⃣", "2️⃣")],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Add @Sendable",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: "@Sendable @escaping () -> Void"
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
   func testAddDocumentationCodeActionResult() async throws {
     let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
     let uri = DocumentURI(for: .swift)
