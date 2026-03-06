@@ -1836,8 +1836,8 @@ final class CodeActionTests: SourceKitLSPTestCase {
   }
 
   func testSortImports() async throws {
-    // Only test with cursor/selection inside the import block (1️⃣). Testing at 2️⃣ would be the blank line
-    // after imports, which does not overlap the import block, so "Sort imports" is not offered there.
+    // Cursor at 1️⃣ inside the import block. Server replaces from firstImport.position to
+    // lastImport.endPosition (range (0,0)..<(3,14)).
     try await assertCodeActions(
       """
       1️⃣import UIKit
@@ -1849,9 +1849,9 @@ final class CodeActionTests: SourceKitLSPTestCase {
       """,
       markers: ["1️⃣"],
       exhaustive: false
-    ) { uri, positions in
-      let start = positions["1️⃣"]
-      // Edit range: from start of first import to end of last import (line 3, "import SwiftUI" ends at column 14)
+    ) { uri, _ in
+      // Edit range: start of file to end of last import (line 3, "import SwiftUI" ends at col 14).
+      let start = Position(line: 0, utf16index: 0)
       let end = Position(line: 3, utf16index: 14)
       return [
         CodeAction(
