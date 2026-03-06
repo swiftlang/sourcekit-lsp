@@ -487,6 +487,62 @@ final class CodeActionTests: SourceKitLSPTestCase {
     try await fulfillmentOfOrThrow(editReceived)
   }
 
+  func testConvertLineCommentToBlockComment() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣// This is a comment
+      2️⃣func example() {}
+      """,
+      ranges: [("1️⃣", "2️⃣")],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Convert to block comment",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: "/* This is a comment */"
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testConvertBlockCommentToLineComment() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣/* This is a comment */
+      2️⃣func example() {}
+      """,
+      ranges: [("1️⃣", "2️⃣")],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Convert to line comments",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: "// This is a comment\n"
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
   func testAddDocumentationCodeActionResult() async throws {
     let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
     let uri = DocumentURI(for: .swift)

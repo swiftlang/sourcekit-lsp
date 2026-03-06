@@ -23,6 +23,7 @@ let allSyntaxCodeActions: [any SyntaxCodeActionProvider.Type] = {
     ConvertIfLetToGuard.self,
     ConvertIntegerLiteral.self,
     ConvertJSONToCodableStruct.self,
+    ConvertLineBlockComment.self,
     ConvertStringConcatenationToStringInterpolation.self,
     ConvertZeroParameterFunctionToComputedProperty.self,
     FormatRawStringLiteral.self,
