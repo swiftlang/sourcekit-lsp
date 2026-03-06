@@ -1835,6 +1835,58 @@ final class CodeActionTests: SourceKitLSPTestCase {
     }
   }
 
+  func testSortImports() async throws {
+    // Cursor at 1️⃣ inside the import block. Server replaces from firstImport.position to
+    // lastImport.endPosition (range (0,0)..<(3,14)).
+    try await assertCodeActions(
+      """
+      1️⃣import UIKit
+      import Foundation
+      import Combine
+      import SwiftUI
+
+      func foo() {}
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, _ in
+      // Edit range: start of file to end of last import (line 3, "import SwiftUI" ends at col 14).
+      let start = Position(line: 0, utf16index: 0)
+      let end = Position(line: 3, utf16index: 14)
+      return [
+        CodeAction(
+          title: "Sort imports",
+          kind: .sourceOrganizeImports,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: start..<end,
+                  newText: "import Combine\nimport Foundation\nimport SwiftUI\nimport UIKit\n"
+                )
+              ]
+            ]
+          )
+        ),
+      ]
+    }
+  }
+
+  func testSortImportsNotOfferedWhenOnlyOneImport() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣import Foundation
+
+      func foo() {}
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { _, _ in
+      []
+    }
+  }
+
   /// Retrieves the code action at a set of markers and asserts that it matches a list of expected code actions.
   ///
   /// - Parameters:
