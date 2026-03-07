@@ -1925,3 +1925,52 @@ private func assertDeMorganTransform(
 
   XCTAssertEqual(result.description, expected, file: file, line: line)
 }
+
+// MARK: - Generate Enum Associated Value Accessors Tests
+
+extension CodeActionTests {
+  func testGenerateEnumAssociatedValueAccessors() async throws {
+    try await assertCodeActions(
+      ##"""
+      1️⃣enum Value {
+          case text(String)
+          case number(Int)
+      2️⃣}
+      """##,
+      ranges: [("1️⃣", "2️⃣")],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Generate enum associated value accessors",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["2️⃣"]..<positions["2️⃣"],
+                  newText: "\n    var asText: String? {\n        if case let .text(v) = self { return v }\n        return nil\n    }\n\n    var isText: Bool {\n        if case .text = self { return true }\n        return false\n    }\n\n    var asNumber: Int? {\n        if case let .number(v) = self { return v }\n        return nil\n    }\n\n    var isNumber: Bool {\n        if case .number = self { return true }\n        return false\n    }\n"
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testGenerateEnumNoAssociatedValues() async throws {
+    try await assertCodeActions(
+      ##"""
+      1️⃣enum Direction {
+          case north
+          case south
+      2️⃣}
+      """##,
+      ranges: [("1️⃣", "2️⃣")],
+      exhaustive: false
+    ) { _, _ in
+      []
+    }
+  }
+}

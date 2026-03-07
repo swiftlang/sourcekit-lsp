@@ -26,6 +26,7 @@ let allSyntaxCodeActions: [any SyntaxCodeActionProvider.Type] = {
     ConvertStringConcatenationToStringInterpolation.self,
     ConvertZeroParameterFunctionToComputedProperty.self,
     FormatRawStringLiteral.self,
+    GenerateEnumAssociatedValueAccessors.self,
     MigrateToNewIfLetSyntax.self,
     OpaqueParameterToGeneric.self,
     RemoveRedundantParentheses.self,
