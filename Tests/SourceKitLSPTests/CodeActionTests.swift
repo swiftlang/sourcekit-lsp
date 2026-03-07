@@ -1925,3 +1925,67 @@ private func assertDeMorganTransform(
 
   XCTAssertEqual(result.description, expected, file: file, line: line)
 }
+
+// MARK: - Toggle Disabled Test Tests
+
+extension CodeActionTests {
+  func testDisableSwiftTestingTest() async throws {
+    try await assertCodeActions(
+      ##"""
+      1️⃣@Test2️⃣
+      func testExample() {
+          #expect(2 + 2 == 4)
+      }3️⃣
+      """##,
+      ranges: [("1️⃣", "3️⃣")],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Disable test",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: "@Test(.disabled())"
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testEnableSwiftTestingTest() async throws {
+    try await assertCodeActions(
+      ##"""
+      1️⃣@Test(.disabled())2️⃣
+      func testExample() {
+          #expect(2 + 2 == 4)
+      }3️⃣
+      """##,
+      ranges: [("1️⃣", "3️⃣")],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Enable test",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: "@Test"
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+}
