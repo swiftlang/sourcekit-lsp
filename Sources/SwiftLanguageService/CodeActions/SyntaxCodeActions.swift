@@ -21,6 +21,7 @@ let allSyntaxCodeActions: [any SyntaxCodeActionProvider.Type] = {
     ApplyDeMorganLaw.self,
     ConvertComputedPropertyToZeroParameterFunction.self,
     ConvertIfLetToGuard.self,
+    FlipBinaryOperands.self,
     ConvertIntegerLiteral.self,
     ConvertJSONToCodableStruct.self,
     ConvertStringConcatenationToStringInterpolation.self,

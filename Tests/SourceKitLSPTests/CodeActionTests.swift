@@ -1564,6 +1564,114 @@ final class CodeActionTests: SourceKitLSPTestCase {
     }
   }
 
+  func testFlipBinaryOperandsComparison() async throws {
+    try await assertCodeActions(
+      """
+      let x = 1️⃣5 < count2️⃣
+      """,
+      ranges: [("1️⃣", "2️⃣")],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Flip operands of '5 < count' to 'count > 5'",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: "count > 5"
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testFlipBinaryOperandsCommutative() async throws {
+    try await assertCodeActions(
+      """
+      let sum = 1️⃣1 + value2️⃣
+      """,
+      ranges: [("1️⃣", "2️⃣")],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Flip operands of '1 + value' to 'value + 1'",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: "value + 1"
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testFlipBinaryOperandsEquality() async throws {
+    try await assertCodeActions(
+      """
+      let x = 1️⃣a == b2️⃣
+      """,
+      ranges: [("1️⃣", "2️⃣")],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Flip operands of 'a == b' to 'b == a'",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: "b == a"
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testFlipBinaryOperandsGreaterOrEqual() async throws {
+    try await assertCodeActions(
+      """
+      if 1️⃣count >= 102️⃣ { }
+      """,
+      ranges: [("1️⃣", "2️⃣")],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Flip operands of 'count >= 10' to '10 <= count'",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: "10 <= count"
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
   func testRemoveUnusedImports() async throws {
     let project = try await SwiftPMTestProject(
       files: [
