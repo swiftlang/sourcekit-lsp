@@ -4,6 +4,7 @@ add_library(SwiftLanguageService STATIC
   ClosureCompletionFormat.swift
   CodeActions/AddDocumentation.swift
   CodeActions/ApplyDeMorganLaw.swift
+  CodeActions/ConvertComments.swift
   CodeActions/ConvertIfLetToGuard.swift
   CodeActions/ConvertIntegerLiteral.swift
   CodeActions/ConvertJSONToCodableStruct.swift
