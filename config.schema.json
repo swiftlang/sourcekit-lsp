@@ -211,6 +211,11 @@
         }
       ]
     },
+    "reportSyntacticHighlightInSemanticTokens" : {
+      "description" : "Whether the response for `textDocument/semanticTokens` should include semantic tokens for syntactic and semantic highlighting or just semantic highlighting.",
+      "markdownDescription" : "Whether the response for `textDocument/semanticTokens` should include semantic tokens for syntactic and semantic highlighting or just semantic highlighting.",
+      "type" : "boolean"
+    },
     "semanticServiceRestartTimeout" : {
       "description" : "If a request to sourcekitd or clangd exceeds this timeout, we assume that the semantic service provider is hanging for some reason and won't recover. To restore semantic functionality, we terminate and restart it.",
       "markdownDescription" : "If a request to sourcekitd or clangd exceeds this timeout, we assume that the semantic service provider is hanging for some reason and won't recover. To restore semantic functionality, we terminate and restart it.",
