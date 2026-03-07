@@ -23,17 +23,19 @@ protocol SyntaxRefactoringCodeActionProvider: SyntaxCodeActionProvider, EditRefa
   /// Returns the node that the syntax refactoring should be performed on, if code actions are requested for the given
   /// scope.
   static func nodeToRefactor(in scope: SyntaxCodeActionScope) -> Input?
+
+  static func refactoringContext(for scope: SyntaxCodeActionScope) -> Context
 }
 
 /// SyntaxCodeActionProviders with a \c Void context can automatically be
 /// adapted provide a code action based on their refactoring operation.
-extension SyntaxRefactoringCodeActionProvider where Self.Context == Void {
+extension SyntaxRefactoringCodeActionProvider {
   static func codeActions(in scope: SyntaxCodeActionScope) -> [CodeAction] {
     guard let node = nodeToRefactor(in: scope) else {
       return []
     }
 
-    guard let sourceEdits = try? Self.textRefactor(syntax: node) else {
+    guard let sourceEdits = try? Self.textRefactor(syntax: node, in: refactoringContext(for: scope)) else {
       return []
     }
 
@@ -51,7 +53,76 @@ extension SyntaxRefactoringCodeActionProvider where Self.Context == Void {
   }
 }
 
-// Adapters for specific refactoring provides in swift-syntax.
+extension SyntaxRefactoringCodeActionProvider where Context == Void {
+  static func refactoringContext(for scope: SyntaxCodeActionScope) -> Context {
+    return ()
+  }
+}
+
+// MARK: Utilities
+
+extension SyntaxProtocol {
+  /// Finds the innermost parent of the given type that satisfies `matching`,
+  /// while not walking outside of nodes that satisfy `stoppingIf`.
+  func findParentOfSelf<ParentType: SyntaxProtocol>(
+    ofType: ParentType.Type,
+    stoppingIf: (Syntax) -> Bool,
+    matching: (ParentType) -> Bool = { _ in true }
+  ) -> ParentType? {
+    var node: Syntax? = Syntax(self)
+    while let unwrappedNode = node, !stoppingIf(unwrappedNode) {
+      if let expectedType = unwrappedNode.as(ParentType.self), matching(expectedType) {
+        return expectedType
+      }
+      node = unwrappedNode.parent
+    }
+    return nil
+  }
+}
+
+extension [SourceEdit] {
+  /// Translate source edits into a workspace edit.
+  /// `snapshot` is the latest snapshot of the document to which these edits belong.
+  func asWorkspaceEdit(snapshot: DocumentSnapshot) -> WorkspaceEdit? {
+    let textEdits = compactMap { edit -> TextEdit? in
+      let edit = TextEdit(
+        range: snapshot.absolutePositionRange(of: edit.range),
+        newText: edit.replacement
+      )
+
+      if edit.isNoOp(in: snapshot) {
+        return nil
+      }
+
+      return edit
+    }
+
+    if textEdits.isEmpty {
+      return nil
+    }
+
+    return WorkspaceEdit(
+      changes: [snapshot.uri: textEdits]
+    )
+  }
+}
+
+// MARK: - Helper Extensions
+
+private extension TypeSyntax {
+  var isVoid: Bool {
+    switch self.as(TypeSyntaxEnum.self) {
+    case .identifierType(let identifierType) where identifierType.name.text == "Void":
+      return true
+    case .tupleType(let tupleType) where tupleType.elements.isEmpty:
+      return true
+    default:
+      return false
+    }
+  }
+}
+
+// MARK: Adapters for specific refactoring provides in swift-syntax.
 
 extension AddSeparatorsToIntegerLiteral: SyntaxRefactoringCodeActionProvider {
   package static var title: String { "Add digit separators" }
@@ -60,6 +131,28 @@ extension AddSeparatorsToIntegerLiteral: SyntaxRefactoringCodeActionProvider {
     return scope.innermostNodeContainingRange?.findParentOfSelf(
       ofType: IntegerLiteralExprSyntax.self,
       stoppingIf: { $0.is(CodeBlockSyntax.self) || $0.is(MemberBlockSyntax.self) }
+    )
+  }
+}
+
+extension ConvertComputedPropertyToStored: SyntaxRefactoringCodeActionProvider {
+  static var title: String { "Convert to stored property" }
+
+  static func nodeToRefactor(in scope: SyntaxCodeActionScope) -> VariableDeclSyntax? {
+    return scope.innermostNodeContainingRange?.findParentOfSelf(
+      ofType: VariableDeclSyntax.self,
+      stoppingIf: { $0.is(CodeBlockSyntax.self) || $0.is(MemberBlockSyntax.self) || $0.is(AccessorBlockSyntax.self) }
+    )
+  }
+}
+
+extension ConvertComputedPropertyToZeroParameterFunction: SyntaxRefactoringCodeActionProvider {
+  package static var title: String { "Convert to zero parameter function" }
+
+  static func nodeToRefactor(in scope: SyntaxCodeActionScope) -> Input? {
+    return scope.innermostNodeContainingRange?.findParentOfSelf(
+      ofType: VariableDeclSyntax.self,
+      stoppingIf: { $0.is(CodeBlockSyntax.self) || $0.is(MemberBlockSyntax.self) || $0.is(AccessorBlockSyntax.self) }
     )
   }
 }
@@ -139,74 +232,7 @@ extension ConvertZeroParameterFunctionToComputedProperty: SyntaxRefactoringCodeA
   }
 }
 
-extension ConvertComputedPropertyToZeroParameterFunction: SyntaxRefactoringCodeActionProvider {
-  package static var title: String { "Convert to zero parameter function" }
-
-  static func nodeToRefactor(in scope: SyntaxCodeActionScope) -> Input? {
-    return scope.innermostNodeContainingRange?.findParentOfSelf(
-      ofType: VariableDeclSyntax.self,
-      stoppingIf: { $0.is(CodeBlockSyntax.self) || $0.is(MemberBlockSyntax.self) }
-    )
-  }
-}
-
-extension SyntaxProtocol {
-  /// Finds the innermost parent of the given type that satisfies `matching`,
-  /// while not walking outside of nodes that satisfy `stoppingIf`.
-  func findParentOfSelf<ParentType: SyntaxProtocol>(
-    ofType: ParentType.Type,
-    stoppingIf: (Syntax) -> Bool,
-    matching: (ParentType) -> Bool = { _ in true }
-  ) -> ParentType? {
-    var node: Syntax? = Syntax(self)
-    while let unwrappedNode = node, !stoppingIf(unwrappedNode) {
-      if let expectedType = unwrappedNode.as(ParentType.self), matching(expectedType) {
-        return expectedType
-      }
-      node = unwrappedNode.parent
-    }
-    return nil
-  }
-}
-
-extension [SourceEdit] {
-  /// Translate source edits into a workspace edit.
-  /// `snapshot` is the latest snapshot of the document to which these edits belong.
-  func asWorkspaceEdit(snapshot: DocumentSnapshot) -> WorkspaceEdit? {
-    let textEdits = compactMap { edit -> TextEdit? in
-      let edit = TextEdit(
-        range: snapshot.absolutePositionRange(of: edit.range),
-        newText: edit.replacement
-      )
-
-      if edit.isNoOp(in: snapshot) {
-        return nil
-      }
-
-      return edit
-    }
-
-    if textEdits.isEmpty {
-      return nil
-    }
-
-    return WorkspaceEdit(
-      changes: [snapshot.uri: textEdits]
-    )
-  }
-}
-
-// MARK: - Helper Extensions
-
-private extension TypeSyntax {
-  var isVoid: Bool {
-    switch self.as(TypeSyntaxEnum.self) {
-    case .identifierType(let identifierType) where identifierType.name.text == "Void":
-      return true
-    case .tupleType(let tupleType) where tupleType.elements.isEmpty:
-      return true
-    default:
-      return false
-    }
-  }
-}
+//==========================================================================//
+// IMPORTANT: If you are tempted to add a new refactoring action here       //
+// please insert it in alphabetical order above                             //
+//==========================================================================//
