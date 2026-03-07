@@ -75,7 +75,7 @@ fileprivate actor SourceFilesWithSameRealpathInferrer {
 /// Create an index instance based on the given options and response from the build server.
 func createIndex(
   initializationData: SourceKitInitializeBuildResponseData?,
-  mainFilesChangedCallback: @escaping @Sendable () async -> Void,
+  indexChangedCallback: @escaping @Sendable () async -> Void,
   rootUri: DocumentURI?,
   toolchainRegistry: ToolchainRegistry,
   options: SourceKitLSPOptions,
@@ -97,9 +97,7 @@ func createIndex(
   let supportsOutputPaths = initializationData?.outputPathsProvider ?? false
   if let indexStorePath, let indexDatabasePath, let libPath = await toolchainRegistry.default?.libIndexStore {
     do {
-      let indexDelegate = SourceKitIndexDelegate {
-        await mainFilesChangedCallback()
-      }
+      let indexDelegate = SourceKitIndexDelegate(callback: indexChangedCallback)
       let prefixMappings =
         (indexOptions.indexPrefixMap ?? [:])
         .map { PathMapping(original: $0.key, replacement: $0.value) }
@@ -284,7 +282,7 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
           return []
         }
         return await sourceKitLSPServer.languageServices(for: snapshot.uri, snapshot.language, in: self).asyncFlatMap {
-          await $0.syntacticTestItems(for: snapshot)
+          await $0.syntacticTestItems(for: snapshot) ?? []
         }
       },
       syntacticPlaygrounds: { [weak self] (snapshot) in
@@ -389,7 +387,13 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
       createMainFilesProvider: { (initializationData, mainFilesChangedCallback) -> (any MainFilesProvider)? in
         await createIndex(
           initializationData: initializationData,
-          mainFilesChangedCallback: mainFilesChangedCallback,
+          indexChangedCallback: { [weak sourceKitLSPServer] in
+            // Notify that main files may have changed.
+            await mainFilesChangedCallback()
+
+            // Schedule updating entry point cache.
+            await sourceKitLSPServer?.entryPointManager.refresh()
+          },
           rootUri: rootUri,
           toolchainRegistry: toolchainRegistry,
           options: options,
@@ -513,6 +517,9 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
     }
 
     await scheduleUpdateOfUnitOutputPathsInIndexIfNecessary()
+
+    // Schedule updating entry point cache.
+    await sourceKitLSPServer?.entryPointManager.refresh()
   }
 
   private func scheduleUpdateOfUnitOutputPathsInIndexIfNecessary() async {
