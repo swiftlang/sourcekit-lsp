@@ -1925,3 +1925,115 @@ private func assertDeMorganTransform(
 
   XCTAssertEqual(result.description, expected, file: file, line: line)
 }
+
+// MARK: - Flip Range Expression Tests
+
+extension CodeActionTests {
+  func testFlipRangeClosedRange() async throws {
+    try await assertCodeActions(
+      ##"""
+      let range = 1️⃣1...102️⃣
+      """##,
+      ranges: [("1️⃣", "2️⃣")],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Flip range to '(1...10).reversed()'",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: "(1...10).reversed()"
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testFlipRangeHalfOpenRange() async throws {
+    try await assertCodeActions(
+      ##"""
+      let range = 1️⃣0..<102️⃣
+      """##,
+      ranges: [("1️⃣", "2️⃣")],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Flip range to '(0..<10).reversed()'",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: "(0..<10).reversed()"
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testFlipStrideExpression() async throws {
+    try await assertCodeActions(
+      ##"""
+      let s = 1️⃣stride(from: 0, to: 10, by: 1)2️⃣
+      """##,
+      ranges: [("1️⃣", "2️⃣")],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Flip range to 'stride(from: 10, to: 0, by: -1)'",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: "stride(from: 10, to: 0, by: -1)"
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testFlipStrideNegatedStep() async throws {
+    try await assertCodeActions(
+      ##"""
+      let s = 1️⃣stride(from: 10, to: 0, by: -2)2️⃣
+      """##,
+      ranges: [("1️⃣", "2️⃣")],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Flip range to 'stride(from: 0, to: 10, by: 2)'",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: "stride(from: 0, to: 10, by: 2)"
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+}
