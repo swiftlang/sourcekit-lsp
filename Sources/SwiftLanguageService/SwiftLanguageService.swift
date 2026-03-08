@@ -944,9 +944,94 @@ extension SwiftLanguageService {
     guard let scope = SyntaxCodeActionScope(snapshot: snapshot, syntaxTree: syntaxTree, request: request) else {
       return []
     }
-    return await allSyntaxCodeActions.concurrentMap { provider in
-      return provider.codeActions(in: scope)
+
+    let actions = await allSyntaxCodeActions.concurrentMap { provider in
+      provider.codeActions(in: scope)
     }.flatMap { $0 }
+
+    let clientSupportsResolve =
+      capabilityRegistry.clientCapabilities
+      .textDocument?.codeAction?.resolveSupport != nil
+
+    guard !clientSupportsResolve else {
+      return actions
+    }
+
+    guard let sourceKitLSPServer,
+      let workspace = await sourceKitLSPServer.workspaceForDocument(uri: uri)
+    else {
+      return actions
+    }
+
+    let context = SyntaxCodeActionResolutionContext(
+      scope: scope,
+      workspace: workspace,
+      documentManager: try documentManager,
+      languageService: self
+    )
+
+    return await actions.concurrentMap { action in
+      guard case .dictionary(let dict) = action.data,
+        case .string(let identifier) = dict["resolveIdentifier"],
+        let provider = allSyntaxCodeActions[resolveIdentifier: identifier]
+      else {
+        return action
+      }
+
+      return (try? await provider.resolve(action, context: context)) ?? action
+    }
+  }
+
+  package func codeActionResolve(_ req: CodeActionResolveRequest) async throws -> CodeAction {
+    guard case .dictionary(let dict) = req.codeAction.data,
+      case .string(let identifier) = dict["resolveIdentifier"],
+      case .string(let uriString) = dict["uri"],
+      let provider = allSyntaxCodeActions[resolveIdentifier: identifier]
+    else {
+      return req.codeAction
+    }
+
+    let uri = try DocumentURI(string: uriString)
+
+    guard let sourceKitLSPServer,
+      let workspace = await sourceKitLSPServer.workspaceForDocument(uri: uri)
+    else {
+      return req.codeAction
+    }
+
+    let snapshot = try documentManager.latestSnapshot(uri)
+    let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
+
+    guard case .dictionary(let rangeDict)? = dict["range"],
+      let range = Range<Position>(fromLSPDictionary: rangeDict)
+    else {
+      return req.codeAction
+    }
+
+    let request = CodeActionRequest(
+      range: range,
+      context: CodeActionContext(),
+      textDocument: TextDocumentIdentifier(uri)
+    )
+
+    guard
+      let scope = SyntaxCodeActionScope(
+        snapshot: snapshot,
+        syntaxTree: syntaxTree,
+        request: request
+      )
+    else {
+      return req.codeAction
+    }
+
+    let context = SyntaxCodeActionResolutionContext(
+      scope: scope,
+      workspace: workspace,
+      documentManager: try documentManager,
+      languageService: self
+    )
+
+    return try await provider.resolve(req.codeAction, context: context)
   }
 
   func retrieveRefactorCodeActions(_ params: CodeActionRequest) async throws -> [CodeAction] {
