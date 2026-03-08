@@ -1835,6 +1835,88 @@ final class CodeActionTests: SourceKitLSPTestCase {
     }
   }
 
+  func testInlineTempVariable() async throws {
+    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
+    let uri = DocumentURI(for: .swift, testName: #function)
+    let positions = testClient.openDocument(
+      """
+      func example() {
+        1️⃣let basePrice = item.price
+        let total = basePrice * quantity
+      }
+      """,
+      uri: uri
+    )
+
+    let result = try await testClient.send(
+      CodeActionRequest(
+        range: Range(positions["1️⃣"]),
+        context: .init(),
+        textDocument: TextDocumentIdentifier(uri)
+      )
+    )
+    let codeActions = try XCTUnwrap(result?.codeActions)
+    let inlineAction = try XCTUnwrap(codeActions.first { $0.title == "Inline 'basePrice'" })
+    XCTAssertEqual(inlineAction.kind, .refactorInline)
+
+    // Verify the edit replaces the reference and removes the declaration.
+    let edits = try XCTUnwrap(inlineAction.edit?.changes?[uri])
+    XCTAssertEqual(edits.count, 2)
+    XCTAssert(edits.contains { $0.newText == "item.price" })
+    XCTAssert(edits.contains { $0.newText == "" })
+  }
+
+  func testInlineTempVariableWithParentheses() async throws {
+    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
+    let uri = DocumentURI(for: .swift, testName: #function)
+    let positions = testClient.openDocument(
+      """
+      func example() {
+        1️⃣let offset = a + b
+        let result = offset * c
+      }
+      """,
+      uri: uri
+    )
+
+    let result = try await testClient.send(
+      CodeActionRequest(
+        range: Range(positions["1️⃣"]),
+        context: .init(),
+        textDocument: TextDocumentIdentifier(uri)
+      )
+    )
+    let codeActions = try XCTUnwrap(result?.codeActions)
+    let inlineAction = try XCTUnwrap(codeActions.first { $0.title == "Inline 'offset'" })
+
+    let edits = try XCTUnwrap(inlineAction.edit?.changes?[uri])
+    XCTAssert(edits.contains { $0.newText == "(a + b)" })
+  }
+
+  func testInlineTempVariableNotOfferedForUnusedVariable() async throws {
+    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
+    let uri = DocumentURI(for: .swift, testName: #function)
+    let positions = testClient.openDocument(
+      """
+      func example() {
+        1️⃣let x = 42
+        print("hello")
+      }
+      """,
+      uri: uri
+    )
+
+    let result = try await testClient.send(
+      CodeActionRequest(
+        range: Range(positions["1️⃣"]),
+        context: .init(),
+        textDocument: TextDocumentIdentifier(uri)
+      )
+    )
+    let codeActions = try XCTUnwrap(result?.codeActions)
+    XCTAssertNil(codeActions.first { $0.title.starts(with: "Inline") })
+  }
+
   /// Retrieves the code action at a set of markers and asserts that it matches a list of expected code actions.
   ///
   /// - Parameters:
