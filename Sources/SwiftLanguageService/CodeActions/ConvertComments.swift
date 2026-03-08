@@ -12,6 +12,8 @@
 
 @_spi(SourceKitLSP) import LanguageServerProtocol
 import SourceKitLSP
+import SwiftBasicFormat
+import SwiftExtensions
 import SwiftSyntax
 
 /// Syntactic code action provider to convert between `//` line comments and
@@ -27,20 +29,10 @@ struct ConvertComments: SyntaxCodeActionProvider {
     if let action = codeAction(
       for: token.leadingTrivia,
       startPosition: token.position,
+      token: token,
       scope: scope
     ) {
       return [action]
-    }
-
-    // Also check trailing trivia of the previous token
-    if let previousToken = token.previousToken(viewMode: .sourceAccurate) {
-      if let action = codeAction(
-        for: previousToken.trailingTrivia,
-        startPosition: previousToken.endPositionBeforeTrailingTrivia,
-        scope: scope
-      ) {
-        return [action]
-      }
     }
 
     return []
@@ -49,11 +41,12 @@ struct ConvertComments: SyntaxCodeActionProvider {
   private static func codeAction(
     for trivia: Trivia,
     startPosition: AbsolutePosition,
+    token: TokenSyntax,
     scope: SyntaxCodeActionScope
   ) -> CodeAction? {
     var position = startPosition
     var lineComments: [(start: AbsolutePosition, text: String)] = []
-    var lineCommentGroupStart: AbsolutePosition?
+    var consecutiveNewlines = 0
 
     for piece in trivia {
       let pieceStart = position
@@ -62,16 +55,14 @@ struct ConvertComments: SyntaxCodeActionProvider {
 
       switch piece {
       case .lineComment(let text):
-        if lineCommentGroupStart == nil {
-          lineCommentGroupStart = pieceStart
-        }
         lineComments.append((pieceStart, text))
+        consecutiveNewlines = 0
 
       case .blockComment(let text):
         // If cursor is in this block comment, offer to convert to line comments
         let pieceRange = pieceStart..<position
         if pieceRange.overlaps(scope.range) {
-          let indentation = leadingIndentation(at: pieceStart, in: scope.snapshot.text)
+          let indentation = token.indentationOfLine.description
           return CodeAction(
             title: "Convert Block Comment to Line Comments",
             kind: .refactorInline,
@@ -85,10 +76,17 @@ struct ConvertComments: SyntaxCodeActionProvider {
             ])
           )
         }
+        consecutiveNewlines = 0
 
-      case .newlines, .carriageReturns, .carriageReturnLineFeeds:
-        // Newline continues a potential line comment group
-        continue
+      case .newlines(let count), .carriageReturns(let count), .carriageReturnLineFeeds(let count):
+        consecutiveNewlines += count
+        // Break line comment group if there's an empty line (2+ newlines)
+        if consecutiveNewlines >= 2 && !lineComments.isEmpty {
+          if let action = lineCommentsAction(lineComments, token: token, scope: scope) {
+            return action
+          }
+          lineComments.removeAll()
+        }
 
       case .spaces, .tabs:
         // Whitespace is allowed between line comments
@@ -96,28 +94,28 @@ struct ConvertComments: SyntaxCodeActionProvider {
 
       default:
         // Other trivia breaks the line comment group
-        if let action = lineCommentsAction(lineComments, groupStart: lineCommentGroupStart, scope: scope) {
+        if let action = lineCommentsAction(lineComments, token: token, scope: scope) {
           return action
         }
         lineComments.removeAll()
-        lineCommentGroupStart = nil
+        consecutiveNewlines = 0
       }
     }
 
     // Check remaining line comments at end of trivia
-    return lineCommentsAction(lineComments, groupStart: lineCommentGroupStart, scope: scope)
+    return lineCommentsAction(lineComments, token: token, scope: scope)
   }
 
   private static func lineCommentsAction(
     _ comments: [(start: AbsolutePosition, text: String)],
-    groupStart: AbsolutePosition?,
+    token: TokenSyntax,
     scope: SyntaxCodeActionScope
   ) -> CodeAction? {
-    guard !comments.isEmpty, let start = groupStart else {
+    guard let firstComment = comments.first, let lastComment = comments.last else {
       return nil
     }
 
-    let lastComment = comments.last!
+    let start = firstComment.start
     let end = lastComment.start.advanced(by: lastComment.text.utf8.count)
     let groupRange = start..<end
 
@@ -125,11 +123,12 @@ struct ConvertComments: SyntaxCodeActionProvider {
       return nil
     }
 
-    let indentation = leadingIndentation(at: start, in: scope.snapshot.text)
+    let indentation = token.indentationOfLine.description
     let texts = comments.map { String($0.text.dropFirst(2)) }  // Remove "//"
+    let title = comments.count == 1 ? "Convert Line Comment to Block Comment" : "Convert Line Comments to Block Comment"
 
     return CodeAction(
-      title: "Convert Line Comments to Block Comment",
+      title: title,
       kind: .refactorInline,
       edit: WorkspaceEdit(changes: [
         scope.snapshot.uri: [
@@ -143,10 +142,14 @@ struct ConvertComments: SyntaxCodeActionProvider {
   }
 
   private static func lineToBlockComment(_ lines: [String], indentation: String) -> String {
-    if lines.count == 1 {
-      return "/*\(lines[0])*/"
+    if let line = lines.only {
+      return "/*\(line)*/"
     }
-    return "/*\n" + lines.map { "\(indentation)\($0)\n" }.joined() + "\(indentation)*/"
+    return """
+      /*
+      \(lines.map { "\(indentation)\($0)" }.joined(separator: "\n"))
+      \(indentation)*/
+      """
   }
 
   private static func blockToLineComments(_ text: String, indentation: String) -> String {
@@ -154,21 +157,13 @@ struct ConvertComments: SyntaxCodeActionProvider {
     var lines = body.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
 
     // Trim empty first/last lines from multiline block comments
-    if lines.count > 1 {
-      if lines.first?.allSatisfy(\.isWhitespace) == true { lines.removeFirst() }
-      if lines.last?.allSatisfy(\.isWhitespace) == true { lines.removeLast() }
-    }
+    if lines.first?.allSatisfy(\.isWhitespace) ?? false { lines.removeFirst() }
+    if lines.last?.allSatisfy(\.isWhitespace) ?? false { lines.removeLast() }
     if lines.isEmpty { lines = [""] }
 
     return lines.map { line in
       let trimmed = line.hasPrefix(indentation) ? String(line.dropFirst(indentation.count)) : line
       return "//\(trimmed)"
     }.joined(separator: "\n")
-  }
-
-  private static func leadingIndentation(at position: AbsolutePosition, in source: String) -> String {
-    let index = source.utf8.index(source.startIndex, offsetBy: position.utf8Offset)
-    let lineStart = source[..<index].lastIndex(of: "\n").map { source.index(after: $0) } ?? source.startIndex
-    return String(source[lineStart..<index].prefix { $0 == " " || $0 == "\t" })
   }
 }

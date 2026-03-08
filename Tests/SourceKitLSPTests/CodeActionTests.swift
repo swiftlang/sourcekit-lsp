@@ -1880,7 +1880,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
     ) { uri, positions in
       [
         CodeAction(
-          title: "Convert Line Comments to Block Comment",
+          title: "Convert Line Comment to Block Comment",
           kind: .refactorInline,
           edit: WorkspaceEdit(
             changes: [
@@ -1888,6 +1888,36 @@ final class CodeActionTests: SourceKitLSPTestCase {
                 TextEdit(
                   range: positions["1️⃣"]..<positions["2️⃣"],
                   newText: "/* Single line comment*/"
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testConvertLineCommentsToBlockCommentBreaksOnEmptyLine() async throws {
+    // An empty line should break the line comment group
+    try await assertCodeActions(
+      """
+      1️⃣// Line 12️⃣
+
+      // Line 2
+      func example() {}
+      """,
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Convert Line Comment to Block Comment",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: "/* Line 1*/"
                 )
               ]
             ]
