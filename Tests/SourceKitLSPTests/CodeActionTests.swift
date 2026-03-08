@@ -1835,6 +1835,59 @@ final class CodeActionTests: SourceKitLSPTestCase {
     }
   }
 
+  func testRemoveUnusedParameter() async throws {
+    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
+    let uri = DocumentURI(for: .swift, testName: #function)
+    let positions = testClient.openDocument(
+      """
+      func greet(name: String, 1️⃣title: String) {
+        print("Hello, \\(name)")
+      }
+
+      greet(name: "Alice", title: "Ms.")
+      """,
+      uri: uri
+    )
+
+    let result = try await testClient.send(
+      CodeActionRequest(
+        range: Range(positions["1️⃣"]),
+        context: .init(),
+        textDocument: TextDocumentIdentifier(uri)
+      )
+    )
+    let codeActions = try XCTUnwrap(result?.codeActions)
+    let removeAction = try XCTUnwrap(codeActions.first { $0.title == "Remove unused parameter 'title'" })
+    XCTAssertEqual(removeAction.kind, .refactorRewrite)
+
+    let edits = try XCTUnwrap(removeAction.edit?.changes?[uri])
+    // Should have edits for both the declaration and the call site.
+    XCTAssertGreaterThanOrEqual(edits.count, 2)
+  }
+
+  func testRemoveUnusedParameterNotOfferedForUsedParam() async throws {
+    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
+    let uri = DocumentURI(for: .swift, testName: #function)
+    let positions = testClient.openDocument(
+      """
+      func greet(1️⃣name: String) {
+        print("Hello, \\(name)")
+      }
+      """,
+      uri: uri
+    )
+
+    let result = try await testClient.send(
+      CodeActionRequest(
+        range: Range(positions["1️⃣"]),
+        context: .init(),
+        textDocument: TextDocumentIdentifier(uri)
+      )
+    )
+    let codeActions = try XCTUnwrap(result?.codeActions)
+    XCTAssertNil(codeActions.first { $0.title.starts(with: "Remove unused parameter") })
+  }
+
   /// Retrieves the code action at a set of markers and asserts that it matches a list of expected code actions.
   ///
   /// - Parameters:

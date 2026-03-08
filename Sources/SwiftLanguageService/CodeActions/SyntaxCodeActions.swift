@@ -29,6 +29,7 @@ let allSyntaxCodeActions: [any SyntaxCodeActionProvider.Type] = {
     MigrateToNewIfLetSyntax.self,
     OpaqueParameterToGeneric.self,
     RemoveRedundantParentheses.self,
+    RemoveUnusedParameter.self,
     RemoveSeparatorsFromIntegerLiteral.self,
   ]
   #if !NO_SWIFTPM_DEPENDENCY
