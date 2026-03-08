@@ -1897,6 +1897,87 @@ final class CodeActionTests: SourceKitLSPTestCase {
       }
     }
   }
+
+  func testSortImportsBasic() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣import UIKit
+      import Foundation
+      import Combine2️⃣
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Sort imports",
+          kind: .source,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: "import Combine\nimport Foundation\nimport UIKit"
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testSortImportsAlreadySorted() async throws {
+    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
+      """
+      1️⃣import Combine
+      import Foundation
+      import UIKit
+      """,
+      uri: uri
+    )
+
+    let result = try await testClient.send(
+      CodeActionRequest(
+        range: Range(positions["1️⃣"]),
+        context: .init(),
+        textDocument: TextDocumentIdentifier(uri)
+      )
+    )
+    let codeActions = result?.codeActions ?? []
+    XCTAssertFalse(codeActions.contains { $0.title == "Sort imports" })
+  }
+
+  func testSortImportsWithGrouping() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣@testable import MyModule
+      import UIKit
+      import Foundation2️⃣
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Sort imports",
+          kind: .source,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: "import Foundation\nimport UIKit\n\n@testable import MyModule"
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
 }
 
 private extension CodeActionRequestResponse {
