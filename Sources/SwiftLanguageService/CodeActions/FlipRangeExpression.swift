@@ -79,10 +79,7 @@ private func flipStride(scope: SyntaxCodeActionScope, from node: Syntax) -> Code
 }
 
 private func isStrideCall(_ call: FunctionCallExprSyntax) -> Bool {
-  guard let ref = call.calledExpression.as(DeclReferenceExprSyntax.self) else {
-    return false
-  }
-  return ref.baseName.text == "stride"
+  call.calledExpression.as(DeclReferenceExprSyntax.self)?.baseName.text == "stride"
 }
 
 private func findArgument(label: String, in arguments: LabeledExprListSyntax) -> LabeledExprSyntax? {
