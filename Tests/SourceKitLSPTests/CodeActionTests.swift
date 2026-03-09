@@ -1782,9 +1782,6 @@ final class CodeActionTests: SourceKitLSPTestCase {
     try await assertCodeActions(
       """
       func perform(callback: 1️⃣@escaping () -> Void) {
-          Task {
-              callback()
-          }
       }
       """,
       markers: ["1️⃣"],
@@ -1809,10 +1806,25 @@ final class CodeActionTests: SourceKitLSPTestCase {
       """
       func perform(callback: 1️⃣@Sendable @escaping () -> Void) { }
       """,
-      markers: ["1️⃣"],
-      exhaustive: false
-    ) { _, _ in
-      []
+      markers: ["1️⃣"]
+    ) { uri, _ in
+      [
+        CodeAction(
+          title: "Add documentation",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: Range(Position(line: 0, utf16index: 0)),
+                  newText: "/// A description\n/// - Parameter callback:\n"
+                )
+              ]
+            ]
+          )
+        )
+      ]
     }
   }
 
