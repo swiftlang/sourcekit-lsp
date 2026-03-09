@@ -10,8 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-@_spi(SourceKitLSP) import LanguageServerProtocol
-import SourceKitLSP
+import SwiftRefactor
 import SwiftSyntax
 
 /// Syntactic code action provider to add explicit raw values to enum cases
@@ -38,55 +37,44 @@ import SwiftSyntax
 ///     case archived = 11
 /// }
 /// ```
-struct AddExplicitEnumRawValues: SyntaxCodeActionProvider {
-  static func codeActions(in scope: SyntaxCodeActionScope) -> [CodeAction] {
-    guard
-      let node = scope.innermostNodeContainingRange,
-      let enumDecl = node.findParentOfSelf(
-        ofType: EnumDeclSyntax.self,
-        stoppingIf: { $0.is(CodeBlockSyntax.self) }
-      )
-    else {
-      return []
-    }
-
-    // Determine the raw value type from the inheritance clause.
-    guard let rawValueType = enumDecl.rawValueType else {
-      return []
+struct AddExplicitEnumRawValues: EditRefactoringProvider {
+  static func textRefactor(syntax: EnumDeclSyntax, in context: Void) throws -> [SourceEdit] {
+    // Determine the raw value type from the first type in the inheritance clause.
+    guard let rawValueType = syntax.rawValueType else {
+      throw RefactoringNotApplicableError("enum does not have an Int or String raw value type")
     }
 
     // Collect all enum case elements.
-    let caseElements = enumDecl.memberBlock.members.flatMap { member -> [EnumCaseElementSyntax] in
+    let caseElements = syntax.memberBlock.members.flatMap { member -> [EnumCaseElementSyntax] in
       guard let caseDecl = member.decl.as(EnumCaseDeclSyntax.self) else { return [] }
       return Array(caseDecl.elements)
     }
 
     // Check that at least one case is missing an explicit raw value.
-    let hasMissingRawValue = caseElements.contains { $0.rawValue == nil }
-    guard hasMissingRawValue else {
-      return []
+    guard caseElements.contains(where: { $0.rawValue == nil }) else {
+      throw RefactoringNotApplicableError("all cases already have explicit raw values")
     }
 
     // Build the edits.
-    var edits: [TextEdit] = []
+    var edits: [SourceEdit] = []
 
     switch rawValueType {
     case .int:
       var nextValue = 0
       for element in caseElements {
         if let rawValue = element.rawValue {
-          // Parse the existing raw value to determine the next implicit value.
-          let rawText = rawValue.value.description.filter { !$0.isWhitespace }
-          if let intValue = Int(rawText) {
-            nextValue = intValue + 1
+          // Only handle integer literal raw values. If we encounter something
+          // we don't understand, bail out rather than risk generating incorrect code.
+          guard let intLiteral = rawValue.value.as(IntegerLiteralExprSyntax.self),
+            let intValue = Int(intLiteral.literal.text)
+          else {
+            throw RefactoringNotApplicableError("unsupported raw value expression")
           }
+          nextValue = intValue + 1
         } else {
-          // Insert " = <value>" after the element name.
           let insertionText = " = \(nextValue)"
-          let position = scope.snapshot.position(
-            of: element.name.endPositionBeforeTrailingTrivia
-          )
-          edits.append(TextEdit(range: position..<position, newText: insertionText))
+          let position = element.name.endPositionBeforeTrailingTrivia
+          edits.append(SourceEdit(range: position..<position, replacement: insertionText))
           nextValue += 1
         }
       }
@@ -94,24 +82,27 @@ struct AddExplicitEnumRawValues: SyntaxCodeActionProvider {
     case .string:
       for element in caseElements where element.rawValue == nil {
         let insertionText = " = \"\(element.name.text)\""
-        let position = scope.snapshot.position(
-          of: element.name.endPositionBeforeTrailingTrivia
-        )
-        edits.append(TextEdit(range: position..<position, newText: insertionText))
+        let position = element.name.endPositionBeforeTrailingTrivia
+        edits.append(SourceEdit(range: position..<position, replacement: insertionText))
       }
     }
 
-    guard !edits.isEmpty else {
-      return []
+    if edits.isEmpty {
+      throw RefactoringNotApplicableError("no cases to transform")
     }
 
-    return [
-      CodeAction(
-        title: "Add explicit raw values",
-        kind: .refactorInline,
-        edit: WorkspaceEdit(changes: [scope.snapshot.uri: edits])
-      )
-    ]
+    return edits
+  }
+}
+
+extension AddExplicitEnumRawValues: SyntaxRefactoringCodeActionProvider {
+  static let title: String = "Add explicit raw values"
+
+  static func nodeToRefactor(in scope: SyntaxCodeActionScope) -> EnumDeclSyntax? {
+    return scope.innermostNodeContainingRange?.findParentOfSelf(
+      ofType: EnumDeclSyntax.self,
+      stoppingIf: { $0.is(CodeBlockSyntax.self) }
+    )
   }
 }
 
@@ -123,23 +114,21 @@ private enum RawValueKind {
 }
 
 private extension EnumDeclSyntax {
-  /// Determine the raw value type if it's `Int` or `String`.
+  /// Determine the raw value type if the first inherited type is `Int` or `String`.
+  /// Only the first type in the inheritance clause may specify a raw value.
   var rawValueType: RawValueKind? {
-    guard let inheritanceClause = self.inheritanceClause else {
+    guard let firstType = inheritanceClause?.inheritedTypes.first else {
       return nil
     }
-    for inheritance in inheritanceClause.inheritedTypes {
-      let typeName = inheritance.type.trimmedDescription
-      switch typeName {
-      case "Int", "Int8", "Int16", "Int32", "Int64",
-        "UInt", "UInt8", "UInt16", "UInt32", "UInt64":
-        return .int
-      case "String":
-        return .string
-      default:
-        continue
-      }
+    let typeName = firstType.type.trimmedDescription
+    switch typeName {
+    case "Int", "Int8", "Int16", "Int32", "Int64", "Int128",
+      "UInt", "UInt8", "UInt16", "UInt32", "UInt64", "UInt128":
+      return .int
+    case "String":
+      return .string
+    default:
+      return nil
     }
-    return nil
   }
 }
