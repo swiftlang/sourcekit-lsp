@@ -10,8 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-@_spi(SourceKitLSP) import LanguageServerProtocol
-import SourceKitLSP
+import SwiftRefactor
 import SwiftSyntax
 
 /// Syntactic code action provider to swap the left and right operands of a
@@ -19,68 +18,61 @@ import SwiftSyntax
 ///
 /// For commutative operators the operands are simply swapped:
 /// ```swift
-/// let sum = 1 + value  →  let sum = value + 1
+/// let x = a == b  →  let x = b == a
 /// ```
 ///
 /// For comparison operators the operator is also flipped:
 /// ```swift
 /// if 5 < count { }  →  if count > 5 { }
 /// ```
-struct FlipBinaryOperands: SyntaxCodeActionProvider {
-  static func codeActions(in scope: SyntaxCodeActionScope) -> [CodeAction] {
-    guard let node = scope.innermostNodeContainingRange,
-      let infixExpr = node.findEnclosingInfixOperator()
-    else {
-      return []
-    }
+struct FlipBinaryOperands: EditRefactoringProvider {
+  /// Operators that are known to be commutative or have a well-defined flip.
+  /// We only offer the action for these to avoid flipping user-defined or
+  /// non-commutative operators (e.g. `+` on strings, `-`, `/`).
+  private static let allowedOperators: Set<String> = [
+    "==", "!=", "&&", "||", "&", "|", "^",
+    "<", ">", "<=", ">=",
+  ]
 
-    let biOperator = infixExpr.operator
-    guard let binaryOp = biOperator.as(BinaryOperatorExprSyntax.self) else {
+  static func textRefactor(syntax: InfixOperatorExprSyntax, in context: Void) -> [SourceEdit] {
+    guard let binaryOp = syntax.operator.as(BinaryOperatorExprSyntax.self) else {
       return []
     }
 
     let operatorText = binaryOp.operator.text
-    let flippedOperator = flippedOperatorText(for: operatorText)
+    guard allowedOperators.contains(operatorText) else {
+      return []
+    }
 
-    // Build the flipped expression preserving trivia.
-    let leftOperand = infixExpr.leftOperand
-    let rightOperand = infixExpr.rightOperand
+    let flippedOp = flippedOperatorText(for: operatorText)
 
     // Swap operands: right becomes left and left becomes right.
     // Preserve the leading trivia of the original left on the new left,
     // and the trailing trivia of the original right on the new right.
-    let newLeft = rightOperand
-      .with(\.leadingTrivia, leftOperand.leadingTrivia)
-      .with(\.trailingTrivia, leftOperand.trailingTrivia)
-    let newRight = leftOperand
-      .with(\.leadingTrivia, rightOperand.leadingTrivia)
-      .with(\.trailingTrivia, rightOperand.trailingTrivia)
+    let newLeft = syntax.rightOperand
+      .with(\.leadingTrivia, syntax.leftOperand.leadingTrivia)
+      .with(\.trailingTrivia, syntax.leftOperand.trailingTrivia)
+    let newRight = syntax.leftOperand
+      .with(\.leadingTrivia, syntax.rightOperand.leadingTrivia)
+      .with(\.trailingTrivia, syntax.rightOperand.trailingTrivia)
 
-    let newOperator: ExprSyntax
-    if flippedOperator != operatorText {
-      newOperator = ExprSyntax(
-        binaryOp.with(\.operator, .binaryOperator(flippedOperator))
+    // Always construct the (potentially flipped) operator, preserving trivia.
+    let newOperator = ExprSyntax(
+      binaryOp.with(
+        \.operator,
+        .binaryOperator(flippedOp)
+          .with(\.leadingTrivia, binaryOp.operator.leadingTrivia)
+          .with(\.trailingTrivia, binaryOp.operator.trailingTrivia)
       )
-    } else {
-      newOperator = biOperator
-    }
+    )
 
-    let flippedExpr = infixExpr
+    let flippedExpr = syntax
       .with(\.leftOperand, ExprSyntax(newLeft))
       .with(\.operator, newOperator)
       .with(\.rightOperand, ExprSyntax(newRight))
 
-    let edit = TextEdit(
-      range: scope.snapshot.range(of: infixExpr),
-      newText: flippedExpr.description
-    )
-
     return [
-      CodeAction(
-        title: "Flip operands of '\(operatorText)'",
-        kind: .refactorInline,
-        edit: WorkspaceEdit(changes: [scope.snapshot.uri: [edit]])
-      )
+      SourceEdit(range: syntax.position..<syntax.endPosition, replacement: flippedExpr.description)
     ]
   }
 
@@ -97,21 +89,13 @@ struct FlipBinaryOperands: SyntaxCodeActionProvider {
   }
 }
 
-private extension SyntaxProtocol {
-  /// Walk up the tree to find the nearest `InfixOperatorExprSyntax` that
-  /// contains the current node.
-  func findEnclosingInfixOperator() -> InfixOperatorExprSyntax? {
-    var current: Syntax? = Syntax(self)
-    while let node = current {
-      if let infixExpr = node.as(InfixOperatorExprSyntax.self) {
-        return infixExpr
-      }
-      // Stop at statement / declaration boundaries.
-      if node.is(CodeBlockItemSyntax.self) || node.is(MemberBlockItemSyntax.self) {
-        return nil
-      }
-      current = node.parent
-    }
-    return nil
+extension FlipBinaryOperands: SyntaxRefactoringCodeActionProvider {
+  static func nodeToRefactor(in scope: SyntaxCodeActionScope) -> Input? {
+    return scope.innermostNodeContainingRange?.findParentOfSelf(
+      ofType: InfixOperatorExprSyntax.self,
+      stoppingIf: { $0.is(CodeBlockItemSyntax.self) || $0.is(MemberBlockItemSyntax.self) }
+    )
   }
+
+  static var title: String { "Flip binary operands" }
 }
