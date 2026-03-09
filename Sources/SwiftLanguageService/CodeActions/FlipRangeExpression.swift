@@ -21,20 +21,28 @@ import SwiftSyntax
 /// - `stride(from: 0, to: 10, by: 1)` → `stride(from: 10, to: 0, by: -1)`
 /// - `1...10` → `(1...10).reversed()`
 /// - `1..<10` → `(1..<10).reversed()`
+///
+/// Implemented as `SyntaxCodeActionProvider` (not `SyntaxRefactoringCodeActionProvider`)
+/// because there is no corresponding refactoring in SwiftRefactor; adding one would require
+/// a new refactoring in the swift-syntax package.
 struct FlipRangeExpression: SyntaxCodeActionProvider {
   static func codeActions(in scope: SyntaxCodeActionScope) -> [CodeAction] {
     // Use the token at the start of the range so we find the expression that contains
     // the selection even when the range end is exactly at the expression boundary
     // (otherwise the right token can be the next token and the common ancestor is too high).
-    guard let startToken = scope.file.token(at: scope.range.lowerBound) else {
-      return []
+    if let startToken = scope.file.token(at: scope.range.lowerBound) {
+      let node = Syntax(startToken)
+      if let action = flipStride(scope: scope, from: node) {
+        return [action]
+      }
+      if let action = flipRangeOperator(scope: scope, from: node) {
+        return [action]
+      }
     }
-    let node = Syntax(startToken)
-
-    if let action = flipStride(scope: scope, from: node) {
-      return [action]
-    }
-    if let action = flipRangeOperator(scope: scope, from: node) {
+    // Fallback: selection may have made the common ancestor the range or a tuple containing it.
+    if let inner = scope.innermostNodeContainingRange,
+      let action = flipRangeOperator(scope: scope, from: inner)
+    {
       return [action]
     }
     return []
@@ -86,23 +94,17 @@ private func findArgument(label: String, in arguments: LabeledExprListSyntax) ->
   arguments.first { $0.label?.text == label }
 }
 
-/// Returns the source text for the negated stride step (e.g. "1" → "-1", "x" → "-(x)").
+/// Returns the source text for the negated stride step. Toggles a leading "-" when present
+/// so that applying the action twice restores the original (e.g. "1" → "-1", "-1" → "1").
+/// For other expressions, prepends "-" (with parens if needed for precedence).
 private func negateStrideStepText(_ expr: ExprSyntax) -> String {
   let inner = expr.lookingThroughParentheses
+  let text = inner.description
 
-  if let intLit = inner.as(IntegerLiteralExprSyntax.self) {
-    let raw = intLit.literal.text.filter { $0 != "_" }
-    if let value = Int(raw, radix: 10) {
-      return (-value).description
-    }
+  // Add "-" if there isn't one, remove it if there is (no Int/float conversion).
+  if text.hasPrefix("-") {
+    return String(text.dropFirst(1).drop(while: { $0.isWhitespace }))
   }
-
-  if let floatLit = inner.as(FloatLiteralExprSyntax.self),
-    let value = Double(floatLit.literal.text)
-  {
-    return (-value).description
-  }
-
   let exprText = expr.description
   if expr.needParensForPrefixMinus {
     return "-(\(exprText))"
@@ -118,12 +120,17 @@ private extension ExprSyntax {
     return self
   }
 
+  /// True if the expression needs parentheses when wrapped in a prefix "-" to preserve meaning.
+  /// Uses a whitelist of expression kinds that are safe without parens; errs on the side of adding parens.
   var needParensForPrefixMinus: Bool {
     switch self.kind {
-    case .infixOperatorExpr, .sequenceExpr, .ternaryExpr, .binaryOperatorExpr:
-      return true
-    default:
+    case .integerLiteralExpr, .floatLiteralExpr, .booleanLiteralExpr, .nilLiteralExpr,
+      .stringLiteralExpr, .regexLiteralExpr, .declReferenceExpr, .memberAccessExpr,
+      .functionCallExpr, .subscriptCallExpr, .optionalChainingExpr, .arrayExpr,
+      .dictionaryExpr, .tupleExpr, .keyPathExpr, .macroExpansionExpr, .superExpr:
       return false
+    default:
+      return true
     }
   }
 }
@@ -140,53 +147,86 @@ private extension TupleExprSyntax {
 /// Range expressions like `1..<10` or `1...10` can appear as either
 /// `InfixOperatorExprSyntax` (after operator folding) or `SequenceExprSyntax`
 /// with three elements [left, BinaryOperatorExpr(..< or ...), right].
+/// We support both so the action works without running SwiftOperators (e.g. in single-file or
+/// no-workspace cases). Running SwiftOperators could fold to InfixOperatorExpr and allow
+/// simplifying to a single path.
 private func flipRangeOperator(scope: SyntaxCodeActionScope, from node: Syntax) -> CodeAction? {
-  if let action = flipRangeInfix(scope: scope, from: node) {
-    return action
+  // Node may be the range expression itself (e.g. from innermostNodeContainingRange) or a token inside it.
+  if let infix = node.as(InfixOperatorExprSyntax.self)
+    ?? node.findParentOfSelf(
+      ofType: InfixOperatorExprSyntax.self,
+      stoppingIf: { $0.is(CodeBlockSyntax.self) || $0.is(MemberBlockSyntax.self) }
+    )
+  {
+    if let binOp = infix.operator.as(BinaryOperatorExprSyntax.self),
+      binOp.operator.text == "..." || binOp.operator.text == "..<"
+    {
+      if let action = unflipRangeIfReversed(scope: scope, rangeNode: Syntax(infix)) {
+        return action
+      }
+      return makeFlipRangeCodeAction(scope: scope, rangeNode: Syntax(infix))
+    }
   }
-  return flipRangeSequence(scope: scope, from: node)
+  if let seq = node.as(SequenceExprSyntax.self)
+    ?? node.findParentOfSelf(
+      ofType: SequenceExprSyntax.self,
+      stoppingIf: { $0.is(CodeBlockSyntax.self) || $0.is(MemberBlockSyntax.self) }
+    )
+  {
+    let elements = seq.elements
+    if elements.count == 3,
+      let middleExpr = elements.dropFirst(1).first,
+      let binOp = middleExpr.as(BinaryOperatorExprSyntax.self),
+      binOp.operator.text == "..." || binOp.operator.text == "..<"
+    {
+      if let action = unflipRangeIfReversed(scope: scope, rangeNode: Syntax(seq)) {
+        return action
+      }
+      return makeFlipRangeCodeAction(scope: scope, rangeNode: Syntax(seq))
+    }
+  }
+  // Tuple with single element (e.g. (1..<10)): try the element's expression as the range.
+  if let tuple = node.as(TupleExprSyntax.self), let inner = tuple.singleElementExpression {
+    return flipRangeOperator(scope: scope, from: Syntax(inner))
+  }
+  return nil
 }
 
-private func flipRangeInfix(scope: SyntaxCodeActionScope, from node: Syntax) -> CodeAction? {
-  guard let infix = node.findParentOfSelf(
-    ofType: InfixOperatorExprSyntax.self,
+/// If `rangeNode` is the inner expression of `(rangeNode).reversed()`, returns a code action
+/// that replaces the whole call with just the range (so applying the action twice restores the original).
+private func unflipRangeIfReversed(scope: SyntaxCodeActionScope, rangeNode: Syntax) -> CodeAction? {
+  // Find .reversed() by walking up from the range; then confirm its base is a single-element tuple containing our range.
+  guard let memberAccess = rangeNode.findParentOfSelf(
+    ofType: MemberAccessExprSyntax.self,
     stoppingIf: { $0.is(CodeBlockSyntax.self) || $0.is(MemberBlockSyntax.self) }
-  ) else {
-    return nil
-  }
-
-  guard let binOp = infix.operator.as(BinaryOperatorExprSyntax.self) else {
-    return nil
-  }
-  let opText = binOp.operator.text
-  guard opText == "..." || opText == "..<" else {
-    return nil
-  }
-
-  return makeFlipRangeCodeAction(scope: scope, rangeNode: Syntax(infix))
-}
-
-private func flipRangeSequence(scope: SyntaxCodeActionScope, from node: Syntax) -> CodeAction? {
-  guard let seq = node.findParentOfSelf(
-    ofType: SequenceExprSyntax.self,
-    stoppingIf: { $0.is(CodeBlockSyntax.self) || $0.is(MemberBlockSyntax.self) }
-  ) else {
-    return nil
-  }
-
-  let elements = seq.elements
-  guard elements.count == 3,
-    let middleExpr = elements.dropFirst(1).first,
-    let binOp = middleExpr.as(BinaryOperatorExprSyntax.self)
+  ),
+    memberAccess.declName.baseName.text == "reversed",
+    let tuple = memberAccess.base?.as(TupleExprSyntax.self),
+    let singleElement = tuple.elements.only
   else {
     return nil
   }
-  let opText = binOp.operator.text
-  guard opText == "..." || opText == "..<" else {
+  // Tuple element is the range; strip any single-element tuple wrapping (e.g. (1..<10) in some parses).
+  guard singleElement.expression.lookingThroughParentheses.description == rangeNode.description else {
     return nil
   }
-
-  return makeFlipRangeCodeAction(scope: scope, rangeNode: Syntax(seq))
+  // Replace the full .reversed() call (including parentheses) when it has no arguments.
+  let nodeToReplace: Syntax =
+    (memberAccess.parent?.as(FunctionCallExprSyntax.self)).map { call in
+      call.arguments.isEmpty ? Syntax(call) : Syntax(memberAccess)
+    } ?? Syntax(memberAccess)
+  let range = scope.snapshot.range(of: nodeToReplace)
+  return CodeAction(
+    title: "Flip range expression",
+    kind: .refactorInline,
+    edit: WorkspaceEdit(
+      changes: [
+        scope.snapshot.uri: [
+          TextEdit(range: range, newText: rangeNode.description)
+        ]
+      ]
+    )
+  )
 }
 
 private func makeFlipRangeCodeAction(scope: SyntaxCodeActionScope, rangeNode: Syntax) -> CodeAction? {

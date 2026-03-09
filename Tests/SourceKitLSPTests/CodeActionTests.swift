@@ -1336,12 +1336,53 @@ final class CodeActionTests: SourceKitLSPTestCase {
   func testFlipRangeExpressionStride() async throws {
     try await assertFlipRangeCodeAction(
       """
-      for i in 1️⃣stride(from: 0, to: 10, by: 1)2️⃣ {
-          print(i)
-      }
+      for i in 1️⃣stride(from: 0, to: 10, by: 1)2️⃣ {}
       """,
       expectedNewText: "stride(from: 10, to: 0, by: -1)"
     )
+  }
+
+  func testFlipRangeExpressionStrideDoubleApplyRestoresOriginal() async throws {
+    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
+    let uri = DocumentURI(for: .swift, testName: #function)
+    let source = "for i in 1️⃣stride(from: 0, to: 10, by: 1)2️⃣ {}"
+    let positions = testClient.openDocument(source, uri: uri)
+    let range = positions["1️⃣"]..<positions["2️⃣"]
+
+    // First apply: stride(from: 0, to: 10, by: 1) → stride(from: 10, to: 0, by: -1)
+    let result1 = try await testClient.send(
+      CodeActionRequest(range: range, context: .init(), textDocument: TextDocumentIdentifier(uri))
+    )
+    let actions1 = try XCTUnwrap(result1?.codeActions)
+    let flip1 = try XCTUnwrap(actions1.first { $0.title == "Flip range expression" })
+    let edit1 = try XCTUnwrap(flip1.edit?.changes?[uri], "Expected single edit")
+    XCTAssertEqual(edit1.count, 1)
+    let newText1 = edit1[0].newText
+    XCTAssertEqual(newText1, "stride(from: 10, to: 0, by: -1)")
+
+    // Apply the edit
+    testClient.send(
+      DidChangeTextDocumentNotification(
+        textDocument: VersionedTextDocumentIdentifier(uri, version: 1),
+        contentChanges: [TextDocumentContentChangeEvent(range: edit1[0].range, text: newText1)]
+      )
+    )
+
+    // Second apply: stride(from: 10, to: 0, by: -1) → stride(from: 0, to: 10, by: 1) (original)
+    let start = edit1[0].range.lowerBound
+    let endAfterEdit = Position(line: start.line, utf16index: start.utf16index + newText1.utf16.count)
+    let result2 = try await testClient.send(
+      CodeActionRequest(
+        range: start..<endAfterEdit,
+        context: .init(),
+        textDocument: TextDocumentIdentifier(uri)
+      )
+    )
+    let actions2 = try XCTUnwrap(result2?.codeActions)
+    let flip2 = try XCTUnwrap(actions2.first { $0.title == "Flip range expression" })
+    let edit2 = try XCTUnwrap(flip2.edit?.changes?[uri], "Expected single edit")
+    XCTAssertEqual(edit2.count, 1)
+    XCTAssertEqual(edit2[0].newText, "stride(from: 0, to: 10, by: 1)")
   }
 
   func testFlipRangeExpressionClosedRange() async throws {
@@ -1355,6 +1396,13 @@ final class CodeActionTests: SourceKitLSPTestCase {
     try await assertFlipRangeCodeAction(
       "let range = 1️⃣1..<102️⃣",
       expectedNewText: "(1..<10).reversed()"
+    )
+  }
+
+  func testFlipRangeExpressionUnflipReversed() async throws {
+    try await assertFlipRangeCodeAction(
+      "let x = (1️⃣1..<102️⃣).reversed()",
+      expectedNewText: "1..<10"
     )
   }
 
