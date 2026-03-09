@@ -13,6 +13,7 @@
 @_spi(SourceKitLSP) import LanguageServerProtocol
 import SourceKitLSP
 import SwiftExtensions
+import SwiftLexicalLookup
 import SwiftSyntax
 
 /// Inline temp variable: replace a temporary `let` binding with its value at all usage sites,
@@ -37,11 +38,11 @@ import SwiftSyntax
 /// inlined into `basePrice * 3`), parentheses are added: `(1 + 2) * 3`.
 @_spi(Testing) public struct InlineTempVariable: SyntaxCodeActionProvider {
   static func codeActions(in scope: SyntaxCodeActionScope) -> [CodeAction] {
-    guard let (variableDecl, name, initializer, codeBlock, declItem) = findInlineableBinding(in: scope) else {
+    guard let (variableDecl, name, initializer, codeBlock, declItem, declarationPattern) = findInlineableBinding(in: scope) else {
       return []
     }
 
-    let references = collectReferences(to: name, after: variableDecl.endPosition, in: codeBlock)
+    let references = collectReferences(to: name, declaredBy: declarationPattern, after: variableDecl.endPosition, in: codeBlock)
     guard !references.isEmpty else {
       return []
     }
@@ -88,7 +89,7 @@ import SwiftSyntax
 
   /// Finds a `let name = expr` binding that can be inlined, and its enclosing code block and item.
   private static func findInlineableBinding(in scope: SyntaxCodeActionScope)
-    -> (VariableDeclSyntax, name: String, initializer: ExprSyntax, CodeBlockSyntax, CodeBlockItemSyntax)? {
+    -> (VariableDeclSyntax, name: String, initializer: ExprSyntax, CodeBlockSyntax, CodeBlockItemSyntax, IdentifierPatternSyntax)? {
     guard let node = scope.innermostNodeContainingRange else {
       return nil
     }
@@ -120,18 +121,25 @@ import SwiftSyntax
       return nil
     }
 
-    return (variableDecl, name, initializer, codeBlock, codeBlockItem)
+    return (variableDecl, name, initializer, codeBlock, codeBlockItem, pattern)
   }
 
-  /// Collects all `DeclReferenceExprSyntax` in `block` that reference `name` and occur after `afterPosition`.
+  /// Collects all `DeclReferenceExprSyntax` in `block` that refer to the given declaration (by lexical lookup)
+  /// and occur after `afterPosition`. Uses SwiftLexicalLookup so shadowing and name lookup rules are respected.
   private static func collectReferences(
     to name: String,
+    declaredBy declarationPattern: IdentifierPatternSyntax,
     after afterPosition: AbsolutePosition,
     in block: CodeBlockSyntax
   ) -> [DeclReferenceExprSyntax] {
-    let collector = DeclReferenceCollector(name: name, afterPosition: afterPosition)
-    collector.walk(block)
-    return collector.references
+    let candidates = DeclReferenceCollector(name: name, afterPosition: afterPosition).collect(in: block)
+    let declId = declarationPattern.id
+    let config = LookupConfig(finishInSequentialScope: true)
+    return candidates.filter { ref in
+      guard let identifier = Identifier(ref.baseName) else { return false }
+      let results = ref.lookup(identifier, with: config)
+      return results.first?.names.contains(where: { $0.syntax.id == declId }) ?? false
+    }
   }
 
   /// Returns the text to use when inlining `initializer` at the given reference site.
@@ -185,6 +193,8 @@ import SwiftSyntax
 
 // MARK: - DeclReferenceCollector
 
+/// Collects DeclReferenceExprSyntax nodes that match the name and occur after the given position.
+/// Used only to gather candidates; resolution to the specific declaration is done via SwiftLexicalLookup.
 private final class DeclReferenceCollector: SyntaxVisitor {
   private let name: String
   private let afterPosition: AbsolutePosition
@@ -194,6 +204,11 @@ private final class DeclReferenceCollector: SyntaxVisitor {
     self.name = name
     self.afterPosition = afterPosition
     super.init(viewMode: .sourceAccurate)
+  }
+
+  func collect(in block: CodeBlockSyntax) -> [DeclReferenceExprSyntax] {
+    walk(block)
+    return references
   }
 
   override func visit(_ node: DeclReferenceExprSyntax) -> SyntaxVisitorContinueKind {
