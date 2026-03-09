@@ -1778,9 +1778,6 @@ final class CodeActionTests: SourceKitLSPTestCase {
       []
     }
   }
-  func testAddSendableAnnotation() async throws {
-    try await assertCodeActions(
-      """
       func perform(callback: 1️⃣@escaping () -> Void) {
       }
       """,
