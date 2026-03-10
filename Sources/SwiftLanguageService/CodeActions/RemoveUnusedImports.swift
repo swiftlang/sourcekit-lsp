@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2025 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2026 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -197,9 +197,14 @@ extension SwiftLanguageService {
         throw ResponseError.unknown("Failed to remove unused imports because the document currently contains errors")
       }
 
-      // Only consider import declarations at the top level and ignore ones eg. inside `#if` clauses since those might
-      // be inactive in the current build configuration and thus we can't reliably check if they are needed.
-      let importDecls = syntaxTree.statements.compactMap { $0.item.as(ImportDeclSyntax.self) }
+      // Fetch active regions from sourcekitd before collecting imports
+      let activeRegions = try await fetchActiveRegions(snapshot: snapshot, compileCommand: compileCommand)
+
+      let importDecls = try await collectImportDecls(
+        from: syntaxTree,
+        snapshot: snapshot,
+        activeRegions: activeRegions ?? []
+      )
 
       var declsToRemove: [ImportDeclSyntax] = []
 
@@ -301,4 +306,115 @@ extension SwiftLanguageService {
       }
     }
   }
+
+  /// Fetches active regions from sourcekitd for the given file and constructs byte ranges
+  /// for active code within conditional compilation blocks. The activeRegions request
+  /// returns a list of entries in `results` containing `offset` and an optional
+  /// `is_active` flag. Each entry marks the start of a region; the next entry’s offset
+  /// is the end boundary.
+  ///
+  /// - Parameters:
+  ///   - snapshot: The document snapshot.
+  ///   - compileCommand: The compile command for the file.
+  /// - Returns: An array of source ranges representing active regions, or nil if the API doesn't return usable data.
+  private func fetchActiveRegions(
+    snapshot: DocumentSnapshot,
+    compileCommand: SwiftCompileCommand
+  ) async throws -> [SourceRange]? {
+    let skreq = sourcekitd.dictionary([
+      keys.sourceFile: snapshot.uri.sourcekitdSourceFile,
+      keys.primaryFile: snapshot.uri.primaryFile?.pseudoPath,
+      keys.compilerArgs: compileCommand.compilerArgs as [any SKDRequestValue],
+    ])
+
+    let dict = try await send(sourcekitdRequest: \.activeRegions, skreq, snapshot: snapshot)
+
+    // Build ranges by pairing each entry with the next entry's offset; include only active ones.
+    guard let results = dict[keys.results] as SKDResponseArray? else {
+      return nil
+    }
+
+    let entries: [(offset: Int, isActive: Bool?)] = results.compactMap { entry in
+      guard let off = entry[keys.offset] as Int? else {
+        return nil
+      }
+      let activeBool = entry[keys.isActive] as Bool?
+      let activeInt = entry[keys.isActive] as Int?
+      return (offset: off, isActive: activeBool ?? activeInt.map { $0 != 0 })
+    }
+    guard !entries.isEmpty else { return [] }
+    let sortedEntries = entries.sorted { $0.offset < $1.offset }
+
+    var ranges: [SourceRange] = []
+    let fileEnd = snapshot.text.utf8.count
+    for (current, next) in zip(sortedEntries, sortedEntries.dropFirst()) {
+      let start = current.offset
+      let end = next.offset
+      let isActive = current.isActive ?? false
+      if isActive, start < end {
+        ranges.append(AbsolutePosition(utf8Offset: start)..<AbsolutePosition(utf8Offset: end))
+      }
+    }
+    if let last = sortedEntries.last {
+      let start = last.offset
+      let end = fileEnd
+      let isActive = last.isActive ?? false
+      if isActive, start < end {
+        ranges.append(AbsolutePosition(utf8Offset: start)..<AbsolutePosition(utf8Offset: end))
+      }
+    }
+    return ranges
+  }
+
+  /// Collects all import declarations that are active.
+  /// This includes top-level imports and imports from #if clauses.
+  ///
+  /// - Parameters:
+  ///   - syntaxTree: The root syntax tree to traverse.
+  ///   - snapshot: The document snapshot.
+  ///   - activeRegions: Array of source ranges representing active #if regions.
+  /// - Returns: An array of import declarations.
+  private func collectImportDecls(
+    from syntaxTree: SourceFileSyntax,
+    snapshot: DocumentSnapshot,
+    activeRegions: [SourceRange]
+  ) async throws -> [ImportDeclSyntax] {
+    let visitor = ImportCollectorVisitor(activeRegions: activeRegions, snapshot: snapshot)
+    visitor.walk(syntaxTree)
+    return visitor.collectedImports
+  }
 }
+
+/// A syntax visitor that collects import declarations from both top-level and #if clauses.
+/// Uses activeRegions from sourcekitd to determine which #if clauses are active.
+private class ImportCollectorVisitor: SyntaxVisitor {
+  private(set) var collectedImports: [ImportDeclSyntax] = []
+  private let activeRegions: [SourceRange]
+  private let snapshot: DocumentSnapshot
+
+  init(activeRegions: [SourceRange], snapshot: DocumentSnapshot, viewMode: SyntaxTreeViewMode = .sourceAccurate) {
+    self.activeRegions = activeRegions
+    self.snapshot = snapshot
+    super.init(viewMode: viewMode)
+  }
+
+  override func visit(_ node: ImportDeclSyntax) -> SyntaxVisitorContinueKind {
+    let startOffset = snapshot.utf8Offset(of: snapshot.position(of: node.positionAfterSkippingLeadingTrivia))
+    let isInIfConfig =
+      node.findParentOfSelf(ofType: IfConfigDeclSyntax.self, stoppingIf: { _ in false }) != nil
+    if !isInIfConfig || isOffsetInActiveRegion(startOffset) {
+      collectedImports.append(node)
+    }
+    return .skipChildren
+  }
+
+  private func isOffsetInActiveRegion(_ offset: Int) -> Bool {
+    guard !activeRegions.isEmpty else {
+      return true
+    }
+    let position = AbsolutePosition(utf8Offset: offset)
+    return activeRegions.contains { $0.contains(position) }
+  }
+}
+
+private typealias SourceRange = Range<AbsolutePosition>

@@ -1662,7 +1662,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
         let package = Package(
           name: "MyLibrary",
           targets: [
-            .target(name: "Test", swiftSettings: [.enableUpcomingFeature("MemberImportVisibility")]c)
+            .target(name: "Test", swiftSettings: [.enableUpcomingFeature("MemberImportVisibility")])
           ]
         )
         """,
@@ -1683,6 +1683,101 @@ final class CodeActionTests: SourceKitLSPTestCase {
       try XCTUnwrap(result?.codeActions).contains(where: {
         $0.command?.command == RemoveUnusedImportsCommand.identifier
       })
+    )
+  }
+
+  func testRemoveUnusedImportsHandlesActiveIfClauses() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "LibA/LibA.swift": "",
+        "LibB/LibB.swift": "",
+        "Test/Test.swift": """
+        #if canImport(Darwin)
+        1️⃣import Darwin // Unused, should be removed on macOS
+        #elseif canImport(Glibc)
+        2️⃣import Glibc3️⃣  // Inactive on macOS, must NOT be removed
+        #endif
+
+        4️⃣import LibA
+        5️⃣import LibB6️⃣
+
+        func test() {
+          print("Hello")
+        }
+        """,
+      ],
+      manifest: """
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+            .target(name: "LibA"),
+            .target(name: "LibB"),
+            .target(
+              name: "Test",
+              dependencies: ["LibA", "LibB"],
+              swiftSettings: [.enableUpcomingFeature("MemberImportVisibility")]
+            )
+          ]
+        )
+        """,
+      capabilities: clientCapabilitiesWithCodeActionSupport,
+      enableBackgroundIndexing: true
+    )
+
+    let (uri, positions) = try project.openDocument("Test.swift")
+
+    let importResult = try await project.testClient.send(
+      CodeActionRequest(
+        range: Range(positions["1️⃣"]),
+        context: CodeActionContext(),
+        textDocument: TextDocumentIdentifier(uri)
+      )
+    )
+    let removeUnusedImportsCommand = try XCTUnwrap(
+      importResult?.codeActions?.first(where: {
+        $0.command?.command == "remove.unused.imports.command"
+      })?.command
+    )
+
+    project.testClient.handleSingleRequest { (request: ApplyEditRequest) -> ApplyEditResponse in
+      // Should remove Darwin and LibA/LibB imports, but NOT the Glibc import (which is in an inactive #if clause)
+      guard let changesDict = request.edit.changes,
+        let changes = changesDict[uri]
+      else {
+        XCTFail("Expected edits for the test file")
+        return ApplyEditResponse(applied: false, failureReason: "No edits")
+      }
+
+      // Verify we have 3 edits (Darwin, LibA, LibB)
+      XCTAssertEqual(changes.count, 3, "Expected 3 import removals")
+
+      let expectedPositions = [
+        positions["1️⃣"],
+        positions["4️⃣"],
+        positions["5️⃣"],
+      ]
+
+      for expected in expectedPositions {
+        XCTAssertTrue(
+          changes.contains(where: { $0.range.contains(expected) }),
+          "Expected an edit containing \(expected)"
+        )
+      }
+
+      // Verify Glibc import range is NOT in the edits
+      XCTAssertFalse(
+        changes.contains(where: { $0.range.contains(positions["2️⃣"]) }),
+        "Glibc import should not be removed (it's in an inactive clause)"
+      )
+
+      return ApplyEditResponse(applied: true, failureReason: nil)
+    }
+
+    _ = try await project.testClient.send(
+      ExecuteCommandRequest(
+        command: removeUnusedImportsCommand.command,
+        arguments: removeUnusedImportsCommand.arguments
+      )
     )
   }
 
