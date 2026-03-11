@@ -2,12 +2,13 @@
 
 SourceKit-LSP is selective about accepting new code actions.
 
-Code actions appear directly in editor UI, so adding too many can create noise. In general, a proposed code action should ideally satisfy all of the following:
+Code actions appear directly in editor UI, so adding too many can create noise. In general, a proposed code action should satisfy at least 2 of the following:
 
 - **Hard to get right** - the change is non-trivial and easy to implement incorrectly by hand.
 - **Common** - the situation occurs frequently enough to justify dedicated tooling.
 - **Tedious** - performing the change manually would require repetitive or mechanical edits.
-- **Not already covered by other tools** - the functionality should not duplicate what is more appropriately provided by other tools such as linters or formatters.
+
+In addition, the functionality must not duplicate what is more appropriately provided by other tools such as linters or formatters.
 
 Code actions that do not meet these criteria are unlikely to be accepted.
 
