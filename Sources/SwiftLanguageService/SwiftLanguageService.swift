@@ -1044,7 +1044,8 @@ extension SwiftLanguageService {
       workspace: workspace,
       syntaxTreeManager: self.syntaxTreeManager,
       supportedCommands: self.capabilityRegistry.supportedCodeLensCommands,
-      toolchain: toolchain
+      toolchain: toolchain,
+      languageService: self
     )
   }
 
