@@ -59,6 +59,7 @@ The specific refactorings available depend on what code is selected or where the
 | **Convert to computed property** | Cursor on a zero-parameter function declaration |
 | **Convert to zero parameter function** | Cursor on a read-only computed property |
 | **Add documentation** | Cursor on a function, type, property, or macro declaration |
+| **Convert comment to doc comment** | Cursor on a regular comment preceding a declaration |
 
 ### Async/Await
 
