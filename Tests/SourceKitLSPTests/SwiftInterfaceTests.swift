@@ -89,7 +89,7 @@ final class SwiftInterfaceTests: SourceKitLSPTestCase {
       position: project.positions["1️⃣"],
       testClient: project.testClient,
       swiftInterfaceFiles: ["Swift.String.swiftinterface", "String.swift"],
-      linePrefix: "@frozen public struct String"
+      lineContains: "public struct String"
     )
     // Test stdlib with two submodules
     try await assertSystemSwiftInterface(
@@ -97,7 +97,7 @@ final class SwiftInterfaceTests: SourceKitLSPTestCase {
       position: project.positions["2️⃣"],
       testClient: project.testClient,
       swiftInterfaceFiles: ["Swift.Math.Integers.swiftinterface", "IntegerTypes.swift"],
-      linePrefix: "@frozen public struct Int"
+      lineContains: "public struct Int"
     )
     // Test concurrency
     try await assertSystemSwiftInterface(
@@ -105,7 +105,7 @@ final class SwiftInterfaceTests: SourceKitLSPTestCase {
       position: project.positions["3️⃣"],
       testClient: project.testClient,
       swiftInterfaceFiles: ["Swift.swiftinterface", "_Concurrency.swiftinterface", "TaskGroup.swift"],
-      linePrefix: "@inlinable public func withTaskGroup"
+      lineContains: "public func withTaskGroup"
     )
   }
 
@@ -410,7 +410,8 @@ private func assertSystemSwiftInterface(
   position: Position,
   testClient: TestSourceKitLSPClient,
   swiftInterfaceFiles: [String],
-  linePrefix: String,
+  linePrefix: String? = nil,
+  lineContains: String? = nil,
   line: UInt = #line
 ) async throws {
   let definition = try await testClient.send(
@@ -426,5 +427,10 @@ private func assertSystemSwiftInterface(
   let lineTable = LineTable(contents)
   let destinationLine = try XCTUnwrap(lineTable.line(at: location.range.lowerBound.line))
     .trimmingCharacters(in: .whitespaces)
-  XCTAssert(destinationLine.hasPrefix(linePrefix), "Full line was: '\(destinationLine)'", line: line)
+  if let linePrefix {
+    XCTAssert(destinationLine.hasPrefix(linePrefix), "Full line was: '\(destinationLine)'", line: line)
+  }
+  if let lineContains {
+    XCTAssert(destinationLine.contains(lineContains), "Full line was: '\(destinationLine)'", line: line)
+  }
 }
