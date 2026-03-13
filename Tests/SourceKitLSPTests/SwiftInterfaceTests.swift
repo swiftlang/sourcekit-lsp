@@ -88,7 +88,7 @@ final class SwiftInterfaceTests: SourceKitLSPTestCase {
       uri: project.fileURI,
       position: project.positions["1️⃣"],
       testClient: project.testClient,
-      swiftInterfaceFile: "Swift.String.swiftinterface",
+      swiftInterfaceFiles: ["Swift.String.swiftinterface", "String.swift"],
       linePrefix: "@frozen public struct String"
     )
     // Test stdlib with two submodules
@@ -96,7 +96,7 @@ final class SwiftInterfaceTests: SourceKitLSPTestCase {
       uri: project.fileURI,
       position: project.positions["2️⃣"],
       testClient: project.testClient,
-      swiftInterfaceFile: "Swift.Math.Integers.swiftinterface",
+      swiftInterfaceFiles: ["Swift.Math.Integers.swiftinterface", "IntegerTypes.swift"],
       linePrefix: "@frozen public struct Int"
     )
     // Test concurrency
@@ -104,7 +104,7 @@ final class SwiftInterfaceTests: SourceKitLSPTestCase {
       uri: project.fileURI,
       position: project.positions["3️⃣"],
       testClient: project.testClient,
-      swiftInterfaceFiles: ["Swift.swiftinterface", "_Concurrency.swiftinterface"],
+      swiftInterfaceFiles: ["Swift.swiftinterface", "_Concurrency.swiftinterface", "TaskGroup.swift"],
       linePrefix: "@inlinable public func withTaskGroup"
     )
   }
