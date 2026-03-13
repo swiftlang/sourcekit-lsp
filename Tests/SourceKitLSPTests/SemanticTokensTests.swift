@@ -986,14 +986,22 @@ final class SemanticTokensTests: SourceKitLSPTestCase {
             try? await Task.sleep(for: .seconds(1))
           }
         }
-      })
+      }),
+      capabilities: ClientCapabilities(
+        general: .init(
+          staleRequestSupport: .init(
+            cancel: true,
+            retryOnContentModified: [DocumentSemanticTokensRequest.method]
+          )
+        )
+      )
     )
     let uri = DocumentURI(for: .swift)
     let positions = testClient.openDocument("1️⃣", uri: uri)
 
     let receivedSemanticTokensResponse = self.expectation(description: "Received semantic tokens response")
     testClient.send(DocumentSemanticTokensRequest(textDocument: TextDocumentIdentifier(uri))) { result in
-      XCTAssertEqual(result, .failure(ResponseError.cancelled))
+      XCTAssertEqual(result, .failure(ResponseError(code: .contentModified, message: "content modified")))
       receivedSemanticTokensResponse.fulfill()
     }
     testClient.send(
