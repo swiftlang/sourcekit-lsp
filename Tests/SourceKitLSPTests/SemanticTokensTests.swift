@@ -117,10 +117,71 @@ final class SemanticTokensTests: SourceKitLSPTestCase {
       range: ("1️⃣", "6️⃣"),
       expected: [
         TokenSpec(marker: "1️⃣", length: 3, kind: .keyword),
-        TokenSpec(marker: "2️⃣", length: 4, kind: .identifier),
+        TokenSpec(marker: "2️⃣", length: 4, kind: .variable, modifiers: .declaration),
         TokenSpec(marker: "3️⃣", length: 2, kind: .number),
         TokenSpec(marker: "4️⃣", length: 3, kind: .keyword),
-        TokenSpec(marker: "5️⃣", length: 3, kind: .identifier),
+        TokenSpec(marker: "5️⃣", length: 3, kind: .variable, modifiers: .declaration),
+      ]
+    )
+  }
+
+  func testRangedIsSubsetOfFullDocument() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
+      """
+      1️⃣let 2️⃣x = 3️⃣1
+      4️⃣let 5️⃣y = 6️⃣2
+      7️⃣let 8️⃣z = 9️⃣3
+      """,
+      uri: uri
+    )
+
+    let fullResponse = try await unwrap(
+      testClient.send(DocumentSemanticTokensRequest(textDocument: TextDocumentIdentifier(uri)))
+    )
+    let fullTokens = SyntaxHighlightingTokens(lspEncodedTokens: fullResponse.data).tokens
+
+    let rangedResponse = try await unwrap(
+      testClient.send(
+        DocumentSemanticTokensRangeRequest(
+          textDocument: TextDocumentIdentifier(uri),
+          range: positions["4️⃣"]..<positions["7️⃣"]
+        )
+      )
+    )
+    let rangedTokens = SyntaxHighlightingTokens(lspEncodedTokens: rangedResponse.data).tokens
+
+    // Every token in the ranged response must appear in the full-document response.
+    for token in rangedTokens {
+      XCTAssertTrue(fullTokens.contains(token), "Ranged token \(token) not found in full response")
+    }
+    // The ranged response must not contain tokens from outside the requested range.
+    XCTAssertEqual(
+      rangedTokens,
+      [
+        Token(start: positions["4️⃣"], utf16length: 3, kind: .keyword),
+        Token(start: positions["5️⃣"], utf16length: 1, kind: .variable, modifiers: .declaration),
+        Token(start: positions["6️⃣"], utf16length: 1, kind: .number),
+      ]
+    )
+  }
+
+  func testRangedBoundary() async throws {
+    // A token that partially overlaps the range end should be included.
+    // A token that starts exactly at the range end should be excluded.
+    try await assertSemanticTokens(
+      markedContents: """
+        1️⃣let 2️⃣ab3️⃣c = 4️⃣1
+        5️⃣let def = 2
+        """,
+      range: ("1️⃣", "3️⃣"),
+      expected: [
+        // `let` starts at range start — included
+        TokenSpec(marker: "1️⃣", length: 3, kind: .keyword),
+        // `abc` starts inside range but extends past 3️⃣ — included (overlaps)
+        TokenSpec(marker: "2️⃣", length: 3, kind: .variable, modifiers: .declaration),
+        // `1`, `let`, `def` all start at or after 3️⃣ — excluded
       ]
     )
   }
@@ -135,11 +196,11 @@ final class SemanticTokensTests: SourceKitLSPTestCase {
       expected: [
         // let x = 3
         TokenSpec(marker: "1️⃣", length: 3, kind: .keyword),
-        TokenSpec(marker: "2️⃣", length: 1, kind: .identifier),
+        TokenSpec(marker: "2️⃣", length: 1, kind: .variable, modifiers: .declaration),
         TokenSpec(marker: "3️⃣", length: 1, kind: .number),
         // var y = "test"
         TokenSpec(marker: "4️⃣", length: 3, kind: .keyword),
-        TokenSpec(marker: "5️⃣", length: 1, kind: .identifier),
+        TokenSpec(marker: "5️⃣", length: 1, kind: .variable, modifiers: .declaration),
         TokenSpec(marker: "6️⃣", length: 6, kind: .string),
         // /* abc */ // 123
         TokenSpec(marker: "7️⃣", length: 9, kind: .comment),
@@ -157,7 +218,7 @@ final class SemanticTokensTests: SourceKitLSPTestCase {
         """,
       expected: [
         TokenSpec(marker: "1️⃣", length: 3, kind: .keyword),
-        TokenSpec(marker: "2️⃣", length: 1, kind: .identifier),
+        TokenSpec(marker: "2️⃣", length: 1, kind: .variable, modifiers: .declaration),
         TokenSpec(marker: "3️⃣", length: 1, kind: .number),
         // Multi-line comments are split into single-line tokens
         TokenSpec(marker: "4️⃣", length: 2, kind: .comment),
@@ -187,7 +248,7 @@ final class SemanticTokensTests: SourceKitLSPTestCase {
         """,
       expected: [
         TokenSpec(marker: "1️⃣", length: 3, kind: .keyword),
-        TokenSpec(marker: "2️⃣", length: 4, kind: .identifier),
+        TokenSpec(marker: "2️⃣", length: 4, kind: .variable, modifiers: .declaration),
         TokenSpec(marker: "3️⃣", length: 2, kind: .number),
       ]
     )
@@ -198,7 +259,7 @@ final class SemanticTokensTests: SourceKitLSPTestCase {
         """,
       expected: [
         TokenSpec(marker: "1️⃣", length: 3, kind: .keyword),
-        TokenSpec(marker: "2️⃣", length: 6, kind: .identifier),
+        TokenSpec(marker: "2️⃣", length: 6, kind: .variable, modifiers: .declaration),
         TokenSpec(marker: "3️⃣", length: 1, kind: .number),
       ]
     )
@@ -219,7 +280,7 @@ final class SemanticTokensTests: SourceKitLSPTestCase {
         """,
       expected: [
         TokenSpec(marker: "1️⃣", length: 3, kind: .keyword),
-        TokenSpec(marker: "2️⃣", length: 7, kind: .identifier),
+        TokenSpec(marker: "2️⃣", length: 7, kind: .variable, modifiers: .declaration),
       ]
     )
   }
@@ -235,14 +296,14 @@ final class SemanticTokensTests: SourceKitLSPTestCase {
       expected: [
         // struct X {}
         TokenSpec(marker: "1️⃣", length: 6, kind: .keyword),
-        TokenSpec(marker: "2️⃣", length: 1, kind: .identifier),
+        TokenSpec(marker: "2️⃣", length: 1, kind: .struct, modifiers: .declaration),
         // let x = X()
         TokenSpec(marker: "3️⃣", length: 3, kind: .keyword),
-        TokenSpec(marker: "4️⃣", length: 1, kind: .identifier),
+        TokenSpec(marker: "4️⃣", length: 1, kind: .variable, modifiers: .declaration),
         TokenSpec(marker: "5️⃣", length: 1, kind: .struct),
         // let y = x + x
         TokenSpec(marker: "6️⃣", length: 3, kind: .keyword),
-        TokenSpec(marker: "7️⃣", length: 1, kind: .identifier),
+        TokenSpec(marker: "7️⃣", length: 1, kind: .variable, modifiers: .declaration),
         TokenSpec(marker: "8️⃣", length: 1, kind: .variable),
         TokenSpec(marker: "9️⃣", length: 1, kind: .operator),
         TokenSpec(marker: "🔟", length: 1, kind: .variable),
@@ -260,14 +321,30 @@ final class SemanticTokensTests: SourceKitLSPTestCase {
       expected: [
         // func a() {}
         TokenSpec(marker: "1️⃣", length: 4, kind: .keyword),
-        TokenSpec(marker: "2️⃣", length: 1, kind: .identifier),
+        TokenSpec(marker: "2️⃣", length: 1, kind: .function, modifiers: .declaration),
         // let b = {}
         TokenSpec(marker: "3️⃣", length: 3, kind: .keyword),
-        TokenSpec(marker: "4️⃣", length: 1, kind: .identifier),
+        TokenSpec(marker: "4️⃣", length: 1, kind: .variable, modifiers: .declaration),
         // a()
         TokenSpec(marker: "5️⃣", length: 1, kind: .function),
         // b()
         TokenSpec(marker: "6️⃣", length: 1, kind: .variable),
+      ]
+    )
+  }
+
+  func testSemanticTokensForTupleDestructuring() async throws {
+    try await assertSemanticTokens(
+      markedContents: """
+        1️⃣let (2️⃣a, 3️⃣b) = (4️⃣1, 5️⃣2)
+        """,
+      expected: [
+        // let (a, b) = (1, 2)
+        TokenSpec(marker: "1️⃣", length: 3, kind: .keyword),
+        TokenSpec(marker: "2️⃣", length: 1, kind: .variable, modifiers: .declaration),
+        TokenSpec(marker: "3️⃣", length: 1, kind: .variable, modifiers: .declaration),
+        TokenSpec(marker: "4️⃣", length: 1, kind: .number),
+        TokenSpec(marker: "5️⃣", length: 1, kind: .number),
       ]
     )
   }
@@ -283,14 +360,14 @@ final class SemanticTokensTests: SourceKitLSPTestCase {
       expected: [
         // protocol X {}
         TokenSpec(marker: "1️⃣", length: 8, kind: .keyword),
-        TokenSpec(marker: "2️⃣", length: 1, kind: .identifier),
+        TokenSpec(marker: "2️⃣", length: 1, kind: .interface, modifiers: .declaration),
         // class Y: X {}
         TokenSpec(marker: "3️⃣", length: 5, kind: .keyword),
-        TokenSpec(marker: "4️⃣", length: 1, kind: .identifier),
+        TokenSpec(marker: "4️⃣", length: 1, kind: .class, modifiers: .declaration),
         TokenSpec(marker: "5️⃣", length: 1, kind: .interface),
         // let y: Y = X()
         TokenSpec(marker: "6️⃣", length: 3, kind: .keyword),
-        TokenSpec(marker: "7️⃣", length: 1, kind: .identifier),
+        TokenSpec(marker: "7️⃣", length: 1, kind: .variable, modifiers: .declaration),
         TokenSpec(marker: "8️⃣", length: 1, kind: .class),
         TokenSpec(marker: "9️⃣", length: 1, kind: .interface),
       ]
@@ -305,12 +382,30 @@ final class SemanticTokensTests: SourceKitLSPTestCase {
       expected: [
         // protocol X {}
         TokenSpec(marker: "1️⃣", length: 8, kind: .keyword),
-        TokenSpec(marker: "2️⃣", length: 1, kind: .identifier),
+        TokenSpec(marker: "2️⃣", length: 1, kind: .interface, modifiers: .declaration),
         // func f<T: X>() {}
         TokenSpec(marker: "3️⃣", length: 4, kind: .keyword),
-        TokenSpec(marker: "4️⃣", length: 1, kind: .identifier),
+        TokenSpec(marker: "4️⃣", length: 1, kind: .function, modifiers: .declaration),
         TokenSpec(marker: "5️⃣", length: 1, kind: .identifier),
         TokenSpec(marker: "6️⃣", length: 1, kind: .interface),
+      ]
+    )
+  }
+
+  func testSemanticTokensForAssociatedTypes() async throws {
+    try await assertSemanticTokens(
+      markedContents: """
+        1️⃣protocol 2️⃣P {
+          3️⃣associatedtype 4️⃣Element
+        }
+        """,
+      expected: [
+        // protocol P {
+        TokenSpec(marker: "1️⃣", length: 8, kind: .keyword),
+        TokenSpec(marker: "2️⃣", length: 1, kind: .interface, modifiers: .declaration),
+        // associatedtype Element
+        TokenSpec(marker: "3️⃣", length: 14, kind: .keyword),
+        TokenSpec(marker: "4️⃣", length: 7, kind: .typeParameter, modifiers: .declaration),
       ]
     )
   }
@@ -320,7 +415,7 @@ final class SemanticTokensTests: SourceKitLSPTestCase {
       markedContents: "1️⃣func 2️⃣f(3️⃣x: 4️⃣Int, _ 5️⃣y: 6️⃣String) {}",
       expected: [
         TokenSpec(marker: "1️⃣", length: 4, kind: .keyword),
-        TokenSpec(marker: "2️⃣", length: 1, kind: .identifier),
+        TokenSpec(marker: "2️⃣", length: 1, kind: .function, modifiers: .declaration),
         TokenSpec(marker: "3️⃣", length: 1, kind: .function, modifiers: .parameterLabel),
         TokenSpec(marker: "4️⃣", length: 3, kind: .struct, modifiers: .defaultLibrary),
         TokenSpec(marker: "5️⃣", length: 1, kind: .identifier),
@@ -334,7 +429,36 @@ final class SemanticTokensTests: SourceKitLSPTestCase {
       markedContents: "1️⃣func 2️⃣x👍y() {}",
       expected: [
         TokenSpec(marker: "1️⃣", length: 4, kind: .keyword),
-        TokenSpec(marker: "2️⃣", length: 4, kind: .identifier),
+        TokenSpec(marker: "2️⃣", length: 4, kind: .function, modifiers: .declaration),
+      ]
+    )
+  }
+
+  func testSemanticTokensForExtensions() async throws {
+    try await assertSemanticTokens(
+      markedContents: """
+        1️⃣struct 2️⃣X {}
+
+        3️⃣extension 4️⃣X {
+          5️⃣var 6️⃣prop: 7️⃣Int { 8️⃣0 }
+          9️⃣func 🔟method() {}
+        }
+        """,
+      expected: [
+        // struct X {}
+        TokenSpec(marker: "1️⃣", length: 6, kind: .keyword),
+        TokenSpec(marker: "2️⃣", length: 1, kind: .struct, modifiers: .declaration),
+        // extension X {
+        TokenSpec(marker: "3️⃣", length: 9, kind: .keyword),
+        TokenSpec(marker: "4️⃣", length: 1, kind: .struct),
+        // var prop: Int { 0 }
+        TokenSpec(marker: "5️⃣", length: 3, kind: .keyword),
+        TokenSpec(marker: "6️⃣", length: 4, kind: .property, modifiers: .declaration),
+        TokenSpec(marker: "7️⃣", length: 3, kind: .struct, modifiers: .defaultLibrary),
+        TokenSpec(marker: "8️⃣", length: 1, kind: .number),
+        // func method() {}
+        TokenSpec(marker: "9️⃣", length: 4, kind: .keyword),
+        TokenSpec(marker: "🔟", length: 6, kind: .method, modifiers: .declaration),
       ]
     )
   }
@@ -350,11 +474,11 @@ final class SemanticTokensTests: SourceKitLSPTestCase {
       expected: [
         // class X
         TokenSpec(marker: "1️⃣", length: 5, kind: .keyword),
-        TokenSpec(marker: "2️⃣", length: 1, kind: .identifier),
+        TokenSpec(marker: "2️⃣", length: 1, kind: .class, modifiers: .declaration),
         // static func f() {}
         TokenSpec(marker: "3️⃣", length: 6, kind: .keyword),
         TokenSpec(marker: "4️⃣", length: 4, kind: .keyword),
-        TokenSpec(marker: "5️⃣", length: 1, kind: .identifier),
+        TokenSpec(marker: "5️⃣", length: 1, kind: .method, modifiers: [.declaration, .static]),
         // X.f()
         TokenSpec(marker: "6️⃣", length: 1, kind: .class),
         TokenSpec(marker: "7️⃣", length: 1, kind: .method, modifiers: .static),
@@ -371,12 +495,12 @@ final class SemanticTokensTests: SourceKitLSPTestCase {
       expected: [
         // class X
         TokenSpec(marker: "1️⃣", length: 5, kind: .keyword),
-        TokenSpec(marker: "2️⃣", length: 1, kind: .identifier),
+        TokenSpec(marker: "2️⃣", length: 1, kind: .class, modifiers: .declaration),
         // class func g() {}
         TokenSpec(marker: "3️⃣", length: 5, kind: .keyword),
         TokenSpec(marker: "4️⃣", length: 4, kind: .keyword),
-        TokenSpec(marker: "5️⃣", length: 1, kind: .identifier),
-        // X.f()
+        TokenSpec(marker: "5️⃣", length: 1, kind: .method, modifiers: [.declaration, .static]),
+        // X.g()
         TokenSpec(marker: "6️⃣", length: 1, kind: .class),
         TokenSpec(marker: "7️⃣", length: 1, kind: .method, modifiers: .static),
       ]
@@ -395,14 +519,14 @@ final class SemanticTokensTests: SourceKitLSPTestCase {
       expected: [
         // enum Maybe<T>
         TokenSpec(marker: "1️⃣", length: 4, kind: .keyword),
-        TokenSpec(marker: "2️⃣", length: 5, kind: .identifier),
+        TokenSpec(marker: "2️⃣", length: 5, kind: .enum, modifiers: .declaration),
         TokenSpec(marker: "3️⃣", length: 1, kind: .identifier),
         // case none
         TokenSpec(marker: "4️⃣", length: 4, kind: .keyword),
-        TokenSpec(marker: "5️⃣", length: 4, kind: .identifier),
+        TokenSpec(marker: "5️⃣", length: 4, kind: .enumMember, modifiers: .declaration),
         // let x = Maybe<String>.none
         TokenSpec(marker: "6️⃣", length: 3, kind: .keyword),
-        TokenSpec(marker: "7️⃣", length: 1, kind: .identifier),
+        TokenSpec(marker: "7️⃣", length: 1, kind: .variable, modifiers: .declaration),
         TokenSpec(marker: "8️⃣", length: 5, kind: .enum),
         TokenSpec(marker: "9️⃣", length: 6, kind: .struct, modifiers: .defaultLibrary),
         TokenSpec(marker: "🔟", length: 4, kind: .enumMember),
@@ -420,15 +544,15 @@ final class SemanticTokensTests: SourceKitLSPTestCase {
       expected: [
         // enum Maybe<T>
         TokenSpec(marker: "1️⃣", length: 4, kind: .keyword),
-        TokenSpec(marker: "2️⃣", length: 5, kind: .identifier),
+        TokenSpec(marker: "2️⃣", length: 5, kind: .enum, modifiers: .declaration),
         TokenSpec(marker: "3️⃣", length: 1, kind: .identifier),
         // case some
         TokenSpec(marker: "4️⃣", length: 4, kind: .keyword),
-        TokenSpec(marker: "5️⃣", length: 4, kind: .identifier),
+        TokenSpec(marker: "5️⃣", length: 4, kind: .enumMember, modifiers: .declaration),
         TokenSpec(marker: "6️⃣", length: 1, kind: .typeParameter),
         // let y: Maybe = .some(42)
         TokenSpec(marker: "7️⃣", length: 3, kind: .keyword),
-        TokenSpec(marker: "8️⃣", length: 1, kind: .identifier),
+        TokenSpec(marker: "8️⃣", length: 1, kind: .variable, modifiers: .declaration),
         TokenSpec(marker: "9️⃣", length: 5, kind: .enum),
         TokenSpec(marker: "🔟", length: 4, kind: .enumMember),
         TokenSpec(marker: "0️⃣", length: 2, kind: .number),
@@ -443,7 +567,7 @@ final class SemanticTokensTests: SourceKitLSPTestCase {
         """,
       expected: [
         TokenSpec(marker: "1️⃣", length: 3, kind: .keyword),
-        TokenSpec(marker: "2️⃣", length: 1, kind: .identifier),
+        TokenSpec(marker: "2️⃣", length: 1, kind: .variable, modifiers: .declaration),
         TokenSpec(marker: "3️⃣", length: 8, kind: .regexp),
       ]
     )
@@ -463,6 +587,23 @@ final class SemanticTokensTests: SourceKitLSPTestCase {
     )
   }
 
+  func testMacroDeclaration() async throws {
+    try await assertSemanticTokens(
+      markedContents: """
+        1️⃣macro 2️⃣stringify() = #3️⃣externalMacro(4️⃣module: 5️⃣"M", 6️⃣type: 7️⃣"T")
+        """,
+      expected: [
+        TokenSpec(marker: "1️⃣", length: 5, kind: .keyword),
+        TokenSpec(marker: "2️⃣", length: 9, kind: .macro, modifiers: .declaration),
+        TokenSpec(marker: "3️⃣", length: 13, kind: .identifier),
+        TokenSpec(marker: "4️⃣", length: 6, kind: .function, modifiers: .parameterLabel),
+        TokenSpec(marker: "5️⃣", length: 3, kind: .string),
+        TokenSpec(marker: "6️⃣", length: 4, kind: .function, modifiers: .parameterLabel),
+        TokenSpec(marker: "7️⃣", length: 3, kind: .string),
+      ]
+    )
+  }
+
   func testEmptyEdit() async throws {
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
@@ -476,11 +617,11 @@ final class SemanticTokensTests: SourceKitLSPTestCase {
 
     let expectedTokens = [
       TokenSpec(marker: "1️⃣", length: 3, kind: .keyword),
-      TokenSpec(marker: "2️⃣", length: 1, kind: .identifier),
+      TokenSpec(marker: "2️⃣", length: 1, kind: .variable, modifiers: .declaration),
       TokenSpec(marker: "3️⃣", length: 6, kind: .struct, modifiers: .defaultLibrary),
       TokenSpec(marker: "4️⃣", length: 6, kind: .string),
       TokenSpec(marker: "5️⃣", length: 3, kind: .keyword),
-      TokenSpec(marker: "6️⃣", length: 1, kind: .identifier),
+      TokenSpec(marker: "6️⃣", length: 1, kind: .variable, modifiers: .declaration),
       TokenSpec(marker: "7️⃣", length: 3, kind: .number),
     ]
 
@@ -512,7 +653,7 @@ final class SemanticTokensTests: SourceKitLSPTestCase {
       positions: positions,
       expected: [
         TokenSpec(marker: "1️⃣", length: 3, kind: .keyword),
-        TokenSpec(marker: "2️⃣", length: 4, kind: .identifier),
+        TokenSpec(marker: "2️⃣", length: 4, kind: .variable, modifiers: .declaration),
         TokenSpec(marker: "3️⃣", length: 4, kind: .number),
       ]
     )
@@ -536,7 +677,7 @@ final class SemanticTokensTests: SourceKitLSPTestCase {
       positions: positionsAfterEdits,
       expected: [
         TokenSpec(marker: "1️⃣", length: 3, kind: .keyword),
-        TokenSpec(marker: "2️⃣", length: 4, kind: .identifier),
+        TokenSpec(marker: "2️⃣", length: 4, kind: .variable, modifiers: .declaration),
         TokenSpec(marker: "3️⃣", length: 3, kind: .number),
       ]
     )
@@ -605,7 +746,7 @@ final class SemanticTokensTests: SourceKitLSPTestCase {
 
     let expectedTokens = [
       TokenSpec(marker: "1️⃣", length: 3, kind: .keyword),
-      TokenSpec(marker: "2️⃣", length: 1, kind: .identifier),
+      TokenSpec(marker: "2️⃣", length: 1, kind: .variable, modifiers: .declaration),
       TokenSpec(marker: "3️⃣", length: 6, kind: .struct, modifiers: .defaultLibrary),
       TokenSpec(marker: "4️⃣", length: 6, kind: .string),
     ]
@@ -640,7 +781,7 @@ final class SemanticTokensTests: SourceKitLSPTestCase {
 
     let expectedTokens = [
       TokenSpec(marker: "1️⃣", length: 3, kind: .keyword),
-      TokenSpec(marker: "2️⃣", length: 1, kind: .identifier),
+      TokenSpec(marker: "2️⃣", length: 1, kind: .variable, modifiers: .declaration),
       TokenSpec(marker: "3️⃣", length: 1, kind: .number),
     ]
 
@@ -703,7 +844,7 @@ final class SemanticTokensTests: SourceKitLSPTestCase {
 
     let expectedTokens = [
       TokenSpec(marker: "1️⃣", length: 3, kind: .keyword),
-      TokenSpec(marker: "2️⃣", length: 1, kind: .identifier),
+      TokenSpec(marker: "2️⃣", length: 1, kind: .variable, modifiers: .declaration),
       TokenSpec(marker: "4️⃣", length: 5, kind: .string),
     ]
 
@@ -742,7 +883,7 @@ final class SemanticTokensTests: SourceKitLSPTestCase {
       positions: positions,
       expected: [
         TokenSpec(marker: "1️⃣", length: 3, kind: .keyword),
-        TokenSpec(marker: "2️⃣", length: 1, kind: .identifier),
+        TokenSpec(marker: "2️⃣", length: 1, kind: .variable, modifiers: .declaration),
         TokenSpec(marker: "4️⃣", length: 5, kind: .string),
       ]
     )
@@ -766,7 +907,7 @@ final class SemanticTokensTests: SourceKitLSPTestCase {
       positions: positionsAfterEdits,
       expected: [
         TokenSpec(marker: "1️⃣", length: 3, kind: .keyword),
-        TokenSpec(marker: "2️⃣", length: 1, kind: .identifier),
+        TokenSpec(marker: "2️⃣", length: 1, kind: .variable, modifiers: .declaration),
         TokenSpec(marker: "3️⃣", length: 6, kind: .string),
         TokenSpec(marker: "4️⃣", length: 1, kind: .method, modifiers: [.defaultLibrary, .static]),
         TokenSpec(marker: "5️⃣", length: 5, kind: .string),
@@ -791,10 +932,10 @@ final class SemanticTokensTests: SourceKitLSPTestCase {
       positions: positions,
       expected: [
         TokenSpec(marker: "1️⃣", length: 3, kind: .keyword),
-        TokenSpec(marker: "2️⃣", length: 1, kind: .identifier),
+        TokenSpec(marker: "2️⃣", length: 1, kind: .variable, modifiers: .declaration),
         TokenSpec(marker: "4️⃣", length: 5, kind: .string),
         TokenSpec(marker: "5️⃣", length: 3, kind: .keyword),
-        TokenSpec(marker: "6️⃣", length: 1, kind: .identifier),
+        TokenSpec(marker: "6️⃣", length: 1, kind: .variable, modifiers: .declaration),
         TokenSpec(marker: "7️⃣", length: 1, kind: .variable),
       ]
     )
@@ -823,10 +964,10 @@ final class SemanticTokensTests: SourceKitLSPTestCase {
       positions: positionsAfterEdits,
       expected: [
         TokenSpec(marker: "1️⃣", length: 3, kind: .keyword),
-        TokenSpec(marker: "2️⃣", length: 7, kind: .identifier),
+        TokenSpec(marker: "2️⃣", length: 7, kind: .variable, modifiers: .declaration),
         TokenSpec(marker: "4️⃣", length: 5, kind: .string),
         TokenSpec(marker: "5️⃣", length: 3, kind: .keyword),
-        TokenSpec(marker: "6️⃣", length: 1, kind: .identifier),
+        TokenSpec(marker: "6️⃣", length: 1, kind: .variable, modifiers: .declaration),
         TokenSpec(marker: "7️⃣", length: 7, kind: .variable),
       ]
     )
@@ -841,9 +982,9 @@ final class SemanticTokensTests: SourceKitLSPTestCase {
         """,
       expected: [
         TokenSpec(marker: "1️⃣", length: 5, kind: .keyword),
-        TokenSpec(marker: "2️⃣", length: 7, kind: .identifier),
+        TokenSpec(marker: "2️⃣", length: 7, kind: .actor, modifiers: .declaration),
         TokenSpec(marker: "3️⃣", length: 4, kind: .keyword),
-        TokenSpec(marker: "4️⃣", length: 1, kind: .identifier),
+        TokenSpec(marker: "4️⃣", length: 1, kind: .function, modifiers: .declaration),
         TokenSpec(marker: "5️⃣", length: 1, kind: .function, modifiers: .parameterLabel),
         TokenSpec(marker: "6️⃣", length: 7, kind: .actor),
       ]
@@ -858,7 +999,7 @@ final class SemanticTokensTests: SourceKitLSPTestCase {
         """,
       expected: [
         TokenSpec(marker: "1️⃣", length: 4, kind: .keyword),
-        TokenSpec(marker: "2️⃣", length: 3, kind: .identifier),
+        TokenSpec(marker: "2️⃣", length: 3, kind: .function, modifiers: .declaration),
         TokenSpec(marker: "3️⃣", length: 3, kind: .function, modifiers: .parameterLabel),
         TokenSpec(marker: "4️⃣", length: 3, kind: .struct, modifiers: .defaultLibrary),
         TokenSpec(marker: "5️⃣", length: 3, kind: .function),
@@ -875,7 +1016,7 @@ final class SemanticTokensTests: SourceKitLSPTestCase {
         """,
       expected: [
         TokenSpec(marker: "1️⃣", length: 4, kind: .keyword),
-        TokenSpec(marker: "2️⃣", length: 3, kind: .identifier),
+        TokenSpec(marker: "2️⃣", length: 3, kind: .function, modifiers: .declaration),
         TokenSpec(marker: "3️⃣", length: 3, kind: .function, modifiers: .parameterLabel),
         TokenSpec(marker: "4️⃣", length: 12, kind: .identifier),
         TokenSpec(marker: "5️⃣", length: 3, kind: .struct, modifiers: .defaultLibrary),
@@ -893,7 +1034,7 @@ final class SemanticTokensTests: SourceKitLSPTestCase {
         """,
       expected: [
         TokenSpec(marker: "1️⃣", length: 4, kind: .keyword),
-        TokenSpec(marker: "2️⃣", length: 22, kind: .identifier),
+        TokenSpec(marker: "2️⃣", length: 22, kind: .function, modifiers: .declaration),
         TokenSpec(marker: "3️⃣", length: 22, kind: .function),
       ]
     )
@@ -906,13 +1047,87 @@ final class SemanticTokensTests: SourceKitLSPTestCase {
         """,
       expected: [
         TokenSpec(marker: "1️⃣", length: 6, kind: .keyword),
-        TokenSpec(marker: "2️⃣", length: 1, kind: .identifier),
+        TokenSpec(marker: "2️⃣", length: 1, kind: .struct, modifiers: .declaration),
         TokenSpec(marker: "3️⃣", length: 6, kind: .keyword),
         TokenSpec(marker: "4️⃣", length: 3, kind: .keyword),
-        TokenSpec(marker: "5️⃣", length: 9, kind: .identifier),
+        TokenSpec(marker: "5️⃣", length: 9, kind: .property, modifiers: [.declaration, .static]),
         TokenSpec(marker: "6️⃣", length: 1, kind: .number),
         TokenSpec(marker: "7️⃣", length: 1, kind: .struct),
         TokenSpec(marker: "8️⃣", length: 9, kind: .property),
+      ]
+    )
+  }
+
+  func testOptionalBindingDeclarations() async throws {
+    // if let x = expr: the bound variable should be a declaration, not a plain identifier
+    try await assertSemanticTokens(
+      markedContents: """
+        1️⃣let 2️⃣x: 3️⃣Int? = 4️⃣nil
+        5️⃣if 6️⃣let 7️⃣y = 8️⃣x {}
+        """,
+      expected: [
+        // let x: Int? = nil
+        TokenSpec(marker: "1️⃣", length: 3, kind: .keyword),
+        TokenSpec(marker: "2️⃣", length: 1, kind: .variable, modifiers: .declaration),
+        TokenSpec(marker: "3️⃣", length: 3, kind: .struct, modifiers: .defaultLibrary),
+        TokenSpec(marker: "4️⃣", length: 3, kind: .keyword),
+        // if let y = x {}
+        TokenSpec(marker: "5️⃣", length: 2, kind: .keyword),
+        TokenSpec(marker: "6️⃣", length: 3, kind: .keyword),
+        TokenSpec(marker: "7️⃣", length: 1, kind: .variable, modifiers: .declaration),
+        TokenSpec(marker: "8️⃣", length: 1, kind: .variable),
+      ]
+    )
+
+    // guard let x = expr: the bound variable should be a declaration, not a plain identifier
+    try await assertSemanticTokens(
+      markedContents: """
+        1️⃣let 2️⃣x: 3️⃣Int? = 4️⃣nil
+        5️⃣guard 6️⃣let 7️⃣y = 8️⃣x 9️⃣else { 🔟return }
+        """,
+      expected: [
+        // let x: Int? = nil
+        TokenSpec(marker: "1️⃣", length: 3, kind: .keyword),
+        TokenSpec(marker: "2️⃣", length: 1, kind: .variable, modifiers: .declaration),
+        TokenSpec(marker: "3️⃣", length: 3, kind: .struct, modifiers: .defaultLibrary),
+        TokenSpec(marker: "4️⃣", length: 3, kind: .keyword),
+        // guard let y = x else { return }
+        TokenSpec(marker: "5️⃣", length: 5, kind: .keyword),
+        TokenSpec(marker: "6️⃣", length: 3, kind: .keyword),
+        TokenSpec(marker: "7️⃣", length: 1, kind: .variable, modifiers: .declaration),
+        TokenSpec(marker: "8️⃣", length: 1, kind: .variable),
+        TokenSpec(marker: "9️⃣", length: 4, kind: .keyword),
+        TokenSpec(marker: "🔟", length: 6, kind: .keyword),
+      ]
+    )
+  }
+
+  func testSemanticTokensForSwitchCaseBindings() async throws {
+    try await assertSemanticTokens(
+      markedContents: """
+        1️⃣let 2️⃣x: 3️⃣Int? = 4️⃣nil
+        5️⃣switch 6️⃣x {
+        7️⃣case 8️⃣let 9️⃣y: 🔟break
+        0️⃣default: break
+        }
+        """,
+      expected: [
+        // let x: Int? = nil
+        TokenSpec(marker: "1️⃣", length: 3, kind: .keyword),
+        TokenSpec(marker: "2️⃣", length: 1, kind: .variable, modifiers: .declaration),
+        TokenSpec(marker: "3️⃣", length: 3, kind: .struct, modifiers: .defaultLibrary),
+        TokenSpec(marker: "4️⃣", length: 3, kind: .keyword),
+        // switch x {
+        TokenSpec(marker: "5️⃣", length: 6, kind: .keyword),
+        TokenSpec(marker: "6️⃣", length: 1, kind: .variable),
+        // case let y:
+        TokenSpec(marker: "7️⃣", length: 4, kind: .keyword),
+        TokenSpec(marker: "8️⃣", length: 3, kind: .keyword),
+        TokenSpec(marker: "9️⃣", length: 1, kind: .variable, modifiers: .declaration),
+        // break
+        TokenSpec(marker: "🔟", length: 5, kind: .keyword),
+        // default:
+        TokenSpec(marker: "0️⃣", length: 7, kind: .keyword),
       ]
     )
   }
@@ -940,7 +1155,7 @@ final class SemanticTokensTests: SourceKitLSPTestCase {
         Token(start: initialPositions["1️⃣"], utf16length: 6, kind: .keyword),
         Token(start: initialPositions["2️⃣"], utf16length: 3, kind: .identifier),
         Token(start: initialPositions["3️⃣"], utf16length: 4, kind: .keyword),
-        Token(start: initialPositions["4️⃣"], utf16length: 3, kind: .identifier),
+        Token(start: initialPositions["4️⃣"], utf16length: 3, kind: .function, modifiers: .declaration),
       ]
     )
 
@@ -961,7 +1176,7 @@ final class SemanticTokensTests: SourceKitLSPTestCase {
       SyntaxHighlightingTokens(lspEncodedTokens: try unwrap(reopenedTokens).data).tokens,
       [
         Token(start: reopenedPositions["1️⃣"], utf16length: 4, kind: .keyword),
-        Token(start: reopenedPositions["2️⃣"], utf16length: 3, kind: .identifier),
+        Token(start: reopenedPositions["2️⃣"], utf16length: 3, kind: .function, modifiers: .declaration),
       ]
     )
   }
