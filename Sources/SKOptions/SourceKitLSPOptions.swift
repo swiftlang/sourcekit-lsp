@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2024 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2026 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -226,6 +226,29 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     }
   }
 
+  public struct InlayHintsOptions: Sendable, Codable, Equatable {
+    /// Whether to show inlay hints for trailing closure labels.
+    ///
+    /// When enabled, shows parameter names as inlay hints immediately before the opening brace
+    /// of trailing closures, helping identify which parameter each closure satisfies.
+    /// Default is `false`.
+    public var trailingClosureLabels: Bool?
+
+    public var trailingClosureLabelsOrDefault: Bool {
+      trailingClosureLabels ?? false
+    }
+
+    public init(trailingClosureLabels: Bool? = nil) {
+      self.trailingClosureLabels = trailingClosureLabels
+    }
+
+    static func merging(base: InlayHintsOptions, override: InlayHintsOptions?) -> InlayHintsOptions {
+      return InlayHintsOptions(
+        trailingClosureLabels: override?.trailingClosureLabels ?? base.trailingClosureLabels
+      )
+    }
+  }
+
   public struct LoggingOptions: Sendable, Codable, Equatable {
     /// The level from which one onwards log messages should be written.
     public var level: String?
@@ -350,7 +373,12 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     get { logging ?? .init() }
     set { logging = newValue }
   }
-
+  /// Options related to inlay hints.
+  public var inlayHints: InlayHintsOptions?
+  public var inlayHintsOrDefault: InlayHintsOptions {
+    get { inlayHints ?? .init() }
+    set { inlayHints = newValue }
+  }
   /// Options modifying the behavior of sourcekitd.
   private var sourcekitd: SourceKitDOptions?
   public var sourcekitdOrDefault: SourceKitDOptions {
@@ -467,6 +495,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     clangdOptions: [String]? = nil,
     index: IndexOptions? = .init(),
     logging: LoggingOptions? = .init(),
+    inlayHints: InlayHintsOptions? = .init(),
     sourcekitd: SourceKitDOptions? = .init(),
     defaultWorkspaceType: WorkspaceType? = nil,
     generatedFilesPath: String? = nil,
@@ -488,6 +517,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     self.clangdOptions = clangdOptions
     self.index = index
     self.logging = logging
+    self.inlayHints = inlayHints
     self.sourcekitd = sourcekitd
     self.generatedFilesPath = generatedFilesPath
     self.defaultWorkspaceType = defaultWorkspaceType
@@ -552,6 +582,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
       clangdOptions: override?.clangdOptions ?? base.clangdOptions,
       index: IndexOptions.merging(base: base.indexOrDefault, override: override?.index),
       logging: LoggingOptions.merging(base: base.loggingOrDefault, override: override?.logging),
+      inlayHints: InlayHintsOptions.merging(base: base.inlayHintsOrDefault, override: override?.inlayHints),
       sourcekitd: SourceKitDOptions.merging(base: base.sourcekitdOrDefault, override: override?.sourcekitd),
       defaultWorkspaceType: override?.defaultWorkspaceType ?? base.defaultWorkspaceType,
       generatedFilesPath: override?.generatedFilesPath ?? base.generatedFilesPath,
