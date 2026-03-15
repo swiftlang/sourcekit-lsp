@@ -1835,6 +1835,180 @@ final class CodeActionTests: SourceKitLSPTestCase {
     }
   }
 
+  func testDisableSwiftTestingTest() async throws {
+    try await assertToggleTest(
+      input: "1️⃣@Test func example()2️⃣ {}",
+      expected: "@Test(.disabled()) func example() {}",
+      title: "Disable test"
+    )
+  }
+
+  func testEnableSwiftTestingDisabledTest() async throws {
+    try await assertToggleTest(
+      input: "1️⃣@Test(.disabled()) func example()2️⃣ {}",
+      expected: "@Test func example() {}",
+      title: "Enable test"
+    )
+  }
+
+  func testDisableSwiftTestingTestWithDisplayName() async throws {
+    try await assertToggleTest(
+      input: #"1️⃣@Test("My test") func example()2️⃣ {}"#,
+      expected: #"@Test("My test", .disabled()) func example() {}"#,
+      title: "Disable test"
+    )
+  }
+
+  func testEnableSwiftTestingTestPreservesOtherTraits() async throws {
+    try await assertToggleTest(
+      input: "1️⃣@Test(.disabled(), .tags(.critical)) func example()2️⃣ {}",
+      expected: "@Test(.tags(.critical)) func example() {}",
+      title: "Enable test"
+    )
+  }
+
+  func testDisableSwiftTestingQualifiedAttribute() async throws {
+    try await assertToggleTest(
+      input: "1️⃣@Testing.Test func example()2️⃣ {}",
+      expected: "@Testing.Test(.disabled()) func example() {}",
+      title: "Disable test"
+    )
+  }
+
+  func testConditionalDisabledTraitDoesNotOfferEnable() async throws {
+    try await assertToggleTest(
+      input: "1️⃣@Test(.disabled(if: condition)) func example()2️⃣ {}",
+      expected: nil,
+      title: "Enable test"
+    )
+  }
+
+  func testToggleDisabledTestNotAvailableFromBody() async throws {
+    try await assertToggleTest(
+      input: """
+        @Test func example() {
+          1️⃣let x = 12️⃣
+        }
+        """,
+      expected: nil,
+      title: "Disable test"
+    )
+  }
+
+  func testDisableXCTestTest() async throws {
+    try await assertToggleTest(
+      input: """
+        class MyTests: XCTestCase {
+          1️⃣func testExample()2️⃣ {
+            XCTAssertTrue(true)
+          }
+        }
+        """,
+      expected: """
+        class MyTests: XCTestCase {
+          func testExample() throws {
+            throw XCTSkip("Disabled")
+            XCTAssertTrue(true)
+          }
+        }
+        """,
+      title: "Disable test"
+    )
+  }
+
+  func testEnableXCTestTest() async throws {
+    try await assertToggleTest(
+      input: """
+        class MyTests: XCTestCase {
+          1️⃣func testExample() throws2️⃣ {
+            throw XCTSkip("Disabled")
+            XCTAssertTrue(true)
+          }
+        }
+        """,
+      expected: """
+        class MyTests: XCTestCase {
+          func testExample() {
+            XCTAssertTrue(true)
+          }
+        }
+        """,
+      title: "Enable test"
+    )
+  }
+
+  func testDisableXCTestInExtension() async throws {
+    try await assertToggleTest(
+      input: """
+        extension MyTests {
+          1️⃣func testExample()2️⃣ {
+            XCTAssertTrue(true)
+          }
+        }
+        """,
+      expected: """
+        extension MyTests {
+          func testExample() throws {
+            throw XCTSkip("Disabled")
+            XCTAssertTrue(true)
+          }
+        }
+        """,
+      title: "Disable test"
+    )
+  }
+
+  func testToggleDisabledTestNotAvailableForNonTestFunction() async throws {
+    try await assertToggleTest(
+      input: """
+        class MyClass {
+          1️⃣func doSomething()2️⃣ {}
+        }
+        """,
+      expected: nil,
+      title: "Disable test"
+    )
+  }
+
+  /// Assert a toggle-test code action by applying edits to the input and comparing against expected output.
+  ///
+  /// If `expected` is `nil`, asserts that the action with the given title is not offered.
+  private func assertToggleTest(
+    input: String,
+    expected: String?,
+    title: String,
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) async throws {
+    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(input, uri: uri)
+
+    let result = try await testClient.send(
+      CodeActionRequest(
+        range: positions["1️⃣"]..<positions["2️⃣"],
+        context: .init(),
+        textDocument: TextDocumentIdentifier(uri)
+      )
+    )
+    let codeActions = try XCTUnwrap(result?.codeActions, file: file, line: line)
+    let action = codeActions.first(where: { $0.title == title })
+
+    if let expected {
+      guard let action else {
+        XCTFail("Action '\(title)' not found. Available: \(codeActions.map(\.title))", file: file, line: line)
+        return
+      }
+      XCTAssertEqual(action.kind, .refactorInline, file: file, line: line)
+      let edits = action.edit?.changes?[uri] ?? []
+      let cleanInput = extractMarkers(input).textWithoutMarkers
+      let resultingText = apply(edits: edits, to: cleanInput)
+      XCTAssertEqual(resultingText, expected, file: file, line: line)
+    } else {
+      XCTAssertNil(action, "Expected action '\(title)' to not be offered", file: file, line: line)
+    }
+  }
+
   /// Retrieves the code action at a set of markers and asserts that it matches a list of expected code actions.
   ///
   /// - Parameters:

@@ -30,6 +30,7 @@ let allSyntaxCodeActions: [any SyntaxCodeActionProvider.Type] = {
     OpaqueParameterToGeneric.self,
     RemoveRedundantParentheses.self,
     RemoveSeparatorsFromIntegerLiteral.self,
+    ToggleDisabledTest.self,
   ]
   #if !NO_SWIFTPM_DEPENDENCY
   result.append(PackageManifestEdits.self)
