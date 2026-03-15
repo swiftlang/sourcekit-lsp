@@ -949,6 +949,10 @@ extension SwiftLanguageService {
     }.flatMap { $0 }
   }
 
+  package func codeActionResolve(_ req: CodeActionResolveRequest) async throws -> CodeAction {
+    return req.codeAction
+  }
+
   func retrieveRefactorCodeActions(_ params: CodeActionRequest) async throws -> [CodeAction] {
     let additionalCursorInfoParameters: ((SKDRequestDictionary) -> Void) = { skreq in
       skreq.set(self.keys.retrieveRefactorActions, to: 1)

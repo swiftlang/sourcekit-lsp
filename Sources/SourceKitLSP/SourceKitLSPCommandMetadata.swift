@@ -43,19 +43,62 @@ package struct SourceKitLSPCommandMetadata: Codable, Hashable {
   }
 }
 
+/// Metadata injected into CodeAction.data to support routing codeAction/resolve requests.
+package struct CodeActionResolveMetadata: Codable, Hashable {
+  package var textDocument: TextDocumentIdentifier
+  package var underlyingData: LSPAny?
+
+  package init(textDocument: TextDocumentIdentifier, underlyingData: LSPAny? = nil) {
+    self.textDocument = textDocument
+    self.underlyingData = underlyingData
+  }
+}
+
+extension CodeActionResolveMetadata {
+  package init?(fromLSPDictionary dictionary: [String: LSPAny]) {
+    guard
+      case .dictionary(let textDocumentDict)? = dictionary[CodingKeys.textDocument.stringValue],
+      let textDocument = TextDocumentIdentifier(fromLSPDictionary: textDocumentDict)
+    else {
+      return nil
+    }
+    self.init(
+      textDocument: textDocument,
+      underlyingData: dictionary[CodingKeys.underlyingData.stringValue]
+    )
+  }
+
+  package func encodeToLSPAny() -> LSPAny {
+    var dict: [String: LSPAny] = [
+      CodingKeys.textDocument.stringValue: textDocument.encodeToLSPAny()
+    ]
+    if let underlyingData {
+      dict[CodingKeys.underlyingData.stringValue] = underlyingData
+    }
+    return .dictionary(dict)
+  }
+}
+
 extension CodeActionRequest {
   package func injectMetadata(toResponse response: CodeActionRequestResponse?) -> CodeActionRequestResponse? {
-    let metadata = SourceKitLSPCommandMetadata(textDocument: textDocument)
-    let metadataArgument = metadata.encodeToLSPAny()
+    let commandMetadata = SourceKitLSPCommandMetadata(textDocument: textDocument)
+    let commandMetadataArgument = commandMetadata.encodeToLSPAny()
     switch response {
     case .codeActions(var codeActions)?:
       for i in 0..<codeActions.count {
-        codeActions[i].command?.arguments?.append(metadataArgument)
+        codeActions[i].command?.arguments?.append(commandMetadataArgument)
+
+        if codeActions[i].edit == nil && codeActions[i].command == nil {
+          codeActions[i].data = CodeActionResolveMetadata(
+            textDocument: textDocument,
+            underlyingData: codeActions[i].data
+          ).encodeToLSPAny()
+        }
       }
       return .codeActions(codeActions)
     case .commands(var commands)?:
       for i in 0..<commands.count {
-        commands[i].arguments?.append(metadataArgument)
+        commands[i].arguments?.append(commandMetadataArgument)
       }
       return .commands(commands)
     case nil:

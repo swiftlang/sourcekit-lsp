@@ -608,6 +608,10 @@ extension ClangLanguageService {
     return try await forwardRequestToClangd(req)
   }
 
+  package func codeActionResolve(_ req: CodeActionResolveRequest) async throws -> CodeAction {
+    return try await forwardRequestToClangd(req)
+  }
+
   package func inlayHint(_ req: InlayHintRequest) async throws -> [InlayHint] {
     return try await forwardRequestToClangd(req)
   }
