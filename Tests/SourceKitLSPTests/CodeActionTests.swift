@@ -1835,6 +1835,114 @@ final class CodeActionTests: SourceKitLSPTestCase {
     }
   }
 
+  func testConvertLineCommentToDocComment() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣// A comment
+      func foo() {}2️⃣
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Convert Comment to Doc Comment",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: """
+                    /// A comment
+                    func foo() {}
+                    """
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testConvertBlockCommentToDocComment() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣/* A block comment */
+      func foo() {}2️⃣
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Convert Comment to Doc Comment",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: """
+                    /** A block comment */
+                    func foo() {}
+                    """
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testConvertMultipleLineCommentsToDocComments() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣// First line
+      // Second line
+      func foo() {}2️⃣
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Convert Comment to Doc Comment",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: """
+                    /// First line
+                    /// Second line
+                    func foo() {}
+                    """
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testConvertCommentToDocCommentNotShownOnFunctionBody() async throws {
+    try await assertCodeActions(
+      """
+      // A comment
+      func foo() {
+        1️⃣print("hello")
+      }
+      """
+    ) { uri, positions in
+      []
+    }
+  }
+
   /// Retrieves the code action at a set of markers and asserts that it matches a list of expected code actions.
   ///
   /// - Parameters:
