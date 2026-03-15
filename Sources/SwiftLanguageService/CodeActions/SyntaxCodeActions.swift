@@ -40,3 +40,11 @@ let allSyntaxCodeActions: [any SyntaxCodeActionProvider.Type] = {
 let supersededSourcekitdRefactoringActions: Set<String> = [
   "source.refactoring.kind.simplify.long.number.literal"  // Superseded by AddSeparatorsToIntegerLiteral
 ]
+
+extension [any SyntaxCodeActionProvider.Type] {
+  subscript(resolveIdentifier id: String) -> (any ResolvableCodeActionProvider.Type)? {
+    self.lazy
+      .compactMap { $0 as? any ResolvableCodeActionProvider.Type }
+      .first { $0.resolveIdentifier == id }
+  }
+}

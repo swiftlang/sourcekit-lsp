@@ -776,6 +776,8 @@ extension SourceKitLSPServer: QueueBasedMessageHandler {
       await self.handleRequest(for: request, requestHandler: self.prepareCallHierarchy)
     case let request as RequestAndReply<CodeActionRequest>:
       await self.handleRequest(for: request, requestHandler: self.codeAction)
+    case let request as RequestAndReply<CodeActionResolveRequest>:
+      await request.reply { try await codeActionResolve(request.params) }
     case let request as RequestAndReply<CodeLensRequest>:
       await self.handleRequest(for: request, requestHandler: self.codeLens)
     case let request as RequestAndReply<ColorPresentationRequest>:
@@ -1159,7 +1161,7 @@ extension SourceKitLSPServer {
       codeActionProvider: .value(
         CodeActionServerCapabilities(
           clientCapabilities: client.textDocument?.codeAction,
-          codeActionOptions: CodeActionOptions(codeActionKinds: nil),
+          codeActionOptions: CodeActionOptions(codeActionKinds: nil, resolveProvider: true),
           supportsCodeActions: true
         )
       ),
@@ -1949,6 +1951,19 @@ extension SourceKitLSPServer {
     return req.injectMetadata(toResponse: response)
   }
 
+  func codeActionResolve(_ req: CodeActionResolveRequest) async throws -> CodeAction {
+    guard case .dictionary(let dict) = req.codeAction.data,
+      case .string(let uriString) = dict["uri"],
+      let uri = try? DocumentURI(string: uriString)
+    else {
+      return req.codeAction
+    }
+    guard let workspace = await self.workspaceForDocument(uri: uri) else {
+      return req.codeAction
+    }
+    let language = try documentManager.latestSnapshot(uri.buildSettingsFile).language
+    return try await primaryLanguageService(for: uri, language, in: workspace).codeActionResolve(req)
+  }
   func codeLens(
     _ req: CodeLensRequest,
     workspace: Workspace,
