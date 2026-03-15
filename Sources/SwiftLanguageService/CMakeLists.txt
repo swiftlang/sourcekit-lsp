@@ -8,6 +8,7 @@ add_library(SwiftLanguageService STATIC
   CodeActions/ConvertIntegerLiteral.swift
   CodeActions/ConvertJSONToCodableStruct.swift
   CodeActions/ConvertStringConcatenationToStringInterpolation.swift
+  CodeActions/FlipBinaryOperands.swift
   CodeActions/PackageManifestEdits.swift
   CodeActions/RemoveUnusedImports.swift
   CodeActions/SyntaxCodeActionProvider.swift

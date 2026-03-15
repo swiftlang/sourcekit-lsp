@@ -1564,6 +1564,191 @@ final class CodeActionTests: SourceKitLSPTestCase {
     }
   }
 
+  // MARK: - Flip binary operands
+
+  func testFlipBinaryOperandsCommutative() async throws {
+    try await assertCodeActions(
+      """
+      let x = 1️⃣a && b2️⃣
+      """,
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Flip binary operands",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: "b && a"
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testFlipBinaryOperandsLessThan() async throws {
+    try await assertCodeActions(
+      """
+      if 1️⃣5 < count2️⃣ {
+        process()
+      }
+      """,
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Flip binary operands",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: "count > 5"
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testFlipBinaryOperandsGreaterThan() async throws {
+    try await assertCodeActions(
+      """
+      if 1️⃣a > b2️⃣ {}
+      """,
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Flip binary operands",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: "b < a"
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testFlipBinaryOperandsLessThanOrEqual() async throws {
+    try await assertCodeActions(
+      """
+      let x = 1️⃣a <= b2️⃣
+      """,
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Flip binary operands",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: "b >= a"
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testFlipBinaryOperandsGreaterThanOrEqual() async throws {
+    try await assertCodeActions(
+      """
+      let x = 1️⃣a >= b2️⃣
+      """,
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Flip binary operands",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: "b <= a"
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testFlipBinaryOperandsEquality() async throws {
+    try await assertCodeActions(
+      """
+      let x = 1️⃣a == b2️⃣
+      """,
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Flip binary operands",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: "b == a"
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testFlipBinaryOperandsNotOfferedForNonAllowlistedOperator() async throws {
+    // Operators like *, +, - are not in the allowlist because they may not be
+    // commutative (e.g. + on strings, custom operators).
+    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
+    let uri = DocumentURI(for: .swift, testName: #function)
+    let positions = testClient.openDocument(
+      """
+      let x = 1️⃣a * b2️⃣
+      """,
+      uri: uri
+    )
+    let result = try await testClient.send(
+      CodeActionRequest(
+        range: positions["1️⃣"]..<positions["2️⃣"],
+        context: .init(),
+        textDocument: TextDocumentIdentifier(uri)
+      )
+    )
+    let codeActions = try XCTUnwrap(result?.codeActions)
+    XCTAssertFalse(
+      codeActions.contains(where: { $0.title == "Flip binary operands" }),
+      "Should not offer flip for non-allowlisted operator '*'"
+    )
+  }
+
   func testRemoveUnusedImports() async throws {
     let project = try await SwiftPMTestProject(
       files: [
