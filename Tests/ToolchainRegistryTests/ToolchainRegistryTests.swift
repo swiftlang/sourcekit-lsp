@@ -626,6 +626,32 @@ final class ToolchainRegistryTests: SourceKitLSPTestCase {
     }
   }
 
+  func testPreferredToolchainAlwaysChoosesToolchainFromEnvVar() async throws {
+    try await withTestScratchDir { tempDir in
+      let t1Bin = tempDir.appending(components: "t1", "bin", directoryHint: .isDirectory)
+      let t2Bin = tempDir.appending(components: "t2", "bin", directoryHint: .isDirectory)
+      try makeToolchain(binPath: t1Bin, clang: true, swiftc: true)
+      try makeToolchain(binPath: t2Bin, clang: false, swiftc: true)
+
+      try ProcessEnv.setVar("TEST_SOURCEKIT_TOOLCHAIN_PATH", value: t2Bin.filePath)
+      defer { try! ProcessEnv.unsetVar("TEST_SOURCEKIT_TOOLCHAIN_PATH") }
+
+      let tr = ToolchainRegistry(
+        installPath: t1Bin,
+        environmentVariables: ["TEST_SOURCEKIT_TOOLCHAIN_PATH"],
+        xcodes: [],
+        libraryDirectories: [],
+        pathEnvironmentVariables: [],
+        darwinToolchainOverride: nil
+      )
+      await assertEqual(tr.toolchains.count, 2)
+
+      // Env variable wins.
+      await assertEqual(tr.preferredToolchain(containing: [\.swiftc])?.path, t2Bin)
+      await assertNil(tr.preferredToolchain(containing: [\.swiftc, \.clang]))
+    }
+  }
+
   func testSupersetToolchains() async throws {
     try await withTestScratchDir { tempDir in
       let usrLocal = tempDir.appending(components: "usr", "local")
