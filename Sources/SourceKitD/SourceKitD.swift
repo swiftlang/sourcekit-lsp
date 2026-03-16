@@ -121,7 +121,11 @@ package actor SourceKitD {
   ///
   /// This must not be referenced outside of `SwiftSourceKitPlugin`.
   package nonisolated var servicePluginApi: sourcekitd_service_plugin_api_functions_t {
-    try! servicePluginApiResult.get()
+    do {
+      return try servicePluginApiResult.get()
+    } catch {
+      fatalError("failed to get service plugin api, error: \(error)")
+    }
   }
   private let servicePluginApiResult: Result<sourcekitd_service_plugin_api_functions_t, any Error>
 
