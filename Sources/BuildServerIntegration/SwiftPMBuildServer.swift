@@ -743,6 +743,7 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
     logger.debug("Preparing '\(target.forLogging)' using \(self.toolchain.identifier)")
     var arguments = [
       try swift.filePath, "build",
+      "--build-system", "native",
       "--package-path", try projectRoot.filePath,
       "--scratch-path", self.swiftPMWorkspace.location.scratchDirectory.pathString,
       "--disable-index-store",
