@@ -140,52 +140,6 @@ package actor SkipUnless {
     #endif
   }
 
-  /// Check if we can use the build artifacts in the sourcekit-lsp build directory to build a macro package without
-  /// re-building swift-syntax.
-  package static func canBuildMacroUsingSwiftSyntaxFromSourceKitLSPBuild(
-    file: StaticString = #filePath,
-    line: UInt = #line
-  ) async throws {
-    try XCTSkipUnless(
-      Platform.current != .windows,
-      "Temporarily skipping as we need to fix these tests to use the cmake-built swift-syntax libraries on Windows."
-    )
-
-    return try await shared.skipUnlessSupported(file: file, line: line) {
-      do {
-        let project = try await SwiftPMTestProject(
-          files: [
-            "MyMacros/MyMacros.swift": #"""
-            import SwiftParser
-
-            func test() {
-              _ = Parser.parse(source: "let a")
-            }
-            """#,
-            "MyMacroClient/MyMacroClient.swift": """
-            """,
-          ],
-          manifest: SwiftPMTestProject.macroPackageManifest
-        )
-        try await SwiftPMTestProject.build(
-          at: project.scratchDirectory,
-          extraArguments: ["--experimental-prepare-for-indexing"]
-        )
-        return .featureSupported
-      } catch {
-        return .featureUnsupported(
-          skipMessage: """
-            Skipping because macro could not be built using build artifacts in the sourcekit-lsp build directory. \
-            This usually happens if sourcekit-lsp was built using a different toolchain than the one used at test-time.
-
-            Reason:
-            \(error)
-            """
-        )
-      }
-    }
-  }
-
   package static func canSwiftPMCompileForIOS(
     file: StaticString = #filePath,
     line: UInt = #line
