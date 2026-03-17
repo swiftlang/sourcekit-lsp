@@ -111,7 +111,7 @@ final class SwiftInterfaceTests: SourceKitLSPTestCase {
   }
 
   func testDefinitionInSystemModuleInterfaceWithReferenceDocument() async throws {
-    var options = SourceKitLSPOptions()
+    var options = try await SourceKitLSPOptions.testDefault()
     options.swiftPMOrDefault.swiftCompilerFlags = Self.ignoreModuleSourceInfoFlags
 
     let project = try await IndexedSingleSwiftFileTestProject(
@@ -303,7 +303,7 @@ final class SwiftInterfaceTests: SourceKitLSPTestCase {
   }
 
   func testNoDiagnosticsInGeneratedInterface() async throws {
-    var options = SourceKitLSPOptions()
+    var options = try await SourceKitLSPOptions.testDefault()
     options.swiftPMOrDefault.swiftCompilerFlags = Self.ignoreModuleSourceInfoFlags
 
     let testClient = try await TestSourceKitLSPClient(

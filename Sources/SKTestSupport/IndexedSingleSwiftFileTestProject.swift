@@ -179,8 +179,10 @@ package struct IndexedSingleSwiftFileTestProject {
     }
 
     // Create the test client
+    var options = try await SourceKitLSPOptions.testDefault()
+    options.swiftPMOrDefault.swiftCompilerFlags?.append(contentsOf: extraCompilerArguments)
     self.testClient = try await TestSourceKitLSPClient(
-      options: try await SourceKitLSPOptions.testDefault(),
+      options: options,
       capabilities: capabilities,
       workspaceFolders: [
         WorkspaceFolder(uri: DocumentURI(testWorkspaceDirectory))
