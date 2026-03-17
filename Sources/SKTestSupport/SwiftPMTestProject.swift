@@ -39,137 +39,134 @@ package class SwiftPMTestProject: MultiFileTestProject {
     """
 
   /// A manifest that defines two targets:
-  ///  - A macro target named `MyMacro`
+  ///  - A macro target named `MyMacros`
   ///  - And executable target named `MyMacroClient`
   ///
-  /// It builds the macro using the swift-syntax that was already built as part of the SourceKit-LSP build.
-  /// Re-using the SwiftSyntax modules that are already built is significantly faster than building swift-syntax in
-  /// each test case run and does not require internet access.
-  package static var macroPackageManifest: String {
-    get async throws {
-      // Directories that we should search for the swift-syntax package.
-      // We prefer a checkout in the build folder. If that doesn't exist, we are probably using local dependencies
-      // (SWIFTCI_USE_LOCAL_DEPS), so search next to the sourcekit-lsp source repo
-      let swiftSyntaxSearchPaths = [
-        productsDirectory
-          .deletingLastPathComponent()  // arm64-apple-macosx
-          .deletingLastPathComponent()  // debug
-          .appending(component: "checkouts"),
-        URL(fileURLWithPath: #filePath)
-          .deletingLastPathComponent()  // SwiftPMTestProject.swift
-          .deletingLastPathComponent()  // SKTestSupport
-          .deletingLastPathComponent()  // Sources
-          .deletingLastPathComponent(),  // sourcekit-lsp
+  /// The macro target is a minimal executable that implements the macro plugin protocol directly without depending on
+  /// SwiftSyntax. Use `minimalMacroPluginSource(expansions:)` to generate the source for the `MyMacros` target.
+  package static let minimalMacroPackageManifest: String = """
+    // swift-tools-version: 5.10
+
+    import PackageDescription
+    import CompilerPluginSupport
+
+    let package = Package(
+      name: "MyMacro",
+      platforms: [.macOS(.v11)],
+      targets: [
+        .macro(name: "MyMacros"),
+        .executableTarget(name: "MyMacroClient", dependencies: ["MyMacros"]),
+      ]
+    )
+    """
+
+  package struct HardcodedMacroExpansion {
+    package var typeName: String
+    package var role: String
+    package var expandedSource: String
+
+    package init(typeName: String, role: String, expandedSource: String) {
+      self.typeName = typeName
+      self.role = role
+      self.expandedSource = expandedSource
+    }
+  }
+
+  /// Generate the source for a minimal macro plugin that returns hardcoded expansions based on type name and macro role.
+  package static func minimalMacroPluginSource(expansions: [HardcodedMacroExpansion]) -> String {
+    let expansionsList =
+      expansions
+      .map { expansion in
+        "(typeName: \"\(expansion.typeName)\", role: \"\(expansion.role)\", expandedSource: \"\(expansion.expandedSource)\"),"
+      }
+      .joined(separator: "\n    ")
+
+    return """
+      import Foundation
+
+      private let expansions: [(typeName: String, role: String, expandedSource: String)] = [
+          \(expansionsList)
       ]
 
-      let swiftSyntaxCShimsModulemap =
-        swiftSyntaxSearchPaths.map { swiftSyntaxSearchPath in
-          swiftSyntaxSearchPath
-            .appending(components: "swift-syntax", "Sources", "_SwiftSyntaxCShims", "include", "module.modulemap")
+      private struct MacroInfo: Decodable { 
+        let typeName: String
+      }
+      private struct GetCapabilityRequest: Decodable {}
+      private struct ExpandRequest: Decodable {
+        let macro: MacroInfo
+        let macroRole: String?
+      }
+      private struct IncomingMessage: Decodable {
+        let getCapability: GetCapabilityRequest?
+        let expandFreestandingMacro: ExpandRequest?
+        let expandAttachedMacro: ExpandRequest?
+      }
+      private struct GetCapabilityResponse: Encodable {
+        struct Result: Encodable {
+          struct Capability: Encodable { let protocolVersion = 7 }
+          let capability = Capability()
         }
-        .first { FileManager.default.fileExists(at: $0) }
-
-      guard let swiftSyntaxCShimsModulemap else {
-        struct SwiftSyntaxCShimsModulemapNotFoundError: Swift.Error {}
-        throw SwiftSyntaxCShimsModulemapNotFoundError()
+        let getCapabilityResult = Result()
+      }
+      private struct ExpandMacroResponse: Encodable {
+        struct Result: Encodable {
+          let expandedSource: String
+          let diagnostics: [String] = []
+        }
+        let expandMacroResult: Result
       }
 
-      // Only link against object files that are listed in the `Objects.LinkFileList`. Otherwise we can get a situation
-      // where a `.swift` file is removed from swift-syntax, its `.o` file is still in the build directory because the
-      // build folder wasn't cleaned and thus we would link against the stale `.o` file.
-      let linkFileListURL =
-        productsDirectory
-        .appending(components: "SourceKitLSPPackageTests.product", "Objects.LinkFileList")
-      let linkFileListContents = try? String(contentsOf: linkFileListURL, encoding: .utf8)
-      guard let linkFileListContents else {
-        struct LinkFileListNotFoundError: Swift.Error {
-          let url: URL
-        }
-        throw LinkFileListNotFoundError(url: linkFileListURL)
-      }
-      let linkFileList =
-        Set(
-          linkFileListContents
-            .split(separator: "\n")
-            .map {
-              // Files are wrapped in single quotes if the path contains spaces. Drop the quotes.
-              if $0.hasPrefix("'") && $0.hasSuffix("'") {
-                return String($0.dropFirst().dropLast())
-              } else {
-                return String($0)
-              }
+      @main
+      struct MacroPlugin {
+        static func main() throws {
+          while true {
+            guard let headerData = try read(count: 8), headerData.count == 8 else {
+              break
             }
-        )
-
-      let swiftSyntaxModulesToLink = [
-        "SwiftBasicFormat",
-        "SwiftCompilerPlugin",
-        "SwiftCompilerPluginMessageHandling",
-        "SwiftDiagnostics",
-        "SwiftIfConfig",
-        "SwiftOperators",
-        "SwiftParser",
-        "SwiftParserDiagnostics",
-        "SwiftSyntax",
-        "SwiftSyntaxBuilder",
-        "SwiftSyntaxMacroExpansion",
-        "SwiftSyntaxMacros",
-        "_SwiftSyntaxCShims",
-      ]
-
-      var objectFiles: [String] = []
-      for moduleName in swiftSyntaxModulesToLink {
-        let dir = productsDirectory.appending(component: "\(moduleName).build")
-        let enumerator = FileManager.default.enumerator(at: dir, includingPropertiesForKeys: nil)
-        while let file = enumerator?.nextObject() as? URL {
-          if linkFileList.contains(try file.filePath) {
-            objectFiles.append(try file.filePath)
+            let payloadLength = headerData.withUnsafeBytes { buffer in
+              UInt64(littleEndian: buffer.load(as: UInt64.self))
+            }
+            if payloadLength == 0 { break }
+            guard let payloadData = try read(count: Int(payloadLength)),
+                  payloadData.count == Int(payloadLength) else {
+              break
+            }
+            guard let message = try? JSONDecoder().decode(IncomingMessage.self, from: payloadData) else {
+              continue
+            }
+            if message.getCapability != nil {
+              try writeMessage(try JSONEncoder().encode(GetCapabilityResponse()))
+            } else if let expand = message.expandFreestandingMacro ?? message.expandAttachedMacro {
+              let expandedSource = expansions.first {
+                $0.typeName == expand.macro.typeName && $0.role == (expand.macroRole ?? "")
+              }?.expandedSource ?? ""
+              try writeMessage(try JSONEncoder().encode(
+                ExpandMacroResponse(expandMacroResult: .init(expandedSource: expandedSource))
+              ))
+            }
           }
         }
       }
 
-      let linkerFlags = objectFiles.map {
-        """
-        "\($0)",
-        """
-      }.joined(separator: "\n")
-
-      let moduleSearchPath: String
-      if let toolchainVersion = try await ToolchainRegistry.forTesting.default?.swiftVersion,
-        toolchainVersion < SwiftVersion(6, 0)
-      {
-        moduleSearchPath = try productsDirectory.filePath
-      } else {
-        moduleSearchPath = "\(try productsDirectory.filePath)/Modules"
+      private func read(count: Int) throws -> Data? {
+        var accumulated = Data()
+        while accumulated.count < count {
+          let remaining = count - accumulated.count
+          guard let chunk = try FileHandle.standardInput.read(upToCount: remaining), !chunk.isEmpty else {
+            return accumulated.isEmpty ? nil : accumulated
+          }
+          accumulated.append(chunk)
+        }
+        return accumulated
       }
 
-      return """
-        // swift-tools-version: 5.10
-
-        import PackageDescription
-        import CompilerPluginSupport
-
-        let package = Package(
-          name: "MyMacro",
-          platforms: [.macOS(.v10_15)],
-          targets: [
-            .macro(
-              name: "MyMacros",
-              swiftSettings: [.unsafeFlags([
-                "-I", #"\(moduleSearchPath)"#,
-                "-Xcc", #"-fmodule-map-file=\(try swiftSyntaxCShimsModulemap.filePath)"#
-              ])],
-              linkerSettings: [
-                .unsafeFlags([
-                  \(linkerFlags)
-                ])
-              ]
-            ),
-            .executableTarget(name: "MyMacroClient", dependencies: ["MyMacros"]),
-          ]
-        )
-        """
-    }
+      private func writeMessage(_ data: Data) throws {
+        var length = UInt64(data.count).littleEndian
+        let header = withUnsafeBytes(of: &length) { Data($0) }
+        try FileHandle.standardOutput.write(contentsOf: header)
+        try FileHandle.standardOutput.write(contentsOf: data)
+      }
+      """
   }
 
   /// Create a new SwiftPM package with the given files.

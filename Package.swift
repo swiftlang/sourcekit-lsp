@@ -438,11 +438,9 @@ var targets: [Target] = [
       .product(name: "SKLogging", package: "swift-tools-protocols"),
       .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
       .product(name: "ToolsProtocolsSwiftExtensions", package: "swift-tools-protocols"),
-      // Depend on `SwiftCompilerPlugin` and `SwiftSyntaxMacros` so the modules are built before running tests and can
-      // be used by test cases that test macros (see `SwiftPMTestProject.macroPackageManifest`)
     ]
       + swiftSyntaxDependencies([
-        "SwiftIfConfig", "SwiftParser", "SwiftSyntax", "SwiftCompilerPlugin", "SwiftSyntaxMacros",
+        "SwiftIfConfig", "SwiftParser", "SwiftSyntax",
       ]),
   ),
 
