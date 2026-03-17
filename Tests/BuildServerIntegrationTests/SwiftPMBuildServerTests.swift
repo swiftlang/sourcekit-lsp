@@ -1266,7 +1266,7 @@ fileprivate extension URL {
 fileprivate extension BuildServerSpec {
   static func swiftpmSpec(for packageRoot: URL) -> BuildServerSpec {
     return BuildServerSpec(
-      kind: .swiftPM,
+      kind: .swiftPM(inferredBuildSystem: .native),
       projectRoot: packageRoot,
       configPath: packageRoot.appending(component: "Package.swift")
     )
