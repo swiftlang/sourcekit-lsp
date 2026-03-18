@@ -53,6 +53,44 @@ fileprivate extension SourceKitLSPOptions {
   }
 }
 
+let swiftPMHasExperimentalBuildServer: Bool = {
+  func impl() async throws -> Bool {
+    if ProcessEnv.block["SWIFTCI_USE_LOCAL_DEPS"] != nil {
+      // In general, don't skip tests in CI. Toolchain should be up-to-date.
+      return false
+    }
+    let swift = try await unwrap(ToolchainRegistry.forTesting.default?.swift).deletingLastPathComponent()
+      .appending(component: "swift")
+    let output = try await Process.run(
+      arguments: [
+        try swift.filePath,
+        "package",
+        "experimental-build-server",
+        "--help",
+      ],
+      // "swift package experimental-build-server --help" times out without a working directory. Set a nonsensical
+      // working directory to make it finish faster.
+      workingDirectory: TSCBasic.AbsolutePath(validating: testScratchDir().filePath)
+    )
+    return try output.utf8stderrOutput().contains("Usage: swift package experimental-build-server")
+  }
+
+  // We need to decide whether to run the experimental build server tests synchronously. If more tests start relying on
+  // this, we need to find a better solution.
+  nonisolated(unsafe) var result: Result<Bool, any Error>!
+  let sema = WrappedSemaphore(name: "swiftPMHasExperimentalBuildServer")
+  let task = Task {
+    do {
+      result = .success(try await impl())
+    } catch {
+      result = .failure(error)
+    }
+    sema.signal()
+  }
+  try! sema.waitOrThrow()
+  return try! result.get()
+}()
+
 @Suite(.serialized, .configureLogging)
 struct SwiftPMBuildServerTests {
   @Test
@@ -139,8 +177,8 @@ struct SwiftPMBuildServerTests {
   }
 
   @Test(
-    arguments: Platform.current == .windows
-      ? [SourceKitLSPOptions()] : [SourceKitLSPOptions(), .forTestingExperimentalSwiftPMBuildServer]
+    arguments: swiftPMHasExperimentalBuildServer
+      ? [SourceKitLSPOptions(), .forTestingExperimentalSwiftPMBuildServer] : [SourceKitLSPOptions()]
   )
   func testBasicSwiftArgs(options: SourceKitLSPOptions) async throws {
     try await withTestScratchDir { tempDir in
