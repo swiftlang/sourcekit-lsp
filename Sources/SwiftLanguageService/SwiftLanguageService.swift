@@ -929,6 +929,7 @@ extension SwiftLanguageService {
     }
     let providersAndKinds: [(provider: CodeActionProvider, kind: CodeActionKind?)] = [
       (retrieveSyntaxCodeActions, nil),
+      (retrieveConvertForEachToForInCodeActions, .refactorInline),
       (retrieveRefactorCodeActions, .refactor),
       (retrieveQuickFixCodeActions, .quickFix),
       (retrieveRemoveUnusedImportsCodeAction, .sourceOrganizeImports),
@@ -985,6 +986,31 @@ extension SwiftLanguageService {
     return req.codeAction
   }
 
+  func retrieveConvertForEachToForInCodeActions(_ request: CodeActionRequest) async throws -> [CodeAction] {
+    let uri = request.textDocument.uri
+    let snapshot = try documentManager.latestSnapshot(uri)
+
+    let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
+    guard let scope = SyntaxCodeActionScope(snapshot: snapshot, syntaxTree: syntaxTree, request: request),
+      let candidate = ConvertForEachToForIn.candidate(in: scope)
+    else {
+      return []
+    }
+
+    let compileCommand = await compileCommand(for: uri, fallbackAfterTimeout: true)
+    let cursorInfoResponse = try await cursorInfo(
+      snapshot,
+      compileCommand: compileCommand,
+      candidate.calleePosition..<candidate.calleePosition
+    )
+
+    guard cursorInfoResponse.cursorInfo.contains(where: { self.isStandardLibraryForEach($0.symbolInfo) }) else {
+      return []
+    }
+
+    return [candidate.codeAction]
+  }
+
   func retrieveRefactorCodeActions(_ params: CodeActionRequest) async throws -> [CodeAction] {
     let additionalCursorInfoParameters: ((SKDRequestDictionary) -> Void) = { skreq in
       skreq.set(self.keys.retrieveRefactorActions, to: 1)
@@ -1016,6 +1042,16 @@ extension SwiftLanguageService {
     }
 
     return refactorActions
+  }
+
+  private func isStandardLibraryForEach(_ symbol: SymbolDetails) -> Bool {
+    guard symbol.isSystem == true,
+      let usr = symbol.usr
+    else {
+      return false
+    }
+
+    return usr.contains("s:STsE7forEach")
   }
 
   func retrieveQuickFixCodeActions(_ params: CodeActionRequest) async throws -> [CodeAction] {

@@ -4,6 +4,7 @@ add_library(SwiftLanguageService STATIC
   ClosureCompletionFormat.swift
   CodeActions/AddDocumentation.swift
   CodeActions/ApplyDeMorganLaw.swift
+  CodeActions/ConvertForEachToForIn.swift
   CodeActions/ConvertIfLetToGuard.swift
   CodeActions/ConvertIntegerLiteral.swift
   CodeActions/ConvertJSONToCodableStruct.swift
@@ -92,4 +93,3 @@ target_link_libraries(SwiftLanguageService PRIVATE
   SwiftSyntax::SwiftSyntaxBuilder
   $<$<NOT:$<PLATFORM_ID:Darwin>>:FoundationXML>
 )
-
