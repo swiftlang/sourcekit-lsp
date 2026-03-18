@@ -166,7 +166,9 @@ package struct ExpectationNotFulfilledError: Error, CustomStringConvertible {
 package nonisolated func fulfillmentOfOrThrow(
   _ expectations: XCTestExpectation...,
   timeout: TimeInterval = defaultTimeout,
-  enforceOrder enforceOrderOfFulfillment: Bool = false
+  enforceOrder enforceOrderOfFulfillment: Bool = false,
+  file: StaticString = #filePath,
+  line: UInt = #line
 ) async throws {
   // `XCTWaiter.fulfillment` was introduced in the macOS 13.3 SDK but marked as being available on macOS 10.15.
   // At the same time that XCTWaiter.fulfillment was introduced `XCTWaiter.wait` was deprecated in async contexts.
@@ -178,6 +180,9 @@ package nonisolated func fulfillmentOfOrThrow(
     enforceOrder: enforceOrderOfFulfillment
   )
   if started != .completed {
+    // XCTFail because XCTest only reports the last-thrown error even if it's swallowed by `try?` etc.
+    // This can happen e.g. when errors are thrown and swallowed in a `defer` block or `deinit`.
+    XCTFail("Expectation '\(expectations)' not fulfilled", file: file, line: line)
     throw ExpectationNotFulfilledError(expectations: expectations)
   }
 }
