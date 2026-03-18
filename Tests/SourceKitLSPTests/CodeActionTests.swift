@@ -1236,6 +1236,71 @@ final class CodeActionTests: SourceKitLSPTestCase {
     }
   }
 
+  func testConvertStoredPropertyToComputedWithTypeAnnotation() async throws {
+    try await assertCodeActions(
+      """
+      struct S {
+          1️⃣var x: Int = 252️⃣
+      }
+      """,
+      markers: ["1️⃣"],
+      ranges: [("1️⃣", "2️⃣")],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Convert Stored Property to Computed Property",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: Position(line: 0, utf16index: 10)..<Position(line: 1, utf16index: 19),
+                  newText: "\n    var x: Int { 25 }"
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testConvertStoredPropertyToComputedWithoutTypeAnnotation() async throws {
+    try await assertCodeActions(
+      """
+      struct S {
+        1️⃣var x = 255️⃣
+      }
+      """,
+      markers: [],
+      ranges: [("1️⃣", "5️⃣")],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Convert Stored Property to Computed Property",
+          kind: .refactorInline,
+          command: Command(
+            title: "Convert Stored Property to Computed Property",
+            command: "semantic.refactor.convertStoredPropertyToComputed",
+            arguments: [
+              .dictionary([
+                "title": .string("Convert Stored Property to Computed Property"),
+                "uri": .string(uri.stringValue),
+                "offset": .int(10),
+              ]),
+              .dictionary([
+                "sourcekitlsp_textDocument": .dictionary([
+                  "uri": .string(uri.stringValue)
+                ])
+              ]),
+            ]
+          )
+        )
+      ]
+    }
+  }
   func testApplyDeMorganLawNegatedAnd() async throws {
     try await assertCodeActions(
       """
