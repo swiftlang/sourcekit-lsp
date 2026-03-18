@@ -304,7 +304,7 @@ final class SwiftInterfaceTests: SourceKitLSPTestCase {
 
   func testNoDiagnosticsInGeneratedInterface() async throws {
     var options = try await SourceKitLSPOptions.testDefault()
-    options.swiftPMOrDefault.swiftCompilerFlags = Self.ignoreModuleSourceInfoFlags
+    options.fallbackBuildSystemOrDefault.swiftCompilerFlags = Self.ignoreModuleSourceInfoFlags
 
     let testClient = try await TestSourceKitLSPClient(
       options: options,
