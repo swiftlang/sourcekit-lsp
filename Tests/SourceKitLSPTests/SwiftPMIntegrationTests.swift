@@ -857,7 +857,7 @@ final class SwiftPMIntegrationTests: SourceKitLSPTestCase {
     // so there should be no symbols found
     XCTAssertTrue(
       symbolsWithFeature.isEmpty,
-      "Expected no symbols with _test_EverythingUnexpected feature (all content parsed as unexpected)"
+      "Expected no symbols with _test_EverythingUnexpected feature, but got '\(symbolsWithFeature)' (all content parsed as unexpected)"
     )
 
     // Now update Package.swift to remove the experimental feature flag
