@@ -1723,7 +1723,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
 
     let expectedCodeAction = CodeAction(
       title: "Move to extension",
-      kind: .refactorExtract,
+      kind: .refactorInline,
       diagnostics: nil,
       edit: WorkspaceEdit(
         changes: [
