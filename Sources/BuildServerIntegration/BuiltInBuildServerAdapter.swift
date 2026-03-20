@@ -16,7 +16,7 @@ package import Foundation
 @_spi(SourceKitLSP) import LanguageServerProtocolExtensions
 @_spi(SourceKitLSP) import LanguageServerProtocolTransport
 @_spi(SourceKitLSP) import SKLogging
-import SKOptions
+package import SKOptions
 import SwiftExtensions
 import ToolchainRegistry
 import ToolsProtocolsSwiftExtensions
@@ -27,7 +27,7 @@ package struct BuildServerSpec {
     case externalBuildServer
     case jsonCompilationDatabase
     case fixedCompilationDatabase
-    case swiftPM
+    case swiftPM(inferredBuildSystem: SwiftPMBuildSystem?)
     case injected(
       @Sendable (_ projectRoot: URL, _ connectionToSourceKitLSP: any Connection) async -> any Connection
     )

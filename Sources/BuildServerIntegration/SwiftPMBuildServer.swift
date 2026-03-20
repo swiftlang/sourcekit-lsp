@@ -150,11 +150,44 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
 
   static package func searchForConfig(in path: URL, options: SourceKitLSPOptions) -> BuildServerSpec? {
     let packagePath = path.appending(component: "Package.swift")
-    if (try? String(contentsOf: packagePath, encoding: .utf8))?.contains("PackageDescription") ?? false {
-      return BuildServerSpec(kind: .swiftPM, projectRoot: path, configPath: packagePath)
+    guard (try? String(contentsOf: packagePath, encoding: .utf8))?.contains("PackageDescription") ?? false else {
+      return nil
     }
-
-    return nil
+    // We found a Swift package. Attempt to infer which build system is in use.
+    let scratchPath: AbsolutePath?
+    if let scratchPathOption = options.swiftPMOrDefault.scratchPath {
+      scratchPath = try? AbsolutePath(validating: scratchPathOption, relativeTo: path.filePath)
+    } else {
+      scratchPath = try? AbsolutePath(validating: path.filePath).appending(component: ".build")
+    }
+    let inferredBuildSystem: SwiftPMBuildSystem?
+    if let scratchPath {
+      let existingScratchContents = try? FileManager.default.contentsOfDirectory(
+        at: scratchPath.asURL,
+        includingPropertiesForKeys: nil
+      )
+      let foundSwiftBuildOutputs = (existingScratchContents ?? []).contains(where: { $0.lastPathComponent == "out" })
+      let foundNativeOutputs = (existingScratchContents ?? []).contains(where: {
+        $0.lastPathComponent == "debug" || $0.lastPathComponent == "release"
+      })
+      if foundNativeOutputs && foundSwiftBuildOutputs {
+        // TODO: update this shortly after SwiftPM's default build system changes.
+        inferredBuildSystem = .native
+      } else if foundNativeOutputs {
+        inferredBuildSystem = .native
+      } else if foundSwiftBuildOutputs {
+        inferredBuildSystem = .swiftbuild
+      } else {
+        inferredBuildSystem = nil
+      }
+    } else {
+      inferredBuildSystem = nil
+    }
+    return BuildServerSpec(
+      kind: .swiftPM(inferredBuildSystem: inferredBuildSystem),
+      projectRoot: path,
+      configPath: packagePath
+    )
   }
 
   /// Creates a build server using the Swift Package Manager, if this workspace is a package.

@@ -279,27 +279,26 @@ private extension BuildServerSpec {
           connectionToSourceKitLSP: connectionToSourceKitLSP
         )
       }
-    case .swiftPM:
-      switch options.swiftPMOrDefault.buildSystem {
-      case .swiftbuild:
-        let buildServer = await orLog("Creating external SwiftPM build server") {
-          try await ExternalBuildServerAdapter(
-            projectRoot: projectRoot,
-            config: BuildServerConfig.forSwiftPMBuildServer(
-              projectRoot: projectRoot,
-              swiftPMOptions: options.swiftPMOrDefault,
-              toolchainRegistry: toolchainRegistry
-            ),
-            messagesToSourceKitLSPHandler: messagesToSourceKitLSPHandler
-          )
-        }
-        guard let buildServer else {
-          logger.log("Failed to create external SwiftPM build server at \(projectRoot)")
-          return nil
-        }
-        logger.log("Created external SwiftPM build server at \(projectRoot)")
-        return .external(buildServer)
-      case .native, nil:
+    case .swiftPM(let inferredBuildSystem):
+      let selectedBuildSystem: SwiftPMBuildSystem
+      switch (options.swiftPMOrDefault.buildSystem, options.backgroundIndexingOrDefault) {
+      // If the user's config explicitly specifies a build system, respect that choice.
+      case (.swiftbuild, _):
+        selectedBuildSystem = .swiftbuild
+      case (.native, _):
+        selectedBuildSystem = .native
+      // If there is no explicit preference and we're background indexing, default to native
+      // for now.
+      case (nil, true):
+        selectedBuildSystem = .native
+      // If there is no explicit preference and we're not background indexing, we should
+      // attempt to match the user's manually intiated builds to maximize compatibility.
+      case (nil, false):
+        selectedBuildSystem = inferredBuildSystem ?? .native
+      }
+      // Choose the appropiate adapter based on the build system we just selected.
+      switch selectedBuildSystem {
+      case .native:
         #if !NO_SWIFTPM_DEPENDENCY
         return await createBuiltInBuildServerAdapter(
           messagesToSourceKitLSPHandler: messagesToSourceKitLSPHandler,
@@ -316,6 +315,24 @@ private extension BuildServerSpec {
         #else
         return nil
         #endif
+      case .swiftbuild:
+        let buildServer = await orLog("Creating external SwiftPM build server") {
+          try await ExternalBuildServerAdapter(
+            projectRoot: projectRoot,
+            config: BuildServerConfig.forSwiftPMBuildServer(
+              projectRoot: projectRoot,
+              options: options,
+              toolchainRegistry: toolchainRegistry
+            ),
+            messagesToSourceKitLSPHandler: messagesToSourceKitLSPHandler
+          )
+        }
+        guard let buildServer else {
+          logger.log("Failed to create external SwiftPM build server at \(projectRoot)")
+          return nil
+        }
+        logger.log("Created external SwiftPM build server at \(projectRoot)")
+        return .external(buildServer)
       }
     case .injected(let injector):
       let connectionToSourceKitLSP = LocalConnection(

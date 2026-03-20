@@ -14,6 +14,7 @@ import BuildServerIntegration
 import Foundation
 @_spi(SourceKitLSP) import LanguageServerProtocol
 import SKLogging
+import SKOptions
 import SKTestSupport
 import SourceKitLSP
 import SwiftExtensions
@@ -763,6 +764,58 @@ final class SwiftPMIntegrationTests: SourceKitLSPTestCase {
     }
   }
 
+  // Ensure that when background indexing is disabled, we infer the build system based
+  // on existing products.
+  func testBuildSystemInference(buildSystem: SwiftPMBuildSystem) async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Lib/Lib.swift": """
+        public func libFunction() -> Int { 0 }
+        """,
+        "MyClient/MyClient.swift": """
+        import Lib
+        func test() {
+          let _: String = libFunction()
+        }
+        """,
+      ],
+      manifest: """
+        let package = Package(
+          name: "MyPackage",
+          targets: [
+            .target(name: "Lib"),
+            .executableTarget(name: "MyClient", dependencies: ["Lib"]),
+          ]
+        )
+        """,
+      workspaces: { scratchDirectory in
+        // This build is expected to fail, but it will produce the 'Lib' module needed when we fetch diagnostics.
+        try? await SwiftPMTestProject.build(at: scratchDirectory, buildSystem: buildSystem)
+        return [WorkspaceFolder(uri: DocumentURI(scratchDirectory))]
+      },
+      enableBackgroundIndexing: false,
+      pollIndex: false
+    )
+
+    try await project.testClient.send(SynchronizeRequest(index: true))
+    let (uri, _) = try project.openDocument("MyClient.swift")
+    let diagnostics = try await project.testClient.send(
+      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+    )
+    XCTAssertEqual(
+      diagnostics.fullReport?.items.map(\.message),
+      ["Cannot convert value of type 'Int' to specified type 'String'"]
+    )
+  }
+
+  func testBuildSystemInference_Native() async throws {
+    try await testBuildSystemInference(buildSystem: .native)
+  }
+
+  func testBuildSystemInference_SwiftBuild() async throws {
+    try await testBuildSystemInference(buildSystem: .swiftbuild)
+  }
+
   func testExperimentalFeaturesPassedToSyntaxTreeManager() async throws {
     let project = try await SwiftPMTestProject(
       files: [
@@ -804,7 +857,7 @@ final class SwiftPMIntegrationTests: SourceKitLSPTestCase {
     // so there should be no symbols found
     XCTAssertTrue(
       symbolsWithFeature.isEmpty,
-      "Expected no symbols with _test_EverythingUnexpected feature (all content parsed as unexpected)"
+      "Expected no symbols with _test_EverythingUnexpected feature, but got '\(symbolsWithFeature)' (all content parsed as unexpected)"
     )
 
     // Now update Package.swift to remove the experimental feature flag
