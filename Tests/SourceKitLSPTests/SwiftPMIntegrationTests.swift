@@ -14,6 +14,7 @@ import BuildServerIntegration
 import Foundation
 @_spi(SourceKitLSP) import LanguageServerProtocol
 import SKLogging
+import SKOptions
 import SKTestSupport
 import SourceKitLSP
 import SwiftExtensions
@@ -782,7 +783,9 @@ final class SwiftPMIntegrationTests: SourceKitLSPTestCase {
             )
           ]
         )
-        """
+        """,
+      // We don't want to test behavior based on fallback settings. Increase the buildSettingsTimeout to ensure we always get proper build settings.
+      options: .testDefault(buildSettingsTimeout: defaultTimeoutDuration)
     )
 
     let (uri, _) = try project.openDocument("Test.swift")
