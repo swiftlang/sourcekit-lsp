@@ -1925,4 +1925,77 @@ final class DocumentTestDiscoveryTests: SourceKitLSPTestCase {
     let tests = try await project.testClient.send(DocumentTestsRequest(textDocument: TextDocumentIdentifier(uri)))
     XCTAssertEqual(tests, [])
   }
+
+  func testXCTestsInInactiveIfRegionsAreDiscovered() async throws {
+    // XCTest declarations inside inactive `#if` branches are not indexed by the semantic index because
+    // the compiler never sees them. Verify that they are still surfaced via syntactic scanning of the
+    // inactive region after the semantic index is available.
+    let project = try await IndexedSingleSwiftFileTestProject(
+      """
+      import XCTest
+
+      // Active test class – found by the semantic index.
+      1️⃣class ActiveTests: XCTestCase {
+        2️⃣func testActiveMethod() {}3️⃣
+      }4️⃣
+
+      // Inactive region – the compiler never compiles this, so the semantic index
+      // won't have an entry for it.  We expect syntactic scanning to pick it up.
+      #if false
+      5️⃣class InactiveTests: XCTestCase {
+        6️⃣func testInactiveMethod() {}7️⃣
+      }8️⃣
+      #endif
+      """,
+      allowBuildFailure: true
+    )
+
+    let tests = try await project.testClient.send(
+      DocumentTestsRequest(textDocument: TextDocumentIdentifier(project.fileURI))
+    )
+
+    // Both the active-region class (from the index) and the inactive-region class
+    // (found syntactically) should be present.
+    XCTAssertEqual(
+      tests,
+      [
+        TestItem(
+          id: "ActiveTests",
+          label: "ActiveTests",
+          location: Location(
+            uri: project.fileURI,
+            range: project.positions["1️⃣"]..<project.positions["4️⃣"]
+          ),
+          children: [
+            TestItem(
+              id: "ActiveTests/testActiveMethod()",
+              label: "testActiveMethod()",
+              location: Location(
+                uri: project.fileURI,
+                range: project.positions["2️⃣"]..<project.positions["3️⃣"]
+              )
+            )
+          ]
+        ),
+        TestItem(
+          id: "InactiveTests",
+          label: "InactiveTests",
+          location: Location(
+            uri: project.fileURI,
+            range: project.positions["5️⃣"]..<project.positions["8️⃣"]
+          ),
+          children: [
+            TestItem(
+              id: "InactiveTests/testInactiveMethod()",
+              label: "testInactiveMethod()",
+              location: Location(
+                uri: project.fileURI,
+                range: project.positions["6️⃣"]..<project.positions["7️⃣"]
+              )
+            )
+          ]
+        ),
+      ]
+    )
+  }
 }

@@ -13,6 +13,7 @@
 import BuildServerIntegration
 import Foundation
 @_spi(SourceKitLSP) import LanguageServerProtocol
+import SKOptions
 import SKTestSupport
 import ToolchainRegistry
 
@@ -32,14 +33,12 @@ final class PluginSwiftPMTestProject {
       if let _buildServerManager {
         return _buildServerManager
       }
+      let options = try await SourceKitLSPOptions.testDefault(backgroundIndexing: false)
+      let spec = SwiftPMBuildServer.searchForConfig(in: scratchDirectory, options: options)
       let buildServerManager = await BuildServerManager(
-        buildServerSpec: BuildServerSpec(
-          kind: .swiftPM,
-          projectRoot: scratchDirectory,
-          configPath: scratchDirectory.appending(component: "Package.swift")
-        ),
+        buildServerSpec: spec,
         toolchainRegistry: .forTesting,
-        options: try .testDefault(backgroundIndexing: false),
+        options: options,
         connectionToClient: DummyBuildServerManagerConnectionToClient(),
         buildServerHooks: BuildServerHooks(),
         createMainFilesProvider: { _, _ in nil }

@@ -37,35 +37,10 @@ final class ExpandMacroTests: SourceKitLSPTestCase {
   }
 
   func testFreestandingMacroExpansion(getReferenceDocument: Bool, peekDocuments: Bool) async throws {
-    try await SkipUnless.canBuildMacroUsingSwiftSyntaxFromSourceKitLSPBuild()
-
     let files: [RelativeFileLocation: String] = [
-      "MyMacros/MyMacros.swift": #"""
-      import SwiftCompilerPlugin
-      import SwiftSyntax
-      import SwiftSyntaxBuilder
-      import SwiftSyntaxMacros
-
-      public struct StringifyMacro: ExpressionMacro {
-        public static func expansion(
-          of node: some FreestandingMacroExpansionSyntax,
-          in context: some MacroExpansionContext
-        ) -> ExprSyntax {
-          guard let argument = node.arguments.first?.expression else {
-            fatalError("compiler bug: the macro does not have any arguments")
-          }
-
-          return "(\(argument), \(literal: argument.description))"
-        }
-      }
-
-      @main
-      struct MyMacroPlugin: CompilerPlugin {
-        let providingMacros: [Macro.Type] = [
-          StringifyMacro.self,
-        ]
-      }
-      """#,
+      "MyMacros/MyMacros.swift": SwiftPMTestProject.minimalMacroPluginSource(expansions: [
+        .init(typeName: "StringifyMacro", role: "expression", expandedSource: #"(1 + 2, "1 + 2")"#)
+      ]),
       "MyMacroClient/MyMacroClient.swift": """
       @freestanding(expression)
       public macro stringify<T>(_ value: T) -> (T, String) = #externalMacro(module: "MyMacros", type: "StringifyMacro")
@@ -78,7 +53,7 @@ final class ExpandMacroTests: SourceKitLSPTestCase {
 
     let project = try await SwiftPMTestProject(
       files: files,
-      manifest: SwiftPMTestProject.macroPackageManifest,
+      manifest: SwiftPMTestProject.minimalMacroPackageManifest,
       capabilities: ClientCapabilities(experimental: [
         PeekDocumentsRequest.method: .dictionary(["supported": .bool(peekDocuments)]),
         GetReferenceDocumentRequest.method: .dictionary(["supported": .bool(getReferenceDocument)]),
@@ -206,52 +181,15 @@ final class ExpandMacroTests: SourceKitLSPTestCase {
   }
 
   func testAttachedMacroExpansion(getReferenceDocument: Bool, peekDocuments: Bool) async throws {
-    try await SkipUnless.canBuildMacroUsingSwiftSyntaxFromSourceKitLSPBuild()
-
     let files: [RelativeFileLocation: String] = [
-      "MyMacros/MyMacros.swift": #"""
-      import SwiftCompilerPlugin
-      import SwiftSyntax
-      import SwiftSyntaxBuilder
-      import SwiftSyntaxMacros
-
-      public struct DictionaryStorageMacro {}
-
-      extension DictionaryStorageMacro: MemberMacro {
-        public static func expansion(
-          of node: AttributeSyntax,
-          providingMembersOf declaration: some DeclGroupSyntax,
-          in context: some MacroExpansionContext
-        ) throws -> [DeclSyntax] {
-          return ["\n  var _storage: [String: Any] = [:]"]
-        }
-      }
-
-      extension DictionaryStorageMacro: MemberAttributeMacro {
-        public static func expansion(
-          of node: AttributeSyntax,
-          attachedTo declaration: some DeclGroupSyntax,
-          providingAttributesFor member: some DeclSyntaxProtocol,
-          in context: some MacroExpansionContext
-        ) throws -> [AttributeSyntax] {
-          return [
-            AttributeSyntax(
-              leadingTrivia: [.newlines(1), .spaces(2)],
-              attributeName: IdentifierTypeSyntax(
-                name: .identifier("DictionaryStorageProperty")
-              )
-            )
-          ]
-        }
-      }
-
-      @main
-      struct MyMacroPlugin: CompilerPlugin {
-        let providingMacros: [Macro.Type] = [
-          DictionaryStorageMacro.self
-        ]
-      }
-      """#,
+      "MyMacros/MyMacros.swift": SwiftPMTestProject.minimalMacroPluginSource(expansions: [
+        .init(typeName: "DictionaryStorageMacro", role: "member", expandedSource: "var _storage: [String: Any] = [:]"),
+        .init(
+          typeName: "DictionaryStorageMacro",
+          role: "memberAttribute",
+          expandedSource: "@DictionaryStorageProperty"
+        ),
+      ]),
       "MyMacroClient/MyMacroClient.swift": #"""
       @attached(memberAttribute)
       @attached(member, names: named(_storage))
@@ -267,7 +205,7 @@ final class ExpandMacroTests: SourceKitLSPTestCase {
 
     let project = try await SwiftPMTestProject(
       files: files,
-      manifest: SwiftPMTestProject.macroPackageManifest,
+      manifest: SwiftPMTestProject.minimalMacroPackageManifest,
       capabilities: ClientCapabilities(experimental: [
         PeekDocumentsRequest.method: .dictionary(["supported": .bool(peekDocuments)]),
         GetReferenceDocumentRequest.method: .dictionary(["supported": .bool(getReferenceDocument)]),
@@ -394,57 +332,13 @@ final class ExpandMacroTests: SourceKitLSPTestCase {
   }
 
   func testNestedMacroExpansion() async throws {
-    try await SkipUnless.canBuildMacroUsingSwiftSyntaxFromSourceKitLSPBuild()
-
     let files: [RelativeFileLocation: String] = [
-      "MyMacros/MyMacros.swift": #"""
-
-      import SwiftCompilerPlugin
-      import SwiftSyntax
-      import SwiftSyntaxBuilder
-      import SwiftSyntaxMacros
-
-      public struct OuterMacro: ExpressionMacro {
-        public static func expansion(
-          of node: some FreestandingMacroExpansionSyntax,
-          in context: some MacroExpansionContext
-        ) -> ExprSyntax {
-          // Add padding to check that we use the outer macro expansion buffer's snapshot to do position conversions.
-          return "/* padding */ #intermediate"
-        }
-      }
-
-      public struct IntermediateMacro: ExpressionMacro {
-        public static func expansion(
-          of node: some FreestandingMacroExpansionSyntax,
-          in context: some MacroExpansionContext
-        ) -> ExprSyntax {
-          return "#stringify(1 + 2)"
-        }
-      }
-
-      public struct StringifyMacro: ExpressionMacro {
-        public static func expansion(
-          of node: some FreestandingMacroExpansionSyntax,
-          in context: some MacroExpansionContext
-        ) -> ExprSyntax {
-          guard let argument = node.arguments.first?.expression else {
-            fatalError("compiler bug: the macro does not have any arguments")
-          }
-
-          return "(\(argument), \(literal: argument.description))"
-        }
-      }
-
-      @main
-      struct MyMacroPlugin: CompilerPlugin {
-        let providingMacros: [Macro.Type] = [
-          OuterMacro.self,
-          IntermediateMacro.self,
-          StringifyMacro.self,
-        ]
-      }
-      """#,
+      "MyMacros/MyMacros.swift": SwiftPMTestProject.minimalMacroPluginSource(expansions: [
+        // Add padding to check that we use the outer macro expansion buffer's snapshot to do position conversions.
+        .init(typeName: "OuterMacro", role: "expression", expandedSource: "/* padding */ #intermediate"),
+        .init(typeName: "IntermediateMacro", role: "expression", expandedSource: "#stringify(1 + 2)"),
+        .init(typeName: "StringifyMacro", role: "expression", expandedSource: #"(1 + 2, \"1 + 2\")"#),
+      ]),
       "MyMacroClient/MyMacroClient.swift": """
       @freestanding(expression)
       public macro stringify<T>(_ value: T) -> (T, String) = #externalMacro(module: "MyMacros", type: "StringifyMacro")
@@ -463,7 +357,7 @@ final class ExpandMacroTests: SourceKitLSPTestCase {
 
     let project = try await SwiftPMTestProject(
       files: files,
-      manifest: SwiftPMTestProject.macroPackageManifest,
+      manifest: SwiftPMTestProject.minimalMacroPackageManifest,
       capabilities: ClientCapabilities(experimental: [
         PeekDocumentsRequest.method: .dictionary(["supported": .bool(true)]),
         GetReferenceDocumentRequest.method: .dictionary(["supported": .bool(true)]),

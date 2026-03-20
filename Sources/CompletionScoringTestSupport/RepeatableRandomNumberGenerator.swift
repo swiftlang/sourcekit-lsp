@@ -103,47 +103,15 @@ package struct RepeatableRandomNumberGenerator: RandomNumberGenerator {
   }
 }
 
-/// The bundle of the currently executing test.
-private let testBundle: Bundle = {
-  #if os(macOS)
-  if let bundle = Bundle.allBundles.first(where: { $0.bundlePath.hasSuffix(".xctest") }) {
-    return bundle
-  }
-  fatalError("couldn't find the test bundle")
-  #else
-  return Bundle.main
-  #endif
-}()
-
-/// The path to the built products directory, ie. `.build/debug/arm64-apple-macosx` or the platform-specific equivalent.
-private let productsDirectory: URL = {
-  #if os(macOS)
-  return testBundle.bundleURL.deletingLastPathComponent()
-  #else
-  return testBundle.bundleURL
-  #endif
-}()
-
 /// The path to the INPUTS directory of shared test projects.
 private let skTestSupportInputsDirectory: URL = {
-  #if os(macOS)
-  var resources =
-    productsDirectory
-    .appending(components: "SourceKitLSP_CompletionScoringTestSupport.bundle", "Contents", "Resources")
-  if !FileManager.default.fileExists(at: resources) {
-    // Xcode and command-line swiftpm differ about the path.
-    resources.deleteLastPathComponent()
-    resources.deleteLastPathComponent()
+  guard let resourceURL = Bundle.module.resourceURL else {
+    fatalError("could not determine resource URL for bundle: \(Bundle.module)")
   }
-  #else
-  let resources =
-    productsDirectory
-    .appending(component: "SourceKitLSP_CompletionScoringTestSupport.resources")
-  #endif
-  guard FileManager.default.fileExists(at: resources) else {
-    fatalError("missing resources \(resources)")
+  guard FileManager.default.fileExists(at: resourceURL) else {
+    fatalError("missing resources \(resourceURL)")
   }
-  return resources.appending(component: "INPUTS", directoryHint: .isDirectory).standardizedFileURL
+  return resourceURL.appending(components: "INPUTS", directoryHint: .isDirectory).standardizedFileURL
 }()
 
 func loadTestResource(name: String, withExtension ext: String) throws -> Data {

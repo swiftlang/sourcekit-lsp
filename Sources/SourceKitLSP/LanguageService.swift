@@ -29,8 +29,9 @@ package enum LanguageServerState {
   case semanticFunctionalityDisabled
 }
 
+/// Extends ``LanguageServerProtocol.TestItem`` with metadata for internal processing.
 package struct AnnotatedTestItem: Sendable {
-  /// The test item to be annotated
+  /// The test item to be annotated.
   package var testItem: TestItem
 
   /// Whether the `TestItem` is an extension.
@@ -245,6 +246,7 @@ package protocol LanguageService: AnyObject, Sendable {
   func typeDefinition(_ request: TypeDefinitionRequest) async throws -> LocationsOrLocationLinksResponse?
   func documentSymbolHighlight(_ req: DocumentHighlightRequest) async throws -> [DocumentHighlight]?
   func foldingRange(_ req: FoldingRangeRequest) async throws -> [FoldingRange]?
+  func selectionRange(_ req: SelectionRangeRequest) async throws -> [SelectionRange]
   func documentSymbol(_ req: DocumentSymbolRequest) async throws -> DocumentSymbolResponse?
   func documentColor(_ req: DocumentColorRequest) async throws -> [ColorInformation]
   func documentSemanticTokens(_ req: DocumentSemanticTokensRequest) async throws -> DocumentSemanticTokensResponse?
@@ -316,19 +318,14 @@ package protocol LanguageService: AnyObject, Sendable {
 
   func getReferenceDocument(_ req: GetReferenceDocumentRequest) async throws -> GetReferenceDocumentResponse
 
-  /// Perform a syntactic scan of the file at the given URI for test cases and test classes.
-  ///
-  /// This is used as a fallback to show the test cases in a file if the index for a given file is not up-to-date.
-  ///
-  /// A return value of `nil` indicates that this language service does not support syntactic test discovery.
-  func syntacticDocumentTests(for uri: DocumentURI, in workspace: Workspace) async throws -> [AnnotatedTestItem]?
-
-  /// Syntactically scans the file at the given URL for tests declared within it.
+  /// Syntactically scans the given snapshot for tests declared within it.
   ///
   /// Does not write the results to the index.
   ///
   /// The order of the returned tests is not defined. The results should be sorted before being returned to the editor.
-  func syntacticTestItems(for snapshot: DocumentSnapshot) async -> [AnnotatedTestItem]
+  ///
+  /// A return value of `nil` indicates that this language service does not support syntactic test discovery.
+  func syntacticTestItems(for snapshot: DocumentSnapshot) async -> [AnnotatedTestItem]?
 
   /// Returns the syntactically scanned playgrounds declared within the workspace.
   ///
@@ -451,6 +448,10 @@ package extension LanguageService {
     throw ResponseError.requestNotImplemented(FoldingRangeRequest.self)
   }
 
+  func selectionRange(_ req: SelectionRangeRequest) async throws -> [SelectionRange] {
+    throw ResponseError.requestNotImplemented(SelectionRangeRequest.self)
+  }
+
   func documentSymbol(_ req: DocumentSymbolRequest) async throws -> DocumentSymbolResponse? {
     throw ResponseError.requestNotImplemented(DocumentSymbolRequest.self)
   }
@@ -549,10 +550,6 @@ package extension LanguageService {
 
   func getReferenceDocument(_ req: GetReferenceDocumentRequest) async throws -> GetReferenceDocumentResponse {
     throw ResponseError.requestNotImplemented(GetReferenceDocumentRequest.self)
-  }
-
-  func syntacticDocumentTests(for uri: DocumentURI, in workspace: Workspace) async throws -> [AnnotatedTestItem]? {
-    throw ResponseError.internalError("syntacticDocumentTests not implemented in \(Self.self) for \(uri)")
   }
 
   func canonicalDeclarationPosition(of position: Position, in uri: DocumentURI) async -> Position? {

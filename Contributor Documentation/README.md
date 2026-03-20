@@ -4,6 +4,7 @@ The following documentation documents are primarily intended for developers of S
 
 - [Background Indexing](Background%20Indexing.md)
 - [BSP Extension](BSP%20Extensions.md)
+- [Code Action](Code%20Action.md)
 - [Debugging Memory Leaks](Debugging%20Memory%20Leaks.md)
 - [Environment Variables](Environment%20Variables.md)
 - [Files To Reindex](Files%20To%20Reindex.md)

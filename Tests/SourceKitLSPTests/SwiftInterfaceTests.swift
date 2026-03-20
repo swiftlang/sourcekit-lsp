@@ -13,6 +13,7 @@
 import Foundation
 @_spi(SourceKitLSP) import LanguageServerProtocol
 @_spi(SourceKitLSP) import SKLogging
+import SKOptions
 import SKTestSupport
 import SKUtilities
 import SourceKitLSP
@@ -88,28 +89,31 @@ final class SwiftInterfaceTests: SourceKitLSPTestCase {
       uri: project.fileURI,
       position: project.positions["1️⃣"],
       testClient: project.testClient,
-      swiftInterfaceFile: "Swift.String.swiftinterface",
-      linePrefix: "@frozen public struct String"
+      swiftInterfaceFiles: ["Swift.String.swiftinterface", "String.swift"],
+      lineContains: "public struct String"
     )
     // Test stdlib with two submodules
     try await assertSystemSwiftInterface(
       uri: project.fileURI,
       position: project.positions["2️⃣"],
       testClient: project.testClient,
-      swiftInterfaceFile: "Swift.Math.Integers.swiftinterface",
-      linePrefix: "@frozen public struct Int"
+      swiftInterfaceFiles: ["Swift.Math.Integers.swiftinterface", "IntegerTypes.swift"],
+      lineContains: "public struct Int"
     )
     // Test concurrency
     try await assertSystemSwiftInterface(
       uri: project.fileURI,
       position: project.positions["3️⃣"],
       testClient: project.testClient,
-      swiftInterfaceFiles: ["Swift.swiftinterface", "_Concurrency.swiftinterface"],
-      linePrefix: "@inlinable public func withTaskGroup"
+      swiftInterfaceFiles: ["Swift.swiftinterface", "_Concurrency.swiftinterface", "TaskGroup.swift"],
+      lineContains: "public func withTaskGroup"
     )
   }
 
   func testDefinitionInSystemModuleInterfaceWithReferenceDocument() async throws {
+    var options = try await SourceKitLSPOptions.testDefault()
+    options.swiftPMOrDefault.swiftCompilerFlags = Self.ignoreModuleSourceInfoFlags
+
     let project = try await IndexedSingleSwiftFileTestProject(
       """
       public func libFunc() async {
@@ -119,7 +123,8 @@ final class SwiftInterfaceTests: SourceKitLSPTestCase {
       capabilities: ClientCapabilities(experimental: [
         GetReferenceDocumentRequest.method: .dictionary(["supported": .bool(true)])
       ]),
-      indexSystemModules: true
+      indexSystemModules: true,
+      extraCompilerArguments: Self.ignoreModuleSourceInfoFlags
     )
 
     let definition = try await project.testClient.send(
@@ -266,7 +271,7 @@ final class SwiftInterfaceTests: SourceKitLSPTestCase {
       position: positions["1️⃣"],
       testClient: testClient,
       swiftInterfaceFile: "Swift.Collection.Array.swiftinterface",
-      linePrefix: "public consuming func filter<E>(_ isIncluded: (Element) throws(E) -> Bool) throws(E) -> [Element]"
+      lineContains: "func filter<E>(_ isIncluded: (Element) throws(E) -> Bool) throws(E) -> [Element]"
     )
   }
 
@@ -285,12 +290,24 @@ final class SwiftInterfaceTests: SourceKitLSPTestCase {
       position: project.positions["1️⃣"],
       testClient: project.testClient,
       swiftInterfaceFile: "Swift.Collection.Array.swiftinterface",
-      linePrefix: "public consuming func filter<E>(_ isIncluded: (Element) throws(E) -> Bool) throws(E) -> [Element]"
+      lineContains: "func filter<E>(_ isIncluded: (Element) throws(E) -> Bool) throws(E) -> [Element]"
     )
   }
 
+  /// Flags needed to ignore module source info.
+  static var ignoreModuleSourceInfoFlags: [String] {
+    [
+      "-Xfrontend",
+      "-ignore-module-source-info",
+    ]
+  }
+
   func testNoDiagnosticsInGeneratedInterface() async throws {
+    var options = try await SourceKitLSPOptions.testDefault()
+    options.fallbackBuildSystemOrDefault.swiftCompilerFlags = Self.ignoreModuleSourceInfoFlags
+
     let testClient = try await TestSourceKitLSPClient(
+      options: options,
       capabilities: ClientCapabilities(experimental: [
         GetReferenceDocumentRequest.method: .dictionary(["supported": .bool(true)])
       ])
@@ -385,7 +402,8 @@ private func assertSystemSwiftInterface(
   position: Position,
   testClient: TestSourceKitLSPClient,
   swiftInterfaceFile: String,
-  linePrefix: String,
+  linePrefix: String? = nil,
+  lineContains: String? = nil,
   line: UInt = #line
 ) async throws {
   try await assertSystemSwiftInterface(
@@ -394,6 +412,7 @@ private func assertSystemSwiftInterface(
     testClient: testClient,
     swiftInterfaceFiles: [swiftInterfaceFile],
     linePrefix: linePrefix,
+    lineContains: lineContains,
     line: line
   )
 }
@@ -410,7 +429,8 @@ private func assertSystemSwiftInterface(
   position: Position,
   testClient: TestSourceKitLSPClient,
   swiftInterfaceFiles: [String],
-  linePrefix: String,
+  linePrefix: String? = nil,
+  lineContains: String? = nil,
   line: UInt = #line
 ) async throws {
   let definition = try await testClient.send(
@@ -426,5 +446,10 @@ private func assertSystemSwiftInterface(
   let lineTable = LineTable(contents)
   let destinationLine = try XCTUnwrap(lineTable.line(at: location.range.lowerBound.line))
     .trimmingCharacters(in: .whitespaces)
-  XCTAssert(destinationLine.hasPrefix(linePrefix), "Full line was: '\(destinationLine)'", line: line)
+  if let linePrefix {
+    XCTAssert(destinationLine.hasPrefix(linePrefix), "Full line was: '\(destinationLine)'", line: line)
+  }
+  if let lineContains {
+    XCTAssert(destinationLine.contains(lineContains), "Full line was: '\(destinationLine)'", line: line)
+  }
 }

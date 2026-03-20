@@ -17,6 +17,9 @@ add_compile_options(
   "$<$<COMPILE_LANGUAGE:Swift>:SHELL:-enable-upcoming-feature MemberImportVisibility>"
   "$<$<COMPILE_LANGUAGE:Swift>:SHELL:-enable-upcoming-feature InferIsolatedConformances>"
   "$<$<COMPILE_LANGUAGE:Swift>:SHELL:-enable-upcoming-feature NonisolatedNonsendingByDefault>"
+  "$<$<COMPILE_LANGUAGE:Swift>:SHELL:-enable-upcoming-feature ExistentialAny>"
+  "$<$<COMPILE_LANGUAGE:Swift>:SHELL:-enable-upcoming-feature ImmutableWeakCaptures>"
+  "$<$<COMPILE_LANGUAGE:Swift>:SHELL:-Werror ExistentialAny>"
 )
 
 find_package(dispatch QUIET)

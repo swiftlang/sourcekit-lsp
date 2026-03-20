@@ -239,13 +239,13 @@ final class SemanticTokensTests: SourceKitLSPTestCase {
         // let x = X()
         TokenSpec(marker: "3️⃣", length: 3, kind: .keyword),
         TokenSpec(marker: "4️⃣", length: 1, kind: .identifier),
-        TokenSpec(marker: "5️⃣", length: 1, kind: .struct),
+        TokenSpec(marker: "5️⃣", length: 1, kind: .struct, isSourceKit: true),
         // let y = x + x
         TokenSpec(marker: "6️⃣", length: 3, kind: .keyword),
         TokenSpec(marker: "7️⃣", length: 1, kind: .identifier),
-        TokenSpec(marker: "8️⃣", length: 1, kind: .variable),
+        TokenSpec(marker: "8️⃣", length: 1, kind: .variable, isSourceKit: true),
         TokenSpec(marker: "9️⃣", length: 1, kind: .operator),
-        TokenSpec(marker: "🔟", length: 1, kind: .variable),
+        TokenSpec(marker: "🔟", length: 1, kind: .variable, isSourceKit: true),
       ]
     )
 
@@ -265,9 +265,9 @@ final class SemanticTokensTests: SourceKitLSPTestCase {
         TokenSpec(marker: "3️⃣", length: 3, kind: .keyword),
         TokenSpec(marker: "4️⃣", length: 1, kind: .identifier),
         // a()
-        TokenSpec(marker: "5️⃣", length: 1, kind: .function),
+        TokenSpec(marker: "5️⃣", length: 1, kind: .function, isSourceKit: true),
         // b()
-        TokenSpec(marker: "6️⃣", length: 1, kind: .variable),
+        TokenSpec(marker: "6️⃣", length: 1, kind: .variable, isSourceKit: true),
       ]
     )
   }
@@ -287,12 +287,12 @@ final class SemanticTokensTests: SourceKitLSPTestCase {
         // class Y: X {}
         TokenSpec(marker: "3️⃣", length: 5, kind: .keyword),
         TokenSpec(marker: "4️⃣", length: 1, kind: .identifier),
-        TokenSpec(marker: "5️⃣", length: 1, kind: .interface),
+        TokenSpec(marker: "5️⃣", length: 1, kind: .interface, isSourceKit: true),
         // let y: Y = X()
         TokenSpec(marker: "6️⃣", length: 3, kind: .keyword),
         TokenSpec(marker: "7️⃣", length: 1, kind: .identifier),
-        TokenSpec(marker: "8️⃣", length: 1, kind: .class),
-        TokenSpec(marker: "9️⃣", length: 1, kind: .interface),
+        TokenSpec(marker: "8️⃣", length: 1, kind: .class, isSourceKit: true),
+        TokenSpec(marker: "9️⃣", length: 1, kind: .interface, isSourceKit: true),
       ]
     )
 
@@ -310,7 +310,7 @@ final class SemanticTokensTests: SourceKitLSPTestCase {
         TokenSpec(marker: "3️⃣", length: 4, kind: .keyword),
         TokenSpec(marker: "4️⃣", length: 1, kind: .identifier),
         TokenSpec(marker: "5️⃣", length: 1, kind: .identifier),
-        TokenSpec(marker: "6️⃣", length: 1, kind: .interface),
+        TokenSpec(marker: "6️⃣", length: 1, kind: .interface, isSourceKit: true),
       ]
     )
   }
@@ -322,9 +322,9 @@ final class SemanticTokensTests: SourceKitLSPTestCase {
         TokenSpec(marker: "1️⃣", length: 4, kind: .keyword),
         TokenSpec(marker: "2️⃣", length: 1, kind: .identifier),
         TokenSpec(marker: "3️⃣", length: 1, kind: .function, modifiers: .parameterLabel),
-        TokenSpec(marker: "4️⃣", length: 3, kind: .struct, modifiers: .defaultLibrary),
+        TokenSpec(marker: "4️⃣", length: 3, kind: .struct, modifiers: .defaultLibrary, isSourceKit: true),
         TokenSpec(marker: "5️⃣", length: 1, kind: .identifier),
-        TokenSpec(marker: "6️⃣", length: 6, kind: .struct, modifiers: .defaultLibrary),
+        TokenSpec(marker: "6️⃣", length: 6, kind: .struct, modifiers: .defaultLibrary, isSourceKit: true),
       ]
     )
   }
@@ -356,8 +356,8 @@ final class SemanticTokensTests: SourceKitLSPTestCase {
         TokenSpec(marker: "4️⃣", length: 4, kind: .keyword),
         TokenSpec(marker: "5️⃣", length: 1, kind: .identifier),
         // X.f()
-        TokenSpec(marker: "6️⃣", length: 1, kind: .class),
-        TokenSpec(marker: "7️⃣", length: 1, kind: .method, modifiers: .static),
+        TokenSpec(marker: "6️⃣", length: 1, kind: .class, isSourceKit: true),
+        TokenSpec(marker: "7️⃣", length: 1, kind: .method, modifiers: .static, isSourceKit: true),
       ]
     )
 
@@ -377,8 +377,8 @@ final class SemanticTokensTests: SourceKitLSPTestCase {
         TokenSpec(marker: "4️⃣", length: 4, kind: .keyword),
         TokenSpec(marker: "5️⃣", length: 1, kind: .identifier),
         // X.f()
-        TokenSpec(marker: "6️⃣", length: 1, kind: .class),
-        TokenSpec(marker: "7️⃣", length: 1, kind: .method, modifiers: .static),
+        TokenSpec(marker: "6️⃣", length: 1, kind: .class, isSourceKit: true),
+        TokenSpec(marker: "7️⃣", length: 1, kind: .method, modifiers: .static, isSourceKit: true),
       ]
     )
   }
@@ -403,9 +403,9 @@ final class SemanticTokensTests: SourceKitLSPTestCase {
         // let x = Maybe<String>.none
         TokenSpec(marker: "6️⃣", length: 3, kind: .keyword),
         TokenSpec(marker: "7️⃣", length: 1, kind: .identifier),
-        TokenSpec(marker: "8️⃣", length: 5, kind: .enum),
-        TokenSpec(marker: "9️⃣", length: 6, kind: .struct, modifiers: .defaultLibrary),
-        TokenSpec(marker: "🔟", length: 4, kind: .enumMember),
+        TokenSpec(marker: "8️⃣", length: 5, kind: .enum, isSourceKit: true),
+        TokenSpec(marker: "9️⃣", length: 6, kind: .struct, modifiers: .defaultLibrary, isSourceKit: true),
+        TokenSpec(marker: "🔟", length: 4, kind: .enumMember, isSourceKit: true),
       ]
     )
 
@@ -425,12 +425,12 @@ final class SemanticTokensTests: SourceKitLSPTestCase {
         // case some
         TokenSpec(marker: "4️⃣", length: 4, kind: .keyword),
         TokenSpec(marker: "5️⃣", length: 4, kind: .identifier),
-        TokenSpec(marker: "6️⃣", length: 1, kind: .typeParameter),
+        TokenSpec(marker: "6️⃣", length: 1, kind: .typeParameter, isSourceKit: true),
         // let y: Maybe = .some(42)
         TokenSpec(marker: "7️⃣", length: 3, kind: .keyword),
         TokenSpec(marker: "8️⃣", length: 1, kind: .identifier),
-        TokenSpec(marker: "9️⃣", length: 5, kind: .enum),
-        TokenSpec(marker: "🔟", length: 4, kind: .enumMember),
+        TokenSpec(marker: "9️⃣", length: 5, kind: .enum, isSourceKit: true),
+        TokenSpec(marker: "🔟", length: 4, kind: .enumMember, isSourceKit: true),
         TokenSpec(marker: "0️⃣", length: 2, kind: .number),
       ]
     )
@@ -845,7 +845,7 @@ final class SemanticTokensTests: SourceKitLSPTestCase {
         TokenSpec(marker: "3️⃣", length: 4, kind: .keyword),
         TokenSpec(marker: "4️⃣", length: 1, kind: .identifier),
         TokenSpec(marker: "5️⃣", length: 1, kind: .function, modifiers: .parameterLabel),
-        TokenSpec(marker: "6️⃣", length: 7, kind: .actor),
+        TokenSpec(marker: "6️⃣", length: 7, kind: .actor, isSourceKit: true),
       ]
     )
   }
@@ -860,8 +860,8 @@ final class SemanticTokensTests: SourceKitLSPTestCase {
         TokenSpec(marker: "1️⃣", length: 4, kind: .keyword),
         TokenSpec(marker: "2️⃣", length: 3, kind: .identifier),
         TokenSpec(marker: "3️⃣", length: 3, kind: .function, modifiers: .parameterLabel),
-        TokenSpec(marker: "4️⃣", length: 3, kind: .struct, modifiers: .defaultLibrary),
-        TokenSpec(marker: "5️⃣", length: 3, kind: .function),
+        TokenSpec(marker: "4️⃣", length: 3, kind: .struct, modifiers: .defaultLibrary, isSourceKit: true),
+        TokenSpec(marker: "5️⃣", length: 3, kind: .function, isSourceKit: true),
         TokenSpec(marker: "6️⃣", length: 3, kind: .function, modifiers: .parameterLabel),
         TokenSpec(marker: "7️⃣", length: 1, kind: .number),
       ]
@@ -878,7 +878,7 @@ final class SemanticTokensTests: SourceKitLSPTestCase {
         TokenSpec(marker: "2️⃣", length: 3, kind: .identifier),
         TokenSpec(marker: "3️⃣", length: 3, kind: .function, modifiers: .parameterLabel),
         TokenSpec(marker: "4️⃣", length: 12, kind: .identifier),
-        TokenSpec(marker: "5️⃣", length: 3, kind: .struct, modifiers: .defaultLibrary),
+        TokenSpec(marker: "5️⃣", length: 3, kind: .struct, modifiers: .defaultLibrary, isSourceKit: true),
       ]
     )
   }
@@ -894,7 +894,7 @@ final class SemanticTokensTests: SourceKitLSPTestCase {
       expected: [
         TokenSpec(marker: "1️⃣", length: 4, kind: .keyword),
         TokenSpec(marker: "2️⃣", length: 22, kind: .identifier),
-        TokenSpec(marker: "3️⃣", length: 22, kind: .function),
+        TokenSpec(marker: "3️⃣", length: 22, kind: .function, isSourceKit: true),
       ]
     )
     try await assertSemanticTokens(
@@ -911,8 +911,8 @@ final class SemanticTokensTests: SourceKitLSPTestCase {
         TokenSpec(marker: "4️⃣", length: 3, kind: .keyword),
         TokenSpec(marker: "5️⃣", length: 9, kind: .identifier),
         TokenSpec(marker: "6️⃣", length: 1, kind: .number),
-        TokenSpec(marker: "7️⃣", length: 1, kind: .struct),
-        TokenSpec(marker: "8️⃣", length: 9, kind: .property),
+        TokenSpec(marker: "7️⃣", length: 1, kind: .struct, isSourceKit: true),
+        TokenSpec(marker: "8️⃣", length: 9, kind: .property, isSourceKit: true),
       ]
     )
   }
@@ -973,7 +973,13 @@ final class SemanticTokensTests: SourceKitLSPTestCase {
         """,
       language: .c,
       expected: [
-        TokenSpec(marker: "1️⃣", length: 4, kind: .function, modifiers: [.declaration, .definition, .globalScope])
+        TokenSpec(
+          marker: "1️⃣",
+          length: 4,
+          kind: .function,
+          modifiers: [.declaration, .definition, .globalScope],
+          isSourceKit: true
+        )
       ]
     )
   }
@@ -1040,17 +1046,24 @@ private struct TokenSpec {
   let length: Int
   let kind: SemanticTokenTypes
   let modifiers: SemanticTokenModifiers
+  /// Whether this token is from SourceKit
+  ///
+  /// This is used for testing the `reportSyntacticHighlightInSemanticTokens` option. When the option is set to false,
+  /// only TokenSpecs with `isSourceKit` set to true will be asserted against.
+  let isSourceKit: Bool
 
   init(
     marker: String,
     length: Int,
     kind: SemanticTokenTypes,
-    modifiers: SemanticTokenModifiers = []
+    modifiers: SemanticTokenModifiers = [],
+    isSourceKit: Bool = false
   ) {
     self.marker = marker
     self.length = length
     self.kind = kind
     self.modifiers = modifiers
+    self.isSourceKit = isSourceKit
   }
 }
 
@@ -1062,7 +1075,39 @@ private func assertSemanticTokens(
   file: StaticString = #filePath,
   line: UInt = #line
 ) async throws {
-  let testClient = try await TestSourceKitLSPClient()
+  try await assertSemanticTokens(
+    markedContents: markedContents,
+    language: language,
+    includeSyntacticTokens: true,
+    range: range,
+    expected: expected,
+    file: file,
+    line: line
+  )
+
+  try await assertSemanticTokens(
+    markedContents: markedContents,
+    language: language,
+    includeSyntacticTokens: false,
+    range: range,
+    expected: expected,
+    file: file,
+    line: line
+  )
+}
+
+private func assertSemanticTokens(
+  markedContents: String,
+  language: Language = .swift,
+  includeSyntacticTokens: Bool,
+  range: (startMarker: String, endMarker: String)? = nil,
+  expected: [TokenSpec],
+  file: StaticString = #filePath,
+  line: UInt = #line
+) async throws {
+  var options = try await SourceKitLSPOptions.testDefault()
+  options.reportSyntacticHighlightInSemanticTokens = includeSyntacticTokens
+  let testClient = try await TestSourceKitLSPClient(options: options)
   let uri = DocumentURI(for: language)
   let positions = testClient.openDocument(markedContents, uri: uri)
 
@@ -1078,7 +1123,7 @@ private func assertSemanticTokens(
     response = try await testClient.send(DocumentSemanticTokensRequest(textDocument: TextDocumentIdentifier(uri)))
   }
 
-  let expectedTokens = expected.map {
+  let expectedTokens = expected.filter { includeSyntacticTokens || $0.isSourceKit }.map {
     Token(start: positions[$0.marker], utf16length: $0.length, kind: $0.kind, modifiers: $0.modifiers)
   }
   XCTAssertEqual(

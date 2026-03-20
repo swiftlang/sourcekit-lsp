@@ -81,6 +81,7 @@ package struct IndexedSingleSwiftFileTestProject {
     allowBuildFailure: Bool = false,
     workspaceDirectory: URL? = nil,
     cleanUp: Bool = cleanScratchDirectories,
+    extraCompilerArguments: [String] = [],
     testName: String = #function
   ) async throws {
     let testWorkspaceDirectory = try workspaceDirectory ?? testScratchDir(testName: testName)
@@ -109,6 +110,7 @@ package struct IndexedSingleSwiftFileTestProject {
       compilerArguments.append("-index-ignore-system-modules")
     }
 
+    compilerArguments.append(contentsOf: extraCompilerArguments)
     if let sdk = defaultSDKPath {
       compilerArguments += ["-sdk", sdk]
 
@@ -177,8 +179,10 @@ package struct IndexedSingleSwiftFileTestProject {
     }
 
     // Create the test client
+    var options = try await SourceKitLSPOptions.testDefault()
+    options.swiftPMOrDefault.swiftCompilerFlags?.append(contentsOf: extraCompilerArguments)
     self.testClient = try await TestSourceKitLSPClient(
-      options: try await SourceKitLSPOptions.testDefault(),
+      options: options,
       capabilities: capabilities,
       workspaceFolders: [
         WorkspaceFolder(uri: DocumentURI(testWorkspaceDirectory))

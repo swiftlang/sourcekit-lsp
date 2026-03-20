@@ -99,7 +99,10 @@ package class SwiftPMDependencyProject {
       workingDirectory: packageDirectory
     )
     try await runGitCommand(
-      ["-c", "user.name=Dummy", "-c", "user.email=noreply@swift.org", "commit", "-m", "Version \(version)"],
+      [
+        "-c", "user.name=Dummy", "-c", "user.email=noreply@swift.org",
+        "commit", "--no-gpg-sign", "-m", "Version \(version)",
+      ],
       workingDirectory: packageDirectory
     )
 
