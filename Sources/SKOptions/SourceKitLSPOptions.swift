@@ -20,7 +20,7 @@ import struct TSCBasic.AbsolutePath
 /// Options that can be used to modify SourceKit-LSP's behavior.
 ///
 /// See `ConfigurationFile.md` for a description of the configuration file's behavior.
-public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
+public struct SourceKitLSPOptions: Sendable, Codable, Equatable, LSPAnyCodable {
   public struct SwiftPMOptions: Sendable, Codable, Equatable {
     /// The configuration to build the project for during background indexing
     /// and the configuration whose build folder should be used for Swift
@@ -513,21 +513,6 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     self.sourcekitdRequestTimeout = sourcekitdRequestTimeout
     self.semanticServiceRestartTimeout = semanticServiceRestartTimeout
     self.buildServerWorkspaceRequestsTimeout = buildServerWorkspaceRequestsTimeout
-  }
-
-  public init?(fromLSPAny lspAny: LSPAny?) throws {
-    guard let lspAny else {
-      return nil
-    }
-    let jsonEncoded = try JSONEncoder().encode(lspAny)
-    self = try JSONDecoder().decode(Self.self, from: jsonEncoded)
-  }
-
-  public var asLSPAny: LSPAny {
-    get throws {
-      let jsonEncoded = try JSONEncoder().encode(self)
-      return try JSONDecoder().decode(LSPAny.self, from: jsonEncoded)
-    }
   }
 
   public init?(path: URL?) {

@@ -28,7 +28,7 @@ import SwiftSyntax
 
 /// Uniquely identifies a code completion session. We need this so that when resolving a code completion item, we can
 /// verify that the item to resolve belongs to the code completion session that is currently open.
-struct CompletionSessionID: Equatable {
+struct CompletionSessionID: Equatable, Codable {
   private static let nextSessionID = AtomicUInt32(initialValue: 0)
 
   let value: UInt32
@@ -40,10 +40,20 @@ struct CompletionSessionID: Equatable {
   static func next() -> CompletionSessionID {
     return CompletionSessionID(value: nextSessionID.fetchAndIncrement())
   }
+
+  init(from decoder: any Decoder) throws {
+    let container = try decoder.singleValueContainer()
+    value = try container.decode(UInt32.self)
+  }
+
+  func encode(to encoder: any Encoder) throws {
+    var container = encoder.singleValueContainer()
+    try container.encode(value)
+  }
 }
 
 /// Data that is attached to a `CompletionItem`.
-struct CompletionItemData: LSPAnyCodable {
+struct CompletionItemData: Codable, LSPAnyCodable {
   let uri: DocumentURI
   let sessionId: CompletionSessionID
   let itemId: Int
@@ -52,27 +62,6 @@ struct CompletionItemData: LSPAnyCodable {
     self.uri = uri
     self.sessionId = sessionId
     self.itemId = itemId
-  }
-
-  init?(fromLSPDictionary dictionary: [String: LSPAny]) {
-    guard case .string(let uriString) = dictionary["uri"],
-      case .int(let sessionId) = dictionary["sessionId"],
-      case .int(let itemId) = dictionary["itemId"],
-      let uri = try? DocumentURI(string: uriString)
-    else {
-      return nil
-    }
-    self.uri = uri
-    self.sessionId = CompletionSessionID(value: UInt32(sessionId))
-    self.itemId = itemId
-  }
-
-  func encodeToLSPAny() -> LSPAny {
-    return .dictionary([
-      "uri": .string(uri.stringValue),
-      "sessionId": .int(Int(sessionId.value)),
-      "itemId": .int(itemId),
-    ])
   }
 }
 

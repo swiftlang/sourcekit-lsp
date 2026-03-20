@@ -29,46 +29,10 @@ package struct RefactoringEdit: Hashable, Sendable, Codable {
   package var bufferName: String?
 
   package init(range: Range<Position>, newText: String, bufferName: String?) {
-    self._range = CustomCodable<PositionRange>(wrappedValue: range)
+    self.range = range
     self.newText = newText
     self.bufferName = bufferName
   }
 }
 
-extension RefactoringEdit: LSPAnyCodable {
-  package init?(fromLSPDictionary dictionary: [String: LSPAny]) {
-    guard case .dictionary(let rangeDict) = dictionary[CodingKeys.range.stringValue],
-      case .string(let newText) = dictionary[CodingKeys.newText.stringValue]
-    else {
-      return nil
-    }
-
-    guard let range = Range<Position>(fromLSPDictionary: rangeDict) else {
-      return nil
-    }
-
-    self._range = CustomCodable<PositionRange>(wrappedValue: range)
-    self.newText = newText
-
-    if case .string(let bufferName) = dictionary[CodingKeys.bufferName.stringValue] {
-      self.bufferName = bufferName
-    } else {
-      self.bufferName = nil
-    }
-  }
-
-  package func encodeToLSPAny() -> LSPAny {
-    guard let bufferName = bufferName else {
-      return .dictionary([
-        CodingKeys.range.stringValue: range.encodeToLSPAny(),
-        CodingKeys.newText.stringValue: .string(newText),
-      ])
-    }
-
-    return .dictionary([
-      CodingKeys.range.stringValue: range.encodeToLSPAny(),
-      CodingKeys.newText.stringValue: .string(newText),
-      CodingKeys.bufferName.stringValue: .string(bufferName),
-    ])
-  }
-}
+extension RefactoringEdit: LSPAnyCodable {}

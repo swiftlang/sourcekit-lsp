@@ -902,7 +902,7 @@ final class WorkspaceTests: SourceKitLSPTestCase {
       ],
       initializationOptions: SourceKitLSPOptions(
         swiftPM: SourceKitLSPOptions.SwiftPMOptions(swiftCompilerFlags: ["-D", "TEST"])
-      ).asLSPAny
+      ).encodeToLSPAny()
     )
 
     let (uri, _) = try project.openDocument("Test.swift")
@@ -938,7 +938,7 @@ final class WorkspaceTests: SourceKitLSPTestCase {
       ],
       initializationOptions: SourceKitLSPOptions(
         swiftPM: SourceKitLSPOptions.SwiftPMOptions(swiftCompilerFlags: ["-D", "OTHER"])
-      ).asLSPAny
+      ).encodeToLSPAny()
     )
 
     let (uri, _) = try project.openDocument("Test.swift")
