@@ -723,7 +723,9 @@ final class SwiftCompletionTests: SourceKitLSPTestCase {
           a.1️⃣
         }
         """,
-      ]
+      ],
+      // We don't want to test behavior based on fallback settings. Increase the buildSettingsTimeout to ensure we always get proper build settings.
+      options: .testDefault(buildSettingsTimeout: defaultTimeoutDuration)
     )
     let (uri, positions) = try project.openDocument("b.swift")
 
@@ -1412,12 +1414,16 @@ final class SwiftCompletionTests: SourceKitLSPTestCase {
   }
 
   func testSuggestInMemoryFunctionsFromFilesWithinSameModule() async throws {
-    let project = try await SwiftPMTestProject(files: [
-      "First.swift": """
-      myFancyFunc1️⃣
-      """,
-      "Second.swift": "2️⃣",
-    ])
+    let project = try await SwiftPMTestProject(
+      files: [
+        "First.swift": """
+        myFancyFunc1️⃣
+        """,
+        "Second.swift": "2️⃣",
+      ],
+      // We don't want to test behavior based on fallback settings. Increase the buildSettingsTimeout to ensure we always get proper build settings.
+      options: .testDefault(buildSettingsTimeout: defaultTimeoutDuration)
+    )
 
     let (secondUri, secondPositions) = try project.openDocument("Second.swift")
     project.testClient.send(

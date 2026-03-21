@@ -885,6 +885,44 @@ final class DoccDocumentationTests: SourceKitLSPTestCase {
     )
   }
 
+  func testMarkdownExtensionTopics() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "MyLibrary/Foo.swift": """
+          public struct  1️⃣ Foo {
+            public func methodA() {}
+            public func methodB() {}
+          }
+        """,
+
+        "MyLibrary/MyLibrary.docc/Extensions/Foo.md": """
+        # ``MyLibrary/Foo``
+        Overview for Foo.
+
+        ## Topics
+        ### Group One
+        - ``methodA()``
+
+        ### Group Two
+        - ``methodB()``
+        """,
+      ],
+      enableBackgroundIndexing: true
+    )
+
+    try await renderDocumentation(
+      fileName: "Foo.swift",
+      project: project,
+      expectedResponses: [
+        ("1️⃣", .renderNode(kind: .symbol, containing: "Overview for Foo.")),
+        ("1️⃣", .renderNode(kind: .symbol, containing: "Group One")),
+        ("1️⃣", .renderNode(kind: .symbol, containing: "Group Two")),
+        ("1️⃣", .renderNode(kind: .symbol, containing: "methodA()")),
+        ("1️⃣", .renderNode(kind: .symbol, containing: "methodB()")),
+      ]
+    )
+  }
+
   // MARK: Tutorials
 
   func testTutorial() async throws {
@@ -946,6 +984,22 @@ private func renderDocumentation(
   file: StaticString = #filePath,
   line: UInt = #line
 ) async throws {
+  try await renderDocumentation(
+    fileName: fileName,
+    project: project,
+    expectedResponses: expectedResponses.map { ($0.key, $0.value) },
+    file: file,
+    line: line
+  )
+}
+
+private func renderDocumentation(
+  fileName: String,
+  project: SwiftPMTestProject,
+  expectedResponses: [(String, PartialConvertResponse)],
+  file: StaticString = #filePath,
+  line: UInt = #line
+) async throws {
   let (uri, positions) = try project.openDocument(fileName)
   defer {
     project.testClient.send(DidCloseTextDocumentNotification(textDocument: TextDocumentIdentifier(uri)))
@@ -991,81 +1045,105 @@ private func renderDocumentation(
   file: StaticString = #filePath,
   line: UInt = #line
 ) async {
+  await renderDocumentation(
+    testClient: testClient,
+    uri: uri,
+    positions: positions,
+    expectedResponses: expectedResponses.map { ($0.key, $0.value) },
+    file: file,
+    line: line
+  )
+}
+
+private func renderDocumentation(
+  testClient: TestSourceKitLSPClient,
+  uri: DocumentURI,
+  positions: DocumentPositions,
+  expectedResponses: [(marker: String, response: PartialConvertResponse)],
+  file: StaticString = #filePath,
+  line: UInt = #line
+) async {
   for marker in positions.allMarkers {
-    guard let expectedResponse = expectedResponses[marker] else {
-      XCTFail("No expected response was given for marker \(marker)", file: file, line: line)
-      return
-    }
-    do {
-      let response = try await testClient.send(
-        DoccDocumentationRequest(
-          textDocument: TextDocumentIdentifier(uri),
-          position: positions[marker]
+    let expectedResponsesForMarker = expectedResponses.filter({ $0.marker == marker }).map(\.response)
+    XCTAssertFalse(
+      expectedResponsesForMarker.isEmpty,
+      "No expected response was given for marker \(marker)",
+      file: file,
+      line: line
+    )
+
+    for expectedResponse in expectedResponsesForMarker {
+      do {
+        let response = try await testClient.send(
+          DoccDocumentationRequest(
+            textDocument: TextDocumentIdentifier(uri),
+            position: positions[marker]
+          )
         )
-      )
-      let renderNodeString = response.renderNode
-      guard let renderNodeData = renderNodeString.data(using: .utf8),
-        let renderNode = try? JSONDecoder().decode(RenderNode.self, from: renderNodeData)
-      else {
-        XCTFail("failed to decode response from \(DoccDocumentationRequest.method) at position \(marker)")
-        return
-      }
-      switch expectedResponse {
-      case .renderNode(let expectedKind, let expectedPath, let expectedContents):
-        XCTAssertEqual(
-          renderNode.kind,
-          expectedKind,
-          "render node kind did not match expected value at position \(marker)",
-          file: file,
-          line: line
-        )
-        if let expectedPath {
+        let renderNodeString = response.renderNode
+        guard let renderNodeData = renderNodeString.data(using: .utf8),
+          let renderNode = try? JSONDecoder().decode(RenderNode.self, from: renderNodeData)
+        else {
+          XCTFail("failed to decode response from \(DoccDocumentationRequest.method) at position \(marker)")
+          return
+        }
+        switch expectedResponse {
+        case .renderNode(let expectedKind, let expectedPath, let expectedContents):
           XCTAssertEqual(
-            renderNode.identifier.path,
-            "/documentation/\(expectedPath)",
-            "render node path did not match expected value at position \(marker)",
+            renderNode.kind,
+            expectedKind,
+            "render node kind did not match expected value at position \(marker)",
+            file: file,
+            line: line
+          )
+          if let expectedPath {
+            XCTAssertEqual(
+              renderNode.identifier.path,
+              "/documentation/\(expectedPath)",
+              "render node path did not match expected value at position \(marker)",
+              file: file,
+              line: line
+            )
+          }
+          if let expectedContents {
+            XCTAssertTrue(
+              renderNodeString.contains(expectedContents),
+              "render node did not contain text \"\(expectedContents)\" at position \(marker)",
+              file: file,
+              line: line
+            )
+          }
+        case .error(let error):
+          XCTFail(
+            "expected error \(error), but received a render node at position \(marker)",
             file: file,
             line: line
           )
         }
-        if let expectedContents {
-          XCTAssertTrue(
-            renderNodeString.contains(expectedContents),
-            "render node did not contain text \"\(expectedContents)\" at position \(marker)",
+      } catch {
+        switch expectedResponse {
+        case .renderNode:
+          XCTFail(
+            "\(DoccDocumentationRequest.method) failed at position \(marker): \(error.message)",
+            file: file,
+            line: line
+          )
+        case .error(let expectedError):
+          XCTAssertEqual(
+            error.code,
+            .requestFailed,
+            "expected a responseFailed error code at position \(marker)",
+            file: file,
+            line: line
+          )
+          XCTAssertEqual(
+            error.message,
+            expectedError,
+            "expected an error with message \(expectedError) at position \(marker)",
             file: file,
             line: line
           )
         }
-      case .error(let error):
-        XCTFail(
-          "expected error \(error), but received a render node at position \(marker)",
-          file: file,
-          line: line
-        )
-      }
-    } catch {
-      switch expectedResponse {
-      case .renderNode:
-        XCTFail(
-          "\(DoccDocumentationRequest.method) failed at position \(marker): \(error.message)",
-          file: file,
-          line: line
-        )
-      case .error(let expectedError):
-        XCTAssertEqual(
-          error.code,
-          .requestFailed,
-          "expected a responseFailed error code at position \(marker)",
-          file: file,
-          line: line
-        )
-        XCTAssertEqual(
-          error.message,
-          expectedError,
-          "expected an error with message \(expectedError) at position \(marker)",
-          file: file,
-          line: line
-        )
       }
     }
   }

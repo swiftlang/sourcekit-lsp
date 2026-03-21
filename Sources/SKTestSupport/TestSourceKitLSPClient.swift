@@ -29,15 +29,26 @@ import XCTest
 extension SourceKitLSPOptions {
   package static func testDefault(
     backgroundIndexing: Bool = true,
+    buildSettingsTimeout: Duration? = nil,
     experimentalFeatures: Set<ExperimentalFeature> = [.synchronizeCopyFileMap]
   ) async throws -> SourceKitLSPOptions {
     let pluginPaths = try await sourceKitPluginPaths
+
+    let buildSettingsTimeoutMilliseconds: Int? =
+      if let buildSettingsTimeout {
+        Int(buildSettingsTimeout.seconds * 1000)
+      } else {
+        nil
+      }
+
     return SourceKitLSPOptions(
+      buildSettingsTimeout: buildSettingsTimeoutMilliseconds,
       sourcekitd: SourceKitDOptions(
         clientPlugin: try pluginPaths.clientPlugin.filePath,
         servicePlugin: try pluginPaths.servicePlugin.filePath
       ),
       backgroundIndexing: backgroundIndexing,
+      reportSyntacticHighlightInSemanticTokens: true,
       experimentalFeatures: experimentalFeatures,
       swiftPublishDiagnosticsDebounceDuration: 0,
       workDoneProgressDebounceDuration: 0

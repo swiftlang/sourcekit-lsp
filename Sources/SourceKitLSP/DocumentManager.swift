@@ -198,16 +198,20 @@ package final class DocumentManager: InMemoryDocumentManager, Sendable {
     return try? DocumentSnapshot(withContentsFromDisk: uri, language: language)
   }
 
-  package func fileHasInMemoryModifications(_ uri: DocumentURI) -> Bool {
-    guard let document = try? latestSnapshot(uri), let fileURL = uri.fileURL else {
-      return false
-    }
-
-    guard let onDiskFileContents = try? String(contentsOf: fileURL, encoding: .utf8) else {
+  package func snapshotHasInMemoryModifications(_ snapshot: DocumentSnapshot) -> Bool {
+    guard let fileURL = snapshot.uri.fileURL, let onDiskFileContents = try? String(contentsOf: fileURL, encoding: .utf8)
+    else {
       // If we can't read the file on disk, it can't match any on-disk state, so it's in-memory state
       return true
     }
-    return onDiskFileContents != document.lineTable.content
+    return onDiskFileContents != snapshot.text
+  }
+
+  package func fileHasInMemoryModifications(_ uri: DocumentURI) -> Bool {
+    guard let snapshot = try? latestSnapshot(uri) else {
+      return false
+    }
+    return snapshotHasInMemoryModifications(snapshot)
   }
 }
 

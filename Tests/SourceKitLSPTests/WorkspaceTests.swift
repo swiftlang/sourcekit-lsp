@@ -669,7 +669,9 @@ final class WorkspaceTests: SourceKitLSPTestCase {
         return [
           WorkspaceFolder(uri: DocumentURI(scratchDir.appending(component: "fake")))
         ]
-      }
+      },
+      // We don't want to test behavior based on fallback settings. Increase the buildSettingsTimeout to ensure we always get proper build settings.
+      options: .testDefault(buildSettingsTimeout: defaultTimeoutDuration)
     )
 
     let packageDir = try project.uri(for: "Package.swift").fileURL!.deletingLastPathComponent()

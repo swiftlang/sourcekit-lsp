@@ -86,7 +86,7 @@ struct BuildServerConfig: Codable {
 
   static func forSwiftPMBuildServer(
     projectRoot: URL,
-    swiftPMOptions: SourceKitLSPOptions.SwiftPMOptions,
+    options: SourceKitLSPOptions,
     toolchainRegistry: ToolchainRegistry
   ) async throws -> BuildServerConfig {
     let toolchain = await toolchainRegistry.preferredToolchain(containing: [\.swift])
@@ -96,58 +96,63 @@ struct BuildServerConfig: Codable {
     var args: [String] = [swiftPath, "package", "experimental-build-server"]
     // The build server requires use of the Swift Build backend.
     args.append(contentsOf: ["--build-system", "swiftbuild"])
+
+    if !options.backgroundIndexingOrDefault {
+      // If we're not background indexing, do not acquire the workspace lock, or else user-initiated builds will be blocked.
+      args.append(contentsOf: ["--experimental-skip-acquiring-lock", "--force-resolved-versions"])
+    }
     // Explicitly specify the package path.
     try args.append(contentsOf: ["--package-path", projectRoot.filePath])
     // Map LSP SwiftPM options to build server flags
-    if let configuration = swiftPMOptions.configuration {
+    if let configuration = options.swiftPMOrDefault.configuration {
       args.append(contentsOf: ["--configuration", configuration.rawValue])
     }
-    if let scratchPath = swiftPMOptions.scratchPath {
+    if let scratchPath = options.swiftPMOrDefault.scratchPath {
       args.append(contentsOf: ["--scratch-path", scratchPath])
     }
-    if let swiftSDKsDirectory = swiftPMOptions.swiftSDKsDirectory {
+    if let swiftSDKsDirectory = options.swiftPMOrDefault.swiftSDKsDirectory {
       args.append(contentsOf: ["--swift-sdks-path", swiftSDKsDirectory])
     }
-    if let swiftSDK = swiftPMOptions.swiftSDK {
+    if let swiftSDK = options.swiftPMOrDefault.swiftSDK {
       args.append(contentsOf: ["--swift-sdk", swiftSDK])
     }
-    if let triple = swiftPMOptions.triple {
+    if let triple = options.swiftPMOrDefault.triple {
       args.append(contentsOf: ["--triple", triple])
     }
-    if let toolsets = swiftPMOptions.toolsets {
+    if let toolsets = options.swiftPMOrDefault.toolsets {
       for toolset in toolsets {
         args.append(contentsOf: ["--toolset", toolset])
       }
     }
-    if let traits = swiftPMOptions.traits {
+    if let traits = options.swiftPMOrDefault.traits {
       args.append(contentsOf: ["--traits", traits.joined(separator: ",")])
     }
-    if let cCompilerFlags = swiftPMOptions.cCompilerFlags {
+    if let cCompilerFlags = options.swiftPMOrDefault.cCompilerFlags {
       for flag in cCompilerFlags {
         args.append(contentsOf: ["-Xcc", flag])
       }
     }
-    if let cxxCompilerFlags = swiftPMOptions.cxxCompilerFlags {
+    if let cxxCompilerFlags = options.swiftPMOrDefault.cxxCompilerFlags {
       for flag in cxxCompilerFlags {
         args.append(contentsOf: ["-Xcxx", flag])
       }
     }
-    if let swiftCompilerFlags = swiftPMOptions.swiftCompilerFlags {
+    if let swiftCompilerFlags = options.swiftPMOrDefault.swiftCompilerFlags {
       for flag in swiftCompilerFlags {
         args.append(contentsOf: ["-Xswiftc", flag])
       }
     }
-    if let linkerFlags = swiftPMOptions.linkerFlags {
+    if let linkerFlags = options.swiftPMOrDefault.linkerFlags {
       for flag in linkerFlags {
         args.append(contentsOf: ["-Xlinker", flag])
       }
     }
-    if let buildToolsSwiftCompilerFlags = swiftPMOptions.buildToolsSwiftCompilerFlags {
+    if let buildToolsSwiftCompilerFlags = options.swiftPMOrDefault.buildToolsSwiftCompilerFlags {
       for flag in buildToolsSwiftCompilerFlags {
         args.append(contentsOf: ["-Xbuild-tools-swiftc", flag])
       }
     }
-    if swiftPMOptions.disableSandbox == true {
+    if options.swiftPMOrDefault.disableSandbox == true {
       args.append("--disable-sandbox")
     }
     // The skipPlugins option isn't currently respected because the underlying build server does not support it.

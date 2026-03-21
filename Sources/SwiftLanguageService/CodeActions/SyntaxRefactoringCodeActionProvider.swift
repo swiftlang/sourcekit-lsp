@@ -23,17 +23,19 @@ protocol SyntaxRefactoringCodeActionProvider: SyntaxCodeActionProvider, EditRefa
   /// Returns the node that the syntax refactoring should be performed on, if code actions are requested for the given
   /// scope.
   static func nodeToRefactor(in scope: SyntaxCodeActionScope) -> Input?
+
+  static func refactoringContext(for scope: SyntaxCodeActionScope) -> Context
 }
 
 /// SyntaxCodeActionProviders with a \c Void context can automatically be
 /// adapted provide a code action based on their refactoring operation.
-extension SyntaxRefactoringCodeActionProvider where Self.Context == Void {
+extension SyntaxRefactoringCodeActionProvider {
   static func codeActions(in scope: SyntaxCodeActionScope) -> [CodeAction] {
     guard let node = nodeToRefactor(in: scope) else {
       return []
     }
 
-    guard let sourceEdits = try? Self.textRefactor(syntax: node) else {
+    guard let sourceEdits = try? Self.textRefactor(syntax: node, in: refactoringContext(for: scope)) else {
       return []
     }
 
@@ -51,93 +53,13 @@ extension SyntaxRefactoringCodeActionProvider where Self.Context == Void {
   }
 }
 
-// Adapters for specific refactoring provides in swift-syntax.
-
-extension AddSeparatorsToIntegerLiteral: SyntaxRefactoringCodeActionProvider {
-  package static var title: String { "Add digit separators" }
-
-  static func nodeToRefactor(in scope: SyntaxCodeActionScope) -> Input? {
-    return scope.innermostNodeContainingRange?.findParentOfSelf(
-      ofType: IntegerLiteralExprSyntax.self,
-      stoppingIf: { $0.is(CodeBlockSyntax.self) || $0.is(MemberBlockSyntax.self) }
-    )
+extension SyntaxRefactoringCodeActionProvider where Context == Void {
+  static func refactoringContext(for scope: SyntaxCodeActionScope) -> Context {
+    return ()
   }
 }
 
-extension FormatRawStringLiteral: SyntaxRefactoringCodeActionProvider {
-  package static var title: String {
-    "Convert string literal to minimal number of '#'s"
-  }
-
-  static func nodeToRefactor(in scope: SyntaxCodeActionScope) -> Input? {
-    return scope.innermostNodeContainingRange?.findParentOfSelf(
-      ofType: StringLiteralExprSyntax.self,
-      stoppingIf: {
-        $0.is(CodeBlockSyntax.self) || $0.is(MemberBlockSyntax.self)
-          || $0.keyPathInParent == \ExpressionSegmentSyntax.expressions
-      }
-    )
-  }
-}
-
-extension MigrateToNewIfLetSyntax: SyntaxRefactoringCodeActionProvider {
-  package static var title: String { "Migrate to shorthand 'if let' syntax" }
-
-  static func nodeToRefactor(in scope: SyntaxCodeActionScope) -> Input? {
-    return scope.innermostNodeContainingRange?.findParentOfSelf(
-      ofType: IfExprSyntax.self,
-      stoppingIf: { $0.is(CodeBlockSyntax.self) || $0.is(MemberBlockSyntax.self) }
-    )
-  }
-}
-
-extension OpaqueParameterToGeneric: SyntaxRefactoringCodeActionProvider {
-  package static var title: String { "Expand 'some' parameters to generic parameters" }
-
-  static func nodeToRefactor(in scope: SyntaxCodeActionScope) -> Input? {
-    return scope.innermostNodeContainingRange?.findParentOfSelf(
-      ofType: DeclSyntax.self,
-      stoppingIf: { $0.is(CodeBlockSyntax.self) || $0.is(MemberBlockSyntax.self) }
-    )
-  }
-}
-
-extension RemoveSeparatorsFromIntegerLiteral: SyntaxRefactoringCodeActionProvider {
-  package static var title: String { "Remove digit separators" }
-
-  static func nodeToRefactor(in scope: SyntaxCodeActionScope) -> Input? {
-    return scope.innermostNodeContainingRange?.findParentOfSelf(
-      ofType: IntegerLiteralExprSyntax.self,
-      stoppingIf: { $0.is(CodeBlockSyntax.self) || $0.is(MemberBlockSyntax.self) }
-    )
-  }
-}
-
-extension ConvertZeroParameterFunctionToComputedProperty: SyntaxRefactoringCodeActionProvider {
-  package static var title: String { "Convert to computed property" }
-
-  static func nodeToRefactor(in scope: SyntaxCodeActionScope) -> Input? {
-    let functionDecl = scope.innermostNodeContainingRange?.findParentOfSelf(
-      ofType: FunctionDeclSyntax.self,
-      stoppingIf: { $0.is(CodeBlockSyntax.self) || $0.is(MemberBlockSyntax.self) }
-    )
-    guard let functionDecl, !(functionDecl.signature.returnClause?.type.isVoid ?? true) else {
-      return nil
-    }
-    return functionDecl
-  }
-}
-
-extension ConvertComputedPropertyToZeroParameterFunction: SyntaxRefactoringCodeActionProvider {
-  package static var title: String { "Convert to zero parameter function" }
-
-  static func nodeToRefactor(in scope: SyntaxCodeActionScope) -> Input? {
-    return scope.innermostNodeContainingRange?.findParentOfSelf(
-      ofType: VariableDeclSyntax.self,
-      stoppingIf: { $0.is(CodeBlockSyntax.self) || $0.is(MemberBlockSyntax.self) }
-    )
-  }
-}
+// MARK: Utilities
 
 extension SyntaxProtocol {
   /// Finds the innermost parent of the given type that satisfies `matching`,
@@ -199,3 +121,118 @@ private extension TypeSyntax {
     }
   }
 }
+
+// MARK: Adapters for specific refactoring provides in swift-syntax.
+
+extension AddSeparatorsToIntegerLiteral: SyntaxRefactoringCodeActionProvider {
+  package static var title: String { "Add digit separators" }
+
+  static func nodeToRefactor(in scope: SyntaxCodeActionScope) -> Input? {
+    return scope.innermostNodeContainingRange?.findParentOfSelf(
+      ofType: IntegerLiteralExprSyntax.self,
+      stoppingIf: { $0.is(CodeBlockSyntax.self) || $0.is(MemberBlockSyntax.self) }
+    )
+  }
+}
+
+extension ConvertComputedPropertyToStored: SyntaxRefactoringCodeActionProvider {
+  static var title: String { "Convert to stored property" }
+
+  static func nodeToRefactor(in scope: SyntaxCodeActionScope) -> VariableDeclSyntax? {
+    return scope.innermostNodeContainingRange?.findParentOfSelf(
+      ofType: VariableDeclSyntax.self,
+      stoppingIf: { $0.is(CodeBlockSyntax.self) || $0.is(MemberBlockSyntax.self) || $0.is(AccessorBlockSyntax.self) }
+    )
+  }
+}
+
+extension ConvertComputedPropertyToZeroParameterFunction: SyntaxRefactoringCodeActionProvider {
+  package static var title: String { "Convert to zero parameter function" }
+
+  static func nodeToRefactor(in scope: SyntaxCodeActionScope) -> Input? {
+    return scope.innermostNodeContainingRange?.findParentOfSelf(
+      ofType: VariableDeclSyntax.self,
+      stoppingIf: { $0.is(CodeBlockSyntax.self) || $0.is(MemberBlockSyntax.self) || $0.is(AccessorBlockSyntax.self) }
+    )
+  }
+}
+
+extension FormatRawStringLiteral: SyntaxRefactoringCodeActionProvider {
+  package static var title: String {
+    "Convert string literal to minimal number of '#'s"
+  }
+
+  static func nodeToRefactor(in scope: SyntaxCodeActionScope) -> Input? {
+    return scope.innermostNodeContainingRange?.findParentOfSelf(
+      ofType: StringLiteralExprSyntax.self,
+      stoppingIf: {
+        $0.is(CodeBlockSyntax.self) || $0.is(MemberBlockSyntax.self)
+          || $0.keyPathInParent == \ExpressionSegmentSyntax.expressions
+      }
+    )
+  }
+}
+
+extension MigrateToNewIfLetSyntax: SyntaxRefactoringCodeActionProvider {
+  package static var title: String { "Migrate to shorthand 'if let' syntax" }
+
+  static func nodeToRefactor(in scope: SyntaxCodeActionScope) -> Input? {
+    return scope.innermostNodeContainingRange?.findParentOfSelf(
+      ofType: IfExprSyntax.self,
+      stoppingIf: { $0.is(CodeBlockSyntax.self) || $0.is(MemberBlockSyntax.self) }
+    )
+  }
+}
+
+extension OpaqueParameterToGeneric: SyntaxRefactoringCodeActionProvider {
+  package static var title: String { "Expand 'some' parameters to generic parameters" }
+
+  static func nodeToRefactor(in scope: SyntaxCodeActionScope) -> Input? {
+    return scope.innermostNodeContainingRange?.findParentOfSelf(
+      ofType: DeclSyntax.self,
+      stoppingIf: { $0.is(CodeBlockSyntax.self) || $0.is(MemberBlockSyntax.self) }
+    )
+  }
+}
+
+extension RemoveSeparatorsFromIntegerLiteral: SyntaxRefactoringCodeActionProvider {
+  package static var title: String { "Remove digit separators" }
+
+  static func nodeToRefactor(in scope: SyntaxCodeActionScope) -> Input? {
+    return scope.innermostNodeContainingRange?.findParentOfSelf(
+      ofType: IntegerLiteralExprSyntax.self,
+      stoppingIf: { $0.is(CodeBlockSyntax.self) || $0.is(MemberBlockSyntax.self) }
+    )
+  }
+}
+
+extension RemoveRedundantParentheses: SyntaxRefactoringCodeActionProvider {
+  package static var title: String { "Remove Redundant Parentheses" }
+
+  static func nodeToRefactor(in scope: SyntaxCodeActionScope) -> Input? {
+    return scope.innermostNodeContainingRange?.findParentOfSelf(
+      ofType: TupleExprSyntax.self,
+      stoppingIf: { $0.is(CodeBlockSyntax.self) || $0.is(MemberBlockSyntax.self) }
+    )
+  }
+}
+
+extension ConvertZeroParameterFunctionToComputedProperty: SyntaxRefactoringCodeActionProvider {
+  package static var title: String { "Convert to computed property" }
+
+  static func nodeToRefactor(in scope: SyntaxCodeActionScope) -> Input? {
+    let functionDecl = scope.innermostNodeContainingRange?.findParentOfSelf(
+      ofType: FunctionDeclSyntax.self,
+      stoppingIf: { $0.is(CodeBlockSyntax.self) || $0.is(MemberBlockSyntax.self) }
+    )
+    guard let functionDecl, !(functionDecl.signature.returnClause?.type.isVoid ?? true) else {
+      return nil
+    }
+    return functionDecl
+  }
+}
+
+//==========================================================================//
+// IMPORTANT: If you are tempted to add a new refactoring action here       //
+// please insert it in alphabetical order above                             //
+//==========================================================================//

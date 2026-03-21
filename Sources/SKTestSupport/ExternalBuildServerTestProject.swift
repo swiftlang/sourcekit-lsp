@@ -26,24 +26,13 @@ private let sdkArgs =
 
 /// The path to the INPUTS directory of shared test projects.
 private let skTestSupportInputsDirectory: URL = {
-  #if os(macOS)
-  var resources =
-    productsDirectory
-    .appending(components: "SourceKitLSP_SKTestSupport.bundle", "Contents", "Resources")
-  if !FileManager.default.fileExists(at: resources) {
-    // Xcode and command-line swiftpm differ about the path.
-    resources.deleteLastPathComponent()
-    resources.deleteLastPathComponent()
+  guard let resourceURL = Bundle.module.resourceURL else {
+    fatalError("could not determine resource URL for bundle: \(Bundle.module)")
   }
-  #else
-  let resources =
-    productsDirectory
-    .appending(component: "SourceKitLSP_SKTestSupport.resources")
-  #endif
-  guard FileManager.default.fileExists(at: resources) else {
-    fatalError("missing resources \(resources)")
+  guard FileManager.default.fileExists(at: resourceURL) else {
+    fatalError("missing resources \(resourceURL)")
   }
-  return resources.appending(component: "INPUTS", directoryHint: .isDirectory).standardizedFileURL
+  return resourceURL.appending(components: "INPUTS", directoryHint: .isDirectory).standardizedFileURL
 }()
 
 /// Creates a project that uses a BSP server to provide build settings.

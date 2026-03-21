@@ -438,11 +438,9 @@ var targets: [Target] = [
       .product(name: "SKLogging", package: "swift-tools-protocols"),
       .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
       .product(name: "ToolsProtocolsSwiftExtensions", package: "swift-tools-protocols"),
-      // Depend on `SwiftCompilerPlugin` and `SwiftSyntaxMacros` so the modules are built before running tests and can
-      // be used by test cases that test macros (see `SwiftPMTestProject.macroPackageManifest`)
     ]
       + swiftSyntaxDependencies([
-        "SwiftIfConfig", "SwiftParser", "SwiftSyntax", "SwiftCompilerPlugin", "SwiftSyntaxMacros",
+        "SwiftIfConfig", "SwiftParser", "SwiftSyntax",
       ]),
   ),
 
@@ -651,6 +649,7 @@ var targets: [Target] = [
 do {
   var globalSwiftSettings: [SwiftSetting] = [
     // Swift 7 mode upcoming features. These must be compatible with swift-tools-version.
+    // When updating these, also update CMakeLists.txt accordingly.
     .enableUpcomingFeature("InternalImportsByDefault"),
     .enableUpcomingFeature("MemberImportVisibility"),
     .enableUpcomingFeature("InferIsolatedConformances"),
@@ -783,7 +782,7 @@ var dependencies: [Package.Dependency] {
       .package(url: "https://github.com/swiftlang/swift-docc.git", branch: relatedDependenciesBranch),
       .package(url: "https://github.com/swiftlang/swift-docc-symbolkit.git", branch: relatedDependenciesBranch),
       .package(url: "https://github.com/swiftlang/swift-markdown.git", branch: relatedDependenciesBranch),
-      .package(url: "https://github.com/swiftlang/swift-tools-protocols.git", exact: "0.0.10"),
+      .package(url: "https://github.com/swiftlang/swift-tools-protocols.git", branch: relatedDependenciesBranch),
       .package(url: "https://github.com/swiftlang/swift-tools-support-core.git", branch: relatedDependenciesBranch),
       .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.5.1"),
       .package(url: "https://github.com/swiftlang/swift-syntax.git", branch: relatedDependenciesBranch),
