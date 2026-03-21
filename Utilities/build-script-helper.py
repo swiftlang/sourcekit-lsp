@@ -142,6 +142,11 @@ def get_swiftpm_options(swift_exec: str, args: argparse.Namespace, suppress_verb
         # Required for SwiftPM to find sqlite
         swiftpm_args += ['-Xcxx', '-I', '-Xcxx', '/usr/local/include',
                          '-Xswiftc', '-I', '-Xswiftc', '/usr/local/include']
+    elif build_os.startswith('openbsd'):
+        swiftpm_args += [
+            '-Xlinker', '-rpath', '-Xlinker', '$ORIGIN/../lib/swift/openbsd',
+            '-Xlinker', '-z', '-Xlinker', 'origin',
+        ]
     elif not build_os.startswith('macosx'):
         # Library rpath for swift, dispatch, Foundation, etc. when installing
         swiftpm_args += [
