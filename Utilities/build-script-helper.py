@@ -144,6 +144,11 @@ def get_swiftpm_options(swift_exec: str, args: argparse.Namespace, suppress_verb
                          '-Xswiftc', '-I', '-Xswiftc', '/usr/local/include',
                          '-Xlinker', '-rpath', '-Xlinker', '$ORIGIN/../lib/swift/freebsd',
                          ]
+    elif build_os.startswith('openbsd'):
+        swiftpm_args += [
+            '-Xlinker', '-rpath', '-Xlinker', '$ORIGIN/../lib/swift/openbsd',
+            '-Xlinker', '-z', '-Xlinker', 'origin',
+        ]
     elif not build_os.startswith('macosx'):
         # Library rpath for swift, dispatch, Foundation, etc. when installing
         swiftpm_args += [
