@@ -236,7 +236,7 @@ final class DoccDocumentationTests: SourceKitLSPTestCase {
   func testEmptyActor() async throws {
     try await renderDocumentation(
       markedText: """
-        pub1️⃣lic class Act2️⃣or {
+        pub1️⃣lic actor Act2️⃣or {
           3️⃣
         }4️⃣
         """,
