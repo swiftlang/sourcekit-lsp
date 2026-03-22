@@ -258,6 +258,7 @@ package protocol LanguageService: AnyObject, Sendable {
   ) async throws -> DocumentSemanticTokensResponse?
   func colorPresentation(_ req: ColorPresentationRequest) async throws -> [ColorPresentation]
   func codeAction(_ req: CodeActionRequest) async throws -> CodeActionRequestResponse?
+  func codeActionResolve(_ req: CodeActionResolveRequest) async throws -> CodeAction
   func inlayHint(_ req: InlayHintRequest) async throws -> [InlayHint]
   func inlayHintResolve(_ req: InlayHintResolveRequest) async throws -> InlayHint
   func codeLens(_ req: CodeLensRequest) async throws -> [CodeLens]
@@ -482,6 +483,10 @@ package extension LanguageService {
 
   func codeAction(_ req: CodeActionRequest) async throws -> CodeActionRequestResponse? {
     throw ResponseError.requestNotImplemented(CodeActionRequest.self)
+  }
+
+  func codeActionResolve(_ req: CodeActionResolveRequest) async throws -> CodeAction {
+    return req.codeAction
   }
 
   func inlayHint(_ req: InlayHintRequest) async throws -> [InlayHint] {

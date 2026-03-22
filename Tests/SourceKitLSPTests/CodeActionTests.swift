@@ -141,12 +141,20 @@ final class CodeActionTests: SourceKitLSPTestCase {
   func testCodeActionResponseCommandMetadataInjection() throws {
     let url = URL(fileURLWithPath: "/a.swift")
     let textDocument = TextDocumentIdentifier(url)
-    let expectedMetadata: LSPAny = try {
+    let expectedCommandMetadata: LSPAny = try {
       let metadata = SourceKitLSPCommandMetadata(textDocument: textDocument)
       let data = try JSONEncoder().encode(metadata)
       return try JSONDecoder().decode(LSPAny.self, from: data)
     }()
-    XCTAssertEqual(expectedMetadata, .dictionary(["sourcekitlsp_textDocument": ["uri": "file:///a.swift"]]))
+    XCTAssertEqual(expectedCommandMetadata, .dictionary(["sourcekitlsp_textDocument": ["uri": "file:///a.swift"]]))
+
+    let expectedResolveMetadata: LSPAny = try {
+      let metadata = CodeActionResolveMetadata(textDocument: textDocument)
+      let data = try JSONEncoder().encode(metadata)
+      return try JSONDecoder().decode(LSPAny.self, from: data)
+    }()
+    XCTAssertEqual(expectedResolveMetadata, .dictionary(["textDocument": ["uri": "file:///a.swift"]]))
+
     let command = Command(title: "Title", command: "Command", arguments: [1, "text", 2.2, nil])
     let codeAction = CodeAction(title: "1")
     let codeAction2 = CodeAction(title: "2", command: command)
@@ -162,27 +170,55 @@ final class CodeActionTests: SourceKitLSPTestCase {
         Command(
           title: command.title,
           command: command.command,
-          arguments: command.arguments! + [expectedMetadata]
+          arguments: command.arguments! + [expectedCommandMetadata]
         )
       ])
     )
     response = request.injectMetadata(toResponse: .codeActions([codeAction, codeAction2]))
+    var expectedCodeAction = codeAction
+    expectedCodeAction.data = expectedResolveMetadata
     XCTAssertEqual(
       response,
       .codeActions([
-        codeAction,
+        expectedCodeAction,
         CodeAction(
           title: codeAction2.title,
           command: Command(
             title: command.title,
             command: command.command,
-            arguments: command.arguments! + [expectedMetadata]
+            arguments: command.arguments! + [expectedCommandMetadata]
           )
         ),
       ])
     )
     response = request.injectMetadata(toResponse: nil)
     XCTAssertNil(response)
+  }
+
+  func testCodeActionResolveMetadataPreservesUnderlyingData() throws {
+    let url = URL(fileURLWithPath: "/a.swift")
+    let textDocument = TextDocumentIdentifier(url)
+
+    let originalData: LSPAny = .dictionary(["custom": "value"])
+    var codeAction = CodeAction(title: "With data")
+    codeAction.data = originalData
+
+    let request = CodeActionRequest(
+      range: Position(line: 0, utf16index: 0)..<Position(line: 1, utf16index: 1),
+      context: .init(diagnostics: [], only: nil),
+      textDocument: textDocument
+    )
+    let response = request.injectMetadata(toResponse: .codeActions([codeAction]))
+
+    guard case .codeActions(let actions) = response, let injected = actions.first,
+      case .dictionary(let dict) = injected.data,
+      let metadata = CodeActionResolveMetadata(fromLSPDictionary: dict)
+    else {
+      return XCTFail("Expected resolve metadata in data")
+    }
+
+    XCTAssertEqual(metadata.textDocument, textDocument)
+    XCTAssertEqual(metadata.underlyingData, originalData)
   }
 
   func testCommandEncoding() throws {
