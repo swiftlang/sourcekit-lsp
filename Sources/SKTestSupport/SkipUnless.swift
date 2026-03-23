@@ -468,6 +468,18 @@ package actor SkipUnless {
     }
   }
 
+  package static func swiftPMBuildServerSupportedWithoutBackgroundIndexing(
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) async throws {
+    return try await shared.skipUnlessSupportedByToolchain(
+      swiftVersion: SwiftVersion(6, 4),
+      file: file,
+      line: line,
+      featureCheck: { true }
+    )
+  }
+
   private static func getSourceKitD() async throws -> SourceKitD {
     guard let sourcekitdPath = await ToolchainRegistry.forTesting.default?.sourcekitd else {
       throw GenericError("Could not find SourceKitD")

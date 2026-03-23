@@ -794,10 +794,8 @@ final class SwiftPMIntegrationTests: SourceKitLSPTestCase {
         return [WorkspaceFolder(uri: DocumentURI(scratchDirectory))]
       },
       enableBackgroundIndexing: false,
-      pollIndex: false
     )
 
-    try await project.testClient.send(SynchronizeRequest(index: true))
     let (uri, _) = try project.openDocument("MyClient.swift")
     let diagnostics = try await project.testClient.send(
       DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
@@ -808,11 +806,14 @@ final class SwiftPMIntegrationTests: SourceKitLSPTestCase {
     )
   }
 
+  @inline(never)  // https://github.com/swiftlang/swift/issues/88199
   func testBuildSystemInference_Native() async throws {
     try await testBuildSystemInference(buildSystem: .native)
   }
 
+  @inline(never)  // https://github.com/swiftlang/swift/issues/88199
   func testBuildSystemInference_SwiftBuild() async throws {
+    try await SkipUnless.swiftPMBuildServerSupportedWithoutBackgroundIndexing()
     try await testBuildSystemInference(buildSystem: .swiftbuild)
   }
 
