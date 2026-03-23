@@ -249,17 +249,7 @@ struct MarkdownTitleFinder: MarkupVisitor {
       return nil
     }
     if let symbolLink = heading.child(at: 0) as? SymbolLink {
-      // Remove the surrounding backticks to find the symbol name
-      let plainText = symbolLink.plainText
-      var startIndex = plainText.startIndex
-      if plainText.hasPrefix("``") {
-        startIndex = plainText.index(plainText.startIndex, offsetBy: 2)
-      }
-      var endIndex = plainText.endIndex
-      if plainText.hasSuffix("``") {
-        endIndex = plainText.index(plainText.endIndex, offsetBy: -2)
-      }
-      return .symbol(String(plainText[startIndex..<endIndex]))
+      return .symbol(symbolLink.destination ?? "")
     }
     return .plainText(heading.plainText)
   }
