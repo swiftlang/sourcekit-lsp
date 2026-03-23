@@ -271,6 +271,28 @@ package final actor ToolchainRegistry {
 
   /// Returns the preferred toolchain that contains all the tools at the given key paths.
   package func preferredToolchain(containing requiredTools: [KeyPath<Toolchain, URL?>]) -> Toolchain? {
+    if let toolchain = toolchainsAndReasons.first(where: { $0.reason == .sourcekitToolchainEnvironmentVariable })?
+      .toolchain
+    {
+      // If a specific toolchain was set via an environment variable, we always try to use it. If it doesn't contain the
+      // required tools, we log an error and return nil instead of falling back to other toolchains, since the user
+      // explicitly specified this toolchain in the environment variable and likely wants us to use it.
+
+      if requiredTools.allSatisfy({ toolchain[keyPath: $0] != nil }) {
+        return toolchain
+      }
+
+      let missingTools = requiredTools.filter { toolchain[keyPath: $0] == nil }.map { "\($0)" }.joined(separator: ", ")
+      logger.error(
+        """
+        A toolchain was given via an environment variable, ususally `SOURCEKIT_TOOLCHAIN_PATH`, but it doesn't contain \
+        all required tools. Missing tools: \(missingTools). Not falling back to other toolchains since the toolchain \
+        was explicitly specified in the environment variable.
+        """
+      )
+      return nil
+    }
+
     if let toolchain = self.default, requiredTools.allSatisfy({ toolchain[keyPath: $0] != nil }) {
       return toolchain
     }

@@ -38,7 +38,10 @@ public func sourcekitd_plugin_initialize_2(
     // rather than a separate like we expect. The paths should be equal in this case, since the client plugin is loaded
     // based on the path of `sourcekitd.framework` (and we should only have one for the same reason). Allow this case
     // and just avoid re-initializing.
-    precondition(SourceKitD.forPlugin.path == pluginPath)
+    precondition(
+      SourceKitD.forPlugin.path == pluginPath,
+      "SourceKitD path does not equal pluginPath, SourceKitD.forPlugin.path = \(SourceKitD.forPlugin.path), pluginPath = \(pluginPath)"
+    )
     return
   }
 
