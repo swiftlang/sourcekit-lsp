@@ -269,7 +269,7 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
       } else {
         nil
       }
-    let destinationSDK = try SwiftSDK.deriveTargetSwiftSDK(
+    var destinationSDK = try SwiftSDK.deriveTargetSwiftSDK(
       hostSwiftSDK: hostSDK,
       hostTriple: hostSwiftPMToolchain.targetTriple,
       customToolsets: toolsets,
@@ -287,6 +287,10 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
       observabilityScope: observabilitySystem.topScope.makeChildScope(description: "Derive Target Swift SDK"),
       fileSystem: localFileSystem
     )
+
+    if let sdk = options.swiftPMOrDefault.sdk {
+      destinationSDK.pathsConfiguration.sdkRootPath = try AbsolutePath(validating: sdk, relativeTo: absProjectRoot)
+    }
 
     let destinationSwiftPMToolchain = try UserToolchain(swiftSDK: destinationSDK)
 
@@ -790,6 +794,9 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
     }
     if let triple = options.swiftPMOrDefault.triple {
       arguments += ["--triple", triple]
+    }
+    if let sdk = options.swiftPMOrDefault.sdk {
+      arguments += ["--sdk", sdk]
     }
     if let swiftSDKsDirectory = options.swiftPMOrDefault.swiftSDKsDirectory {
       arguments += ["--swift-sdks-path", swiftSDKsDirectory]

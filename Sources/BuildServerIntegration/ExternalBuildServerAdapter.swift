@@ -124,6 +124,9 @@ struct BuildServerConfig: Codable {
         args.append(contentsOf: ["--toolset", toolset])
       }
     }
+    if let sdk = options.swiftPMOrDefault.sdk {
+      args.append(contentsOf: ["--sdk", sdk])
+    }
     if let traits = options.swiftPMOrDefault.traits {
       args.append(contentsOf: ["--traits", traits.joined(separator: ",")])
     }

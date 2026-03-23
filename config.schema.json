@@ -295,6 +295,11 @@
           "markdownDescription" : "Build artifacts directory path. If nil, the build system may choose a default value. This path can be specified as a relative path, which will be interpreted relative to the project root. Equivalent to SwiftPM's `--scratch-path` option.",
           "type" : "string"
         },
+        "sdk" : {
+          "description" : "Equivalent to SwiftPM's `--sdk` option.",
+          "markdownDescription" : "Equivalent to SwiftPM's `--sdk` option.",
+          "type" : "string"
+        },
         "swiftCompilerFlags" : {
           "description" : "Extra arguments passed to the compiler for Swift files. Equivalent to SwiftPM's `-Xswiftc` option.",
           "items" : {
