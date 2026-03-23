@@ -26,31 +26,11 @@ package struct SemanticRefactorCommand: SwiftCommand {
   package var actionString: String
 
   /// The range to refactor.
+  @CustomCodable<PositionRange>
   package var positionRange: Range<Position>
 
   /// The text document related to the refactoring action.
   package var textDocument: TextDocumentIdentifier
-
-  package init?(fromLSPDictionary dictionary: [String: LSPAny]) {
-    guard case .dictionary(let documentDict)? = dictionary[CodingKeys.textDocument.stringValue],
-      case .string(let title)? = dictionary[CodingKeys.title.stringValue],
-      case .string(let actionString)? = dictionary[CodingKeys.actionString.stringValue],
-      case .dictionary(let rangeDict)? = dictionary[CodingKeys.positionRange.stringValue]
-    else {
-      return nil
-    }
-    guard let positionRange = Range<Position>(fromLSPDictionary: rangeDict),
-      let textDocument = TextDocumentIdentifier(fromLSPDictionary: documentDict)
-    else {
-      return nil
-    }
-    self.init(
-      title: title,
-      actionString: actionString,
-      positionRange: positionRange,
-      textDocument: textDocument
-    )
-  }
 
   package init(
     title: String,
@@ -62,15 +42,6 @@ package struct SemanticRefactorCommand: SwiftCommand {
     self.actionString = actionString
     self.positionRange = positionRange
     self.textDocument = textDocument
-  }
-
-  package func encodeToLSPAny() -> LSPAny {
-    return .dictionary([
-      CodingKeys.title.stringValue: .string(title),
-      CodingKeys.actionString.stringValue: .string(actionString),
-      CodingKeys.positionRange.stringValue: positionRange.encodeToLSPAny(),
-      CodingKeys.textDocument.stringValue: textDocument.encodeToLSPAny(),
-    ])
   }
 
   /// Maps the SourceKit action string to an appropriate LSP CodeActionKind.

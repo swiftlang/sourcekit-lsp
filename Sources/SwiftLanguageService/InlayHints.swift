@@ -16,7 +16,7 @@ import SourceKitLSP
 import SwiftExtensions
 import SwiftSyntax
 
-package struct InlayHintResolveData: LSPAnyCodable {
+package struct InlayHintResolveData: Codable, LSPAnyCodable {
   package let uri: DocumentURI
   package let position: Position
   package let version: Int
@@ -25,27 +25,6 @@ package struct InlayHintResolveData: LSPAnyCodable {
     self.uri = uri
     self.position = position
     self.version = version
-  }
-
-  package init?(fromLSPDictionary dictionary: [String: LSPAny]) {
-    guard case .string(let uriString) = dictionary["uri"],
-      let uri = try? DocumentURI(string: uriString),
-      case .int(let version) = dictionary["version"],
-      let position = Position(fromLSPAny: dictionary["position"])
-    else {
-      return nil
-    }
-    self.uri = uri
-    self.position = position
-    self.version = version
-  }
-
-  package func encodeToLSPAny() -> LSPAny {
-    return .dictionary([
-      "uri": .string(uri.stringValue),
-      "position": position.encodeToLSPAny(),
-      "version": .int(version),
-    ])
   }
 }
 

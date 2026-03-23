@@ -64,25 +64,6 @@ package struct RemoveUnusedImportsCommand: SwiftCommand {
   internal init(textDocument: TextDocumentIdentifier) {
     self.textDocument = textDocument
   }
-
-  package init?(fromLSPDictionary dictionary: [String: LanguageServerProtocol.LSPAny]) {
-    guard case .dictionary(let documentDict)? = dictionary[CodingKeys.textDocument.stringValue] else {
-      return nil
-    }
-    guard let textDocument = TextDocumentIdentifier(fromLSPDictionary: documentDict) else {
-      return nil
-    }
-
-    self.init(
-      textDocument: textDocument
-    )
-  }
-
-  package func encodeToLSPAny() -> LSPAny {
-    return .dictionary([
-      CodingKeys.textDocument.stringValue: textDocument.encodeToLSPAny()
-    ])
-  }
 }
 
 extension SwiftLanguageService {

@@ -18,64 +18,23 @@ import Foundation
 /// Represents metadata that SourceKit-LSP injects at every command returned by code actions.
 /// The ExecuteCommand is not a TextDocumentRequest, so metadata is injected to allow SourceKit-LSP
 /// to determine where a command should be executed.
-package struct SourceKitLSPCommandMetadata: Codable, Hashable {
+package struct SourceKitLSPCommandMetadata: Codable, Hashable, LSPAnyCodable {
 
   package var sourcekitlsp_textDocument: TextDocumentIdentifier
-
-  package init?(fromLSPDictionary dictionary: [String: LSPAny]) {
-    let textDocumentKey = CodingKeys.sourcekitlsp_textDocument.stringValue
-    guard case .dictionary(let textDocumentDict)? = dictionary[textDocumentKey],
-      let textDocument = TextDocumentIdentifier(fromLSPDictionary: textDocumentDict)
-    else {
-      return nil
-    }
-    self.init(textDocument: textDocument)
-  }
 
   package init(textDocument: TextDocumentIdentifier) {
     self.sourcekitlsp_textDocument = textDocument
   }
-
-  package func encodeToLSPAny() -> LSPAny {
-    return .dictionary([
-      CodingKeys.sourcekitlsp_textDocument.stringValue: sourcekitlsp_textDocument.encodeToLSPAny()
-    ])
-  }
 }
 
 /// Metadata injected into CodeAction.data to support routing codeAction/resolve requests.
-package struct CodeActionResolveMetadata: Codable, Hashable {
+package struct CodeActionResolveMetadata: Codable, Hashable, LSPAnyCodable {
   package var textDocument: TextDocumentIdentifier
   package var underlyingData: LSPAny?
 
   package init(textDocument: TextDocumentIdentifier, underlyingData: LSPAny? = nil) {
     self.textDocument = textDocument
     self.underlyingData = underlyingData
-  }
-}
-
-extension CodeActionResolveMetadata {
-  package init?(fromLSPDictionary dictionary: [String: LSPAny]) {
-    guard
-      case .dictionary(let textDocumentDict)? = dictionary[CodingKeys.textDocument.stringValue],
-      let textDocument = TextDocumentIdentifier(fromLSPDictionary: textDocumentDict)
-    else {
-      return nil
-    }
-    self.init(
-      textDocument: textDocument,
-      underlyingData: dictionary[CodingKeys.underlyingData.stringValue]
-    )
-  }
-
-  package func encodeToLSPAny() -> LSPAny {
-    var dict: [String: LSPAny] = [
-      CodingKeys.textDocument.stringValue: textDocument.encodeToLSPAny()
-    ]
-    if let underlyingData {
-      dict[CodingKeys.underlyingData.stringValue] = underlyingData
-    }
-    return .dictionary(dict)
   }
 }
 
