@@ -110,9 +110,10 @@ struct TestDiscovery {
 
     // Gather any extension declarations that contains tests and add them to `occurrencesByParent` so we can properly
     // arrange their test items as the extension's children.
+    var addedExtensionUSRs: Set<String> = []
     for testSymbolOccurrence in testSymbolOccurrences {
       for parentSymbol in testSymbolOccurrence.relations.filter({ $0.roles.contains(.childOf) }).map(\.symbol) {
-        guard parentSymbol.kind == .extension else {
+        guard parentSymbol.kind == .extension, addedExtensionUSRs.insert(parentSymbol.usr).inserted else {
           continue
         }
         guard let definition = try index?.primaryDefinitionOrDeclarationOccurrence(ofUSR: parentSymbol.usr) else {
