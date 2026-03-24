@@ -134,7 +134,7 @@ final class DocCReferenceResolutionService: DocumentationService, Sendable {
     do {
       return try JSONEncoder().encode(value)
     } catch {
-      throw .decodingFailure(error.localizedDescription)
+      throw .encodingFailure(error.localizedDescription)
     }
   }
 

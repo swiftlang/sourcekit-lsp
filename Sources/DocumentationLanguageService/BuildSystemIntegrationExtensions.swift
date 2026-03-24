@@ -30,7 +30,7 @@ extension BuildServerManager {
   func moduleName(for target: BuildTargetIdentifier) async -> String? {
     let sourceFiles =
       await orLog(
-        "Failed to retreive source files from target \(target.uri)",
+        "Failed to retrieve source files from target \(target.uri)",
         { try await self.sourceFiles(in: [target]).flatMap(\.sources) }
       ) ?? []
     for sourceFile in sourceFiles {
