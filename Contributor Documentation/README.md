@@ -15,3 +15,4 @@ The following documentation documents are primarily intended for developers of S
 - [Overview](Overview.md)
 - [Swift Version](Swift%20Version.md)
 - [Testing](Testing.md)
+- [Using a Local Build of SourceKit](Using%20a%20Local%20Build%20of%20SourceKit.md)
