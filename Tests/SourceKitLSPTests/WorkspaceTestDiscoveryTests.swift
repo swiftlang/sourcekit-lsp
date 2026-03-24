@@ -1111,10 +1111,10 @@ final class WorkspaceTestDiscoveryTests: SourceKitLSPTestCase {
         "Tests/MyLibraryTests/MyTests+Generated.swift": """
         import XCTest
 
-        3️⃣extension MyTests {
-          4️⃣func testGenerated() {}5️⃣
-          6️⃣func testOtherGenerated() {}7️⃣
-        }8️⃣
+        extension MyTests {
+          1️⃣func testGenerated() {}2️⃣
+          3️⃣func testOtherGenerated() {}4️⃣
+        }
         """,
       ],
       manifest: packageManifestWithTestTarget,
@@ -1133,12 +1133,12 @@ final class WorkspaceTestDiscoveryTests: SourceKitLSPTestCase {
             TestItem(
               id: "MyLibraryTests.MyTests/testGenerated()",
               label: "testGenerated()",
-              location: try project.location(from: "4️⃣", to: "5️⃣", in: "MyTests+Generated.swift")
+              location: try project.location(from: "1️⃣", to: "2️⃣", in: "MyTests+Generated.swift")
             ),
             TestItem(
               id: "MyLibraryTests.MyTests/testOtherGenerated()",
               label: "testOtherGenerated()",
-              location: try project.location(from: "6️⃣", to: "7️⃣", in: "MyTests+Generated.swift")
+              location: try project.location(from: "3️⃣", to: "4️⃣", in: "MyTests+Generated.swift")
             ),
           ]
         )
