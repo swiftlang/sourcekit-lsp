@@ -1097,6 +1097,55 @@ final class WorkspaceTestDiscoveryTests: SourceKitLSPTestCase {
     )
   }
 
+  func testIndexBasedXCTestsInExtensionAreNotDuplicated() async throws {
+    try SkipUnless.longTestsEnabled()
+
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Tests/MyLibraryTests/MyTests.swift": """
+        import XCTest
+
+        1️⃣class MyTests: XCTestCase {
+        }2️⃣
+        """,
+        "Tests/MyLibraryTests/MyTests+Generated.swift": """
+        import XCTest
+
+        extension MyTests {
+          1️⃣func testGenerated() {}2️⃣
+          3️⃣func testOtherGenerated() {}4️⃣
+        }
+        """,
+      ],
+      manifest: packageManifestWithTestTarget,
+      enableBackgroundIndexing: true
+    )
+
+    let tests = try await project.testClient.send(WorkspaceTestsRequest())
+    XCTAssertEqual(
+      tests,
+      [
+        TestItem(
+          id: "MyLibraryTests.MyTests",
+          label: "MyTests",
+          location: try project.location(from: "1️⃣", to: "2️⃣", in: "MyTests.swift"),
+          children: [
+            TestItem(
+              id: "MyLibraryTests.MyTests/testGenerated()",
+              label: "testGenerated()",
+              location: try project.location(from: "1️⃣", to: "2️⃣", in: "MyTests+Generated.swift")
+            ),
+            TestItem(
+              id: "MyLibraryTests.MyTests/testOtherGenerated()",
+              label: "testOtherGenerated()",
+              location: try project.location(from: "3️⃣", to: "4️⃣", in: "MyTests+Generated.swift")
+            ),
+          ]
+        )
+      ]
+    )
+  }
+
   func testSwiftTestingTestsAreNotDiscoveredInNonTestTargets() async throws {
     let project = try await SwiftPMTestProject(
       files: [

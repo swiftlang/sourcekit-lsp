@@ -119,8 +119,9 @@ struct TestDiscovery {
           logger.fault("Unable to find primary definition of extension '\(parentSymbol.usr)' containing tests")
           continue
         }
-        testSymbolUsrs.insert(parentSymbol.usr)
-        occurrencesByParent[nil, default: []].append(definition)
+        if testSymbolUsrs.insert(parentSymbol.usr).inserted {
+          occurrencesByParent[nil, default: []].append(definition)
+        }
       }
     }
 
