@@ -10,9 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-@_spi(RawSyntax) import SwiftSyntax
-import SwiftRefactor
 @_spi(SourceKitLSP) import LanguageServerProtocol
+import SwiftRefactor
+@_spi(RawSyntax) import SwiftSyntax
 
 private enum ValidationResult: CustomStringConvertible {
   case accessor
@@ -41,7 +41,7 @@ private enum ValidationResult: CustomStringConvertible {
       self = .enumCase
     default:
       if let varDecl = member.decl.as(VariableDeclSyntax.self),
-         varDecl.bindings.contains(where: { $0.accessorBlock == nil || $0.initializer != nil })
+        varDecl.bindings.contains(where: { $0.accessorBlock == nil || $0.initializer != nil })
       {
         self = .storedProperty
       }
@@ -71,21 +71,35 @@ struct MoveMembersToExtension: SyntaxRefactoringProvider {
     }
 
     let selectedMembers = Array(declGroup.memberBlock.members).filter { context.range.overlaps($0.trimmedRange) }
-        .map { (member: $0, validationResult: ValidationResult($0)) }
+      .map { (member: $0, validationResult: ValidationResult($0)) }
 
     var membersToMove = selectedMembers.filter({ $0.validationResult == nil }).map(\.member)
 
     guard !membersToMove.isEmpty else {
+      let notMovedMembers = Set(selectedMembers.compactMap(\.validationResult))
+        .map(\.description)
+        .sorted().joined(separator: ", ")
       throw RefactoringNotApplicableError(
-        "Cannot move \(Set(selectedMembers.compactMap(\.validationResult)).map(\.description).sorted()) to extension"
+        "Cannot move \(notMovedMembers) to extension"
       )
     }
 
     var updatedDeclGroup = declGroup
-    let remainingMembers = Array(declGroup.memberBlock.members).filter { !membersToMove.contains($0) }
+    var remainingMembers = Array(declGroup.memberBlock.members).filter { !membersToMove.contains($0) }
     membersToMove[0].decl.leadingTrivia = membersToMove[0].decl.leadingTrivia.trimmingPrefix(while: \.isSpaceOrTab)
-    
+
+    if remainingMembers.isEmpty {
+      updatedDeclGroup.memberBlock.rightBrace.leadingTrivia = Trivia()
+    } else {
+      remainingMembers[0].leadingTrivia = .newline.merging(
+        remainingMembers[0].leadingTrivia.trimmingPrefix(while: \.isNewline)
+      )
+      remainingMembers[remainingMembers.count - 1].trailingTrivia = remainingMembers[remainingMembers.count - 1]
+        .trailingTrivia.trimmingSuffix(while: \.isNewline)
+    }
+
     updatedDeclGroup.memberBlock.members = MemberBlockItemListSyntax(remainingMembers)
+    membersToMove[0].leadingTrivia = .newline.merging(membersToMove[0].leadingTrivia.trimmingPrefix(while: \.isNewline))
     let extensionMemberBlockSyntax = declGroup.memberBlock.with(\.members, MemberBlockItemListSyntax(membersToMove))
 
     var declName = decl.name
