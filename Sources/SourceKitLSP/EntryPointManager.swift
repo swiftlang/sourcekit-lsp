@@ -76,8 +76,8 @@ actor EntryPointManager {
       }
       try Task.checkCancellation()
 
-      async let testsTask = self.refreshTestsImpl()
-      async let playgroundsTask = self.refreshPlaygroundsImpl()
+      async let testsTask: Void = self.refreshTestsImpl()
+      async let playgroundsTask: Void = self.refreshPlaygroundsImpl()
       _ = await (testsTask, playgroundsTask)
 
       // No need to clear 'self.currentRefreshTask'; the next call to `refresh()` will cancel and replace it.
