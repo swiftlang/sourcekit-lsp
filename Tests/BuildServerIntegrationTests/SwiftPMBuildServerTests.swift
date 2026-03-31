@@ -54,7 +54,7 @@ fileprivate extension SourceKitLSPOptions {
 }
 
 let swiftPMHasExperimentalBuildServer: Bool = {
-  func impl() async throws -> Bool {
+  @Sendable func impl() async throws -> Bool {
     if ProcessEnv.block["SWIFTCI_USE_LOCAL_DEPS"] != nil {
       // In general, don't skip tests in CI. Toolchain should be up-to-date.
       return false
@@ -79,7 +79,7 @@ let swiftPMHasExperimentalBuildServer: Bool = {
   // this, we need to find a better solution.
   nonisolated(unsafe) var result: Result<Bool, any Error>!
   let sema = WrappedSemaphore(name: "swiftPMHasExperimentalBuildServer")
-  let task = Task {
+  let task = Task { @Sendable in
     do {
       result = .success(try await impl())
     } catch {
