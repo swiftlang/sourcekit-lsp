@@ -84,6 +84,10 @@ struct BuildServerConfig: Codable {
     return try decoder.decode(BuildServerConfig.self, from: fileData)
   }
 
+  enum SwiftPMBuildServerConfigError: Error {
+    case unsupportedToolchainForSwiftPMBuildServerWithoutBackgroundIndexing
+  }
+
   static func forSwiftPMBuildServer(
     projectRoot: URL,
     options: SourceKitLSPOptions,
@@ -98,8 +102,12 @@ struct BuildServerConfig: Codable {
     args.append(contentsOf: ["--build-system", "swiftbuild"])
 
     if !options.backgroundIndexingOrDefault {
-      // If we're not background indexing, do not acquire the workspace lock, or else user-initiated builds will be blocked.
-      args.append(contentsOf: ["--experimental-skip-acquiring-lock", "--force-resolved-versions"])
+      if let swiftVersion = try? await toolchain?.swiftVersion, swiftVersion >= SwiftVersion(6, 4) {
+        // If we're not background indexing, do not acquire the workspace lock, or else user-initiated builds will be blocked.
+        args.append(contentsOf: ["--experimental-skip-acquiring-lock", "--force-resolved-versions"])
+      } else {
+        throw SwiftPMBuildServerConfigError.unsupportedToolchainForSwiftPMBuildServerWithoutBackgroundIndexing
+      }
     }
     // Explicitly specify the package path.
     try args.append(contentsOf: ["--package-path", projectRoot.filePath])
