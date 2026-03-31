@@ -1070,12 +1070,12 @@ extension SourceKitLSPServer {
     do {  // Setup EntryPointManager.
       let onWorkspaceTestsChanged =
         capabilityRegistry!.clientHasWorkspaceTestsRefreshSupport
-        ? { [weak self] in
+        ? { @Sendable [weak self] in
           _ = Task { try await self?.client.send(WorkspaceTestsRefreshRequest()) }
         } : nil
       let onWorkspacePlaygroundsChanged =
         capabilityRegistry!.clientHasWorkspacePlaygroundsRefreshSupport
-        ? { [weak self] in
+        ? { @Sendable [weak self] in
           _ = Task { try await self?.client.send(WorkspacePlaygroundsRefreshRequest()) }
         } : nil
       await entryPointManager.setCallbacks(
