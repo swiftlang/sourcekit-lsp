@@ -69,6 +69,9 @@ final class DebouncerTests: XCTestCase {
     let makeCallCompleted = self.expectation(description: "makeCallCompleted")
 
     let debouncer = Debouncer<Void>(debounceDuration: .milliseconds(50)) {
+      guard makeCallContinuation == nil else {
+        return
+      }
       // Pause makeCall and signal the test that it has started.
       await withCheckedContinuation { continuation in
         makeCallContinuation = continuation
