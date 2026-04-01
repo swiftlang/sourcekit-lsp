@@ -67,13 +67,9 @@ package struct RemoveUnusedImportsCommand: SwiftCommand {
 }
 
 extension SwiftLanguageService {
-  func retrieveRemoveUnusedImportsCodeAction(_ request: CodeActionRequest) async throws -> [CodeAction] {
-    let snapshot = try await self.latestSnapshot(for: request.textDocument.uri)
-
-    let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
+  func retrieveRemoveUnusedImportsCodeAction(_ scope: CodeActionScope) async throws -> [CodeAction] {
     guard
-      let node = SyntaxCodeActionScope(snapshot: snapshot, syntaxTree: syntaxTree, request: request)?
-        .innermostNodeContainingRange,
+      let node = scope.innermostNodeContainingRange,
       node.findParentOfSelf(ofType: ImportDeclSyntax.self, stoppingIf: { _ in false }) != nil
     else {
       // Only offer the remove unused imports code action on an import statement.
@@ -81,9 +77,9 @@ extension SwiftLanguageService {
     }
 
     guard
-      let buildSettings = await self.compileCommand(for: request.textDocument.uri, fallbackAfterTimeout: true),
+      let buildSettings = await self.compileCommand(for: scope.request.textDocument.uri, fallbackAfterTimeout: true),
       !buildSettings.isFallback,
-      try await !diagnosticReportManager.diagnosticReport(for: snapshot, buildSettings: buildSettings).items
+      try await !diagnosticReportManager.diagnosticReport(for: scope.snapshot, buildSettings: buildSettings).items
         .contains(where: { $0.severity == .error })
     else {
       // If the source file contains errors, we can't remove unused imports because we can't tell if removing import
@@ -91,7 +87,7 @@ extension SwiftLanguageService {
       return []
     }
 
-    let command = RemoveUnusedImportsCommand(textDocument: request.textDocument)
+    let command = RemoveUnusedImportsCommand(textDocument: scope.request.textDocument)
     return [
       CodeAction(
         title: command.title,

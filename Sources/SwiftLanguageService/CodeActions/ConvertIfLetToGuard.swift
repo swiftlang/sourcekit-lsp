@@ -38,7 +38,7 @@ import SwiftSyntaxBuilder
 /// return value
 /// ```
 @_spi(Testing) public struct ConvertIfLetToGuard: SyntaxCodeActionProvider {
-  static func codeActions(in scope: SyntaxCodeActionScope) -> [CodeAction] {
+  static func codeActions(in scope: CodeActionScope) async -> [CodeAction] {
     guard let ifExpr = findConvertibleIfExpr(in: scope) else {
       return []
     }
@@ -115,7 +115,7 @@ import SwiftSyntaxBuilder
     ]
   }
 
-  private static func findConvertibleIfExpr(in scope: SyntaxCodeActionScope) -> IfExprSyntax? {
+  private static func findConvertibleIfExpr(in scope: CodeActionScope) -> IfExprSyntax? {
     var node: Syntax? = scope.innermostNodeContainingRange
     while let c = node, !isFunctionBoundary(c) {
       if let ifExpr = c.as(IfExprSyntax.self) {
