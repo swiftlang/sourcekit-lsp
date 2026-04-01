@@ -11,7 +11,6 @@
 //===----------------------------------------------------------------------===//
 
 @_spi(SourceKitLSP) import LanguageServerProtocol
-@_spi(SourceKitLSP) import SKLogging
 import SourceKitLSP
 import SwiftRefactor
 import SwiftSyntax
@@ -44,14 +43,14 @@ struct CodeActionScope {
   /// The innermost node that contains the entire selected source range
   var innermostNodeContainingRange: Syntax?
 
-  /// Shared lazy cursorInfo cache, if semantic information is available for this request.
-  var sharedCursorInfo: SharedCursorInfo?
+  /// Shared lazy cursorInfo cache for semantic information.
+  var sharedCursorInfo: SharedCursorInfo
 
   init?(
     snapshot: DocumentSnapshot,
     syntaxTree file: SourceFileSyntax,
     request: CodeActionRequest,
-    sharedCursorInfo: SharedCursorInfo? = nil
+    sharedCursorInfo: SharedCursorInfo
   ) {
     self.snapshot = snapshot
     self.request = request
@@ -68,17 +67,8 @@ struct CodeActionScope {
   }
 
   /// Returns the first `CursorInfo` from the shared cache, or `nil` if unavailable.
-  package func cursorInfo() async throws -> CursorInfo? {
-    guard let shared = sharedCursorInfo else {
-      return nil
-    }
-    do {
-      let result = try await shared.get()
-      return result.cursorInfo.first
-    } catch {
-      logger.error("cursorInfo request failed: \(error)")
-      return nil
-    }
+  func cursorInfo() async throws -> CursorInfo? {
+    try await sharedCursorInfo.value.cursorInfo.first
   }
 }
 

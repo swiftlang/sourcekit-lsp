@@ -57,14 +57,14 @@ extension SwiftLanguageService {
       snapshot.position(of: nearestDocumentableSymbol.position),
       in: snapshot
     )
-    let (cursorInfo, _, symbolGraph) = try await cursorInfo(
+    let cursorInfoResponse = try await cursorInfo(
       snapshot.uri,
       Range(symbolPosition),
       includeSymbolGraph: true,
       fallbackSettingsAfterTimeout: false
     )
-    guard let symbolGraph,
-      let cursorInfo = cursorInfo.first,
+    guard let symbolGraph = cursorInfoResponse.symbolGraph,
+      let cursorInfo = cursorInfoResponse.cursorInfo.first,
       let symbolUSR = cursorInfo.symbolInfo.usr
     else {
       throw ResponseError.internalError("Unable to retrieve symbol graph for the document")

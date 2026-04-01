@@ -930,20 +930,18 @@ extension SwiftLanguageService {
 
     let uri = req.textDocument.uri
     let range = req.range
-    let sharedCursorInfo = SharedCursorInfo { [weak self] _ in
-      return Task { [weak self] in
-        guard let self = self else {
-          throw CancellationError()
-        }
-        return try await self.cursorInfo(
-          uri,
-          range,
-          fallbackSettingsAfterTimeout: true,
-          additionalParameters: { skreq in
-            skreq.set(self.keys.retrieveRefactorActions, to: 1)
-          }
-        )
+    let sharedCursorInfo = SharedCursorInfo { [weak self] in
+      guard let self = self else {
+        throw CancellationError()
       }
+      return try await self.cursorInfo(
+        uri,
+        range,
+        fallbackSettingsAfterTimeout: true,
+        additionalParameters: { skreq in
+          skreq.set(self.keys.retrieveRefactorActions, to: 1)
+        }
+      )
     }
 
     let snapshot = try documentManager.latestSnapshot(uri)
@@ -961,7 +959,7 @@ extension SwiftLanguageService {
     let wantedActionKinds = req.context.only
 
     if wantedActionKinds == nil {
-      allCodeActions += try await retrieveSyntaxCodeActions(scope)
+      allCodeActions += await retrieveSyntaxCodeActions(scope)
     }
 
     if wantedActionKinds == nil || (wantedActionKinds?.contains(.refactor) ?? false) {
@@ -1002,14 +1000,9 @@ extension SwiftLanguageService {
     .flatMap { $0 }
   }
 
-  func retrieveSyntaxCodeActions(_ scope: CodeActionScope) async throws -> [CodeAction] {
+  func retrieveSyntaxCodeActions(_ scope: CodeActionScope) async -> [CodeAction] {
     return await allSyntaxCodeActions.concurrentMap { provider in
-      do {
-        return try await provider.codeActions(in: scope)
-      } catch {
-        logger.error("Provider \(provider) failed: \(error)")
-        return []
-      }
+      await provider.codeActions(in: scope)
     }.flatMap { $0 }
   }
 
@@ -1018,9 +1011,7 @@ extension SwiftLanguageService {
   }
 
   func retrieveRefactorCodeActions(_ scope: CodeActionScope) async throws -> [CodeAction] {
-    guard let cursorInfoResult = try await scope.sharedCursorInfo?.get() else {
-      return []
-    }
+    let cursorInfoResult = try await scope.sharedCursorInfo.value
     let params = scope.request
 
     var canInlineMacro = false

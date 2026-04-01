@@ -11,7 +11,6 @@
 //===----------------------------------------------------------------------===//
 
 @_spi(SourceKitLSP) import LanguageServerProtocol
-@_spi(SourceKitLSP) import SKLogging
 import SourceKitLSP
 import SwiftRefactor
 import SwiftSyntax
@@ -27,15 +26,7 @@ struct ForEachToForInCodeAction: SyntaxCodeActionProvider {
       return []
     }
 
-    let cursorInfo: CursorInfo?
-    do {
-      cursorInfo = try await scope.cursorInfo()
-    } catch {
-      logger.error("Failed to get cursorInfo for forEach check: \(error)")
-      return []
-    }
-
-    guard let info = cursorInfo, isStdlibSequenceForEach(info) else {
+    guard let info = try? await scope.cursorInfo(), isStdlibSequenceForEach(info) else {
       return []
     }
 
