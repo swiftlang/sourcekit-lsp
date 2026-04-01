@@ -22,11 +22,11 @@ protocol SyntaxCodeActionProvider: SendableMetatype {
   /// Produce code actions within the given scope. Each code action
   /// corresponds to one syntactic transformation that can be performed, such
   /// as adding or removing separators from an integer literal.
-  static func codeActions(in scope: SyntaxCodeActionScope) -> [CodeAction]
+  static func codeActions(in scope: CodeActionScope) async -> [CodeAction]
 }
 
-/// Defines the scope in which a syntactic code action occurs.
-struct SyntaxCodeActionScope {
+/// Defines the scope in which code actions are evaluated.
+struct CodeActionScope {
   /// The snapshot of the document on which the code actions will be evaluated.
   var snapshot: DocumentSnapshot
 
@@ -44,14 +44,19 @@ struct SyntaxCodeActionScope {
   /// The innermost node that contains the entire selected source range
   var innermostNodeContainingRange: Syntax?
 
+  /// Shared lazy cursorInfo cache, if semantic information is available for this request.
+  var sharedCursorInfo: SharedCursorInfo?
+
   init?(
     snapshot: DocumentSnapshot,
     syntaxTree file: SourceFileSyntax,
-    request: CodeActionRequest
+    request: CodeActionRequest,
+    sharedCursorInfo: SharedCursorInfo? = nil
   ) {
     self.snapshot = snapshot
     self.request = request
     self.file = file
+    self.sharedCursorInfo = sharedCursorInfo
 
     guard let left = tokenForRefactoring(at: request.range.lowerBound, snapshot: snapshot, syntaxTree: file),
       let right = tokenForRefactoring(at: request.range.upperBound, snapshot: snapshot, syntaxTree: file)
@@ -60,6 +65,20 @@ struct SyntaxCodeActionScope {
     }
     self.range = left.position..<right.endPosition
     self.innermostNodeContainingRange = findCommonAncestorOrSelf(Syntax(left), Syntax(right))
+  }
+
+  /// Returns the first `CursorInfo` from the shared cache, or `nil` if unavailable.
+  package func cursorInfo() async throws -> CursorInfo? {
+    guard let shared = sharedCursorInfo else {
+      return nil
+    }
+    do {
+      let result = try await shared.get()
+      return result.cursorInfo.first
+    } catch {
+      logger.error("cursorInfo request failed: \(error)")
+      return nil
+    }
   }
 }
 

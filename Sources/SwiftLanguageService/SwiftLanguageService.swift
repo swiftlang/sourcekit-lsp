@@ -927,24 +927,58 @@ extension SwiftLanguageService {
       // Do not show code actions in reference documents
       return nil
     }
-    let providersAndKinds: [(provider: CodeActionProvider, kind: CodeActionKind?)] = [
-      (retrieveSyntaxCodeActions, nil),
-      (retrieveRefactorCodeActions, .refactor),
-      (retrieveQuickFixCodeActions, .quickFix),
-      (retrieveRemoveUnusedImportsCodeAction, .sourceOrganizeImports),
-    ]
-    let wantedActionKinds = req.context.only
-    let providers: [CodeActionProvider] = providersAndKinds.compactMap { (provider, kind) in
-      if let wantedActionKinds, let kind = kind, !wantedActionKinds.contains(kind) {
-        return nil
-      }
 
-      return provider
+    let uri = req.textDocument.uri
+    let range = req.range
+    let sharedCursorInfo = SharedCursorInfo { [weak self] _ in
+      return Task { [weak self] in
+        guard let self = self else {
+          throw CancellationError()
+        }
+        return try await self.cursorInfo(
+          uri,
+          range,
+          fallbackSettingsAfterTimeout: true,
+          additionalParameters: { skreq in
+            skreq.set(self.keys.retrieveRefactorActions, to: 1)
+          }
+        )
+      }
     }
+
+    let snapshot = try documentManager.latestSnapshot(uri)
+    let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
+    guard let scope = CodeActionScope(
+      snapshot: snapshot,
+      syntaxTree: syntaxTree,
+      request: req,
+      sharedCursorInfo: sharedCursorInfo
+    ) else {
+      return nil
+    }
+
+    var allCodeActions: [CodeAction] = []
+    let wantedActionKinds = req.context.only
+
+    if wantedActionKinds == nil {
+      allCodeActions += try await retrieveSyntaxCodeActions(scope)
+    }
+
+    if wantedActionKinds == nil || (wantedActionKinds?.contains(.refactor) ?? false) {
+      allCodeActions += try await retrieveRefactorCodeActions(scope)
+    }
+
+    if wantedActionKinds == nil || (wantedActionKinds?.contains(.quickFix) ?? false) {
+      allCodeActions += try await retrieveQuickFixCodeActions(scope)
+    }
+
+    if wantedActionKinds == nil || (wantedActionKinds?.contains(.sourceOrganizeImports) ?? false) {
+      allCodeActions += try await retrieveRemoveUnusedImportsCodeAction(scope)
+    }
+
     let codeActionCapabilities = capabilityRegistry.clientCapabilities.textDocument?.codeAction
-    let codeActions = try await retrieveCodeActions(req, providers: providers)
     let response = CodeActionRequestResponse(
-      codeActions: codeActions,
+      codeActions: allCodeActions,
       clientCapabilities: codeActionCapabilities
     )
     return response
@@ -968,16 +1002,14 @@ extension SwiftLanguageService {
     .flatMap { $0 }
   }
 
-  func retrieveSyntaxCodeActions(_ request: CodeActionRequest) async throws -> [CodeAction] {
-    let uri = request.textDocument.uri
-    let snapshot = try documentManager.latestSnapshot(uri)
-
-    let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
-    guard let scope = SyntaxCodeActionScope(snapshot: snapshot, syntaxTree: syntaxTree, request: request) else {
-      return []
-    }
+  func retrieveSyntaxCodeActions(_ scope: CodeActionScope) async throws -> [CodeAction] {
     return await allSyntaxCodeActions.concurrentMap { provider in
-      return provider.codeActions(in: scope)
+      do {
+        return try await provider.codeActions(in: scope)
+      } catch {
+        logger.error("Provider \(provider) failed: \(error)")
+        return []
+      }
     }.flatMap { $0 }
   }
 
@@ -985,21 +1017,15 @@ extension SwiftLanguageService {
     return req.codeAction
   }
 
-  func retrieveRefactorCodeActions(_ params: CodeActionRequest) async throws -> [CodeAction] {
-    let additionalCursorInfoParameters: ((SKDRequestDictionary) -> Void) = { skreq in
-      skreq.set(self.keys.retrieveRefactorActions, to: 1)
+  func retrieveRefactorCodeActions(_ scope: CodeActionScope) async throws -> [CodeAction] {
+    guard let cursorInfoResult = try await scope.sharedCursorInfo?.get() else {
+      return []
     }
-
-    let cursorInfoResponse = try await cursorInfo(
-      params.textDocument.uri,
-      params.range,
-      fallbackSettingsAfterTimeout: true,
-      additionalParameters: additionalCursorInfoParameters
-    )
+    let params = scope.request
 
     var canInlineMacro = false
 
-    var refactorActions = cursorInfoResponse.refactorActions.compactMap {
+    var refactorActions = cursorInfoResult.refactorActions.compactMap {
       let lspCommand = $0.asCommand()
       if !canInlineMacro {
         canInlineMacro = $0.actionString == "source.refactoring.kind.inline.macro"
@@ -1018,8 +1044,9 @@ extension SwiftLanguageService {
     return refactorActions
   }
 
-  func retrieveQuickFixCodeActions(_ params: CodeActionRequest) async throws -> [CodeAction] {
-    let snapshot = try await self.latestSnapshot(for: params.textDocument.uri)
+  func retrieveQuickFixCodeActions(_ scope: CodeActionScope) async throws -> [CodeAction] {
+    let params = scope.request
+    let snapshot = scope.snapshot
     let buildSettings = await self.compileCommand(for: params.textDocument.uri, fallbackAfterTimeout: true)
     let diagnosticReport = try await self.diagnosticReportManager.diagnosticReport(
       for: snapshot,

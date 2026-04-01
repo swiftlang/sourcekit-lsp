@@ -97,7 +97,7 @@ package struct AddDocumentation: EditRefactoringProvider {
 }
 
 extension AddDocumentation: SyntaxRefactoringCodeActionProvider {
-  static func nodeToRefactor(in scope: SyntaxCodeActionScope) -> Input? {
+  static func nodeToRefactor(in scope: CodeActionScope) -> Input? {
     return scope.innermostNodeContainingRange?.findParentOfSelf(
       ofType: DeclSyntax.self,
       stoppingIf: { $0.is(CodeBlockItemSyntax.self) || $0.is(MemberBlockItemSyntax.self) || $0.is(ExprSyntax.self) }
