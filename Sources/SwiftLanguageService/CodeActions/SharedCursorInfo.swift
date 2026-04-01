@@ -10,35 +10,25 @@
 //
 //===----------------------------------------------------------------------===//
 
-@_spi(SourceKitLSP) import SKLogging
-import SourceKitD
-
-/// Lazy, shared cache for a single `cursorInfo` request across concurrent code action providers.
+/// A lazily-evaluated, shared async value that is computed at most once.
 ///
-/// The first call to `get()` triggers the sourcekitd request; subsequent calls await the same `Task`.
-actor SharedCursorInfo {
-  private var cachedTask: Task<(cursorInfo: [CursorInfo], refactorActions: [SemanticRefactorCommand], symbolGraph: String?), any Error>?
+/// The first access triggers the operation; subsequent accesses await the same `Task`.
+actor LazyValue<Success: Sendable> {
+  private let operation: @Sendable () async throws -> Success
 
-  private let fetchCursorInfo: @Sendable (
-    ((SKDRequestDictionary) -> Void)?
-  ) -> Task<(cursorInfo: [CursorInfo], refactorActions: [SemanticRefactorCommand], symbolGraph: String?), any Error>
-
-  init(
-    fetchCursorInfo: @Sendable @escaping (
-      ((SKDRequestDictionary) -> Void)?
-    ) -> Task<(cursorInfo: [CursorInfo], refactorActions: [SemanticRefactorCommand], symbolGraph: String?), any Error>
-  ) {
-    self.fetchCursorInfo = fetchCursorInfo
+  init(_ operation: @escaping @Sendable () async throws -> Success) {
+    self.operation = operation
   }
 
-  func get(
-    additionalParameters: ((SKDRequestDictionary) -> Void)? = nil
-  ) async throws -> (cursorInfo: [CursorInfo], refactorActions: [SemanticRefactorCommand], symbolGraph: String?) {
-    if let task = cachedTask {
-      return try await task.value
+  private lazy var task: Task<Success, any Error> = Task {
+    try await operation()
+  }
+
+  var value: Success {
+    get async throws {
+      try await task.value
     }
-    let task = fetchCursorInfo(additionalParameters)
-    cachedTask = task
-    return try await task.value
   }
 }
+
+typealias SharedCursorInfo = LazyValue<CursorInfoResponse>
