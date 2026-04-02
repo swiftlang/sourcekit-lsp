@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2024 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2026 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -32,37 +32,52 @@ private let clientCapabilitiesWithCodeActionSupport: ClientCapabilities = {
 
 final class ForEachToForInCodeActionTests: SourceKitLSPTestCase {
 
+  private func makeProject(
+    _ source: String
+  ) async throws -> (SwiftPMTestProject, DocumentURI, DocumentPositions) {
+    let project = try await SwiftPMTestProject(
+      files: ["Test.swift": source],
+      capabilities: clientCapabilitiesWithCodeActionSupport,
+      enableBackgroundIndexing: true
+    )
+    let (uri, positions) = try project.openDocument("Test.swift")
+    return (project, uri, positions)
+  }
+
+  private func forEachAction(
+    in project: SwiftPMTestProject,
+    uri: DocumentURI,
+    at position: Position
+  ) async throws -> CodeAction? {
+    let result = try await project.testClient.send(
+      CodeActionRequest(
+        range: position..<position,
+        context: .init(),
+        textDocument: TextDocumentIdentifier(uri)
+      )
+    )
+    guard case .codeActions(let codeActions) = result else {
+      XCTFail("Expected code actions response")
+      return nil
+    }
+    return codeActions.first(where: { $0.title == "Convert to 'for-in' loop" })
+  }
+
   func testBasicForEachToForInConversion() async throws {
-    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
-    let uri = DocumentURI(for: .swift)
-    let positions = testClient.openDocument(
+    let (project, uri, positions) = try await makeProject(
       """
       let array = [1, 2, 3]
       1️⃣array.forEach { item in
         print(item)
       }
-      """,
-      uri: uri
+      """
     )
-
-    let request = CodeActionRequest(
-      range: positions["1️⃣"]..<positions["1️⃣"],
-      context: .init(),
-      textDocument: TextDocumentIdentifier(uri)
-    )
-    let result = try await testClient.send(request)
-    guard case .codeActions(let codeActions) = result else {
-      XCTFail("Expected code actions response")
-      return
-    }
-    let forEachAction = codeActions.first(where: { $0.title == "Convert to 'for-in' loop" })
-    XCTAssertNotNil(forEachAction, "Should offer 'Convert to for-in loop' action")
+    let action = try await forEachAction(in: project, uri: uri, at: positions["1️⃣"])
+    XCTAssertNotNil(action, "Should offer 'Convert to for-in loop' action")
   }
 
   func testRejectsCustomForEach() async throws {
-    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
-    let uri = DocumentURI(for: .swift)
-    let positions = testClient.openDocument(
+    let (project, uri, positions) = try await makeProject(
       """
       struct MyCollection {
         func forEach(_ closure: (Int) -> Void) {
@@ -74,80 +89,38 @@ final class ForEachToForInCodeActionTests: SourceKitLSPTestCase {
       1️⃣col.forEach { item in
         print(item)
       }
-      """,
-      uri: uri
+      """
     )
-
-    let request = CodeActionRequest(
-      range: positions["1️⃣"]..<positions["1️⃣"],
-      context: .init(),
-      textDocument: TextDocumentIdentifier(uri)
-    )
-    let result = try await testClient.send(request)
-    guard case .codeActions(let codeActions) = result else {
-      XCTFail("Expected code actions response")
-      return
-    }
-    let forEachAction = codeActions.first(where: { $0.title == "Convert to 'for-in' loop" })
-    XCTAssertNil(forEachAction, "Should NOT offer action for custom forEach (not stdlib)")
+    let action = try await forEachAction(in: project, uri: uri, at: positions["1️⃣"])
+    XCTAssertNil(action, "Should NOT offer action for custom forEach (not stdlib)")
   }
 
   func testExplicitClosureArgument() async throws {
-    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
-    let uri = DocumentURI(for: .swift)
-    let positions = testClient.openDocument(
+    let (project, uri, positions) = try await makeProject(
       """
       let array = [1, 2, 3]
       1️⃣array.forEach({ item in
         print(item)
       })
-      """,
-      uri: uri
+      """
     )
-
-    let request = CodeActionRequest(
-      range: positions["1️⃣"]..<positions["1️⃣"],
-      context: .init(),
-      textDocument: TextDocumentIdentifier(uri)
-    )
-    let result = try await testClient.send(request)
-    guard case .codeActions(let codeActions) = result else {
-      XCTFail("Expected code actions response")
-      return
-    }
-    let forEachAction = codeActions.first(where: { $0.title == "Convert to 'for-in' loop" })
-    XCTAssertNotNil(forEachAction, "Should offer action for explicit closure argument form")
+    let action = try await forEachAction(in: project, uri: uri, at: positions["1️⃣"])
+    XCTAssertNotNil(action, "Should offer action for explicit closure argument form")
   }
 
-  func testRejectsShorthandDollarZero() async throws {
-    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
-    let uri = DocumentURI(for: .swift)
-    let positions = testClient.openDocument(
+  func testConvertsShorthandDollarZero() async throws {
+    let (project, uri, positions) = try await makeProject(
       """
       let array = [1, 2, 3]
       1️⃣array.forEach { print($0) }
-      """,
-      uri: uri
+      """
     )
-
-    let request = CodeActionRequest(
-      range: positions["1️⃣"]..<positions["1️⃣"],
-      context: .init(),
-      textDocument: TextDocumentIdentifier(uri)
-    )
-    let result = try await testClient.send(request)
-    guard case .codeActions(let codeActions) = result else {
-      XCTFail("Expected code actions response")
-      return
-    }
-    let forEachAction = codeActions.first(where: { $0.title == "Convert to 'for-in' loop" })
-    XCTAssertNil(forEachAction, "Should NOT offer action for $0 shorthand")
+    let action = try await forEachAction(in: project, uri: uri, at: positions["1️⃣"])
+    XCTAssertNotNil(action, "Should offer action for $0 shorthand, rewriting to named parameter")
   }
 
   func testRejectsReturnWithValue() async throws {
-    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
-    let uri = DocumentURI(for: .swift)
-    let positions = testClient.openDocument(
+    let (project, uri, positions) = try await makeProject(
       """
       let array = [1, 2, 3]
       1️⃣array.forEach { item in
@@ -156,28 +129,14 @@ final class ForEachToForInCodeActionTests: SourceKitLSPTestCase {
         }
         print(item)
       }
-      """,
-      uri: uri
+      """
     )
-
-    let request = CodeActionRequest(
-      range: positions["1️⃣"]..<positions["1️⃣"],
-      context: .init(),
-      textDocument: TextDocumentIdentifier(uri)
-    )
-    let result = try await testClient.send(request)
-    guard case .codeActions(let codeActions) = result else {
-      XCTFail("Expected code actions response")
-      return
-    }
-    let forEachAction = codeActions.first(where: { $0.title == "Convert to 'for-in' loop" })
-    XCTAssertNil(forEachAction, "Should NOT offer action when closure has return with value")
+    let action = try await forEachAction(in: project, uri: uri, at: positions["1️⃣"])
+    XCTAssertNil(action, "Should NOT offer action when closure has return with value")
   }
 
   func testTransformsBareReturnToContinue() async throws {
-    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
-    let uri = DocumentURI(for: .swift)
-    let positions = testClient.openDocument(
+    let (project, uri, positions) = try await makeProject(
       """
       let array = [1, 2, 3]
       1️⃣array.forEach { item in
@@ -186,76 +145,105 @@ final class ForEachToForInCodeActionTests: SourceKitLSPTestCase {
         }
         print(item)
       }
-      """,
-      uri: uri
+      """
     )
-
-    let request = CodeActionRequest(
-      range: positions["1️⃣"]..<positions["1️⃣"],
-      context: .init(),
-      textDocument: TextDocumentIdentifier(uri)
-    )
-    let result = try await testClient.send(request)
-    guard case .codeActions(let codeActions) = result else {
-      XCTFail("Expected code actions response")
-      return
-    }
-    let forEachAction = codeActions.first(where: { $0.title == "Convert to 'for-in' loop" })
-    XCTAssertNotNil(forEachAction, "Bare return should be converted to continue")
+    let action = try await forEachAction(in: project, uri: uri, at: positions["1️⃣"])
+    XCTAssertNotNil(action, "Bare return should be converted to continue")
   }
 
-  func testRejectsClosureWithTry() async throws {
-    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
-    let uri = DocumentURI(for: .swift)
-    let positions = testClient.openDocument(
+  func testAllowsTryInClosure() async throws {
+    let (project, uri, positions) = try await makeProject(
       """
       let array = [1, 2, 3]
       1️⃣array.forEach { item in
         try print(item)
       }
-      """,
-      uri: uri
+      """
     )
-
-    let request = CodeActionRequest(
-      range: positions["1️⃣"]..<positions["1️⃣"],
-      context: .init(),
-      textDocument: TextDocumentIdentifier(uri)
-    )
-    let result = try await testClient.send(request)
-    guard case .codeActions(let codeActions) = result else {
-      XCTFail("Expected code actions response")
-      return
-    }
-    let forEachAction = codeActions.first(where: { $0.title == "Convert to 'for-in' loop" })
-    XCTAssertNil(forEachAction, "Should NOT offer action for try expression")
+    let action = try await forEachAction(in: project, uri: uri, at: positions["1️⃣"])
+    XCTAssertNotNil(action, "Should offer action — forEach is rethrows so try is valid")
   }
 
   func testRejectsClosureWithAwait() async throws {
-    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
-    let uri = DocumentURI(for: .swift)
-    let positions = testClient.openDocument(
+    let (project, uri, positions) = try await makeProject(
       """
       let array = [1, 2, 3]
       1️⃣array.forEach { item in
         await print(item)
       }
-      """,
-      uri: uri
+      """
     )
+    let action = try await forEachAction(in: project, uri: uri, at: positions["1️⃣"])
+    XCTAssertNil(action, "Should NOT offer action for await expression")
+  }
 
-    let request = CodeActionRequest(
-      range: positions["1️⃣"]..<positions["1️⃣"],
-      context: .init(),
-      textDocument: TextDocumentIdentifier(uri)
+  func testParenthesizedClosureParameter() async throws {
+    let (project, uri, positions) = try await makeProject(
+      """
+      let array = [1, 2, 3]
+      1️⃣array.forEach({ (item) in
+        print(item)
+      })
+      """
     )
-    let result = try await testClient.send(request)
-    guard case .codeActions(let codeActions) = result else {
-      XCTFail("Expected code actions response")
+    let action = try await forEachAction(in: project, uri: uri, at: positions["1️⃣"])
+    XCTAssertNotNil(action, "Should offer action for parenthesized closure parameter")
+  }
+
+  func testTypedClosureParameter() async throws {
+    let (project, uri, positions) = try await makeProject(
+      """
+      let array = [1, 2, 3]
+      1️⃣array.forEach({ (item: Int) in
+        print(item)
+      })
+      """
+    )
+    let action = try await forEachAction(in: project, uri: uri, at: positions["1️⃣"])
+    XCTAssertNotNil(action, "Should offer action and preserve type annotation")
+  }
+
+  func testDollarZeroDoesNotPenetrateNestedClosure() async throws {
+    let (project, uri, positions) = try await makeProject(
+      """
+      let array = [1, 2, 3]
+      1️⃣array.forEach {
+        let mapped = [$0].map { $0 + 1 }
+        print(mapped)
+      }
+      """
+    )
+    let action = try await forEachAction(in: project, uri: uri, at: positions["1️⃣"])
+    XCTAssertNotNil(action)
+    guard let change = action?.edit?.changes?[uri]?.first else {
+      XCTFail("Expected edit")
       return
     }
-    let forEachAction = codeActions.first(where: { $0.title == "Convert to 'for-in' loop" })
-    XCTAssertNil(forEachAction, "Should NOT offer action for await expression")
+    // The inner `$0` in `map { $0 + 1 }` must remain untouched
+    XCTAssertTrue(change.newText.contains("$0 + 1"), "Nested closure $0 should not be rewritten")
+    XCTAssertTrue(change.newText.contains("for element in"), "Outer $0 should become 'element'")
+  }
+
+  func testBareReturnRewrittenToContinueInOutput() async throws {
+    let (project, uri, positions) = try await makeProject(
+      """
+      let array = [1, 2, 3]
+      1️⃣array.forEach { item in
+        if item < 2 {
+          return
+        }
+        print(item)
+      }
+      """
+    )
+    let action = try await forEachAction(in: project, uri: uri, at: positions["1️⃣"])
+    XCTAssertNotNil(action)
+    guard let change = action?.edit?.changes?[uri]?.first else {
+      XCTFail("Expected edit")
+      return
+    }
+    XCTAssertTrue(change.newText.contains("continue"), "Bare return should become continue")
+    XCTAssertFalse(change.newText.contains("return"), "No return should remain in the output")
   }
 
   func testGracefulDegradationWithoutCursorInfo() async throws {
@@ -281,30 +269,15 @@ final class ForEachToForInCodeActionTests: SourceKitLSPTestCase {
   }
 
   func testProviderIntegrationInCodeActionFlow() async throws {
-    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
-    let uri = DocumentURI(for: .swift)
-    let positions = testClient.openDocument(
+    let (project, uri, positions) = try await makeProject(
       """
       let numbers = [1, 2, 3, 4, 5]
       1️⃣numbers.forEach { n in
         print(n)
       }
-      """,
-      uri: uri
+      """
     )
-
-    let request = CodeActionRequest(
-      range: positions["1️⃣"]..<positions["1️⃣"],
-      context: .init(),
-      textDocument: TextDocumentIdentifier(uri)
-    )
-    let result = try await testClient.send(request)
-    guard case .codeActions(let codeActions) = result else {
-      XCTFail("Expected code actions response")
-      return
-    }
-
-    let forEachAction = codeActions.first(where: { $0.title == "Convert to 'for-in' loop" })
-    XCTAssertNotNil(forEachAction, "Provider should be called and return action")
+    let action = try await forEachAction(in: project, uri: uri, at: positions["1️⃣"])
+    XCTAssertNotNil(action, "Provider should be called and return action")
   }
 }
