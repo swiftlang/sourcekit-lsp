@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2024 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2026 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -13,7 +13,7 @@
 /// A lazily-evaluated, shared async value that is computed at most once.
 ///
 /// The first access triggers the operation; subsequent accesses await the same `Task`.
-actor LazyValue<Success: Sendable> {
+actor AsyncLazy<Success: Sendable> {
   private let operation: @Sendable () async throws -> Success
 
   init(_ operation: @escaping @Sendable () async throws -> Success) {
@@ -31,4 +31,4 @@ actor LazyValue<Success: Sendable> {
   }
 }
 
-typealias SharedCursorInfo = LazyValue<CursorInfoResponse>
+typealias SharedCursorInfo = AsyncLazy<CursorInfoResponse>

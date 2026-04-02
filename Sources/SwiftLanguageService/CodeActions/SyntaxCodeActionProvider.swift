@@ -43,19 +43,24 @@ struct CodeActionScope {
   /// The innermost node that contains the entire selected source range
   var innermostNodeContainingRange: Syntax?
 
-  /// Shared lazy cursorInfo cache for semantic information.
+  /// Shared lazy cursorInfo cache for semantic information at the request position.
   var sharedCursorInfo: SharedCursorInfo
+
+  /// A closure that fetches cursorInfo at an arbitrary position in the document.
+  var cursorInfoProvider: @Sendable (DocumentURI, Range<Position>) async throws -> CursorInfoResponse
 
   init?(
     snapshot: DocumentSnapshot,
     syntaxTree file: SourceFileSyntax,
     request: CodeActionRequest,
-    sharedCursorInfo: SharedCursorInfo
+    sharedCursorInfo: SharedCursorInfo,
+    cursorInfoProvider: @escaping @Sendable (DocumentURI, Range<Position>) async throws -> CursorInfoResponse
   ) {
     self.snapshot = snapshot
     self.request = request
     self.file = file
     self.sharedCursorInfo = sharedCursorInfo
+    self.cursorInfoProvider = cursorInfoProvider
 
     guard let left = tokenForRefactoring(at: request.range.lowerBound, snapshot: snapshot, syntaxTree: file),
       let right = tokenForRefactoring(at: request.range.upperBound, snapshot: snapshot, syntaxTree: file)
@@ -69,6 +74,13 @@ struct CodeActionScope {
   /// Returns the first `CursorInfo` from the shared cache, or `nil` if unavailable.
   func cursorInfo() async throws -> CursorInfo? {
     try await sharedCursorInfo.value.cursorInfo.first
+  }
+
+  /// Returns cursorInfo at the position of the given syntax node.
+  func cursorInfo(at absolutePosition: AbsolutePosition) async throws -> CursorInfo? {
+    let position = snapshot.position(of: absolutePosition)
+    let range = position..<position
+    return try await cursorInfoProvider(snapshot.uri, range).cursorInfo.first
   }
 }
 

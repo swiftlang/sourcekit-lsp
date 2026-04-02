@@ -950,7 +950,11 @@ extension SwiftLanguageService {
       snapshot: snapshot,
       syntaxTree: syntaxTree,
       request: req,
-      sharedCursorInfo: sharedCursorInfo
+      sharedCursorInfo: sharedCursorInfo,
+      cursorInfoProvider: { [weak self] uri, range in
+        guard let self = self else { throw CancellationError() }
+        return try await self.cursorInfo(uri, range, fallbackSettingsAfterTimeout: true)
+      }
     ) else {
       return nil
     }
@@ -958,9 +962,7 @@ extension SwiftLanguageService {
     var allCodeActions: [CodeAction] = []
     let wantedActionKinds = req.context.only
 
-    if wantedActionKinds == nil {
-      allCodeActions += await retrieveSyntaxCodeActions(scope)
-    }
+    allCodeActions += await retrieveSyntaxCodeActions(scope)
 
     if wantedActionKinds == nil || (wantedActionKinds?.contains(.refactor) ?? false) {
       allCodeActions += try await retrieveRefactorCodeActions(scope)
@@ -980,24 +982,6 @@ extension SwiftLanguageService {
       clientCapabilities: codeActionCapabilities
     )
     return response
-  }
-
-  func retrieveCodeActions(
-    _ req: CodeActionRequest,
-    providers: [CodeActionProvider]
-  ) async throws -> [CodeAction] {
-    guard providers.isEmpty == false else {
-      return []
-    }
-    return await providers.concurrentMap { provider in
-      do {
-        return try await provider(req)
-      } catch {
-        // Ignore any providers that failed to provide refactoring actions.
-        return []
-      }
-    }
-    .flatMap { $0 }
   }
 
   func retrieveSyntaxCodeActions(_ scope: CodeActionScope) async -> [CodeAction] {
