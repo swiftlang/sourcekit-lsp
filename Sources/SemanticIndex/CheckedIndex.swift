@@ -296,6 +296,10 @@ package final class CheckedIndex {
     if containerSymbol.kind == .extension,
       let extendedSymbol = try self.occurrences(relatedToUSR: containerSymbol.usr, roles: .extendedBy).first?.symbol
     {
+      if let cached = containerNamesCache[extendedSymbol.usr] {
+        containerNamesCache[containerSymbol.usr] = cached
+        return cached
+      }
       containerSymbol = extendedSymbol
     }
     let result: [String]
