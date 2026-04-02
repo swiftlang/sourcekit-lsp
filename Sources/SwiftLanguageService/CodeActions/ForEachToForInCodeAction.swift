@@ -138,13 +138,13 @@ private func isStdlibSequenceForEach(_ info: CursorInfo) -> Bool {
 
 private func hasReturnWithValue(_ closure: ClosureExprSyntax) -> Bool {
   let visitor = ReturnWithValueVisitor()
-  visitor.walk(closure)
+  visitor.walk(closure.statements)
   return visitor.found
 }
 
 private func hasAwait(_ closure: ClosureExprSyntax) -> Bool {
   let visitor = AwaitVisitor()
-  visitor.walk(closure)
+  visitor.walk(closure.statements)
   return visitor.found
 }
 
