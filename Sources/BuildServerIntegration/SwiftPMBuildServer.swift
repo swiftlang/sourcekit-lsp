@@ -511,7 +511,7 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
 
       signposter.emitEvent("Finished generating build plan", id: signpostID)
 
-      buildDescription = BuildDescription(buildPlan: plan)
+      buildDescription = BuildDescription(buildPlan: plan, pluginConfiguration: self.pluginConfiguration)
     }
 
     /// Make sure to execute any throwing statements before setting any
@@ -982,3 +982,10 @@ fileprivate extension SourceKitLSPOptions.BackgroundPreparationMode {
 }
 
 #endif
+
+extension SourceKitLSPAPI.BuildDescription {
+  @_disfavoredOverload
+  init(buildPlan: Build.BuildPlan, pluginConfiguration: PluginConfiguration) {
+    self.init(buildPlan: buildPlan)
+  }
+}
