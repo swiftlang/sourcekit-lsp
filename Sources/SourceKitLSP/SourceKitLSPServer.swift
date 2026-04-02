@@ -675,7 +675,7 @@ extension SourceKitLSPServer: QueueBasedMessageHandler {
         continue
       }
       logger.info("Implicitly cancelling request \(requestID)")
-      self.messageHandlingHelper.cancelRequest(id: requestID)
+      self.messageHandlingHelper.cancelRequest(id: requestID, error: .cancelled)
     }
   }
 
@@ -729,7 +729,7 @@ extension SourceKitLSPServer: QueueBasedMessageHandler {
   package func handle<Request: RequestType>(
     request params: Request,
     id: RequestID,
-    reply: @Sendable @escaping (LSPResult<Request.Response>) -> Void
+    reply: @Sendable @escaping (Result<Request.Response, any Error>) -> Void
   ) async {
     defer {
       if let request = params as? any TextDocumentRequest {
