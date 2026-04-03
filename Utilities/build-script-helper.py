@@ -268,9 +268,10 @@ def install(swift_exec: str, args: argparse.Namespace) -> None:
     additional_env = get_swiftpm_environment_variables(swift_exec, args)
     bin_path = swiftpm_bin_path(swift_exec, swiftpm_args=swiftpm_args, additional_env=additional_env)
 
-    build_single_product('sourcekit-lsp', swift_exec, args)
-    build_single_product('SwiftSourceKitPlugin', swift_exec, args)
-    build_single_product('SwiftSourceKitClientPlugin', swift_exec, args)
+    if not args.install_only:
+        build_single_product('sourcekit-lsp', swift_exec, args)
+        build_single_product('SwiftSourceKitPlugin', swift_exec, args)
+        build_single_product('SwiftSourceKitClientPlugin', swift_exec, args)
 
     if platform.system() == 'Darwin':
         dynamic_library_extension = "dylib"
@@ -339,6 +340,7 @@ def parse_args() -> argparse.Namespace:
     install_parser = subparsers.add_parser('install', help='build the package')
     add_common_args(install_parser)
     install_parser.add_argument('--prefix', dest='install_prefixes', nargs='*', metavar='PATHS', help="paths to install sourcekit-lsp, default: 'toolchain/bin'")
+    install_parser.add_argument('--install-only', action='store_true', default=False)
 
     args = parser.parse_args(sys.argv[1:])
 
