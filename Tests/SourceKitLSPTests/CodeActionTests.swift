@@ -428,6 +428,53 @@ final class CodeActionTests: SourceKitLSPTestCase {
     XCTAssertEqual(resultActions, [expectedCodeAction])
   }
 
+  func testRemoveUnusedParameterCodeAction() async throws {
+    let markedSource = """
+      func greet(name: String, 1️⃣title: String) {
+        print("Hello, \\(name)")
+      }
+      greet(name: "Alice", title: "Ms.")
+      """
+    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(markedSource, uri: uri)
+
+    let pos = positions["1️⃣"]
+    let request = CodeActionRequest(
+      range: pos..<pos,
+      context: .init(),
+      textDocument: TextDocumentIdentifier(uri)
+    )
+    let result = try await testClient.send(request)
+
+    guard case .codeActions(let codeActions) = result else {
+      XCTFail("Expected code actions response")
+      return
+    }
+
+    let action = codeActions.first(where: { $0.title == "Remove unused parameter 'title'" })
+    guard let action else {
+      XCTFail("'Remove unused parameter' action not found. Available: \(codeActions.map(\.title))")
+      return
+    }
+
+    guard let edit = action.edit, let changes = edit.changes?[uri], !changes.isEmpty else {
+      XCTFail("Action should provide an edit with changes")
+      return
+    }
+
+    // Server receives document with markers stripped (see didOpen in test output), so edits are in unmarked coordinates.
+    let source = extractMarkers(markedSource).textWithoutMarkers
+    let resultText = apply(edits: changes, to: source)
+    let expected = """
+      func greet(name: String) {
+        print("Hello, \\(name)")
+      }
+      greet(name: "Alice")
+      """
+    XCTAssertEqual(resultText, expected)
+  }
+
   func testCodeActionsRemovePlaceholders() async throws {
     let testClient = try await TestSourceKitLSPClient(
       capabilities: clientCapabilitiesWithCodeActionSupport,
