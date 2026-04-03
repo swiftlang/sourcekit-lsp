@@ -388,7 +388,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable, LSPAnyCodable {
   public var cancelTextDocumentRequestsOnEditAndClose: Bool? = nil
 
   public var cancelTextDocumentRequestsOnEditAndCloseOrDefault: Bool {
-    return cancelTextDocumentRequestsOnEditAndClose ?? true
+    return cancelTextDocumentRequestsOnEditAndClose ?? false
   }
 
   /// Whether the response for `textDocument/semanticTokens` should include semantic tokens for syntactic and semantic
