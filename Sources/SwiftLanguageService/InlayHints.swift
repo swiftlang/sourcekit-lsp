@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2025 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2026 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -97,6 +97,13 @@ extension SwiftLanguageService {
       )
     }
 
-    return Array(typeHints + ifConfigHints)
+    // Generate trailing closure inlay hints
+    let trailingClosureHints = await trailingClosureInlayHints(
+      uri: uri,
+      range: req.range,
+      options: self.options
+    )
+
+    return Array(typeHints + ifConfigHints + trailingClosureHints)
   }
 }
