@@ -321,14 +321,6 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
         continue
       }
 
-      guard
-        await buildServerManager.toolchain(for: target, language: language)?
-          .canIndexMultipleSwiftFilesInSingleInvocation ?? false
-      else {
-        partitions.append(.singleFile(file: fileInfo, buildSettings: buildSettings))
-        continue
-      }
-
       // If the build settings contain `-index-unit-output-path`, remove it. We add the index unit output path back in
       // using an `-output-file-map`. Removing it from the build settings allows us to index multiple Swift files in a
       // single compiler invocation if they share all build settings and only differ in their `-index-unit-output-path`.
@@ -478,12 +470,6 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
 
     switch partition {
     case .multipleFiles(let filesAndOutputPaths, let buildSettings):
-      if await !toolchain.canIndexMultipleSwiftFilesInSingleInvocation {
-        // We should never get here because we shouldn't create `multipleFiles` batches if the toolchain doesn't support
-        // indexing multiple files in a single compiler invocation.
-        logger.fault("Cannot index multiple files in a single compiler invocation.")
-      }
-
       struct OutputFileMapEntry: Encodable {
         let indexUnitOutputPath: String
 
@@ -687,10 +673,7 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     var partitions: [(target: BuildTargetIdentifier, language: Language, files: [FileIndexInfo])] = []
     var fileIndexInfosToBatch: [TargetAndLanguage: [FileIndexInfo]] = [:]
     for fileIndexInfo in fileIndexInfos {
-      guard fileIndexInfo.language == .swift,
-        await buildServerManager.toolchain(for: fileIndexInfo.target, language: fileIndexInfo.language)?
-          .canIndexMultipleSwiftFilesInSingleInvocation ?? false
-      else {
+      guard fileIndexInfo.language == .swift else {
         // Only Swift supports indexing multiple files in a single compiler invocation, so don't batch files of other
         // languages.
         partitions.append((fileIndexInfo.target, fileIndexInfo.language, [fileIndexInfo]))
