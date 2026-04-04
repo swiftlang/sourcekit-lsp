@@ -1314,25 +1314,22 @@ package actor BuildServerManager: QueueBasedMessageHandler {
     guard let language = language ?? Language(inferredFromFileExtension: document) else {
       return nil
     }
-    var siblingFile: DocumentURI? = cachedCopiedFileMap[document]
-    if siblingFile == nil {
-      siblingFile = try await self.sourceFilesAndDirectories().files.compactMap { (uri, info) -> DocumentURI? in
-        guard info.isBuildable, uri.fileURL?.deletingLastPathComponent() == directory else {
-          return nil
-        }
-        if let explicitlyRequestedTarget, !info.targets.contains(explicitlyRequestedTarget) {
-          return nil
-        }
-        // Only consider build settings from sibling files that appear to have the same language. In theory, we might skip
-        // valid sibling files because of this since non-standard file extension might be mapped to `language` by the
-        // build server, but this is a good first check to avoid requesting build settings for too many documents. And
-        // since all of this is fallback-logic, skipping over possibly valid files is not a correctness issue.
-        guard let siblingLanguage = Language(inferredFromFileExtension: uri), siblingLanguage == language else {
-          return nil
-        }
-        return uri
-      }.sorted(by: { $0.pseudoPath < $1.pseudoPath }).first
-    }
+    let siblingFile = try await self.sourceFilesAndDirectories().files.compactMap { (uri, info) -> DocumentURI? in
+      guard info.isBuildable, uri.fileURL?.deletingLastPathComponent() == directory else {
+        return nil
+      }
+      if let explicitlyRequestedTarget, !info.targets.contains(explicitlyRequestedTarget) {
+        return nil
+      }
+      // Only consider build settings from sibling files that appear to have the same language. In theory, we might skip
+      // valid sibling files because of this since non-standard file extension might be mapped to `language` by the
+      // build server, but this is a good first check to avoid requesting build settings for too many documents. And
+      // since all of this is fallback-logic, skipping over possibly valid files is not a correctness issue.
+      guard let siblingLanguage = Language(inferredFromFileExtension: uri), siblingLanguage == language else {
+        return nil
+      }
+      return uri
+    }.sorted(by: { $0.pseudoPath < $1.pseudoPath }).first
 
     guard let siblingFile else {
       return nil
