@@ -20,7 +20,7 @@ import SwiftSyntax
 /// Syntactic code action provider to provide refactoring actions that
 /// edit a package manifest.
 struct PackageManifestEdits: SyntaxCodeActionProvider {
-  static func codeActions(in scope: SyntaxCodeActionScope) -> [CodeAction] {
+  static func codeActions(in scope: CodeActionScope) async -> [CodeAction] {
     guard let call = scope.innermostNodeContainingRange?.findEnclosingCall() else {
       return []
     }
@@ -32,7 +32,7 @@ struct PackageManifestEdits: SyntaxCodeActionProvider {
   /// Produce code actions to add new targets of various kinds.
   static func addTargetActions(
     call: FunctionCallExprSyntax,
-    in scope: SyntaxCodeActionScope
+    in scope: CodeActionScope
   ) -> [CodeAction] {
     do {
       var actions: [CodeAction] = []
@@ -76,7 +76,7 @@ struct PackageManifestEdits: SyntaxCodeActionProvider {
   /// a target for which we know how to create a test.
   static func addTestTargetActions(
     call: FunctionCallExprSyntax,
-    in scope: SyntaxCodeActionScope
+    in scope: CodeActionScope
   ) -> [CodeAction] {
     guard let calledMember = call.findMemberAccessCallee(),
       targetsThatAllowTests.contains(calledMember),
@@ -135,7 +135,7 @@ struct PackageManifestEdits: SyntaxCodeActionProvider {
   /// a target for which we can create a product.
   static func addProductActions(
     call: FunctionCallExprSyntax,
-    in scope: SyntaxCodeActionScope
+    in scope: CodeActionScope
   ) -> [CodeAction] {
     guard let calledMember = call.findMemberAccessCallee(),
       targetsThatAllowProducts.contains(calledMember),

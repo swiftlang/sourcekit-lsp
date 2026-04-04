@@ -203,7 +203,7 @@ package struct ConvertJSONToCodableStruct: EditRefactoringProvider {
 }
 
 extension ConvertJSONToCodableStruct: SyntaxRefactoringCodeActionProvider {
-  static func nodeToRefactor(in scope: SyntaxCodeActionScope) -> Syntax? {
+  static func nodeToRefactor(in scope: CodeActionScope) -> Syntax? {
     var node: Syntax? = scope.innermostNodeContainingRange
     while let unwrappedNode = node, ![.codeBlockItem, .memberBlockItem].contains(unwrappedNode.kind) {
       if preflightRefactoring(unwrappedNode) != nil {
