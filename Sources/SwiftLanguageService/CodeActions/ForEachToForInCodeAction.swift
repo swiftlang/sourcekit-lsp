@@ -13,6 +13,7 @@
 @_spi(SourceKitLSP) import LanguageServerProtocol
 import SourceKitLSP
 import SwiftRefactor
+import SwiftBasicFormat
 import SwiftSyntax
 import SwiftSyntaxBuilder
 
@@ -49,15 +50,24 @@ struct ForEachToForInCodeAction: SyntaxCodeActionProvider {
       body = DollarZeroRewriter(replacement: param.name).visit(body)
     }
     let rewrittenBody = ReturnToContinueRewriter().visit(body)
+    let indentationWidth = BasicFormat.inferIndentation(of: Syntax(scope.file)) ?? .spaces(2)
+    let baseIndentation = match.callExpr.firstToken(viewMode: .sourceAccurate)?.indentationOfLine ?? []
 
-    let forInLoop = ForStmtSyntax(
+    var forInLoop = ForStmtSyntax(
       forKeyword: .keyword(.for, trailingTrivia: .space),
       pattern: IdentifierPatternSyntax(identifier: .identifier(param.name)),
       typeAnnotation: param.typeAnnotation,
       inKeyword: .keyword(.in, leadingTrivia: .space, trailingTrivia: .space),
-      sequence: match.collection,
-      body: CodeBlockSyntax(statements: rewrittenBody)
+      sequence: match.collection.trimmed,
+      body: CodeBlockSyntax(
+        leftBrace: .leftBraceToken(leadingTrivia: .space),
+        statements: rewrittenBody,
+        rightBrace: .rightBraceToken()
+      )
     )
+    let format = BasicFormat(indentationWidth: indentationWidth, initialIndentation: baseIndentation)
+    forInLoop = forInLoop.formatted(using: format).cast(ForStmtSyntax.self)
+    forInLoop.leadingTrivia = []
 
     let edit = TextEdit(
       range: scope.snapshot.range(of: match.callExpr),

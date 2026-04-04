@@ -49,10 +49,19 @@ final class ForEachToForInCodeActionTests: SourceKitLSPTestCase {
     uri: DocumentURI,
     at position: Position
   ) async throws -> CodeAction? {
+    try await forEachAction(in: project, uri: uri, range: position..<position, context: .init())
+  }
+
+  private func forEachAction(
+    in project: SwiftPMTestProject,
+    uri: DocumentURI,
+    range: Range<Position>,
+    context: CodeActionContext
+  ) async throws -> CodeAction? {
     let result = try await project.testClient.send(
       CodeActionRequest(
-        range: position..<position,
-        context: .init(),
+        range: range,
+        context: context,
         textDocument: TextDocumentIdentifier(uri)
       )
     )
@@ -61,6 +70,15 @@ final class ForEachToForInCodeActionTests: SourceKitLSPTestCase {
       return nil
     }
     return codeActions.first(where: { $0.title == "Convert to 'for-in' loop" })
+  }
+
+  private func forEachReplacementText(
+    in project: SwiftPMTestProject,
+    uri: DocumentURI,
+    at position: Position
+  ) async throws -> String? {
+    let action = try await forEachAction(in: project, uri: uri, at: position)
+    return action?.edit?.changes?[uri]?.first?.newText
   }
 
   func testBasicForEachToForInConversion() async throws {
@@ -72,8 +90,15 @@ final class ForEachToForInCodeActionTests: SourceKitLSPTestCase {
       }
       """
     )
-    let action = try await forEachAction(in: project, uri: uri, at: positions["1️⃣"])
-    XCTAssertNotNil(action, "Should offer 'Convert to for-in loop' action")
+    let replacement = try await forEachReplacementText(in: project, uri: uri, at: positions["1️⃣"])
+    XCTAssertEqual(
+      replacement,
+      """
+      for item in array {
+        print(item)
+      }
+      """
+    )
   }
 
   func testRejectsCustomForEach() async throws {
@@ -104,8 +129,15 @@ final class ForEachToForInCodeActionTests: SourceKitLSPTestCase {
       })
       """
     )
-    let action = try await forEachAction(in: project, uri: uri, at: positions["1️⃣"])
-    XCTAssertNotNil(action, "Should offer action for explicit closure argument form")
+    let replacement = try await forEachReplacementText(in: project, uri: uri, at: positions["1️⃣"])
+    XCTAssertEqual(
+      replacement,
+      """
+      for item in array {
+        print(item)
+      }
+      """
+    )
   }
 
   func testConvertsShorthandDollarZero() async throws {
@@ -115,8 +147,8 @@ final class ForEachToForInCodeActionTests: SourceKitLSPTestCase {
       1️⃣array.forEach { print($0) }
       """
     )
-    let action = try await forEachAction(in: project, uri: uri, at: positions["1️⃣"])
-    XCTAssertNotNil(action, "Should offer action for $0 shorthand, rewriting to named parameter")
+    let replacement = try await forEachReplacementText(in: project, uri: uri, at: positions["1️⃣"])
+    XCTAssertEqual(replacement, "for element in array {\n  print(element)\n}")
   }
 
   func testRejectsReturnWithValue() async throws {
@@ -186,8 +218,15 @@ final class ForEachToForInCodeActionTests: SourceKitLSPTestCase {
       })
       """
     )
-    let action = try await forEachAction(in: project, uri: uri, at: positions["1️⃣"])
-    XCTAssertNotNil(action, "Should offer action for parenthesized closure parameter")
+    let replacement = try await forEachReplacementText(in: project, uri: uri, at: positions["1️⃣"])
+    XCTAssertEqual(
+      replacement,
+      """
+      for item in array {
+        print(item)
+      }
+      """
+    )
   }
 
   func testTypedClosureParameter() async throws {
@@ -199,8 +238,15 @@ final class ForEachToForInCodeActionTests: SourceKitLSPTestCase {
       })
       """
     )
-    let action = try await forEachAction(in: project, uri: uri, at: positions["1️⃣"])
-    XCTAssertNotNil(action, "Should offer action and preserve type annotation")
+    let replacement = try await forEachReplacementText(in: project, uri: uri, at: positions["1️⃣"])
+    XCTAssertEqual(
+      replacement,
+      """
+      for item: Int in array {
+        print(item)
+      }
+      """
+    )
   }
 
   func testDollarZeroDoesNotPenetrateNestedClosure() async throws {
@@ -246,38 +292,79 @@ final class ForEachToForInCodeActionTests: SourceKitLSPTestCase {
     XCTAssertFalse(change.newText.contains("return"), "No return should remain in the output")
   }
 
-  func testGracefulDegradationWithoutCursorInfo() async throws {
-    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
-    let uri = DocumentURI(for: .swift)
-    let positions = testClient.openDocument(
-      """
-      let array = [1, 2, 3]
-      1️⃣array.forEach { item in
-        print(item)
-      }
-      """,
-      uri: uri
-    )
-
-    let request = CodeActionRequest(
-      range: positions["1️⃣"]..<positions["1️⃣"],
-      context: .init(),
-      textDocument: TextDocumentIdentifier(uri)
-    )
-    let result = try await testClient.send(request)
-    XCTAssertNotNil(result, "Code action request should complete even if cursorInfo unavailable")
-  }
-
-  func testProviderIntegrationInCodeActionFlow() async throws {
+  func testSelectionRangeBoundaries() async throws {
     let (project, uri, positions) = try await makeProject(
       """
-      let numbers = [1, 2, 3, 4, 5]
-      1️⃣numbers.forEach { n in
-        print(n)
+      1️⃣func test() {
+        let array = [1, 2, 3]
+        2️⃣array.reversed().3️⃣forEach4️⃣ { item in
+          print(item)
+        }5️⃣
+      }6️⃣
+      """
+    )
+
+    let action24 = try await forEachAction(
+      in: project,
+      uri: uri,
+      range: positions["2️⃣"]..<positions["4️⃣"],
+      context: .init()
+    )
+    XCTAssertNotNil(action24)
+
+    let action25 = try await forEachAction(
+      in: project,
+      uri: uri,
+      range: positions["2️⃣"]..<positions["5️⃣"],
+      context: .init()
+    )
+    XCTAssertNotNil(action25)
+
+    let action33 = try await forEachAction(
+      in: project,
+      uri: uri,
+      range: positions["3️⃣"]..<positions["3️⃣"],
+      context: .init()
+    )
+    XCTAssertNotNil(action33)
+
+    let action34 = try await forEachAction(
+      in: project,
+      uri: uri,
+      range: positions["3️⃣"]..<positions["4️⃣"],
+      context: .init()
+    )
+    XCTAssertNotNil(action34)
+
+    let action35 = try await forEachAction(
+      in: project,
+      uri: uri,
+      range: positions["3️⃣"]..<positions["5️⃣"],
+      context: .init()
+    )
+    XCTAssertNotNil(action35)
+
+    let action16 = try await forEachAction(
+      in: project,
+      uri: uri,
+      range: positions["1️⃣"]..<positions["6️⃣"],
+      context: .init()
+    )
+    XCTAssertNil(action16, "Should not offer the action when the selection only broadly contains the forEach call")
+  }
+
+  func testDoesNotOfferActionInsideClosureBody() async throws {
+    let (project, uri, positions) = try await makeProject(
+      """
+      let array = [1, 2, 3]
+      array.forEach { item in
+        1️⃣print(item)
       }
       """
     )
+
     let action = try await forEachAction(in: project, uri: uri, at: positions["1️⃣"])
-    XCTAssertNotNil(action, "Provider should be called and return action")
+    XCTAssertNil(action, "The action should only be offered on the forEach call/selection, not inside the closure body")
   }
+
 }
