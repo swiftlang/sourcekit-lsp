@@ -1578,7 +1578,7 @@ package actor BuildServerManager: QueueBasedMessageHandler {
   }
 
   package func prepare(targets: Set<BuildTargetIdentifier>) async throws {
-    let _: VoidResponse? = try await buildServerAdapterAfterInitialized?.send(
+    let _: BuildTargetPrepareResponse? = try await buildServerAdapterAfterInitialized?.send(
       BuildTargetPrepareRequest(targets: targets.sorted { $0.uri.stringValue < $1.uri.stringValue })
     )
     await orLog("Calling fileDependenciesUpdated") {
