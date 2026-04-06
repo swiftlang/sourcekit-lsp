@@ -11,6 +11,7 @@ add_library(SwiftLanguageService STATIC
   CodeActions/ConvertStringConcatenationToStringInterpolation.swift
   CodeActions/PackageManifestEdits.swift
   CodeActions/RemoveUnusedImports.swift
+  CodeActions/RemoveUnusedParameter.swift
   CodeActions/SyntaxCodeActionProvider.swift
   CodeActions/SyntaxCodeActions.swift
   CodeActions/SyntaxRefactoringCodeActionProvider.swift
