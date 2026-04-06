@@ -981,11 +981,4 @@ fileprivate extension SourceKitLSPOptions.BackgroundPreparationMode {
   }
 }
 
-extension SourceKitLSPAPI.BuildDescription {
-  @_disfavoredOverload
-  init(buildPlan: Build.BuildPlan, pluginConfiguration: PluginConfiguration) {
-    self.init(buildPlan: buildPlan)
-  }
-}
-
 #endif
