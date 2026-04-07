@@ -189,6 +189,16 @@ extension DocumentSnapshot {
     return lowerBound..<upperBound
   }
 
+  package func absolutePositionRange(
+    of range: Range<Position>,
+    callerFile: StaticString = #fileID,
+    callerLine: UInt = #line
+  ) -> Range<AbsolutePosition> {
+    let lowerBound = self.absolutePosition(of: range.lowerBound, callerFile: callerFile, callerLine: callerLine)
+    let upperBound = self.absolutePosition(of: range.upperBound, callerFile: callerFile, callerLine: callerLine)
+    return lowerBound..<upperBound
+  }
+
   /// Extracts the range of the given syntax node in terms of positions within
   /// this source file.
   package func range(
