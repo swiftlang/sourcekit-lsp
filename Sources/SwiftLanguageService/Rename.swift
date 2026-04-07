@@ -569,7 +569,7 @@ extension SwiftLanguageService {
     }
 
     if let startToken, let endToken {
-      return snapshot.absolutePositionRange(
+      return snapshot.positionRange(
         of: startToken.positionAfterSkippingLeadingTrivia..<endToken.endPositionBeforeTrailingTrivia
       )
     }

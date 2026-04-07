@@ -258,7 +258,7 @@ final class SyntacticSwiftTestingTestScanner: SyntaxVisitor {
       return .skipChildren
     }
 
-    let range = snapshot.absolutePositionRange(
+    let range = snapshot.positionRange(
       of: node.positionAfterSkippingLeadingTrivia..<node.endPositionBeforeTrailingTrivia
     )
     // Members won't be extensions since extensions will only be at the top level.
@@ -368,7 +368,7 @@ final class SyntacticSwiftTestingTestScanner: SyntaxVisitor {
     // name then we use the full name as the display name.
     let displayName = attributeData.displayName ?? (hasBackticks ? identifier.name : fullName)
 
-    let range = snapshot.absolutePositionRange(
+    let range = snapshot.positionRange(
       of: node.positionAfterSkippingLeadingTrivia..<node.endPositionBeforeTrailingTrivia
     )
     let testItem = AnnotatedTestItem(

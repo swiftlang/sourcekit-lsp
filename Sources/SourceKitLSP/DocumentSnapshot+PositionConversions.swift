@@ -179,7 +179,7 @@ extension DocumentSnapshot {
   /// If the bounds of the range do not refer to a valid positions with in the snapshot, this function adjusts them to
   /// the closest valid positions and logs a fault containing the file and line of the caller (from `callerFile` and
   /// `callerLine`).
-  package func absolutePositionRange(
+  package func positionRange(
     of range: Range<AbsolutePosition>,
     callerFile: StaticString = #fileID,
     callerLine: UInt = #line

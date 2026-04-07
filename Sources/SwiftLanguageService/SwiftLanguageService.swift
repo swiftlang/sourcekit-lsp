@@ -830,7 +830,7 @@ extension SwiftLanguageService {
     if let snapshot = try? await latestSnapshot(for: uri) {
       let tree = await syntaxTreeManager.syntaxTree(for: snapshot)
       if let token = tree.token(at: snapshot.absolutePosition(of: position)) {
-        tokenRange = snapshot.absolutePositionRange(of: token.trimmedRange)
+        tokenRange = snapshot.positionRange(of: token.trimmedRange)
       }
     }
 
@@ -880,7 +880,7 @@ extension SwiftLanguageService {
 
         result.append(
           ColorInformation(
-            range: snapshot.absolutePositionRange(of: node.position..<node.endPosition),
+            range: snapshot.positionRange(of: node.position..<node.endPosition),
             color: Color(red: red, green: green, blue: blue, alpha: alpha)
           )
         )
