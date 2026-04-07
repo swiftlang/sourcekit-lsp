@@ -158,6 +158,8 @@ package actor SwiftLanguageService: LanguageService, Sendable {
   ///   might have finished. This isn't an issue since the tasks do not retain `self`.
   private var inFlightPublishDiagnosticsTasks: [DocumentURI: Task<Void, Never>] = [:]
 
+  let inlayHintManager = InlayHintManager()
+
   let syntaxTreeManager = SyntaxTreeManager()
 
   /// The `semanticIndexManager` of the workspace this language service was created for.
@@ -582,6 +584,7 @@ extension SwiftLanguageService {
       }
     case nil:
       cancelInFlightPublishDiagnosticsTask(for: notification.textDocument.uri)
+      await inlayHintManager.removeCachedInlayHints(for: notification.textDocument.uri)
       await diagnosticReportManager.removeItemsFromCache(with: notification.textDocument.uri)
 
       let buildSettings = await self.compileCommand(for: snapshot.uri, fallbackAfterTimeout: true)
@@ -606,6 +609,7 @@ extension SwiftLanguageService {
     buildSettingsForOpenFiles[notification.textDocument.uri] = nil
     await syntaxTreeManager.clearSyntaxTrees(for: notification.textDocument.uri)
     await syntaxTreeManager.clearExperimentalFeatures(for: notification.textDocument.uri)
+    await inlayHintManager.removeCachedInlayHints(for: notification.textDocument.uri)
     switch try? ReferenceDocumentURL(from: notification.textDocument.uri) {
     case .macroExpansion:
       break
@@ -758,6 +762,19 @@ extension SwiftLanguageService {
       postEditSnapshot: postEditSnapshot,
       edits: concurrentEdits
     )
+
+    if await sourceKitLSPServer?.capabilityRegistry?.clientCapabilities.workspace?.inlayHint?.refreshSupport ?? false {
+      // Only process the edits if the client supports inlay hint refreshing
+      // If the client does not support refreshing, we have to calculate the inlay hints using SourceKit each time and
+      // cannot cache them. Thus, we also do not have to update any cached inlay hints.
+      await inlayHintManager.processEdits(
+        for: notification.textDocument.uri,
+        contentChanges: notification.contentChanges,
+        swiftLanguageService: self,
+        preEditSnapshot: preEditSnapshot,
+        postEditSnapshot: postEditSnapshot
+      )
+    }
 
     await publishDiagnosticsIfNeeded(for: notification.textDocument.uri)
   }

@@ -12,71 +12,53 @@
 
 import Foundation
 @_spi(SourceKitLSP) package import LanguageServerProtocol
+import SKUtilities
 import SourceKitLSP
 import SwiftExtensions
 import SwiftSyntax
 
-package struct InlayHintResolveData: Codable, LSPAnyCodable {
-  package let uri: DocumentURI
-  package let position: Position
-  package let version: Int
-
-  package init(uri: DocumentURI, position: Position, version: Int) {
-    self.uri = uri
-    self.position = position
-    self.version = version
-  }
-}
-
-private class IfConfigCollector: SyntaxVisitor {
-  private var ifConfigDecls: [IfConfigDeclSyntax] = []
-
-  override func visit(_ node: IfConfigDeclSyntax) -> SyntaxVisitorContinueKind {
-    ifConfigDecls.append(node)
-
-    return .visitChildren
-  }
-
-  static func collectIfConfigDecls(in tree: some SyntaxProtocol) -> [IfConfigDeclSyntax] {
-    let visitor = IfConfigCollector(viewMode: .sourceAccurate)
-    visitor.walk(tree)
-    return visitor.ifConfigDecls
-  }
-}
-
 extension SwiftLanguageService {
   package func inlayHint(_ req: InlayHintRequest) async throws -> [InlayHint] {
     let uri = req.textDocument.uri
-    let snapshot = try await self.latestSnapshot(for: uri)
-    let version = snapshot.version
+    let snapshot = try await latestSnapshot(for: uri)
 
-    let infos = try await variableTypeInfos(uri, req.range)
-    let typeHints = infos
-      .lazy
-      .filter { !$0.hasExplicitType }
-      .map { info -> InlayHint in
-        let position = info.range.upperBound
-        let variableStart = info.range.lowerBound
-        let label = ": \(info.printedType)"
-        let textEdits: [TextEdit]?
-        if info.canBeFollowedByTypeAnnotation {
-          textEdits = [TextEdit(range: position..<position, newText: label)]
-        } else {
-          textEdits = nil
-        }
-        let resolveData = InlayHintResolveData(uri: uri, position: variableStart, version: version)
-        return InlayHint(
-          position: position,
-          label: .string(label),
-          kind: .type,
-          textEdits: textEdits,
-          data: resolveData.encodeToLSPAny()
-        )
-      }
+    if let sourceKitLSPServer = self.sourceKitLSPServer,
+      let clientCapabilities = await sourceKitLSPServer.capabilityRegistry?.clientCapabilities,
+      !(clientCapabilities.workspace?.inlayHint?.refreshSupport ?? false)
+    {
+      // The client does not support workspace/inlayHint/refresh.
+      // We have to compute inlay hints on every request, because we cannot trigger a refresh when the inlay hints have been recomputed in the background.
+      let snapshot = try await latestSnapshot(for: uri)
+      async let typeInlayHints = inlayHintManager.computeTypeInlayHints(
+        swiftLanguageService: self,
+        for: snapshot,
+        range: req.range
+      )
+      return try await typeInlayHints + computeIfConfigInlayHints(snapshot: snapshot, range: req.range)
+    }
 
+    if let hints = await inlayHintManager.getCachedInlayHints(
+      swiftLanguageService: self,
+      for: snapshot,
+      range: req.range
+    ) {
+      return try await hints + computeIfConfigInlayHints(snapshot: snapshot, range: req.range)
+    }
+
+    // No cached hints are available. The inlay hint manager has scheduled a refresh task if needed, so we can just
+    // return an empty response here. The client will trigger another request after the refresh completes, because of
+    // the InlayHintRefreshRequest sent in the refresh task.
+    return []
+  }
+
+  private func computeIfConfigInlayHints(
+    snapshot: DocumentSnapshot,
+    range: Range<Position>?
+  ) async throws -> [InlayHint] {
     let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
-    let ifConfigDecls = IfConfigCollector.collectIfConfigDecls(in: syntaxTree)
-    let ifConfigHints = ifConfigDecls.compactMap { (ifConfigDecl) -> InlayHint? in
+    let absoluteRange = range.map { snapshot.absolutePositionRange(of: $0) }
+    let ifConfigDecls = IfConfigCollector.collectIfConfigDecls(in: syntaxTree, range: absoluteRange)
+    return ifConfigDecls.compactMap { (ifConfigDecl) -> InlayHint? in
       // Do not show inlay hints for if config clauses that have a `#elseif` of `#else` clause since it is unclear which
       // `#if`, `#elseif`, or `#else` clause the `#endif` now refers to.
       guard let condition = ifConfigDecl.clauses.only?.condition else {
@@ -96,7 +78,33 @@ extension SwiftLanguageService {
         tooltip: .string("Condition of this conditional compilation clause")
       )
     }
+  }
+}
 
-    return Array(typeHints + ifConfigHints)
+private class IfConfigCollector: SyntaxVisitor {
+  private var ifConfigDecls: [IfConfigDeclSyntax] = []
+  private let range: Range<AbsolutePosition>?
+
+  init(viewMode: SyntaxTreeViewMode, range: Range<AbsolutePosition>?) {
+    self.range = range
+    super.init(viewMode: viewMode)
+  }
+
+  override func visit(_ node: IfConfigDeclSyntax) -> SyntaxVisitorContinueKind {
+    if let range, !range.overlaps(node.range) {
+      return .skipChildren
+    }
+    ifConfigDecls.append(node)
+
+    return .visitChildren
+  }
+
+  static func collectIfConfigDecls(
+    in tree: some SyntaxProtocol,
+    range: Range<AbsolutePosition>?
+  ) -> [IfConfigDeclSyntax] {
+    let visitor = IfConfigCollector(viewMode: .sourceAccurate, range: range)
+    visitor.walk(tree)
+    return visitor.ifConfigDecls
   }
 }
