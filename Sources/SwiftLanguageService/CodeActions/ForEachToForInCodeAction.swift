@@ -19,25 +19,21 @@ import SwiftSyntaxBuilder
 
 /// Code action to convert `.forEach { }` calls to `for-in` loops.
 ///
-/// Uses `cursorInfo` to verify that `.forEach` refers to `Sequence.forEach` from the
-/// Swift stdlib before suggesting conversion.
+/// Only active when the cursor is on the `forEach` token. Uses shared `cursorInfo`
+/// to verify that `.forEach` refers to `Sequence.forEach` from the Swift stdlib.
 struct ForEachToForInCodeAction: SyntaxCodeActionProvider {
   static func codeActions(in scope: CodeActionScope) async -> [CodeAction] {
     guard let match = findForEachCall(in: scope) else {
       return []
     }
 
-    let forEachPosition = match.memberAccess.declName.baseName.positionAfterSkippingLeadingTrivia
-    guard let info = try? await scope.cursorInfo(at: forEachPosition),
+    guard let info = try? await scope.cursorInfo(),
           isStdlibSequenceForEach(info) else {
       return []
     }
 
-    guard !hasReturnWithValue(match.closure) else {
-      return []
-    }
-
-    guard !hasAwait(match.closure) else {
+    let eligibility = checkClosureEligibility(match.closure)
+    guard eligibility.isEligible else {
       return []
     }
 
@@ -58,7 +54,7 @@ struct ForEachToForInCodeAction: SyntaxCodeActionProvider {
       pattern: IdentifierPatternSyntax(identifier: .identifier(param.name)),
       typeAnnotation: param.typeAnnotation,
       inKeyword: .keyword(.in, leadingTrivia: .space, trailingTrivia: .space),
-      sequence: match.collection.trimmed,
+      sequence: match.sequence.trimmed,
       body: CodeBlockSyntax(
         leftBrace: .leftBraceToken(leadingTrivia: .space),
         statements: rewrittenBody,
@@ -86,34 +82,21 @@ struct ForEachToForInCodeAction: SyntaxCodeActionProvider {
 
 private struct Match {
   let callExpr: FunctionCallExprSyntax
-  let memberAccess: MemberAccessExprSyntax
-  let collection: ExprSyntax
+  let sequence: ExprSyntax
   let closure: ClosureExprSyntax
 }
 
+/// Matches only when the cursor/selection is on the `forEach` token.
 private func findForEachCall(in scope: CodeActionScope) -> Match? {
-  guard let node = scope.innermostNodeContainingRange else {
-    return nil
-  }
-
-  // Walk up from the innermost node to find a forEach call expression,
-  // stopping at function/closure boundaries to avoid matching distant calls.
-  guard let callExpr = node.findParentOfSelf(
-    ofType: FunctionCallExprSyntax.self,
-    stoppingIf: { $0.is(FunctionDeclSyntax.self) || $0.is(ClosureExprSyntax.self) },
-    matching: { call in
-      guard let memberAccess = call.calledExpression.as(MemberAccessExprSyntax.self),
-            memberAccess.declName.baseName.text == "forEach" else {
-        return false
-      }
-      return true
-    }
-  ) else {
-    return nil
-  }
-
-  guard let memberAccess = callExpr.calledExpression.as(MemberAccessExprSyntax.self),
-        let collection = memberAccess.base else {
+  guard let token = selectedForEachToken(in: scope),
+        token.text == "forEach",
+        let memberName = token.parent?.as(DeclReferenceExprSyntax.self),
+        let memberAccess = memberName.parent?.as(MemberAccessExprSyntax.self),
+        memberAccess.declName.id == memberName.id,
+        let callExpr = memberAccess.parent?.as(FunctionCallExprSyntax.self),
+        callExpr.calledExpression.id == memberAccess.id,
+        let sequence = memberAccess.base
+  else {
     return nil
   }
 
@@ -133,10 +116,33 @@ private func findForEachCall(in scope: CodeActionScope) -> Match? {
 
   return Match(
     callExpr: callExpr,
-    memberAccess: memberAccess,
-    collection: collection,
+    sequence: sequence,
     closure: closure
   )
+}
+
+private func selectedForEachToken(in scope: CodeActionScope) -> TokenSyntax? {
+  let lowerBound = scope.snapshot.absolutePosition(of: scope.request.range.lowerBound)
+  let upperBound = scope.snapshot.absolutePosition(of: scope.request.range.upperBound)
+
+  guard let token = tokenAtRequestStart(in: scope.file, at: lowerBound),
+        lowerBound == token.position
+  else {
+    return nil
+  }
+
+  guard upperBound == lowerBound || upperBound == token.endPositionBeforeTrailingTrivia else {
+    return nil
+  }
+
+  return token
+}
+
+private func tokenAtRequestStart(in file: SourceFileSyntax, at position: AbsolutePosition) -> TokenSyntax? {
+  if position == file.endPosition {
+    return file.endOfFileToken.previousToken(viewMode: .sourceAccurate)
+  }
+  return file.token(at: position)
 }
 
 private func isStdlibSequenceForEach(_ info: CursorInfo) -> Bool {
@@ -146,17 +152,50 @@ private func isStdlibSequenceForEach(_ info: CursorInfo) -> Bool {
   return module.moduleName == "Swift"
 }
 
-private func hasReturnWithValue(_ closure: ClosureExprSyntax) -> Bool {
-  let visitor = ReturnWithValueVisitor()
-  visitor.walk(closure.statements)
-  return visitor.found
+// MARK: - Closure Eligibility
+
+private struct ClosureEligibility {
+  var hasReturnWithValue = false
+  var hasAwait = false
+
+  var isEligible: Bool { !hasReturnWithValue && !hasAwait }
 }
 
-private func hasAwait(_ closure: ClosureExprSyntax) -> Bool {
-  let visitor = AwaitVisitor()
+/// Checks whether the closure body is eligible for conversion in a single pass.
+private func checkClosureEligibility(_ closure: ClosureExprSyntax) -> ClosureEligibility {
+  let visitor = ClosureEligibilityVisitor()
   visitor.walk(closure.statements)
-  return visitor.found
+  return visitor.result
 }
+
+private class ClosureEligibilityVisitor: SyntaxVisitor {
+  var result = ClosureEligibility()
+
+  init() {
+    super.init(viewMode: .sourceAccurate)
+  }
+
+  override func visit(_ node: ReturnStmtSyntax) -> SyntaxVisitorContinueKind {
+    if node.expression != nil {
+      result.hasReturnWithValue = true
+    }
+    return result.isEligible ? .visitChildren : .skipChildren
+  }
+
+  override func visit(_ node: AwaitExprSyntax) -> SyntaxVisitorContinueKind {
+    result.hasAwait = true
+    return result.isEligible ? .visitChildren : .skipChildren
+  }
+
+  // Don't dig into nested scopes.
+  override func visit(_ node: FunctionDeclSyntax) -> SyntaxVisitorContinueKind { .skipChildren }
+  override func visit(_ node: InitializerDeclSyntax) -> SyntaxVisitorContinueKind { .skipChildren }
+  override func visit(_ node: DeinitializerDeclSyntax) -> SyntaxVisitorContinueKind { .skipChildren }
+  override func visit(_ node: ClosureExprSyntax) -> SyntaxVisitorContinueKind { .skipChildren }
+  override func visit(_ node: AccessorBlockSyntax) -> SyntaxVisitorContinueKind { .skipChildren }
+}
+
+// MARK: - Parameter Extraction
 
 private struct ClosureParam {
   let name: String
@@ -168,7 +207,7 @@ private struct ClosureParam {
 private func extractParameter(from closure: ClosureExprSyntax) -> ClosureParam? {
   guard let signature = closure.signature else {
     // No signature → anonymous $0 usage.
-    let name = generateUniqueName(avoiding: collectIdentifiers(in: closure.statements))
+    let name = generateUniqueName(in: closure.statements)
     return ClosureParam(name: name, typeAnnotation: nil, needsDollarZeroRewrite: true)
   }
 
@@ -191,84 +230,32 @@ private func extractParameter(from closure: ClosureExprSyntax) -> ClosureParam? 
   }
 }
 
-/// Collects all identifier names used in the given syntax node.
-private func collectIdentifiers(in node: some SyntaxProtocol) -> Set<String> {
-  var names = Set<String>()
-  for token in node.tokens(viewMode: .sourceAccurate) {
-    if case .identifier(let name) = token.tokenKind {
-      names.insert(name)
-    }
-  }
-  return names
-}
-
-/// Generates a unique name that doesn't conflict with existing identifiers.
-private func generateUniqueName(avoiding existingNames: Set<String>) -> String {
-  if !existingNames.contains("element") {
+/// Generates a unique name starting with "element" that doesn't conflict with existing identifiers.
+private func generateUniqueName(in node: some SyntaxProtocol) -> String {
+  if !containsIdentifier(named: "element", in: node) {
     return "element"
   }
   var counter = 1
-  while existingNames.contains("element\(counter)") {
+  while containsIdentifier(named: "element\(counter)", in: node) {
     counter += 1
   }
   return "element\(counter)"
 }
 
-// MARK: - Syntax Visitors
-
-private class ReturnWithValueVisitor: SyntaxVisitor {
-  var found = false
-
-  required override init(viewMode: SyntaxTreeViewMode = .sourceAccurate) {
-    super.init(viewMode: viewMode)
-  }
-
-  override func visit(_ node: ReturnStmtSyntax) -> SyntaxVisitorContinueKind {
-    if node.expression != nil {
-      found = true
-      return .skipChildren
+/// Checks if the node contains an identifier with the given name.
+private func containsIdentifier(named name: String, in node: some SyntaxProtocol) -> Bool {
+  for token in node.tokens(viewMode: .sourceAccurate) {
+    if case .identifier(let tokenName) = token.tokenKind, tokenName == name {
+      return true
     }
-    return .visitChildren
   }
-
-  override func visit(_ node: FunctionDeclSyntax) -> SyntaxVisitorContinueKind {
-    return .skipChildren
-  }
-
-  override func visit(_ node: ClosureExprSyntax) -> SyntaxVisitorContinueKind {
-    return .skipChildren
-  }
-
-  override func visit(_ node: AccessorBlockSyntax) -> SyntaxVisitorContinueKind {
-    return .skipChildren
-  }
-}
-
-private class AwaitVisitor: SyntaxVisitor {
-  var found = false
-
-  required override init(viewMode: SyntaxTreeViewMode = .sourceAccurate) {
-    super.init(viewMode: viewMode)
-  }
-
-  override func visit(_ node: AwaitExprSyntax) -> SyntaxVisitorContinueKind {
-    found = true
-    return .skipChildren
-  }
-
-  override func visit(_ node: FunctionDeclSyntax) -> SyntaxVisitorContinueKind {
-    return .skipChildren
-  }
-
-  override func visit(_ node: ClosureExprSyntax) -> SyntaxVisitorContinueKind {
-    return .skipChildren
-  }
+  return false
 }
 
 // MARK: - Syntax Rewriting
 
 /// Rewrites bare `return` statements to `continue` within the closure body,
-/// skipping `return <expr>` (which would change semantics).
+/// skipping nested scopes where `return` has different semantics.
 private class ReturnToContinueRewriter: SyntaxRewriter {
   override func visit(_ node: ReturnStmtSyntax) -> StmtSyntax {
     guard node.expression == nil else {
@@ -277,17 +264,12 @@ private class ReturnToContinueRewriter: SyntaxRewriter {
     return StmtSyntax(ContinueStmtSyntax())
   }
 
-  override func visit(_ node: FunctionDeclSyntax) -> DeclSyntax {
-    DeclSyntax(node)
-  }
-
-  override func visit(_ node: ClosureExprSyntax) -> ExprSyntax {
-    ExprSyntax(node)
-  }
-
-  override func visit(_ node: AccessorDeclSyntax) -> DeclSyntax {
-    DeclSyntax(node)
-  }
+  // Don't dig into nested scopes.
+  override func visit(_ node: FunctionDeclSyntax) -> DeclSyntax { DeclSyntax(node) }
+  override func visit(_ node: InitializerDeclSyntax) -> DeclSyntax { DeclSyntax(node) }
+  override func visit(_ node: DeinitializerDeclSyntax) -> DeclSyntax { DeclSyntax(node) }
+  override func visit(_ node: ClosureExprSyntax) -> ExprSyntax { ExprSyntax(node) }
+  override func visit(_ node: AccessorBlockSyntax) -> AccessorBlockSyntax { node }
 }
 
 /// Rewrites `$0` references to a named identifier.
@@ -307,7 +289,10 @@ private class DollarZeroRewriter: SyntaxRewriter {
     )
   }
 
-  override func visit(_ node: ClosureExprSyntax) -> ExprSyntax {
-    ExprSyntax(node)
-  }
+  // Don't dig into nested scopes.
+  override func visit(_ node: FunctionDeclSyntax) -> DeclSyntax { DeclSyntax(node) }
+  override func visit(_ node: InitializerDeclSyntax) -> DeclSyntax { DeclSyntax(node) }
+  override func visit(_ node: DeinitializerDeclSyntax) -> DeclSyntax { DeclSyntax(node) }
+  override func visit(_ node: ClosureExprSyntax) -> ExprSyntax { ExprSyntax(node) }
+  override func visit(_ node: AccessorBlockSyntax) -> AccessorBlockSyntax { node }
 }

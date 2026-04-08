@@ -85,7 +85,7 @@ final class ForEachToForInCodeActionTests: SourceKitLSPTestCase {
     let (project, uri, positions) = try await makeProject(
       """
       let array = [1, 2, 3]
-      1️⃣array.forEach { item in
+      array.1️⃣forEach { item in
         print(item)
       }
       """
@@ -111,7 +111,7 @@ final class ForEachToForInCodeActionTests: SourceKitLSPTestCase {
       }
 
       let col = MyCollection()
-      1️⃣col.forEach { item in
+      col.1️⃣forEach { item in
         print(item)
       }
       """
@@ -124,7 +124,7 @@ final class ForEachToForInCodeActionTests: SourceKitLSPTestCase {
     let (project, uri, positions) = try await makeProject(
       """
       let array = [1, 2, 3]
-      1️⃣array.forEach({ item in
+      array.1️⃣forEach({ item in
         print(item)
       })
       """
@@ -144,7 +144,7 @@ final class ForEachToForInCodeActionTests: SourceKitLSPTestCase {
     let (project, uri, positions) = try await makeProject(
       """
       let array = [1, 2, 3]
-      1️⃣array.forEach { print($0) }
+      array.1️⃣forEach { print($0) }
       """
     )
     let replacement = try await forEachReplacementText(in: project, uri: uri, at: positions["1️⃣"])
@@ -155,7 +155,7 @@ final class ForEachToForInCodeActionTests: SourceKitLSPTestCase {
     let (project, uri, positions) = try await makeProject(
       """
       let array = [1, 2, 3]
-      1️⃣array.forEach { item in
+      array.1️⃣forEach { item in
         if item > 2 {
           return 42
         }
@@ -171,7 +171,7 @@ final class ForEachToForInCodeActionTests: SourceKitLSPTestCase {
     let (project, uri, positions) = try await makeProject(
       """
       let array = [1, 2, 3]
-      1️⃣array.forEach { item in
+      array.1️⃣forEach { item in
         if item < 2 {
           return
         }
@@ -187,7 +187,7 @@ final class ForEachToForInCodeActionTests: SourceKitLSPTestCase {
     let (project, uri, positions) = try await makeProject(
       """
       let array = [1, 2, 3]
-      1️⃣array.forEach { item in
+      array.1️⃣forEach { item in
         try print(item)
       }
       """
@@ -200,7 +200,7 @@ final class ForEachToForInCodeActionTests: SourceKitLSPTestCase {
     let (project, uri, positions) = try await makeProject(
       """
       let array = [1, 2, 3]
-      1️⃣array.forEach { item in
+      array.1️⃣forEach { item in
         await print(item)
       }
       """
@@ -213,7 +213,7 @@ final class ForEachToForInCodeActionTests: SourceKitLSPTestCase {
     let (project, uri, positions) = try await makeProject(
       """
       let array = [1, 2, 3]
-      1️⃣array.forEach({ (item) in
+      array.1️⃣forEach({ (item) in
         print(item)
       })
       """
@@ -233,7 +233,7 @@ final class ForEachToForInCodeActionTests: SourceKitLSPTestCase {
     let (project, uri, positions) = try await makeProject(
       """
       let array = [1, 2, 3]
-      1️⃣array.forEach({ (item: Int) in
+      array.1️⃣forEach({ (item: Int) in
         print(item)
       })
       """
@@ -253,7 +253,7 @@ final class ForEachToForInCodeActionTests: SourceKitLSPTestCase {
     let (project, uri, positions) = try await makeProject(
       """
       let array = [1, 2, 3]
-      1️⃣array.forEach {
+      array.1️⃣forEach {
         let mapped = [$0].map { $0 + 1 }
         print(mapped)
       }
@@ -274,7 +274,7 @@ final class ForEachToForInCodeActionTests: SourceKitLSPTestCase {
     let (project, uri, positions) = try await makeProject(
       """
       let array = [1, 2, 3]
-      1️⃣array.forEach { item in
+      array.1️⃣forEach { item in
         if item < 2 {
           return
         }
@@ -304,29 +304,14 @@ final class ForEachToForInCodeActionTests: SourceKitLSPTestCase {
       """
     )
 
-    let action24 = try await forEachAction(
-      in: project,
-      uri: uri,
-      range: positions["2️⃣"]..<positions["4️⃣"],
-      context: .init()
-    )
-    XCTAssertNotNil(action24)
-
-    let action25 = try await forEachAction(
-      in: project,
-      uri: uri,
-      range: positions["2️⃣"]..<positions["5️⃣"],
-      context: .init()
-    )
-    XCTAssertNotNil(action25)
-
+    // Ranges that include `forEach` token exactly should offer the action.
     let action33 = try await forEachAction(
       in: project,
       uri: uri,
       range: positions["3️⃣"]..<positions["3️⃣"],
       context: .init()
     )
-    XCTAssertNotNil(action33)
+    XCTAssertNotNil(action33, "Cursor on forEach should offer the action")
 
     let action34 = try await forEachAction(
       in: project,
@@ -334,7 +319,24 @@ final class ForEachToForInCodeActionTests: SourceKitLSPTestCase {
       range: positions["3️⃣"]..<positions["4️⃣"],
       context: .init()
     )
-    XCTAssertNotNil(action34)
+    XCTAssertNotNil(action34, "Selection spanning exactly forEach should offer the action")
+
+    // Ranges wider than `forEach` should NOT offer the action.
+    let action24 = try await forEachAction(
+      in: project,
+      uri: uri,
+      range: positions["2️⃣"]..<positions["4️⃣"],
+      context: .init()
+    )
+    XCTAssertNil(action24, "Selection starting before forEach should not offer the action")
+
+    let action25 = try await forEachAction(
+      in: project,
+      uri: uri,
+      range: positions["2️⃣"]..<positions["5️⃣"],
+      context: .init()
+    )
+    XCTAssertNil(action25, "Selection from before forEach to after closure should not offer the action")
 
     let action35 = try await forEachAction(
       in: project,
@@ -342,7 +344,7 @@ final class ForEachToForInCodeActionTests: SourceKitLSPTestCase {
       range: positions["3️⃣"]..<positions["5️⃣"],
       context: .init()
     )
-    XCTAssertNotNil(action35)
+    XCTAssertNil(action35, "Selection from forEach to end of closure should not offer the action")
 
     let action16 = try await forEachAction(
       in: project,
@@ -350,7 +352,7 @@ final class ForEachToForInCodeActionTests: SourceKitLSPTestCase {
       range: positions["1️⃣"]..<positions["6️⃣"],
       context: .init()
     )
-    XCTAssertNil(action16, "Should not offer the action when the selection only broadly contains the forEach call")
+    XCTAssertNil(action16, "Selection spanning entire function should not offer the action")
   }
 
   func testDoesNotOfferActionInsideClosureBody() async throws {

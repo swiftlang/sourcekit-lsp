@@ -950,31 +950,24 @@ extension SwiftLanguageService {
       snapshot: snapshot,
       syntaxTree: syntaxTree,
       request: req,
-      sharedCursorInfo: sharedCursorInfo,
-      cursorInfoProvider: { [weak self] uri, range in
-        guard let self = self else { throw CancellationError() }
-        return try await self.cursorInfo(uri, range, fallbackSettingsAfterTimeout: true)
-      }
+      sharedCursorInfo: sharedCursorInfo
     ) else {
       return nil
     }
 
-    var allCodeActions: [CodeAction] = []
     let wantedActionKinds = req.context.only
-
-    allCodeActions += await retrieveSyntaxCodeActions(scope)
-
-    if wantedActionKinds == nil || (wantedActionKinds?.contains(.refactor) ?? false) {
-      allCodeActions += try await retrieveRefactorCodeActions(scope)
+    func wantActionKind(_ kind: CodeActionKind) -> Bool {
+      guard let only = wantedActionKinds else { return true }
+      return only.contains(kind)
     }
 
-    if wantedActionKinds == nil || (wantedActionKinds?.contains(.quickFix) ?? false) {
-      allCodeActions += try await retrieveQuickFixCodeActions(scope)
-    }
+    async let syntaxActions = retrieveSyntaxCodeActions(scope)
+    async let refactorActions = wantActionKind(.refactor) ? try await retrieveRefactorCodeActions(scope) : []
+    async let quickFixActions = wantActionKind(.quickFix) ? try await retrieveQuickFixCodeActions(scope) : []
+    async let unusedImportActions = wantActionKind(.sourceOrganizeImports)
+      ? try await retrieveRemoveUnusedImportsCodeAction(scope) : []
 
-    if wantedActionKinds == nil || (wantedActionKinds?.contains(.sourceOrganizeImports) ?? false) {
-      allCodeActions += try await retrieveRemoveUnusedImportsCodeAction(scope)
-    }
+    let allCodeActions = try await syntaxActions + refactorActions + quickFixActions + unusedImportActions
 
     let codeActionCapabilities = capabilityRegistry.clientCapabilities.textDocument?.codeAction
     let response = CodeActionRequestResponse(
