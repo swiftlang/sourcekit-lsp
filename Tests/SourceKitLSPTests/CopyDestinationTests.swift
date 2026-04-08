@@ -79,7 +79,7 @@ class CopyDestinationTests: SourceKitLSPTestCase {
       ])
     }
 
-    func prepareTarget(_ request: BuildTargetPrepareRequest) async throws -> VoidResponse {
+    func prepareTarget(_ request: BuildTargetPrepareRequest) async throws -> BuildTargetPrepareResponse {
       try FileManager.default.createDirectory(
         at: headerCopyDestination.deletingLastPathComponent(),
         withIntermediateDirectories: true
@@ -88,7 +88,7 @@ class CopyDestinationTests: SourceKitLSPTestCase {
         at: projectRoot.appending(component: "Test.h"),
         to: headerCopyDestination
       )
-      return VoidResponse()
+      return BuildTargetPrepareResponse()
     }
   }
 
@@ -275,7 +275,7 @@ class CopyDestinationTests: SourceKitLSPTestCase {
         ])
       }
 
-      func prepareTarget(_ request: BuildTargetPrepareRequest) async throws -> VoidResponse {
+      func prepareTarget(_ request: BuildTargetPrepareRequest) async throws -> BuildTargetPrepareResponse {
         try FileManager.default.createDirectory(
           at: headerCopyDestination.deletingLastPathComponent(),
           withIntermediateDirectories: true
@@ -283,7 +283,7 @@ class CopyDestinationTests: SourceKitLSPTestCase {
         try await """
         void hello();
         """.writeWithRetry(to: headerCopyDestination)
-        return VoidResponse()
+        return BuildTargetPrepareResponse()
       }
     }
 

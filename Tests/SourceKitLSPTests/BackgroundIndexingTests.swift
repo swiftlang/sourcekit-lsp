@@ -3020,9 +3020,9 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
         return TextDocumentSourceKitOptionsResponse(compilerArguments: [request.textDocument.uri.pseudoPath])
       }
 
-      func prepareTarget(_ request: BuildTargetPrepareRequest) async throws -> VoidResponse {
+      func prepareTarget(_ request: BuildTargetPrepareRequest) async throws -> BuildTargetPrepareResponse {
         preparedTargetBatches.append(request.targets.sorted { $0.uri.stringValue < $1.uri.stringValue })
-        return VoidResponse()
+        return BuildTargetPrepareResponse()
       }
 
       fileprivate func getPreparedBatches() async -> [[BuildTargetIdentifier]] {
