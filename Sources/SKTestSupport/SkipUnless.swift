@@ -459,15 +459,6 @@ package actor SkipUnless {
     }
   }
 
-  package static func canIndexMultipleSwiftFilesInSingleInvocation(
-    file: StaticString = #filePath,
-    line: UInt = #line
-  ) async throws {
-    return try await shared.skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(6, 3), file: file, line: line) {
-      return await ToolchainRegistry.forTesting.default?.canIndexMultipleSwiftFilesInSingleInvocation ?? false
-    }
-  }
-
   package static func swiftPMBuildServerSupportedWithoutBackgroundIndexing(
     file: StaticString = #filePath,
     line: UInt = #line
