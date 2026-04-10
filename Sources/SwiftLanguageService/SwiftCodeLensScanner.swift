@@ -16,6 +16,7 @@ internal import IndexStoreDB
 @_spi(SourceKitLSP) import LanguageServerProtocol
 @_spi(SourceKitLSP) import SKLogging
 import SemanticIndex
+import SourceKitD
 import SourceKitLSP
 import SwiftSyntax
 import ToolchainRegistry
@@ -32,7 +33,7 @@ final class SwiftCodeLensScanner: SyntaxVisitor {
   /// The display name of the build target containing this document, if available.
   private let targetName: String?
 
-  /// The language service used to resolve cursor info for symbols.
+  /// The language service used to resolve symbol metadata for code lenses.
   private let languageService: SwiftLanguageService
 
   /// The map of supported commands and their client side command names.
@@ -86,10 +87,7 @@ final class SwiftCodeLensScanner: SyntaxVisitor {
     let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
     visitor.walk(syntaxTree)
 
-    // Process collected symbols asynchronously for reference counts
-    for (nameToken, displayRange) in visitor.symbolsToProcess {
-      await visitor.captureReferenceLens(for: nameToken, at: displayRange)
-    }
+    await visitor.captureReferenceLenses()
 
     var codeLenses = visitor.result
 
@@ -197,45 +195,51 @@ final class SwiftCodeLensScanner: SyntaxVisitor {
     }
   }
 
-  /// Queries the index for the number of references to a symbol and appends a code lens with the count.
-  private func captureReferenceLens(for nameToken: TokenSyntax, at displayRange: Range<AbsolutePosition>) async {
-    guard let referencesCommand = supportedCommands[.references] else { return }
-
-    let lensRange = snapshot.absolutePositionRange(of: displayRange)
-    let nameRange = snapshot.absolutePositionRange(of: nameToken.trimmedRange)
+  /// Queries sourcekitd once for declaration USRs, then looks up reference counts in the index.
+  private func captureReferenceLenses() async {
+    guard let referencesCommand = supportedCommands[.references],
+      let index = await workspace?.index(checkedFor: .deletedFiles)
+    else {
+      return
+    }
 
     do {
-      let cursorInfoResults = try await languageService.cursorInfo(
+      let declarationUsrs = try await languageService.declarationUSRs(
         snapshot,
-        compileCommand: await languageService.compileCommand(for: snapshot.uri, fallbackAfterTimeout: false),
-        nameRange
+        compileCommand: await languageService.compileCommand(for: snapshot.uri, fallbackAfterTimeout: false)
       )
-      .cursorInfo
+      let usrsByOffset = Dictionary(
+        declarationUsrs.map { ($0.offset, $0.usr) },
+        uniquingKeysWith: { first, _ in first }
+      )
 
-      guard let cursorInfo = cursorInfoResults.first,
-        let usr = cursorInfo.symbolInfo.usr,
-        let index = await workspace?.index(checkedFor: .deletedFiles)
-      else { return }
+      for (nameToken, displayRange) in symbolsToProcess {
+        guard let usr = usrsByOffset[nameToken.trimmedRange.lowerBound.utf8Offset] else {
+          continue
+        }
 
-      var referenceCount = 0
-      index.forEachSymbolOccurrence(byUSR: usr, roles: .reference) { _ in
-        referenceCount += 1
-        return true
-      }
+        var referenceCount = 0
+        try index.forEachSymbolOccurrence(byUSR: usr, roles: .reference) { _ in
+          referenceCount += 1
+          return true
+        }
 
-      let title = "\(referenceCount) reference\(referenceCount == 1 ? "" : "s")"
-      result.append(
-        CodeLens(
-          range: lensRange,
-          command: Command(
-            title: title,
-            command: referencesCommand,
-            arguments: [.string(snapshot.uri.stringValue), nameRange.lowerBound.encodeToLSPAny()]
+        let lensRange = snapshot.absolutePositionRange(of: displayRange)
+        let nameRange = snapshot.absolutePositionRange(of: nameToken.trimmedRange)
+        let title = "\(referenceCount) reference\(referenceCount == 1 ? "" : "s")"
+        result.append(
+          CodeLens(
+            range: lensRange,
+            command: Command(
+              title: title,
+              command: referencesCommand,
+              arguments: [.string(snapshot.uri.stringValue), nameRange.lowerBound.encodeToLSPAny()]
+            )
           )
         )
-      )
+      }
     } catch {
-      logger.info("Failed to get cursor info for reference count: \(error.forLogging, privacy: .public)")
+      logger.info("Failed to get declaration USRs for reference count: \(error.forLogging, privacy: .public)")
     }
   }
 
@@ -282,5 +286,53 @@ final class SwiftCodeLensScanner: SyntaxVisitor {
         )
       )
     }
+  }
+}
+
+private struct DeclarationUSRInfo {
+  let offset: Int
+  let usr: String
+}
+
+extension SwiftLanguageService {
+  fileprivate func declarationUSRs(
+    _ snapshot: DocumentSnapshot,
+    compileCommand: SwiftCompileCommand?,
+    _ range: Range<Position>? = nil
+  ) async throws -> [DeclarationUSRInfo] {
+    let skreq = sourcekitd.dictionary([
+      keys.cancelOnSubsequentRequest: 0,
+      keys.filePath: snapshot.uri.sourcekitdSourceFile,
+      keys.compilerArgs: compileCommand?.compilerArgs as [any SKDRequestValue]?,
+    ])
+
+    if let range {
+      let start = snapshot.utf8Offset(of: range.lowerBound)
+      let end = snapshot.utf8Offset(of: range.upperBound)
+      skreq.set(keys.offset, to: start)
+      skreq.set(keys.length, to: end - start)
+    }
+
+    let dict = try await send(sourcekitdRequest: \.collectDeclarationUSR, skreq, snapshot: snapshot)
+    guard let declarations: SKDResponseArray = dict[keys.declarations] else {
+      return []
+    }
+
+    var result: [DeclarationUSRInfo] = []
+    result.reserveCapacity(declarations.count)
+
+    // swift-format-ignore: ReplaceForEachWithForLoop
+    declarations.forEach { (_, declaration) -> Bool in
+      guard let offset: Int = declaration[keys.offset],
+        let usr: String = declaration[keys.usr]
+      else {
+        assertionFailure("DeclarationUSRInfo failed to deserialize")
+        return true
+      }
+      result.append(DeclarationUSRInfo(offset: offset, usr: usr))
+      return true
+    }
+
+    return result
   }
 }
