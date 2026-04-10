@@ -886,6 +886,8 @@ package struct sourcekitd_api_requests {
   package let collectExpressionType: sourcekitd_api_uid_t
   /// `source.request.variable.type`
   package let collectVariableType: sourcekitd_api_uid_t
+  /// `source.request.declaration.usr`
+  package let collectDeclarationUSR: sourcekitd_api_uid_t
   /// `source.request.configuration.global`
   package let globalConfiguration: sourcekitd_api_uid_t
   /// `source.request.dependency_updated`
@@ -955,6 +957,7 @@ package struct sourcekitd_api_requests {
     testNotification = api.uid_get_from_cstr("source.request.test_notification")!
     collectExpressionType = api.uid_get_from_cstr("source.request.expression.type")!
     collectVariableType = api.uid_get_from_cstr("source.request.variable.type")!
+    collectDeclarationUSR = api.uid_get_from_cstr("source.request.declaration.usr")!
     globalConfiguration = api.uid_get_from_cstr("source.request.configuration.global")!
     dependencyUpdated = api.uid_get_from_cstr("source.request.dependency_updated")!
     diagnostics = api.uid_get_from_cstr("source.request.diagnostics")!

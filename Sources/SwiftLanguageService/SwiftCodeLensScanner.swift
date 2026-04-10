@@ -16,10 +16,12 @@ internal import IndexStoreDB
 @_spi(SourceKitLSP) import LanguageServerProtocol
 @_spi(SourceKitLSP) import SKLogging
 import SemanticIndex
+import SourceKitD
 import SourceKitLSP
 import SwiftSyntax
 import ToolchainRegistry
 
+/// Scans a source file for classes or structs annotated with `@main` and returns a code lens for them.
 /// Scans a source file for code lenses including `@main` run/debug actions,
 /// symbol reference counts, and playground entries.
 final class SwiftCodeLensScanner: SyntaxVisitor {
@@ -32,7 +34,8 @@ final class SwiftCodeLensScanner: SyntaxVisitor {
   /// The display name of the build target containing this document, if available.
   private let targetName: String?
 
-  /// The language service used to resolve cursor info for symbols.
+  /// The map of supported commands and their client side command names
+  /// The language service used to resolve symbol metadata for code lenses.
   private let languageService: SwiftLanguageService
 
   /// The map of supported commands and their client side command names.
@@ -46,6 +49,7 @@ final class SwiftCodeLensScanner: SyntaxVisitor {
   private init(
     snapshot: DocumentSnapshot,
     targetName: String?,
+    supportedCommands: [SupportedCodeLensCommand: String]
     supportedCommands: [SupportedCodeLensCommand: String],
     workspace: Workspace?,
     languageService: SwiftLanguageService
@@ -58,6 +62,8 @@ final class SwiftCodeLensScanner: SyntaxVisitor {
     super.init(viewMode: .fixedUp)
   }
 
+  /// Public entry point. Scans the syntax tree of the given snapshot for an `@main` annotation
+  /// and returns CodeLens's with Commands to run/debug the application.
   /// Public entry point. Scans the syntax tree of the given snapshot and returns
   /// all applicable code lenses including `@main` run/debug actions, reference counts,
   /// and playground entries.
@@ -66,6 +72,7 @@ final class SwiftCodeLensScanner: SyntaxVisitor {
     workspace: Workspace?,
     syntaxTreeManager: SyntaxTreeManager,
     supportedCommands: [SupportedCodeLensCommand: String],
+    toolchain: Toolchain
     toolchain: Toolchain,
     languageService: SwiftLanguageService
   ) async -> [CodeLens] {
@@ -73,8 +80,26 @@ final class SwiftCodeLensScanner: SyntaxVisitor {
       return []
     }
 
+    var targetDisplayName: String? = nil
+    if let workspace,
+      let target = await workspace.buildServerManager.canonicalTarget(for: snapshot.uri),
+      let buildTarget = await workspace.buildServerManager.buildTarget(named: target)
+    {
+      targetDisplayName = buildTarget.displayName
+    }
     let targetDisplayName = await resolveTargetDisplayName(for: snapshot, workspace: workspace)
 
+    var codeLenses: [CodeLens] = []
+    if snapshot.text.contains("@main") {
+      let visitor = SwiftCodeLensScanner(
+        snapshot: snapshot,
+        targetName: targetDisplayName,
+        supportedCommands: supportedCommands
+      )
+      let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
+      visitor.walk(syntaxTree)
+      codeLenses += visitor.result
+    }
     // Process @main annotations and symbol references
     let visitor = SwiftCodeLensScanner(
       snapshot: snapshot,
@@ -86,10 +111,28 @@ final class SwiftCodeLensScanner: SyntaxVisitor {
     let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
     visitor.walk(syntaxTree)
 
-    // Process collected symbols asynchronously for reference counts
-    for (nameToken, displayRange) in visitor.symbolsToProcess {
-      await visitor.captureReferenceLens(for: nameToken, at: displayRange)
+    // "swift.play" CodeLens should be ignored if "swift-play" is not in the toolchain as the client has no way of running
+    if toolchain.swiftPlay != nil,
+      let workspace,
+      let playCommand = supportedCommands[SupportedCodeLensCommand.play]
+    {
+      let playgrounds = await SwiftPlaygroundsScanner.findDocumentPlaygrounds(
+        for: snapshot,
+        workspace: workspace,
+        syntaxTreeManager: syntaxTreeManager
+      )
+      codeLenses += playgrounds.map({
+        CodeLens(
+          range: $0.range,
+          command: Command(
+            title: "Play \"\($0.label ?? $0.id)\"",
+            command: playCommand,
+            arguments: [$0.encodeToLSPAny()]
+          )
+        )
+      })
     }
+    await visitor.captureReferenceLenses()
 
     var codeLenses = visitor.result
 
@@ -106,6 +149,8 @@ final class SwiftCodeLensScanner: SyntaxVisitor {
   }
 
   override func visit(_ node: ClassDeclSyntax) -> SyntaxVisitorContinueKind {
+    node.attributes.forEach(self.captureLensFromAttribute)
+    return .skipChildren
     node.attributes.forEach(captureMainAttributeLens)
     symbolsToProcess.append((nameToken: node.name, displayRange: node.trimmedRange))
     return .visitChildren
@@ -123,6 +168,18 @@ final class SwiftCodeLensScanner: SyntaxVisitor {
   }
 
   override func visit(_ node: StructDeclSyntax) -> SyntaxVisitorContinueKind {
+    node.attributes.forEach(self.captureLensFromAttribute)
+    return .skipChildren
+  }
+
+  private func captureLensFromAttribute(attribute: AttributeListSyntax.Element) {
+    if attribute.trimmedDescription == "@main" {
+      let range = self.snapshot.absolutePositionRange(of: attribute.trimmedRange)
+      var targetNameToAppend: String = ""
+      var arguments: [LSPAny] = []
+      if let targetName {
+        targetNameToAppend = " \(targetName)"
+        arguments.append(.string(targetName))
     node.attributes.forEach(captureMainAttributeLens)
     symbolsToProcess.append((nameToken: node.name, displayRange: node.trimmedRange))
     return .visitChildren
@@ -197,48 +254,66 @@ final class SwiftCodeLensScanner: SyntaxVisitor {
     }
   }
 
-  /// Queries the index for the number of references to a symbol and appends a code lens with the count.
-  private func captureReferenceLens(for nameToken: TokenSyntax, at displayRange: Range<AbsolutePosition>) async {
-    guard let referencesCommand = supportedCommands[.references] else { return }
-
-    let lensRange = snapshot.absolutePositionRange(of: displayRange)
-    let nameRange = snapshot.absolutePositionRange(of: nameToken.trimmedRange)
+  /// Queries sourcekitd once for declaration USRs, then looks up reference counts in the index.
+  private func captureReferenceLenses() async {
+    guard let referencesCommand = supportedCommands[.references],
+      let index = await workspace?.index(checkedFor: .deletedFiles)
+    else {
+      return
+    }
 
     do {
-      let cursorInfoResults = try await languageService.cursorInfo(
+      let declarationUsrs = try await languageService.declarationUSRs(
         snapshot,
-        compileCommand: await languageService.compileCommand(for: snapshot.uri, fallbackAfterTimeout: false),
-        nameRange
+        compileCommand: await languageService.compileCommand(for: snapshot.uri, fallbackAfterTimeout: false)
       )
-      .cursorInfo
+      let usrsByOffset = Dictionary(
+        declarationUsrs.map { ($0.offset, $0.usr) },
+        uniquingKeysWith: { first, _ in first }
+      )
 
-      guard let cursorInfo = cursorInfoResults.first,
-        let usr = cursorInfo.symbolInfo.usr,
-        let index = await workspace?.index(checkedFor: .deletedFiles)
-      else { return }
+      for (nameToken, displayRange) in symbolsToProcess {
+        guard let usr = usrsByOffset[nameToken.trimmedRange.lowerBound.utf8Offset] else {
+          continue
+        }
 
-      var referenceCount = 0
-      index.forEachSymbolOccurrence(byUSR: usr, roles: .reference) { _ in
-        referenceCount += 1
-        return true
-      }
+      if let runCommand = supportedCommands[SupportedCodeLensCommand.run] {
+        // Return commands for running/debugging the executable.
+        // These command names must be recognized by the client and so should not be chosen arbitrarily.
+        self.result.append(
+        var referenceCount = 0
+        try index.forEachSymbolOccurrence(byUSR: usr, roles: .reference) { _ in
+          referenceCount += 1
+          return true
+        }
 
-      let title = "\(referenceCount) reference\(referenceCount == 1 ? "" : "s")"
-      result.append(
-        CodeLens(
-          range: lensRange,
-          command: Command(
-            title: title,
-            command: referencesCommand,
-            arguments: [.string(snapshot.uri.stringValue), nameRange.lowerBound.encodeToLSPAny()]
+        let lensRange = snapshot.absolutePositionRange(of: displayRange)
+        let nameRange = snapshot.absolutePositionRange(of: nameToken.trimmedRange)
+        let title = "\(referenceCount) reference\(referenceCount == 1 ? "" : "s")"
+        result.append(
+          CodeLens(
+            range: range,
+            command: Command(title: "Run" + targetNameToAppend, command: runCommand, arguments: arguments)
+            range: lensRange,
+            command: Command(
+              title: title,
+              command: referencesCommand,
+              arguments: [.string(snapshot.uri.stringValue), nameRange.lowerBound.encodeToLSPAny()]
+            )
           )
         )
-      )
+      }
     } catch {
-      logger.info("Failed to get cursor info for reference count: \(error.forLogging, privacy: .public)")
+      logger.info("Failed to get declaration USRs for reference count: \(error.forLogging, privacy: .public)")
     }
   }
 
+      if let debugCommand = supportedCommands[SupportedCodeLensCommand.debug] {
+        self.result.append(
+          CodeLens(
+            range: range,
+            command: Command(title: "Debug" + targetNameToAppend, command: debugCommand, arguments: arguments)
+          )
   /// Resolves the display name of the build target containing the given document.
   private static func resolveTargetDisplayName(for snapshot: DocumentSnapshot, workspace: Workspace?) async -> String? {
     guard let workspace,
@@ -282,5 +357,53 @@ final class SwiftCodeLensScanner: SyntaxVisitor {
         )
       )
     }
+  }
+}
+
+private struct DeclarationUSRInfo {
+  let offset: Int
+  let usr: String
+}
+
+extension SwiftLanguageService {
+  fileprivate func declarationUSRs(
+    _ snapshot: DocumentSnapshot,
+    compileCommand: SwiftCompileCommand?,
+    _ range: Range<Position>? = nil
+  ) async throws -> [DeclarationUSRInfo] {
+    let skreq = sourcekitd.dictionary([
+      keys.cancelOnSubsequentRequest: 0,
+      keys.filePath: snapshot.uri.sourcekitdSourceFile,
+      keys.compilerArgs: compileCommand?.compilerArgs as [any SKDRequestValue]?,
+    ])
+
+    if let range {
+      let start = snapshot.utf8Offset(of: range.lowerBound)
+      let end = snapshot.utf8Offset(of: range.upperBound)
+      skreq.set(keys.offset, to: start)
+      skreq.set(keys.length, to: end - start)
+    }
+
+    let dict = try await send(sourcekitdRequest: \.collectDeclarationUSR, skreq, snapshot: snapshot)
+    guard let declarations: SKDResponseArray = dict[keys.declarations] else {
+      return []
+    }
+
+    var result: [DeclarationUSRInfo] = []
+    result.reserveCapacity(declarations.count)
+
+    // swift-format-ignore: ReplaceForEachWithForLoop
+    declarations.forEach { (_, declaration) -> Bool in
+      guard let offset: Int = declaration[keys.offset],
+        let usr: String = declaration[keys.usr]
+      else {
+        assertionFailure("DeclarationUSRInfo failed to deserialize")
+        return true
+      }
+      result.append(DeclarationUSRInfo(offset: offset, usr: usr))
+      return true
+    }
+
+    return result
   }
 }
