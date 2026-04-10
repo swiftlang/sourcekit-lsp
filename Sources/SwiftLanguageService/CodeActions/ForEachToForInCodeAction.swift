@@ -12,8 +12,8 @@
 
 @_spi(SourceKitLSP) import LanguageServerProtocol
 import SourceKitLSP
-import SwiftRefactor
 import SwiftBasicFormat
+import SwiftRefactor
 import SwiftSyntax
 import SwiftSyntaxBuilder
 
@@ -28,7 +28,8 @@ struct ForEachToForInCodeAction: SyntaxCodeActionProvider {
     }
 
     guard let info = try? await scope.cursorInfo(),
-          isStdlibSequenceForEach(info) else {
+      isStdlibSequenceForEach(info)
+    else {
       return []
     }
 
@@ -45,11 +46,13 @@ struct ForEachToForInCodeAction: SyntaxCodeActionProvider {
     if param.needsDollarZeroRewrite {
       body = DollarZeroRewriter(replacement: param.name).visit(body)
     }
-    let rewrittenBody = ReturnToContinueRewriter().visit(body)
+    let loopLabel =
+      eligibility.hasBareReturnInNestedLoop ? generateUniqueLabel(in: match.closure.statements) : nil
+    let rewrittenBody = ReturnToContinueRewriter(loopLabel: loopLabel).visit(body)
     let indentationWidth = BasicFormat.inferIndentation(of: Syntax(scope.file)) ?? .spaces(2)
     let baseIndentation = match.callExpr.firstToken(viewMode: .sourceAccurate)?.indentationOfLine ?? []
 
-    var forInLoop = ForStmtSyntax(
+    let forInLoop = ForStmtSyntax(
       forKeyword: .keyword(.for, trailingTrivia: .space),
       pattern: IdentifierPatternSyntax(identifier: .identifier(param.name)),
       typeAnnotation: param.typeAnnotation,
@@ -61,20 +64,32 @@ struct ForEachToForInCodeAction: SyntaxCodeActionProvider {
         rightBrace: .rightBraceToken()
       )
     )
+    var replacement = StmtSyntax(forInLoop)
+    if let loopLabel {
+      replacement = StmtSyntax(
+        LabeledStmtSyntax(
+          label: .identifier(loopLabel),
+          colon: .colonToken(trailingTrivia: .space),
+          statement: forInLoop
+        )
+      )
+    }
     let format = BasicFormat(indentationWidth: indentationWidth, initialIndentation: baseIndentation)
-    forInLoop = forInLoop.formatted(using: format).cast(ForStmtSyntax.self)
-    forInLoop.leadingTrivia = []
+    replacement = replacement.formatted(using: format).cast(StmtSyntax.self)
+    replacement.leadingTrivia = []
 
     let edit = TextEdit(
       range: scope.snapshot.range(of: match.callExpr),
-      newText: forInLoop.description
+      newText: replacement.description
     )
 
-    return [CodeAction(
-      title: "Convert to 'for-in' loop",
-      kind: .refactorInline,
-      edit: WorkspaceEdit(changes: [scope.snapshot.uri: [edit]])
-    )]
+    return [
+      CodeAction(
+        title: "Convert to 'for-in' loop",
+        kind: .refactorInline,
+        edit: WorkspaceEdit(changes: [scope.snapshot.uri: [edit]])
+      )
+    ]
   }
 }
 
@@ -89,13 +104,21 @@ private struct Match {
 /// Matches only when the cursor/selection is on the `forEach` token.
 private func findForEachCall(in scope: CodeActionScope) -> Match? {
   guard let token = selectedForEachToken(in: scope),
-        token.text == "forEach",
-        let memberName = token.parent?.as(DeclReferenceExprSyntax.self),
-        let memberAccess = memberName.parent?.as(MemberAccessExprSyntax.self),
-        memberAccess.declName.id == memberName.id,
-        let callExpr = memberAccess.parent?.as(FunctionCallExprSyntax.self),
-        callExpr.calledExpression.id == memberAccess.id,
-        let sequence = memberAccess.base
+    token.text == "forEach",
+    let memberName = token.parent?.as(DeclReferenceExprSyntax.self),
+    let contextNode = scope.innermostNodeContainingRange,
+    let callExpr = contextNode.findParentOfSelf(
+      ofType: FunctionCallExprSyntax.self,
+      stoppingIf: { $0.is(FunctionDeclSyntax.self) || $0.is(ClosureExprSyntax.self) },
+      matching: { call in
+        guard let memberAccess = call.calledExpression.as(MemberAccessExprSyntax.self) else {
+          return false
+        }
+        return memberAccess.declName.id == memberName.id
+      }
+    ),
+    let memberAccess = callExpr.calledExpression.as(MemberAccessExprSyntax.self),
+    let sequence = memberAccess.base
   else {
     return nil
   }
@@ -104,7 +127,8 @@ private func findForEachCall(in scope: CodeActionScope) -> Match? {
   if let trailingClosure = callExpr.trailingClosure {
     closure = trailingClosure
   } else if callExpr.arguments.count == 1,
-            let closureArg = callExpr.arguments.first?.expression.as(ClosureExprSyntax.self) {
+    let closureArg = callExpr.arguments.first?.expression.as(ClosureExprSyntax.self)
+  {
     closure = closureArg
   } else {
     return nil
@@ -121,12 +145,16 @@ private func findForEachCall(in scope: CodeActionScope) -> Match? {
   )
 }
 
+/// Matches the original request range against a single token exactly. We cannot rely on
+/// `scope.innermostNodeContainingRange` for this because `CodeActionScope` normalizes the
+/// selection via `tokenForRefactoring`, which may shift a boundary-position cursor to the
+/// previous token.
 private func selectedForEachToken(in scope: CodeActionScope) -> TokenSyntax? {
   let lowerBound = scope.snapshot.absolutePosition(of: scope.request.range.lowerBound)
   let upperBound = scope.snapshot.absolutePosition(of: scope.request.range.upperBound)
 
   guard let token = tokenAtRequestStart(in: scope.file, at: lowerBound),
-        lowerBound == token.position
+    lowerBound == token.position
   else {
     return nil
   }
@@ -155,6 +183,7 @@ private func isStdlibSequenceForEach(_ info: CursorInfo) -> Bool {
 // MARK: - Closure Eligibility
 
 private struct ClosureEligibility {
+  var hasBareReturnInNestedLoop = false
   var hasReturnWithValue = false
   var hasAwait = false
 
@@ -169,6 +198,8 @@ private func checkClosureEligibility(_ closure: ClosureExprSyntax) -> ClosureEli
 }
 
 private class ClosureEligibilityVisitor: SyntaxVisitor {
+  private var nestedLoopCount = 0
+
   var result = ClosureEligibility()
 
   init() {
@@ -178,6 +209,8 @@ private class ClosureEligibilityVisitor: SyntaxVisitor {
   override func visit(_ node: ReturnStmtSyntax) -> SyntaxVisitorContinueKind {
     if node.expression != nil {
       result.hasReturnWithValue = true
+    } else if nestedLoopCount > 0 {
+      result.hasBareReturnInNestedLoop = true
     }
     return result.isEligible ? .visitChildren : .skipChildren
   }
@@ -187,12 +220,45 @@ private class ClosureEligibilityVisitor: SyntaxVisitor {
     return result.isEligible ? .visitChildren : .skipChildren
   }
 
+  override func visit(_ node: ForStmtSyntax) -> SyntaxVisitorContinueKind {
+    nestedLoopCount += 1
+    return .visitChildren
+  }
+
+  override func visitPost(_ node: ForStmtSyntax) {
+    nestedLoopCount -= 1
+  }
+
+  override func visit(_ node: WhileStmtSyntax) -> SyntaxVisitorContinueKind {
+    nestedLoopCount += 1
+    return .visitChildren
+  }
+
+  override func visitPost(_ node: WhileStmtSyntax) {
+    nestedLoopCount -= 1
+  }
+
+  override func visit(_ node: RepeatStmtSyntax) -> SyntaxVisitorContinueKind {
+    nestedLoopCount += 1
+    return .visitChildren
+  }
+
+  override func visitPost(_ node: RepeatStmtSyntax) {
+    nestedLoopCount -= 1
+  }
+
   // Don't dig into nested scopes.
   override func visit(_ node: FunctionDeclSyntax) -> SyntaxVisitorContinueKind { .skipChildren }
   override func visit(_ node: InitializerDeclSyntax) -> SyntaxVisitorContinueKind { .skipChildren }
   override func visit(_ node: DeinitializerDeclSyntax) -> SyntaxVisitorContinueKind { .skipChildren }
+  override func visit(_ node: ActorDeclSyntax) -> SyntaxVisitorContinueKind { .skipChildren }
+  override func visit(_ node: ClassDeclSyntax) -> SyntaxVisitorContinueKind { .skipChildren }
   override func visit(_ node: ClosureExprSyntax) -> SyntaxVisitorContinueKind { .skipChildren }
+  override func visit(_ node: EnumDeclSyntax) -> SyntaxVisitorContinueKind { .skipChildren }
+  override func visit(_ node: ExtensionDeclSyntax) -> SyntaxVisitorContinueKind { .skipChildren }
+  override func visit(_ node: ProtocolDeclSyntax) -> SyntaxVisitorContinueKind { .skipChildren }
   override func visit(_ node: AccessorBlockSyntax) -> SyntaxVisitorContinueKind { .skipChildren }
+  override func visit(_ node: StructDeclSyntax) -> SyntaxVisitorContinueKind { .skipChildren }
 }
 
 // MARK: - Parameter Extraction
@@ -209,6 +275,10 @@ private func extractParameter(from closure: ClosureExprSyntax) -> ClosureParam? 
     // No signature → anonymous $0 usage.
     let name = generateUniqueName(in: closure.statements)
     return ClosureParam(name: name, typeAnnotation: nil, needsDollarZeroRewrite: true)
+  }
+
+  guard signature.capture == nil else {
+    return nil
   }
 
   guard let paramClause = signature.parameterClause else {
@@ -242,6 +312,18 @@ private func generateUniqueName(in node: some SyntaxProtocol) -> String {
   return "element\(counter)"
 }
 
+/// Generates a unique label starting with "forEachLoop".
+private func generateUniqueLabel(in node: some SyntaxProtocol) -> String {
+  if !containsIdentifier(named: "forEachLoop", in: node) {
+    return "forEachLoop"
+  }
+  var counter = 1
+  while containsIdentifier(named: "forEachLoop\(counter)", in: node) {
+    counter += 1
+  }
+  return "forEachLoop\(counter)"
+}
+
 /// Checks if the node contains an identifier with the given name.
 private func containsIdentifier(named name: String, in node: some SyntaxProtocol) -> Bool {
   for token in node.tokens(viewMode: .sourceAccurate) {
@@ -257,19 +339,58 @@ private func containsIdentifier(named name: String, in node: some SyntaxProtocol
 /// Rewrites bare `return` statements to `continue` within the closure body,
 /// skipping nested scopes where `return` has different semantics.
 private class ReturnToContinueRewriter: SyntaxRewriter {
+  private var nestedLoopCount = 0
+  private let loopLabel: String?
+
+  init(loopLabel: String?) {
+    self.loopLabel = loopLabel
+  }
+
   override func visit(_ node: ReturnStmtSyntax) -> StmtSyntax {
     guard node.expression == nil else {
       return StmtSyntax(node)
     }
-    return StmtSyntax(ContinueStmtSyntax())
+    return StmtSyntax(
+      ContinueStmtSyntax(
+        continueKeyword: .keyword(
+          .continue,
+          trailingTrivia: nestedLoopCount > 0 && loopLabel != nil ? .space : []
+        ),
+        label: nestedLoopCount > 0 ? loopLabel.map { .identifier($0) } : nil
+      )
+    )
+  }
+
+  override func visit(_ node: ForStmtSyntax) -> StmtSyntax {
+    nestedLoopCount += 1
+    defer { nestedLoopCount -= 1 }
+    return super.visit(node)
+  }
+
+  override func visit(_ node: WhileStmtSyntax) -> StmtSyntax {
+    nestedLoopCount += 1
+    defer { nestedLoopCount -= 1 }
+    return super.visit(node)
+  }
+
+  override func visit(_ node: RepeatStmtSyntax) -> StmtSyntax {
+    nestedLoopCount += 1
+    defer { nestedLoopCount -= 1 }
+    return super.visit(node)
   }
 
   // Don't dig into nested scopes.
   override func visit(_ node: FunctionDeclSyntax) -> DeclSyntax { DeclSyntax(node) }
   override func visit(_ node: InitializerDeclSyntax) -> DeclSyntax { DeclSyntax(node) }
   override func visit(_ node: DeinitializerDeclSyntax) -> DeclSyntax { DeclSyntax(node) }
+  override func visit(_ node: ActorDeclSyntax) -> DeclSyntax { DeclSyntax(node) }
+  override func visit(_ node: ClassDeclSyntax) -> DeclSyntax { DeclSyntax(node) }
   override func visit(_ node: ClosureExprSyntax) -> ExprSyntax { ExprSyntax(node) }
+  override func visit(_ node: EnumDeclSyntax) -> DeclSyntax { DeclSyntax(node) }
+  override func visit(_ node: ExtensionDeclSyntax) -> DeclSyntax { DeclSyntax(node) }
+  override func visit(_ node: ProtocolDeclSyntax) -> DeclSyntax { DeclSyntax(node) }
   override func visit(_ node: AccessorBlockSyntax) -> AccessorBlockSyntax { node }
+  override func visit(_ node: StructDeclSyntax) -> DeclSyntax { DeclSyntax(node) }
 }
 
 /// Rewrites `$0` references to a named identifier.
@@ -285,7 +406,14 @@ private class DollarZeroRewriter: SyntaxRewriter {
       return ExprSyntax(node)
     }
     return ExprSyntax(
-      node.with(\.baseName, .identifier(replacement, leadingTrivia: node.baseName.leadingTrivia, trailingTrivia: node.baseName.trailingTrivia))
+      node.with(
+        \.baseName,
+        .identifier(
+          replacement,
+          leadingTrivia: node.baseName.leadingTrivia,
+          trailingTrivia: node.baseName.trailingTrivia
+        )
+      )
     )
   }
 
@@ -293,6 +421,12 @@ private class DollarZeroRewriter: SyntaxRewriter {
   override func visit(_ node: FunctionDeclSyntax) -> DeclSyntax { DeclSyntax(node) }
   override func visit(_ node: InitializerDeclSyntax) -> DeclSyntax { DeclSyntax(node) }
   override func visit(_ node: DeinitializerDeclSyntax) -> DeclSyntax { DeclSyntax(node) }
+  override func visit(_ node: ActorDeclSyntax) -> DeclSyntax { DeclSyntax(node) }
+  override func visit(_ node: ClassDeclSyntax) -> DeclSyntax { DeclSyntax(node) }
   override func visit(_ node: ClosureExprSyntax) -> ExprSyntax { ExprSyntax(node) }
+  override func visit(_ node: EnumDeclSyntax) -> DeclSyntax { DeclSyntax(node) }
+  override func visit(_ node: ExtensionDeclSyntax) -> DeclSyntax { DeclSyntax(node) }
+  override func visit(_ node: ProtocolDeclSyntax) -> DeclSyntax { DeclSyntax(node) }
   override func visit(_ node: AccessorBlockSyntax) -> AccessorBlockSyntax { node }
+  override func visit(_ node: StructDeclSyntax) -> DeclSyntax { DeclSyntax(node) }
 }

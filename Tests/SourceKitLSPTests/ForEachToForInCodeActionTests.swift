@@ -10,9 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+@_spi(SourceKitLSP) import LanguageServerProtocol
 import SKTestSupport
 import SourceKitLSP
-@_spi(SourceKitLSP) import LanguageServerProtocol
 @_spi(Testing) import SwiftLanguageService
 import XCTest
 
@@ -183,6 +183,36 @@ final class ForEachToForInCodeActionTests: SourceKitLSPTestCase {
     XCTAssertNotNil(action, "Bare return should be converted to continue")
   }
 
+  func testTransformsNestedLoopBareReturnToLabeledContinue() async throws {
+    let (project, uri, positions) = try await makeProject(
+      """
+      let array = [[1, 2], [3, 4]]
+      array.1️⃣forEach { item in
+        for value in item {
+          if value < 2 {
+            return
+          }
+        }
+        print(item)
+      }
+      """
+    )
+    let replacement = try await forEachReplacementText(in: project, uri: uri, at: positions["1️⃣"])
+    XCTAssertEqual(
+      replacement,
+      """
+      forEachLoop: for item in array {
+        for value in item {
+          if value < 2 {
+            continue forEachLoop
+          }
+        }
+        print(item)
+      }
+      """
+    )
+  }
+
   func testAllowsTryInClosure() async throws {
     let (project, uri, positions) = try await makeProject(
       """
@@ -207,6 +237,20 @@ final class ForEachToForInCodeActionTests: SourceKitLSPTestCase {
     )
     let action = try await forEachAction(in: project, uri: uri, at: positions["1️⃣"])
     XCTAssertNil(action, "Should NOT offer action for await expression")
+  }
+
+  func testRejectsClosureWithCaptureList() async throws {
+    let (project, uri, positions) = try await makeProject(
+      """
+      let array = [1, 2, 3]
+      let offset = 1
+      array.1️⃣forEach { [offset] item in
+        print(item + offset)
+      }
+      """
+    )
+    let action = try await forEachAction(in: project, uri: uri, at: positions["1️⃣"])
+    XCTAssertNil(action, "Should NOT offer action for closures with a capture list")
   }
 
   func testParenthesizedClosureParameter() async throws {
@@ -290,6 +334,11 @@ final class ForEachToForInCodeActionTests: SourceKitLSPTestCase {
     }
     XCTAssertTrue(change.newText.contains("continue"), "Bare return should become continue")
     XCTAssertFalse(change.newText.contains("return"), "No return should remain in the output")
+    XCTAssertFalse(change.newText.contains("forEachLoop:"), "Simple bare return should not add a loop label")
+    XCTAssertFalse(
+      change.newText.contains("continue forEachLoop"),
+      "Simple bare return should stay a plain continue"
+    )
   }
 
   func testSelectionRangeBoundaries() async throws {
