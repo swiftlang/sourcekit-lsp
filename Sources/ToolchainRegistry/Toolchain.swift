@@ -266,6 +266,14 @@ public final class Toolchain: Sendable {
   /// lib/sourcekitd.framework/sourcekitd
   ///    /libsourcekitdInProc.{so,dylib}
   ///    /libIndexStore.{so,dylib}
+  /// lib/libIndexStore.{so,dylib}
+  /// ```
+  /// and one of:
+  /// ```
+  /// lib/sourcekitd.framework/sourcekitd (macOS)
+  /// lib/sourcekitdInProc.framework/sourcekitdInProc (macOS, if preferInProcessSourceKitD is true)
+  /// lib/libsourcekitdInProc.{so,dylib} (Linux or macOS, if the options above don't exist)
+  /// lib/sourcekitdInProc.dll (Windows)
   /// ```
   ///
   /// The above directory layout can found relative to `path` in the following ways:
@@ -276,6 +284,7 @@ public final class Toolchain: Sendable {
   /// If `path` contains an ".xctoolchain", we try to read an Info.plist file to provide the
   /// toolchain identifier, etc.  Otherwise this information is derived from the path.
   convenience package init?(_ path: URL) {
+  convenience package init?(_ path: URL, preferInProcessSourceKitD: Bool = false) {
     // Properties that need to be initialized
     let identifier: String
     let displayName: String
@@ -365,11 +374,13 @@ public final class Toolchain: Sendable {
         if FileManager.default.isFile(at: libSearchPath) {
           return libSearchPath
         }
+        #if os(macOS)
         let frameworkPath = libPath.appending(components: "\(name).framework", name)
         if searchFramework, FileManager.default.isFile(at: frameworkPath) {
           return frameworkPath
         }
         #if os(Windows)
+        #elseif os(Windows)
         let binSearchPath = binPath.appending(component: "\(name)\(dylibExtension)")
         if FileManager.default.isFile(at: binSearchPath) {
           return binSearchPath
@@ -381,16 +392,27 @@ public final class Toolchain: Sendable {
       if let sourcekitdPath = findDylib(named: "sourcekitd", searchFramework: true)
         ?? findDylib(named: "sourcekitdInProc")
       {
+      let sourcekitdPath: URL? =
+        if Platform.current != .darwin || preferInProcessSourceKitD {
+          findDylib(named: "sourcekitdInProc", searchFramework: true)
+        } else {
+          findDylib(named: "sourcekitd", searchFramework: true)
+            ?? findDylib(named: "sourcekitdInProc", searchFramework: true)
+        }
+
+      if let sourcekitdPath {
         sourcekitd = sourcekitdPath
         foundAny = true
       }
 
       if let clientPluginPath = findDylib(named: "SwiftSourceKitClientPlugin", searchFramework: true) {
+      if let clientPluginPath = findDylib(named: "SwiftSourceKitClientPlugin") {
         sourceKitClientPlugin = clientPluginPath
         foundAny = true
       }
 
       if let servicePluginPath = findDylib(named: "SwiftSourceKitPlugin", searchFramework: true) {
+      if let servicePluginPath = findDylib(named: "SwiftSourceKitPlugin") {
         sourceKitServicePlugin = servicePluginPath
         foundAny = true
       }
