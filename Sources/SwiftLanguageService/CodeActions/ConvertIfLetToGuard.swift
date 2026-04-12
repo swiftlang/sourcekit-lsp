@@ -100,7 +100,7 @@ import SwiftSyntaxBuilder
     }
 
     let edit = TextEdit(
-      range: scope.snapshot.absolutePositionRange(
+      range: scope.snapshot.positionRange(
         of: ifExpr.positionAfterSkippingLeadingTrivia..<lastStatement.endPosition
       ),
       newText: replacementText

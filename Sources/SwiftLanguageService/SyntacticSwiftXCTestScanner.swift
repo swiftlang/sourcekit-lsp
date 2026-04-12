@@ -65,7 +65,7 @@ final class SyntacticSwiftXCTestScanner: SyntaxVisitor {
         // declarations are probably less common than helper functions that start with `test` and have a return type.
         return nil
       }
-      let range = snapshot.absolutePositionRange(
+      let range = snapshot.positionRange(
         of: function.positionAfterSkippingLeadingTrivia..<function.endPositionBeforeTrailingTrivia
       )
 
@@ -93,7 +93,7 @@ final class SyntacticSwiftXCTestScanner: SyntaxVisitor {
       return .visitChildren
     }
 
-    let range = snapshot.absolutePositionRange(
+    let range = snapshot.positionRange(
       of: node.positionAfterSkippingLeadingTrivia..<node.endPositionBeforeTrailingTrivia
     )
     let testItem = AnnotatedTestItem(

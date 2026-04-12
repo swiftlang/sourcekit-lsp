@@ -129,7 +129,7 @@ extension SyntaxClassifiedRange {
       return SyntaxHighlightingTokens(tokens: [])
     }
 
-    let multiLineRange = snapshot.absolutePositionRange(of: self.range)
+    let multiLineRange = snapshot.positionRange(of: self.range)
     let ranges = multiLineRange.splitToSingleLineRanges(in: snapshot)
 
     let tokens = ranges.map {

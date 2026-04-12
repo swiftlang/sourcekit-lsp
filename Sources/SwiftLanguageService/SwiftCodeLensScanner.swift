@@ -111,7 +111,7 @@ final class SwiftCodeLensScanner: SyntaxVisitor {
 
   private func captureLensFromAttribute(attribute: AttributeListSyntax.Element) {
     if attribute.trimmedDescription == "@main" {
-      let range = self.snapshot.absolutePositionRange(of: attribute.trimmedRange)
+      let range = self.snapshot.positionRange(of: attribute.trimmedRange)
       var targetNameToAppend: String = ""
       var arguments: [LSPAny] = []
       if let targetName {

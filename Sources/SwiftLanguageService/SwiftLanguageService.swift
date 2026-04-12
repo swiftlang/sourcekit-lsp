@@ -158,6 +158,8 @@ package actor SwiftLanguageService: LanguageService, Sendable {
   ///   might have finished. This isn't an issue since the tasks do not retain `self`.
   private var inFlightPublishDiagnosticsTasks: [DocumentURI: Task<Void, Never>] = [:]
 
+  var inlayHintState = InlayHintState()
+
   let syntaxTreeManager = SyntaxTreeManager()
 
   /// The `semanticIndexManager` of the workspace this language service was created for.
@@ -582,6 +584,7 @@ extension SwiftLanguageService {
       }
     case nil:
       cancelInFlightPublishDiagnosticsTask(for: notification.textDocument.uri)
+      removeCachedInlayHints(for: notification.textDocument.uri)
       await diagnosticReportManager.removeItemsFromCache(with: notification.textDocument.uri)
 
       let buildSettings = await self.compileCommand(for: snapshot.uri, fallbackAfterTimeout: true)
@@ -606,6 +609,7 @@ extension SwiftLanguageService {
     buildSettingsForOpenFiles[notification.textDocument.uri] = nil
     await syntaxTreeManager.clearSyntaxTrees(for: notification.textDocument.uri)
     await syntaxTreeManager.clearExperimentalFeatures(for: notification.textDocument.uri)
+    removeCachedInlayHints(for: notification.textDocument.uri)
     switch try? ReferenceDocumentURL(from: notification.textDocument.uri) {
     case .macroExpansion:
       break
@@ -759,7 +763,19 @@ extension SwiftLanguageService {
       edits: concurrentEdits
     )
 
+    shiftCachedInlayHints(
+      for: notification.textDocument.uri,
+      edits: edits,
+      preEditSnapshot: preEditSnapshot,
+      postEditSnapshot: postEditSnapshot
+    )
+    scheduleInlayHintRefresh(for: notification.textDocument.uri, expectedVersion: postEditSnapshot.version)
+
     await publishDiagnosticsIfNeeded(for: notification.textDocument.uri)
+  }
+
+  private func removeCachedInlayHints(for uri: DocumentURI) {
+    inlayHintState.clear(for: uri)
   }
 
   // MARK: - Language features
@@ -830,7 +846,7 @@ extension SwiftLanguageService {
     if let snapshot = try? await latestSnapshot(for: uri) {
       let tree = await syntaxTreeManager.syntaxTree(for: snapshot)
       if let token = tree.token(at: snapshot.absolutePosition(of: position)) {
-        tokenRange = snapshot.absolutePositionRange(of: token.trimmedRange)
+        tokenRange = snapshot.positionRange(of: token.trimmedRange)
       }
     }
 
@@ -880,7 +896,7 @@ extension SwiftLanguageService {
 
         result.append(
           ColorInformation(
-            range: snapshot.absolutePositionRange(of: node.position..<node.endPosition),
+            range: snapshot.positionRange(of: node.position..<node.endPosition),
             color: Color(red: red, green: green, blue: blue, alpha: alpha)
           )
         )
