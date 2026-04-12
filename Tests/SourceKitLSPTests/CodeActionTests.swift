@@ -1321,26 +1321,20 @@ final class CodeActionTests: SourceKitLSPTestCase {
         CodeAction(
           title: "Convert Stored Property to Computed Property",
           kind: .refactorInline,
-          command: Command(
-            title: "Convert Stored Property to Computed Property",
-            command: "semantic.refactor.convertStoredPropertyToComputed",
-            arguments: [
-              .dictionary([
-                "title": .string("Convert Stored Property to Computed Property"),
+          data:
+            .dictionary([
+              "textDocument": .dictionary(["uri": .string(uri.stringValue)]),
+              "underlyingData": .dictionary([
+                "action": .string("Convert Stored Property to Computed Property"),
                 "uri": .string(uri.stringValue),
                 "offset": .int(10),
               ]),
-              .dictionary([
-                "sourcekitlsp_textDocument": .dictionary([
-                  "uri": .string(uri.stringValue)
-                ])
-              ]),
-            ]
-          )
+            ])
         )
       ]
     }
   }
+
   func testApplyDeMorganLawNegatedAnd() async throws {
     try await assertCodeActions(
       """

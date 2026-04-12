@@ -51,7 +51,6 @@ extension SwiftLanguageService {
     [
       SemanticRefactorCommand.self,
       ExpandMacroCommand.self,
-      ConvertStoredPropertyToComputedCommand.self,
     ].map { (command: any SwiftCommand.Type) in
       command.identifier
     }

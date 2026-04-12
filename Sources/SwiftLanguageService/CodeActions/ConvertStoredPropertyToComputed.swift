@@ -47,17 +47,11 @@ extension ConvertStoredPropertyToComputed: SyntaxCodeActionProvider {
       CodeAction(
         title: "Convert Stored Property to Computed Property",
         kind: .refactorInline,
-        command: Command(
-          title: "Convert Stored Property to Computed Property",
-          command: "semantic.refactor.convertStoredPropertyToComputed",
-          arguments: [
-            .dictionary([
-              "title": .string("Convert Stored Property to Computed Property"),
-              "uri": .string(scope.snapshot.uri.stringValue),
-              "offset": .int(scope.range.lowerBound.utf8Offset),
-            ])
-          ]
-        )
+        data: .dictionary([
+          "action": .string("Convert Stored Property to Computed Property"),
+          "uri": .string(scope.snapshot.uri.stringValue),
+          "offset": .int(scope.range.lowerBound.utf8Offset),
+        ])
       )
     ]
   }

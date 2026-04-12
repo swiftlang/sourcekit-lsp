@@ -984,7 +984,23 @@ extension SwiftLanguageService {
   }
 
   package func codeActionResolve(_ req: CodeActionResolveRequest) async throws -> CodeAction {
-    return req.codeAction
+    var codeAction = req.codeAction
+
+    guard case let .dictionary(data) = codeAction.data,
+      case let .string(action) = data["action"],
+      action == "Convert Stored Property to Computed Property"
+    else {
+      return codeAction
+    }
+    guard case let .string(uriString) = data["uri"],
+      let uri = try? DocumentURI(string: uriString),
+      case let .int(offset) = data["offset"]
+    else {
+      return codeAction
+    }
+    let edit = try await self.executeConvertStoredPropertyToComputed(uri: uri, offset: offset)
+    codeAction.edit = edit
+    return codeAction
   }
 
   func retrieveRefactorCodeActions(_ params: CodeActionRequest) async throws -> [CodeAction] {
