@@ -27,7 +27,9 @@ package import SourceKitLSP
 import SwiftExtensions
 @_spi(ExperimentalLanguageFeatures) public import SwiftParser
 import SwiftParserDiagnostics
+import SwiftRefactor
 package import SwiftSyntax
+import SwiftSyntaxBuilder
 package import ToolchainRegistry
 @_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
@@ -982,7 +984,23 @@ extension SwiftLanguageService {
   }
 
   package func codeActionResolve(_ req: CodeActionResolveRequest) async throws -> CodeAction {
-    return req.codeAction
+    var codeAction = req.codeAction
+
+    guard case let .dictionary(data) = codeAction.data,
+      case let .string(action) = data["action"],
+      action == "Convert Stored Property to Computed Property"
+    else {
+      return codeAction
+    }
+    guard case let .string(uriString) = data["uri"],
+      let uri = try? DocumentURI(string: uriString),
+      case let .int(offset) = data["offset"]
+    else {
+      return codeAction
+    }
+    let edit = try await self.executeConvertStoredPropertyToComputed(uri: uri, offset: offset)
+    codeAction.edit = edit
+    return codeAction
   }
 
   func retrieveRefactorCodeActions(_ params: CodeActionRequest) async throws -> [CodeAction] {
@@ -1390,5 +1408,80 @@ extension SwiftLanguageService {
     }
 
     return false
+  }
+}
+// MARK: - Refactoring Commands
+
+extension SwiftLanguageService {
+  // Executes the "Convert Stored Property to Computed" refactoring.
+  package func executeConvertStoredPropertyToComputed(
+    uri: DocumentURI,
+    offset: Int
+  ) async throws -> WorkspaceEdit? {
+
+    let snapshot = try documentManager.latestSnapshot(uri)
+    let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
+    let position = AbsolutePosition(utf8Offset: offset)
+
+    guard let token = syntaxTree.token(at: position),
+      let variableDecl = token.parent?.ancestorOrSelf(mapping: {
+        $0.as(VariableDeclSyntax.self)
+      })
+    else {
+      return nil
+    }
+
+    guard let binding = variableDecl.bindings.first else {
+      return nil
+    }
+
+    // Prefer explicitly declared (syntactic) type.
+    var resolvedType = binding.typeAnnotation?.type
+
+    // Fall back to semantic inference using compiler context when absent.
+    if resolvedType == nil {
+
+      let compileCommand = await self.compileCommand(
+        for: uri,
+        fallbackAfterTimeout: true
+      )
+
+      let lspPosition = snapshot.position(of: position)
+      let (cursorInfoResults, _, _) = try await self.cursorInfo(
+        snapshot,
+        compileCommand: compileCommand,
+        lspPosition..<lspPosition
+      )
+
+      if let annotatedDecl = cursorInfoResults.first?.annotatedDeclaration,
+        let typeString = extractType(from: annotatedDecl)
+      {
+        resolvedType = TypeSyntax(stringLiteral: typeString)
+      }
+    }
+
+    guard let resolvedType else {
+      return nil
+    }
+
+    let context = ConvertStoredPropertyToComputed.Context(type: resolvedType)
+    let refactoredDecl = try ConvertStoredPropertyToComputed.refactor(
+      syntax: variableDecl,
+      in: context
+    )
+    let edit = TextEdit(
+      range: snapshot.absolutePositionRange(of: variableDecl.range),
+      newText: refactoredDecl.description
+    )
+    return WorkspaceEdit(changes: [uri: [edit]])
+  }
+  // Extracts type from annotated declaration
+  private func extractType(from annotatedDecl: String) -> String? {
+    guard let start = annotatedDecl.range(of: "<type>"),
+      let end = annotatedDecl.range(of: "</type>")
+    else {
+      return nil
+    }
+    return String(annotatedDecl[start.upperBound..<end.lowerBound])
   }
 }
