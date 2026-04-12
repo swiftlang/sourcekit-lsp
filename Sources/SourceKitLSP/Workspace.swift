@@ -566,7 +566,7 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
       //
       // Technically, we might be doing unnecessary work here if the output file map is already up-to-date. But since
       // this option is mostly intended for testing purposes, this is acceptable.
-      await buildServerManager.scheduleRecomputeCopyFileMap().value
+      _ = await buildServerManager.scheduleRecomputeCopyFileMap().value
     }
     if request.index ?? false {
       if let semanticIndexManager = await semanticIndexManager {
