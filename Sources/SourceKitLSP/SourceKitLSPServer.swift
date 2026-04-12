@@ -1027,7 +1027,7 @@ extension SourceKitLSPServer {
 
     capabilityRegistry = CapabilityRegistry(clientCapabilities: clientCapabilities)
 
-    let initializeOptions = orLog("Parsing options") { try SourceKitLSPOptions(fromLSPAny: req.initializationOptions) }
+    let initializeOptions = SourceKitLSPOptions(fromLSPAny: req.initializationOptions)
     _options.withLock { options in
       options = SourceKitLSPOptions.merging(base: options, override: initializeOptions)
     }

@@ -25,7 +25,7 @@ import SemanticIndex
 package import SourceKitD
 package import SourceKitLSP
 import SwiftExtensions
-@_spi(ExperimentalLanguageFeatures) public import SwiftParser
+@_spi(ExperimentalLanguageFeatures) package import SwiftParser
 import SwiftParserDiagnostics
 package import SwiftSyntax
 package import ToolchainRegistry

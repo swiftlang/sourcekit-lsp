@@ -332,10 +332,10 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
     }
 
     let buildFlags = BuildFlags(
-      cCompilerFlags: options.swiftPMOrDefault.cCompilerFlags ?? [],
-      cxxCompilerFlags: options.swiftPMOrDefault.cxxCompilerFlags ?? [],
-      swiftCompilerFlags: options.swiftPMOrDefault.swiftCompilerFlags ?? [],
-      linkerFlags: options.swiftPMOrDefault.linkerFlags ?? []
+      cCompilerFlags: (options.swiftPMOrDefault.cCompilerFlags ?? []).map { BuildFlag(value: $0, source: nil) },
+      cxxCompilerFlags: (options.swiftPMOrDefault.cxxCompilerFlags ?? []).map { BuildFlag(value: $0, source: nil) },
+      swiftCompilerFlags: (options.swiftPMOrDefault.swiftCompilerFlags ?? []).map { BuildFlag(value: $0, source: nil) },
+      linkerFlags: (options.swiftPMOrDefault.linkerFlags ?? []).map { BuildFlag(value: $0, source: nil) },
     )
 
     self.toolsBuildParameters = try BuildParameters(
