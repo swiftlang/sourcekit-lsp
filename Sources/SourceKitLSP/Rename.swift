@@ -324,7 +324,7 @@ extension SourceKitLSPServer {
 
     // If we have a USR + old name, perform an index lookup to find workspace-wide symbols to rename.
     // First, group all occurrences of that USR by the files they occur in.
-    var locationsByFile: [DocumentURI: (renameLocations: [RenameLocation], symbolProvider: SymbolProviderKind)] = [:]
+    var locationsByFile: [DocumentURI: (renameLocations: Set<RenameLocation>, symbolProvider: SymbolProviderKind)] = [:]
 
     let usrsToRename = try overridingAndOverriddenUsrs(of: usr, index: index)
     let occurrencesToRename = try usrsToRename.flatMap { try index.occurrences(ofUSR: $0, roles: renameRoles) }
@@ -367,7 +367,7 @@ extension SourceKitLSPServer {
             """
           )
         }
-        locationsByFile[uri] = (existingLocations.renameLocations + [renameLocation], occurrence.symbolProvider)
+        locationsByFile[uri] = (existingLocations.renameLocations.union([renameLocation]), occurrence.symbolProvider)
       } else {
         locationsByFile[uri] = ([renameLocation], occurrence.symbolProvider)
       }
@@ -380,7 +380,7 @@ extension SourceKitLSPServer {
       .concurrentMap {
         (
           uri: DocumentURI,
-          value: (renameLocations: [RenameLocation], symbolProvider: SymbolProviderKind)
+          value: (renameLocations: Set<RenameLocation>, symbolProvider: SymbolProviderKind)
         ) -> (DocumentURI, [TextEdit])? in
         let language: Language
         switch value.symbolProvider {
@@ -405,16 +405,19 @@ extension SourceKitLSPServer {
           return nil
         }
 
+        let renameLocations = value.renameLocations.sorted {
+          ($0.line, $0.utf8Column) < ($1.line, $1.utf8Column)
+        }
         var edits: [TextEdit] =
           await orLog("Getting edits for rename location") {
             return try await languageService.editsToRename(
-              locations: value.renameLocations,
+              locations: renameLocations,
               in: snapshot,
               oldName: oldName,
               newName: newName
             )
           } ?? []
-        for location in value.renameLocations where location.usage == .definition {
+        for location in renameLocations where location.usage == .definition {
           edits += await languageService.editsToRenameParametersInFunctionBody(
             snapshot: snapshot,
             renameLocation: location,
