@@ -1303,6 +1303,106 @@ final class RenameTests: SourceKitLSPTestCase {
     )
   }
 
+  func testRenameSymbolUsedByMultipleTargets() async throws {
+    // When a symbol is used across multiple targets, the index may return duplicate occurrences for the same source
+    // location (one per compilation unit that indexed the file). The rename handler must deduplicate them so the
+    // resulting WorkspaceEdit doesn't contain overlapping TextEdits — which editors reject.
+    try await assertMultiFileRename(
+      files: [
+        "LibA/LibA.swift": """
+        public func 1️⃣foo2️⃣() {}
+        """,
+        "LibB/LibB.swift": """
+        import LibA
+        public func testB() {
+          3️⃣foo4️⃣()
+        }
+        """,
+        "LibC/LibC.swift": """
+        import LibA
+        public func testC() {
+          5️⃣foo6️⃣()
+        }
+        """,
+      ],
+      newName: "bar",
+      expectedPrepareRenamePlaceholder: "foo",
+      expected: [
+        "LibA/LibA.swift": """
+        public func bar() {}
+        """,
+        "LibB/LibB.swift": """
+        import LibA
+        public func testB() {
+          bar()
+        }
+        """,
+        "LibC/LibC.swift": """
+        import LibA
+        public func testC() {
+          bar()
+        }
+        """,
+      ],
+      manifest: """
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+            .target(name: "LibA"),
+            .target(name: "LibB", dependencies: ["LibA"]),
+            .target(name: "LibC", dependencies: ["LibA"]),
+          ]
+        )
+        """
+    )
+  }
+
+  func testRenameAcrossMultipleTargetsProducesNoDuplicateEdits() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "LibA/LibA.swift": """
+        public func 1️⃣foo() {}
+        """,
+        "LibB/LibB.swift": """
+        import LibA
+        public func testB() {
+          foo()
+        }
+        """,
+        "LibC/LibC.swift": """
+        import LibA
+        public func testC() {
+          foo()
+        }
+        """,
+      ],
+      manifest: """
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+            .target(name: "LibA"),
+            .target(name: "LibB", dependencies: ["LibA"]),
+            .target(name: "LibC", dependencies: ["LibA"]),
+          ]
+        )
+        """,
+      enableBackgroundIndexing: true
+    )
+    let (uri, positions) = try project.openDocument("LibA.swift")
+    let result = try await project.testClient.send(
+      RenameRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"], newName: "bar")
+    )
+    let changes = try XCTUnwrap(result?.changes)
+    for (uri, edits) in changes {
+      let rangeStrings = edits.map { "\($0.range)" }
+      XCTAssertEqual(
+        rangeStrings.count,
+        Set(rangeStrings).count,
+        "Duplicate edits found in \(uri): \(rangeStrings)"
+      )
+    }
+  }
+
   func testRenameDoesNotReportEditsIfNoActualChangeIsMade() async throws {
     let project = try await SwiftPMTestProject(
       files: [

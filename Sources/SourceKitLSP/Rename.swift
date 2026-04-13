@@ -30,6 +30,23 @@ private extension RenameLocation.Usage {
       self = .reference
     }
   }
+
+  /// Higher rank means more specific usage. Used to pick the best usage when multiple index occurrences exist for the
+  /// same source location — `definition` must win because it triggers parameter renaming in function bodies.
+  var specificityRank: Int {
+    switch self {
+    case .definition: 3
+    case .call: 2
+    case .reference: 1
+    case .unknown: 0
+    }
+  }
+}
+
+/// A position in a source file, used as a key to deduplicate `RenameLocation`s that refer to the same place.
+private struct RenameLocationPosition: Hashable {
+  let line: Int
+  let utf8Column: Int
 }
 
 private extension IndexSymbolKind {
@@ -370,6 +387,30 @@ extension SourceKitLSPServer {
         locationsByFile[uri] = (existingLocations.renameLocations + [renameLocation], occurrence.symbolProvider)
       } else {
         locationsByFile[uri] = ([renameLocation], occurrence.symbolProvider)
+      }
+    }
+
+    // Deduplicate rename locations that appear at the same position within a file. When a file is indexed by multiple
+    // compilation units (e.g. multiple targets in a build system), `index.occurrences` returns one entry per unit,
+    // producing duplicate `RenameLocation`s for the same source position. Without deduplication the resulting
+    // `WorkspaceEdit` contains overlapping `TextEdit`s which editors rightfully reject.
+    // When duplicates exist at the same position, prefer the most specific usage.
+    for (uri, value) in locationsByFile {
+      var bestIndexByPosition: [RenameLocationPosition: Int] = [:]
+      var deduplicatedLocations: [RenameLocation] = []
+      for location in value.renameLocations {
+        let key = RenameLocationPosition(line: location.line, utf8Column: location.utf8Column)
+        if let existingIndex = bestIndexByPosition[key] {
+          if location.usage.specificityRank > deduplicatedLocations[existingIndex].usage.specificityRank {
+            deduplicatedLocations[existingIndex] = location
+          }
+        } else {
+          bestIndexByPosition[key] = deduplicatedLocations.count
+          deduplicatedLocations.append(location)
+        }
+      }
+      if deduplicatedLocations.count != value.renameLocations.count {
+        locationsByFile[uri] = (deduplicatedLocations, value.symbolProvider)
       }
     }
 
