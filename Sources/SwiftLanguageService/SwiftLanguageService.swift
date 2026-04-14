@@ -946,12 +946,14 @@ extension SwiftLanguageService {
 
     let snapshot = try documentManager.latestSnapshot(uri)
     let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
-    guard let scope = CodeActionScope(
-      snapshot: snapshot,
-      syntaxTree: syntaxTree,
-      request: req,
-      sharedCursorInfo: sharedCursorInfo
-    ) else {
+    guard
+      let scope = CodeActionScope(
+        snapshot: snapshot,
+        syntaxTree: syntaxTree,
+        request: req,
+        sharedCursorInfo: sharedCursorInfo
+      )
+    else {
       return nil
     }
 
@@ -962,10 +964,11 @@ extension SwiftLanguageService {
     }
 
     async let syntaxActions = retrieveSyntaxCodeActions(scope)
-    async let refactorActions = wantActionKind(.refactor) ? try await retrieveRefactorCodeActions(scope) : []
-    async let quickFixActions = wantActionKind(.quickFix) ? try await retrieveQuickFixCodeActions(scope) : []
-    async let unusedImportActions = wantActionKind(.sourceOrganizeImports)
-      ? try await retrieveRemoveUnusedImportsCodeAction(scope) : []
+    async let refactorActions = wantActionKind(.refactor) ? retrieveRefactorCodeActions(scope) : []
+    async let quickFixActions = wantActionKind(.quickFix) ? retrieveQuickFixCodeActions(scope) : []
+    async let unusedImportActions =
+      wantActionKind(.sourceOrganizeImports)
+      ? retrieveRemoveUnusedImportsCodeAction(scope) : []
 
     let allCodeActions = try await syntaxActions + refactorActions + quickFixActions + unusedImportActions
 
