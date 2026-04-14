@@ -2,22 +2,29 @@
 
 The SourceKit-LSP package contains the following non-testing modules.
 
-### BuildServerProtocol
-
-Swift types to represent the [Build Server Protocol (BSP) specification](https://build-server-protocol.github.io/docs/specification). These types should also be usable when implementing a BSP client and thus this module should not have any dependencies other than the LanguageServerProtocol module, with which it shares some types.
-
 ### BuildServerIntegration
 
 Defines the queries SourceKit-LSP can ask of a build server, like getting compiler arguments for a file, finding a target’s dependencies or preparing a target.
 
-### CAtomics
+### CCompletionScoring
 
-Implementation of atomics for Swift using C. Once we can raise our deployment target to use the `Atomic` type from the Swift standard library, this module should be removed.
+A small C library containing helpers used in completion scoring.
 
 ### CSKTestSupport
 
-For testing, overrides `__cxa_atexit` to prevent registration of static destructors due to work around https://github.com/swiftlang/swift/issues/55112.
+For testing, overrides `__cxa_atexit` to prevent registration of static destructors as a workaround for https://github.com/swiftlang/swift/issues/55112.
 
+### ClangLanguageService
+
+Implements the C/C++ language service by managing a `clangd` process, forwarding LSP messages, and integrating build settings from SourceKit-LSP workspaces.
+
+### CompletionScoring
+
+Implements SourceKit-LSP’s code completion ranking logic, combining text matching and semantic signals to prioritize completion results.
+
+### CompletionScoringTestSupport
+
+Shared fixtures and helper utilities used by completion scoring tests, including deterministic random generation and symbol data setup.
 
 ### Csourcekitd
 
@@ -27,35 +34,19 @@ Header file defining the interface to sourcekitd. This should stay in sync with 
 
 A collection of subcommands to the `sourcekit-lsp` executable that help SourceKit-LSP diagnose issues.
 
+### DocumentationLanguageService
+
+Implements documentation-focused language features (DocC-based requests).
+
 ### InProcessClient
 
-A simple type that allows launching a SourceKit-LSP server in-process, communicating in terms of structs from the `LanguageServerProtocol` module.
+An in-process client API for launching a SourceKit-LSP server in the same process and communicating with typed requests/responses from [`LanguageServerProtocol`](https://github.com/swiftlang/swift-tools-protocols/tree/main/Sources/LanguageServerProtocol).
 
 This should be the dedicated entry point for clients that want to run SourceKit-LSP in-process instead of launching a SourceKit-LSP server out-of-process and communicating with it using JSON RPC.
 
-### LanguageServerProtocol
-
-Swift types to represent the [Language Server Protocol (LSP) specification, version 3.17](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/). These types should also be usable when implementing an LSP client and thus this module should not have any dependencies.
-
 ### LanguageServerProtocolExtensions
 
-Extensions on top of `LanguageServerProtocol` and `LanguageServerProtocolJSONRPC` that might require other modules defined in sourcekit-lsp.
-
-### LanguageServerProtocolJSONRPC
-
-A connection to or from a SourceKit-LSP server. Since message parsing can fail, it needs to handle errors in some way and the design decision here is to use SKLogging, which hardcodes `org.swift.sourcekit-lsp` as the default logging subsystem and thus makes the module unsuitable for generic clients.
-
-### SemanticIndex
-
-Contains the interface with which SourceKit-LSP queries the semantic index, adding up-to-date checks on top of the indexstore-db API. Also implements the types that manage background indexing.
-
-### SKLogging
-
-Types that are API-compatible with OSLog that allow logging to OSLog when building for Apple platforms and logging to stderr or files on non-Apple platforms. This should not be dependent on any LSP specific types and be portable to other packages.
-
-### SKUtilities
-
-Types that should be sharable by the different modules that implement SourceKit-LSP but that are not generic enough to fit into `SwiftExtensions` or that need to depend on `SKLogging` and thus can’t live in `SwiftExtensions`.
+SourceKit-LSP-specific extensions on top of [`LanguageServerProtocol`](https://github.com/swiftlang/swift-tools-protocols/tree/main/Sources/LanguageServerProtocol).
 
 ### SKOptions
 
@@ -65,9 +56,17 @@ Configuration options to change how SourceKit-LSP behaves, based on [Configurati
 
 A collection of utilities useful for writing tests for SourceKit-LSP and which are not specific to a single test module.
 
+### SKUtilities
+
+Types that should be shared by the different modules that implement SourceKit-LSP but that are not generic enough to fit into `SwiftExtensions` or that need to depend on `SKLogging` and thus can’t live in `SwiftExtensions`.
+
+### SemanticIndex
+
+Contains the interface with which SourceKit-LSP queries the semantic index, adding up-to-date checks on top of the indexstore-db API. Also implements the types that manage background indexing.
+
 ### sourcekit-lsp
 
-This executable target that produces the `sourcekit-lsp` binary.
+The executable target that produces the `sourcekit-lsp` binary.
 
 ### SourceKitD
 
@@ -79,12 +78,28 @@ This is the core module that implements the SourceKit-LSP server.
 
 ### SwiftExtensions
 
-Extensions to the Swift standard library and Foundation. Should not have any other dependencies. Any types in here should theoretically make senses to put in the Swift standard library or Foundation and they shouldn't be specific to SourceKit-LSP
+Extensions to the Swift standard library and Foundation. Should not have any other dependencies. Any types in here should theoretically make sense to put in the Swift standard library or Foundation and they shouldn't be specific to SourceKit-LSP
 
-#### ToolchainRegistry
+### SwiftLanguageService
 
-Discovers Swift toolchains on the system.
+Implements the Swift language service which contains the main logic for handling Swift-specific LSP requests, including code completion, diagnostics, and symbol information.
+
+### SwiftSourceKitClientPlugin
+
+Client-side sourcekitd plugin entry point that initializes SourceKit-LSP plugin support.
+
+### SwiftSourceKitPlugin
+
+Main sourcekitd service plugin that intercepts and handles completion-related requests, providing SourceKit-LSP’s custom completion pipeline inside sourcekitd.
+
+### SwiftSourceKitPluginCommon
+
+Shared plugin infrastructure used by `SwiftSourceKitPlugin` and `SwiftSourceKitClientPlugin`.
 
 ### TSCExtensions
 
 Extensions on top of `swift-tools-support-core` that might integrate with modules from sourcekit-lsp.
+
+### ToolchainRegistry
+
+Discovers Swift toolchains on the system.
