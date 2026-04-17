@@ -66,6 +66,10 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     /// `-Xbuild-tools-swiftc` option.
     public var buildToolsSwiftCompilerFlags: [String]?
 
+    /// Equivalent to SwiftPM's `--force-resolved-versions` option.
+    /// Makes all processes (including background indexing) treat Package.resolved as a lock file.
+    public var forceResolvedVersions: Bool?
+
     /// Disables running subprocesses from SwiftPM in a sandbox. Equivalent to SwiftPM's `--disable-sandbox` option.
     /// Useful when running `sourcekit-lsp` in a sandbox because nested sandboxes are not supported.
     public var disableSandbox: Bool?
@@ -92,6 +96,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
       swiftCompilerFlags: [String]? = nil,
       linkerFlags: [String]? = nil,
       buildToolsSwiftCompilerFlags: [String]? = nil,
+      forceResolvedVersions: Bool? = nil,
       disableSandbox: Bool? = nil,
       skipPlugins: Bool? = nil,
       buildSystem: SwiftPMBuildSystem? = nil
@@ -108,6 +113,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
       self.swiftCompilerFlags = swiftCompilerFlags
       self.linkerFlags = linkerFlags
       self.buildToolsSwiftCompilerFlags = buildToolsSwiftCompilerFlags
+      self.forceResolvedVersions = forceResolvedVersions
       self.disableSandbox = disableSandbox
       self.buildSystem = buildSystem
     }
@@ -126,6 +132,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
         swiftCompilerFlags: override?.swiftCompilerFlags ?? base.swiftCompilerFlags,
         linkerFlags: override?.linkerFlags ?? base.linkerFlags,
         buildToolsSwiftCompilerFlags: override?.buildToolsSwiftCompilerFlags ?? base.buildToolsSwiftCompilerFlags,
+        forceResolvedVersions: override?.forceResolvedVersions ?? base.forceResolvedVersions,
         disableSandbox: override?.disableSandbox ?? base.disableSandbox,
         skipPlugins: override?.skipPlugins ?? base.skipPlugins,
         buildSystem: override?.buildSystem ?? base.buildSystem
