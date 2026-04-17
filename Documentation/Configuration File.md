@@ -30,6 +30,7 @@ The structure of the file is currently not guaranteed to be stable. Options may 
   - `swiftCompilerFlags: string[]`: Extra arguments passed to the compiler for Swift files. Equivalent to SwiftPM's `-Xswiftc` option.
   - `linkerFlags: string[]`: Extra arguments passed to the linker. Equivalent to SwiftPM's `-Xlinker` option.
   - `buildToolsSwiftCompilerFlags: string[]`: Extra arguments passed to the compiler for Swift files or plugins. Equivalent to SwiftPM's `-Xbuild-tools-swiftc` option.
+  - `forceResolvedVersions: boolean`: Equivalent to SwiftPM's `--force-resolved-versions` option. Makes all processes (including background indexing) treat Package.resolved as a lock file.
   - `disableSandbox: boolean`: Disables running subprocesses from SwiftPM in a sandbox. Equivalent to SwiftPM's `--disable-sandbox` option. Useful when running `sourcekit-lsp` in a sandbox because nested sandboxes are not supported.
   - `buildSystem: "native"|"swiftbuild"`: Which SwiftPM build system should be used when opening a package.
 - `compilationDatabase`: Dictionary with the following keys, defining options for workspaces with a compilation database.
