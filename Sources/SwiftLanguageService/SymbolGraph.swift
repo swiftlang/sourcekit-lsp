@@ -82,12 +82,14 @@ private struct DocumentableSymbol {
     self.documentationComments = node.leadingTrivia.flatMap { trivia -> [String] in
       switch trivia {
       case .docLineComment(let comment):
-        return [String(comment.dropFirst(3).trimmingCharacters(in: .whitespaces))]
+        // Preserve leading whitespace for DocC indentation parsing (issue #2119)
+        return [String(comment.dropFirst(3))]
       case .docBlockComment(let comment):
         return comment.dropFirst(3)
           .dropLast(2)
           .split(whereSeparator: \.isNewline)
-          .map { String($0).trimmingCharacters(in: .whitespaces) }
+          // Preserve leading whitespace for DocC indentation parsing (issue #2119)
+          .map(String.init)
       default:
         return []
       }
