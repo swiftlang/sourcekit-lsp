@@ -15,6 +15,7 @@
 @_spi(Testing) import BuildServerIntegration
 @_spi(SourceKitLSP) import LanguageServerProtocol
 @_spi(SourceKitLSP) import LanguageServerProtocolExtensions
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 @_spi(SourceKitLSP) import LanguageServerProtocolTransport
 import PackageModel
 import SKLogging
@@ -30,6 +31,7 @@ import Foundation
 import Testing
 import struct Basics.AbsolutePath
 import struct Basics.Triple
+import struct Basics.UniversalArchiver
 
 private var hostTriple: Triple {
   get async throws {
@@ -1134,6 +1136,195 @@ struct SwiftPMBuildServerTests {
       let compilerArgs = try #require(settings?.compilerArguments)
       expectArgumentsContain("-package-description-version", "5.1.0", arguments: compilerArgs)
       #expect(compilerArgs.contains(try manifestURL.filePath))
+    }
+  }
+
+  // MARK: - Package reload filtering
+
+  /// Creates a minimal package containing a zip-based binary target and returns the server ready
+  /// for reload-filtering tests.
+  ///
+  /// Using a zip file is important: SwiftPM extracts zipped binary targets into the scratch
+  /// directory (`.build/index-build/artifacts/` by default), which makes those extracted paths
+  /// part of `buildDescription.inputs`. That is exactly the condition under which file-change
+  /// events in `.build/` would trigger a spurious package reload without the
+  /// `isInScratchDirectory` fix.
+  ///
+  /// - Returns: A tuple of the running server and the project root URL.
+  private func makeServerWithBinaryTargetAndWaitForInitialLoad(
+    in tempDir: URL,
+    options: SourceKitLSPOptions = SourceKitLSPOptions(),
+    reloadPackageDidStart: (@Sendable () async -> Void)? = nil
+  ) async throws -> (server: SwiftPMBuildServer, projectRoot: URL) {
+    let artifactBundleName = "MyBinaryTool.artifactbundle"
+    let zipName = "\(artifactBundleName).zip"
+
+    try FileManager.default.createFiles(
+      root: tempDir,
+      files: [
+        // Artifact bundle is staged outside of pkg/ so it doesn't pollute the package directory.
+        // ZipArchiver.compress will zip it into pkg/ below.
+        "\(artifactBundleName)/info.json": """
+        {
+          "schemaVersion": "1.0",
+          "artifacts": {
+            "MyBinaryTool": {
+              "type": "executable",
+              "version": "1.0.0",
+              "variants": []
+            }
+          }
+        }
+        """,
+        "pkg/Sources/lib/a.swift": "",
+        "pkg/Package.swift": """
+        // swift-tools-version:5.5
+        import PackageDescription
+        let package = Package(
+          name: "pkg",
+          targets: [
+            .target(name: "lib"),
+            .binaryTarget(name: "MyBinaryTool", path: "\(zipName)")
+          ]
+        )
+        """,
+      ]
+    )
+
+    let pkgDir = tempDir.appending(component: "pkg")
+    try await UniversalArchiver(localFileSystem).compress(
+      directory: Basics.AbsolutePath(validating: tempDir.appending(component: artifactBundleName).filePath),
+      to: Basics.AbsolutePath(validating: pkgDir.appending(component: zipName).filePath)
+    )
+    try FileManager.default.removeItem(at: tempDir.appending(component: artifactBundleName))
+
+    let projectRoot = try pkgDir.realpath
+    let server = try await SwiftPMBuildServer(
+      projectRoot: projectRoot,
+      toolchainRegistry: .forTesting,
+      options: options,
+      connectionToSourceKitLSP: LocalConnection(receiverName: "dummy"),
+      testHooks: SwiftPMTestHooks(reloadPackageDidStart: reloadPackageDidStart)
+    )
+    _ = await server.waitForBuildSystemUpdates(request: WorkspaceWaitForBuildSystemUpdatesRequest())
+    return (server, projectRoot)
+  }
+
+  /// Verifies that file-change events for paths inside the SwiftPM scratch directory do not
+  /// trigger a package reload.
+  ///
+  /// When a package contains a zip-based binary target, SwiftPM extracts the artifact into
+  /// `<scratch>/artifacts/<pkg>/<target>/` on every package load.  Before the
+  /// `isInScratchDirectory` fix those extracted paths were registered in
+  /// `buildDescription.inputs`, so the resulting file-created/-deleted events passed
+  /// `fileAffectsSwiftOrClangBuildSettings`, triggering another reload — an infinite loop.
+  @Test
+  func testBinaryTargetArtifactEventsDoNotTriggerPackageReload() async throws {
+    try await withTestScratchDir { tempDir in
+      let packageInitialized = AtomicBool(initialValue: false)
+      let unexpectedReloadStarted = AtomicBool(initialValue: false)
+
+      let (server, projectRoot) = try await makeServerWithBinaryTargetAndWaitForInitialLoad(
+        in: tempDir,
+        reloadPackageDidStart: {
+          if packageInitialized.value {
+            unexpectedReloadStarted.value = true
+          }
+        }
+      )
+      packageInitialized.value = true
+
+      // SwiftPM extracts the artifact bundle to:
+      //   <scratch>/artifacts/<package-identity>/<target-name>/<artifact-name>/
+      // With the default options, scratch = .build/index-build/.
+      let extractedInfoJSON = projectRoot.appending(
+        components: ".build",
+        "index-build",
+        "artifacts",
+        "pkg",
+        "MyBinaryTool",
+        "MyBinaryTool.artifactbundle",
+        "info.json"
+      )
+      #expect(FileManager.default.fileExists(atPath: extractedInfoJSON.path))
+      await server.didChangeWatchedFiles(
+        notification: OnWatchedFilesDidChangeNotification(
+          changes: [
+            FileEvent(uri: DocumentURI(extractedInfoJSON), type: .deleted),
+            FileEvent(uri: DocumentURI(extractedInfoJSON), type: .created),
+          ]
+        )
+      )
+
+      _ = await server.waitForBuildSystemUpdates(request: WorkspaceWaitForBuildSystemUpdatesRequest())
+      #expect(!unexpectedReloadStarted.value)
+    }
+  }
+
+  /// Same scenario with a custom scratch path configured outside of `.build/`.
+  ///
+  /// When a custom scratch path is used, SourceKit-LSP's artifact extraction goes to
+  /// `<custom-scratch>/artifacts/`, which the first `isInScratchDirectory` check covers.
+  /// The second check (default `.build/` directory) additionally suppresses events from
+  /// whatever the regular `swift build` command writes to `.build/`.
+  @Test
+  func testBinaryTargetArtifactEventsDoNotTriggerPackageReloadWithCustomScratchPath()
+    async throws
+  {
+    try await withTestScratchDir { tempDir in
+      let customScratch = tempDir.appending(component: "custom-scratch")
+
+      let packageInitialized = AtomicBool(initialValue: false)
+      let unexpectedReloadStarted = AtomicBool(initialValue: false)
+
+      let (server, projectRoot) = try await makeServerWithBinaryTargetAndWaitForInitialLoad(
+        in: tempDir,
+        options: SourceKitLSPOptions(swiftPM: .init(scratchPath: try customScratch.filePath)),
+        reloadPackageDidStart: {
+          if packageInitialized.value {
+            unexpectedReloadStarted.value = true
+          }
+        }
+      )
+      packageInitialized.value = true
+
+      // With a custom scratch path, SwiftPM extracts to <custom-scratch>/artifacts/.
+      // Simulate the delete-and-re-expand cycle for those paths.
+      let extractedInfoJSON = customScratch.appending(
+        components: "artifacts",
+        "pkg",
+        "MyBinaryTool",
+        "MyBinaryTool.artifactbundle",
+        "info.json"
+      )
+      #expect(FileManager.default.fileExists(atPath: extractedInfoJSON.path))
+      await server.didChangeWatchedFiles(
+        notification: OnWatchedFilesDidChangeNotification(
+          changes: [
+            FileEvent(uri: DocumentURI(extractedInfoJSON), type: .deleted),
+            FileEvent(uri: DocumentURI(extractedInfoJSON), type: .created),
+          ]
+        )
+      )
+
+      // Also verify that the default .build/ directory is filtered even when a custom
+      // scratch path is configured (second isInScratchDirectory check).
+      let defaultBuildArtifact = projectRoot.appending(
+        components: ".build",
+        "artifacts",
+        "pkg",
+        "MyBinaryTool",
+        "MyBinaryTool.artifactbundle",
+        "info.json"
+      )
+      await server.didChangeWatchedFiles(
+        notification: OnWatchedFilesDidChangeNotification(
+          changes: [FileEvent(uri: DocumentURI(defaultBuildArtifact), type: .created)]
+        )
+      )
+
+      _ = await server.waitForBuildSystemUpdates(request: WorkspaceWaitForBuildSystemUpdatesRequest())
+      #expect(!unexpectedReloadStarted.value)
     }
   }
 }
