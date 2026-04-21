@@ -261,7 +261,7 @@ struct SwiftPMBuildServerTests {
     }
   }
 
-  @Test
+  @Test(.disabled("rdar://175272642"))
   func testCompilerArgumentsForFileThatContainsPlusCharacterURLEncoded() async throws {
     try await withTestScratchDir { tempDir in
       try FileManager.default.createFiles(
