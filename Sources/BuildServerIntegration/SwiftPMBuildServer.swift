@@ -122,6 +122,7 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
 
   private let toolchain: Toolchain
   private let swiftPMWorkspace: Workspace
+  private let defaultScratchDirectory: AbsolutePath
 
   private let pluginConfiguration: PluginConfiguration
   private let traitConfiguration: TraitConfiguration
@@ -250,6 +251,7 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
     }
 
     let absProjectRoot = try AbsolutePath(validating: projectRoot.filePath)
+    self.defaultScratchDirectory = Workspace.DefaultLocations.scratchDirectory(forRootPackage: absProjectRoot)
     self.toolsets =
       try options.swiftPMOrDefault.toolsets?.map {
         try AbsolutePath(validating: $0, relativeTo: absProjectRoot)
@@ -919,6 +921,23 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
     return DocumentURI(url.deletingLastPathComponent()) == DocumentURI(self.projectRoot)
   }
 
+  private func isInScratchDirectory(_ url: URL) -> Bool {
+    guard let filePath = try? AbsolutePath(validating: url.filePath) else {
+      return false
+    }
+    if filePath.isDescendantOfOrEqual(to: self.swiftPMWorkspace.location.scratchDirectory) {
+      return true
+    }
+
+    // Also ignore the default '.build' directory. SourceKit-LSP uses '.build/index-build' as its scratch
+    // directory by default, but users can configure a custom scratch path outside of '.build'. In that case,
+    // regular 'swift build' output still lands in '.build', so we want to ignore events there too.
+    if filePath.isDescendantOfOrEqual(to: self.defaultScratchDirectory) {
+      return true
+    }
+    return false
+  }
+
   /// An event is relevant if it modifies a file that matches one of the file rules used by the SwiftPM workspace.
   private func fileEventShouldTriggerPackageReload(event: FileEvent) -> Bool {
     guard let fileURL = event.uri.fileURL else {
@@ -926,6 +945,9 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
     }
     if isPackageManifestOrPackageResolved(fileURL) {
       return true
+    }
+    if isInScratchDirectory(fileURL) {
+      return false
     }
     switch event.type {
     case .created, .deleted:
