@@ -261,7 +261,7 @@ struct SwiftPMBuildServerTests {
     }
   }
 
-  @Test(.disabled("rdar://175272642"))
+  @Test
   func testCompilerArgumentsForFileThatContainsPlusCharacterURLEncoded() async throws {
     try await withTestScratchDir { tempDir in
       try FileManager.default.createFiles(
@@ -295,12 +295,10 @@ struct SwiftPMBuildServerTests {
         .appending(components: "Sources", "lib", "a+something.swift")
 
       _ = try #require(await buildServerManager.initializationData?.indexStorePath)
-      let pathWithPlusEscaped = "\(try aPlusSomething.filePath.replacing("+", with: "%2B"))"
-      #if os(Windows)
-      let urlWithPlusEscaped = try #require(URL(string: "file:///\(pathWithPlusEscaped)"))
-      #else
-      let urlWithPlusEscaped = try #require(URL(string: "file://\(pathWithPlusEscaped)"))
-      #endif
+      // Simulate an LSP client that percent-encodes `+` as `%2B` in file URIs.
+      let urlWithPlusEscaped = try #require(
+        URL(string: aPlusSomething.absoluteString.replacing("+", with: "%2B"))
+      )
       let arguments = try #require(
         await buildServerManager.buildSettingsInferredFromMainFile(
           for: DocumentURI(urlWithPlusEscaped),
