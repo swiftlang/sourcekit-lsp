@@ -339,6 +339,7 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
     )
 
     self.toolsBuildParameters = try BuildParameters(
+      scratchPath: location.scratchDirectory,
       destination: .host,
       dataPath: location.scratchDirectory.appending(
         component: hostSwiftPMToolchain.targetTriple.platformBuildPathComponent
@@ -350,6 +351,7 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
     )
 
     self.destinationBuildParameters = try BuildParameters(
+      scratchPath: location.scratchDirectory,
       destination: .target,
       dataPath: location.scratchDirectory.appending(
         component: destinationSwiftPMToolchain.targetTriple.platformBuildPathComponent
