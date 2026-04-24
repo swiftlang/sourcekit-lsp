@@ -174,7 +174,7 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
       if foundNativeOutputs && foundSwiftBuildOutputs {
         // TODO: update this shortly after SwiftPM's default build system changes.
         // https://github.com/swiftlang/sourcekit-lsp/issues/2576
-        inferredBuildSystem = .native
+        inferredBuildSystem = .swiftbuild
       } else if foundNativeOutputs {
         inferredBuildSystem = .native
       } else if foundSwiftBuildOutputs {
