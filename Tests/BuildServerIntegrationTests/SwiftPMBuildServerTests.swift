@@ -1431,6 +1431,300 @@ struct SwiftPMBuildServerTests {
       #expect(!unexpectedReloadStarted.value)
     }
   }
+
+  /// Verifies that the build system is correctly inferred as 'native' from the `.buildSystem_debug` file.
+  @Test
+  func testBuildSystemInferenceNativeFromFile() async throws {
+    try await withTestScratchDir { tempDir in
+      try FileManager.default.createFiles(
+        root: tempDir,
+        files: [
+          "pkg/Sources/lib/a.swift": "",
+          "pkg/Package.swift": """
+          // swift-tools-version:4.2
+          import PackageDescription
+          let package = Package(
+            name: "a",
+            targets: [.target(name: "lib")]
+          )
+          """,
+        ]
+      )
+      let packageRoot = tempDir.appending(component: "pkg")
+      let buildDir = packageRoot.appending(component: ".build")
+      try FileManager.default.createDirectory(at: buildDir, withIntermediateDirectories: true)
+
+      let buildSystemFile = buildDir.appending(component: ".buildSystem_debug")
+      try "native".write(to: buildSystemFile, atomically: true, encoding: .utf8)
+
+      let spec = try #require(
+        SwiftPMBuildServer.searchForConfig(in: packageRoot, options: SourceKitLSPOptions())
+      )
+      if case .swiftPM(let inferredBuildSystem) = spec.kind {
+        #expect(inferredBuildSystem == .native, "Expected .native but got \(String(describing: inferredBuildSystem))")
+      } else {
+        Issue.record("Expected swiftPM build server kind")
+      }
+    }
+  }
+
+  /// Verifies that the build system is correctly inferred as 'swiftbuild' from the `.buildSystem_debug` file.
+  @Test
+  func testBuildSystemInferenceSwiftBuildFromFile() async throws {
+    try await withTestScratchDir { tempDir in
+      try FileManager.default.createFiles(
+        root: tempDir,
+        files: [
+          "pkg/Sources/lib/a.swift": "",
+          "pkg/Package.swift": """
+          // swift-tools-version:4.2
+          import PackageDescription
+          let package = Package(
+            name: "a",
+            targets: [.target(name: "lib")]
+          )
+          """,
+        ]
+      )
+      let packageRoot = tempDir.appending(component: "pkg")
+      let buildDir = packageRoot.appending(component: ".build")
+      try FileManager.default.createDirectory(at: buildDir, withIntermediateDirectories: true)
+
+      let buildSystemFile = buildDir.appending(component: ".buildSystem_debug")
+      try "swiftbuild".write(to: buildSystemFile, atomically: true, encoding: .utf8)
+
+      let spec = try #require(
+        SwiftPMBuildServer.searchForConfig(in: packageRoot, options: SourceKitLSPOptions())
+      )
+      if case .swiftPM(let inferredBuildSystem) = spec.kind {
+        #expect(
+          inferredBuildSystem == .swiftbuild,
+          "Expected .swiftbuild but got \(String(describing: inferredBuildSystem))"
+        )
+      } else {
+        Issue.record("Expected swiftPM build server kind")
+      }
+    }
+  }
+
+  /// Verifies that the build system inference uses the correct file for release configuration.
+  @Test
+  func testBuildSystemInferenceReleaseConfiguration() async throws {
+    try await withTestScratchDir { tempDir in
+      try FileManager.default.createFiles(
+        root: tempDir,
+        files: [
+          "pkg/Sources/lib/a.swift": "",
+          "pkg/Package.swift": """
+          // swift-tools-version:4.2
+          import PackageDescription
+          let package = Package(
+            name: "a",
+            targets: [.target(name: "lib")]
+          )
+          """,
+        ]
+      )
+      let packageRoot = tempDir.appending(component: "pkg")
+      let buildDir = packageRoot.appending(component: ".build")
+      try FileManager.default.createDirectory(at: buildDir, withIntermediateDirectories: true)
+
+      // Create release configuration file
+      let releaseOptions = SourceKitLSPOptions(swiftPM: .init(configuration: .release))
+      let buildSystemFileRelease = buildDir.appending(component: ".buildSystem_release")
+      try "swiftbuild".write(to: buildSystemFileRelease, atomically: true, encoding: .utf8)
+
+      let spec = try #require(
+        SwiftPMBuildServer.searchForConfig(in: packageRoot, options: releaseOptions)
+      )
+      if case .swiftPM(let inferredBuildSystem) = spec.kind {
+        #expect(
+          inferredBuildSystem == .swiftbuild,
+          "Expected .swiftbuild for release config but got \(String(describing: inferredBuildSystem))"
+        )
+      } else {
+        Issue.record("Expected swiftPM build server kind")
+      }
+    }
+  }
+
+  /// Verifies that the build system inference falls back to heuristics when the file doesn't exist.
+  @Test
+  func testBuildSystemInferenceFallbackToHeuristics() async throws {
+    try await withTestScratchDir { tempDir in
+      try FileManager.default.createFiles(
+        root: tempDir,
+        files: [
+          "pkg/Sources/lib/a.swift": "",
+          "pkg/Package.swift": """
+          // swift-tools-version:4.2
+          import PackageDescription
+          let package = Package(
+            name: "a",
+            targets: [.target(name: "lib")]
+          )
+          """,
+        ]
+      )
+      let packageRoot = tempDir.appending(component: "pkg")
+      let buildDir = packageRoot.appending(component: ".build")
+      try FileManager.default.createDirectory(at: buildDir, withIntermediateDirectories: true)
+
+      // Create 'debug' directory to trigger native heuristic
+      let debugDir = buildDir.appending(component: "debug")
+      try FileManager.default.createDirectory(at: debugDir, withIntermediateDirectories: true)
+
+      let spec = try #require(
+        SwiftPMBuildServer.searchForConfig(in: packageRoot, options: SourceKitLSPOptions())
+      )
+      if case .swiftPM(let inferredBuildSystem) = spec.kind {
+        #expect(
+          inferredBuildSystem == .native,
+          "Expected .native from heuristic but got \(String(describing: inferredBuildSystem))"
+        )
+      } else {
+        Issue.record("Expected swiftPM build server kind")
+      }
+    }
+  }
+
+  /// Verifies that when both build system outputs exist, swiftbuild is preferred.
+  @Test
+  func testBuildSystemInferencePreferSwiftBuildWhenBothExist() async throws {
+    try await withTestScratchDir { tempDir in
+      try FileManager.default.createFiles(
+        root: tempDir,
+        files: [
+          "pkg/Sources/lib/a.swift": "",
+          "pkg/Package.swift": """
+          // swift-tools-version:4.2
+          import PackageDescription
+          let package = Package(
+            name: "a",
+            targets: [.target(name: "lib")]
+          )
+          """,
+        ]
+      )
+      let packageRoot = tempDir.appending(component: "pkg")
+      let buildDir = packageRoot.appending(component: ".build")
+      try FileManager.default.createDirectory(at: buildDir, withIntermediateDirectories: true)
+
+      // Create both 'debug' and 'out' directories
+      let debugDir = buildDir.appending(component: "debug")
+      let outDir = buildDir.appending(component: "out")
+      try FileManager.default.createDirectory(at: debugDir, withIntermediateDirectories: true)
+      try FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
+
+      let spec = try #require(
+        SwiftPMBuildServer.searchForConfig(in: packageRoot, options: SourceKitLSPOptions())
+      )
+      if case .swiftPM(let inferredBuildSystem) = spec.kind {
+        #expect(
+          inferredBuildSystem == .swiftbuild,
+          "Expected .swiftbuild when both outputs exist but got \(String(describing: inferredBuildSystem))"
+        )
+      } else {
+        Issue.record("Expected swiftPM build server kind")
+      }
+    }
+  }
+
+  /// Verifies that the correct `.buildSystem_{config}` file is read based on the configuration when both exist.
+  @Test
+  func testBuildSystemInferenceUsesCorrectConfigurationFile() async throws {
+    try await withTestScratchDir { tempDir in
+      try FileManager.default.createFiles(
+        root: tempDir,
+        files: [
+          "pkg/Sources/lib/a.swift": "",
+          "pkg/Package.swift": """
+          // swift-tools-version:4.2
+          import PackageDescription
+          let package = Package(
+            name: "a",
+            targets: [.target(name: "lib")]
+          )
+          """,
+        ]
+      )
+      let packageRoot = tempDir.appending(component: "pkg")
+      let buildDir = packageRoot.appending(component: ".build")
+      try FileManager.default.createDirectory(at: buildDir, withIntermediateDirectories: true)
+
+      // Create both debug and release configuration files with different values
+      let buildSystemFileDebug = buildDir.appending(component: ".buildSystem_debug")
+      let buildSystemFileRelease = buildDir.appending(component: ".buildSystem_release")
+      try "native".write(to: buildSystemFileDebug, atomically: true, encoding: .utf8)
+      try "swiftbuild".write(to: buildSystemFileRelease, atomically: true, encoding: .utf8)
+
+      // Test with debug configuration (default)
+      let debugSpec = try #require(
+        SwiftPMBuildServer.searchForConfig(in: packageRoot, options: SourceKitLSPOptions())
+      )
+      if case .swiftPM(let inferredBuildSystem) = debugSpec.kind {
+        #expect(
+          inferredBuildSystem == .native,
+          "Expected .native for debug config but got \(String(describing: inferredBuildSystem))"
+        )
+      } else {
+        Issue.record("Expected swiftPM build server kind for debug")
+      }
+
+      // Test with release configuration
+      let releaseOptions = SourceKitLSPOptions(swiftPM: .init(configuration: .release))
+      let releaseSpec = try #require(
+        SwiftPMBuildServer.searchForConfig(in: packageRoot, options: releaseOptions)
+      )
+      if case .swiftPM(let inferredBuildSystem) = releaseSpec.kind {
+        #expect(
+          inferredBuildSystem == .swiftbuild,
+          "Expected .swiftbuild for release config but got \(String(describing: inferredBuildSystem))"
+        )
+      } else {
+        Issue.record("Expected swiftPM build server kind for release")
+      }
+    }
+  }
+
+  /// Verifies that invalid content in the `.buildSystem_{config}` file results in nil inference.
+  @Test
+  func testBuildSystemInferenceInvalidContent() async throws {
+    try await withTestScratchDir { tempDir in
+      try FileManager.default.createFiles(
+        root: tempDir,
+        files: [
+          "pkg/Sources/lib/a.swift": "",
+          "pkg/Package.swift": """
+          // swift-tools-version:4.2
+          import PackageDescription
+          let package = Package(
+            name: "a",
+            targets: [.target(name: "lib")]
+          )
+          """,
+        ]
+      )
+      let packageRoot = tempDir.appending(component: "pkg")
+      let buildDir = packageRoot.appending(component: ".build")
+      try FileManager.default.createDirectory(at: buildDir, withIntermediateDirectories: true)
+
+      let buildSystemFile = buildDir.appending(component: ".buildSystem_debug")
+      try "invalid_build_system".write(to: buildSystemFile, atomically: true, encoding: .utf8)
+
+      let spec = try #require(
+        SwiftPMBuildServer.searchForConfig(in: packageRoot, options: SourceKitLSPOptions())
+      )
+      if case .swiftPM(let inferredBuildSystem) = spec.kind {
+        #expect(
+          inferredBuildSystem == nil,
+          "Expected nil for invalid build system but got \(String(describing: inferredBuildSystem))"
+        )
+      } else {
+        Issue.record("Expected swiftPM build server kind")
+      }
+    }
+  }
 }
 
 private func expectArgumentsDoNotContain(
