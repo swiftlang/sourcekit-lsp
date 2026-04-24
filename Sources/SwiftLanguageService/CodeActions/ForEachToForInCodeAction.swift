@@ -79,7 +79,7 @@ struct ForEachToForInCodeAction: SyntaxCodeActionProvider {
     replacement.leadingTrivia = []
 
     let edit = TextEdit(
-      range: scope.snapshot.absolutePositionRange(of: match.callExpr.trimmedRange),
+      range: scope.snapshot.range(of: match.callExpr),
       newText: replacement.description
     )
 
