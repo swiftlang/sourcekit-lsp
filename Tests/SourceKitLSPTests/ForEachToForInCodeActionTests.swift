@@ -101,6 +101,31 @@ final class ForEachToForInCodeActionTests: SourceKitLSPTestCase {
     )
   }
 
+  func testReplacementRangePreservesSurroundingTrivia() async throws {
+    let (project, uri, positions) = try await makeProject(
+      """
+      func test() {
+        let array = [1, 2, 3]
+        // Keep this comment.
+        1️⃣array.2️⃣forEach { item in
+          print(item)
+        }3️⃣ // Keep this trailing comment.
+      }
+      """
+    )
+    let action = try await forEachAction(in: project, uri: uri, at: positions["2️⃣"])
+    let change = try XCTUnwrap(action?.edit?.changes?[uri]?.first)
+    XCTAssertEqual(change.range, positions["1️⃣"]..<positions["3️⃣"])
+    XCTAssertEqual(
+      change.newText,
+      """
+      for item in array {
+          print(item)
+        }
+      """
+    )
+  }
+
   func testRejectsCustomForEach() async throws {
     let (project, uri, positions) = try await makeProject(
       """
