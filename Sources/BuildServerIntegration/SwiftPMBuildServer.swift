@@ -762,10 +762,15 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
 
   package func prepare(request: BuildTargetPrepareRequest) async throws -> BuildTargetPrepareResponse {
     // TODO: Support preparation of multiple targets at once. (https://github.com/swiftlang/sourcekit-lsp/issues/1262)
+    var implicitlyPreparedTargets: [BuildTargetIdentifier] = []
     for target in request.targets {
-      await orLog("Preparing") { try await prepare(singleTarget: target) }
+      await orLog("Preparing") {
+        try await prepare(singleTarget: target)
+        implicitlyPreparedTargets += transitiveClosure(of: [target], successors: { targetDependencies[$0] ?? [] })
+          .filter { !request.targets.contains($0) }
+      }
     }
-    return BuildTargetPrepareResponse()
+    return BuildTargetPrepareResponse(implicitlyPreparedTargets: implicitlyPreparedTargets)
   }
 
   private func prepare(singleTarget target: BuildTargetIdentifier) async throws {
