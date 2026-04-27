@@ -37,7 +37,6 @@ import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
 package import class ToolchainRegistry.Toolchain
 import struct TSCBasic.FileSystemError
-
 private typealias AbsolutePath = Basics.AbsolutePath
 
 /// A build target in SwiftPM
@@ -162,25 +161,34 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
       scratchPath = try? AbsolutePath(validating: path.filePath).appending(component: ".build")
     }
     let inferredBuildSystem: SwiftPMBuildSystem?
-    if let scratchPath {
-      let existingScratchContents = try? FileManager.default.contentsOfDirectory(
-        at: scratchPath.asURL,
-        includingPropertiesForKeys: nil
-      )
-      let foundSwiftBuildOutputs = (existingScratchContents ?? []).contains(where: { $0.lastPathComponent == "out" })
-      let foundNativeOutputs = (existingScratchContents ?? []).contains(where: {
-        $0.lastPathComponent == "debug" || $0.lastPathComponent == "release"
-      })
-      if foundNativeOutputs && foundSwiftBuildOutputs {
-        // TODO: update this shortly after SwiftPM's default build system changes.
-        // https://github.com/swiftlang/sourcekit-lsp/issues/2576
-        inferredBuildSystem = .native
-      } else if foundNativeOutputs {
-        inferredBuildSystem = .native
-      } else if foundSwiftBuildOutputs {
-        inferredBuildSystem = .swiftbuild
+    if let scratchPath: AbsolutePath {
+      let config = Self.getSwiftPMBuildConfiguration(options: options)
+      let buildSystemFilePath = scratchPath.appending(".buildSystem_\(config)")
+      if FileManager.default.fileExists(at: buildSystemFilePath.asURL) {
+        do {
+          let buildSystem = try String(contentsOf: buildSystemFilePath.asURL)
+          inferredBuildSystem = SwiftPMBuildSystem(rawValue: buildSystem)
+        } catch {
+          inferredBuildSystem = nil
+        }
       } else {
-        inferredBuildSystem = nil
+        let existingScratchContents = try? FileManager.default.contentsOfDirectory(
+          at: scratchPath.asURL,
+          includingPropertiesForKeys: nil
+        )
+        let foundSwiftBuildOutputs = (existingScratchContents ?? []).contains(where: { $0.lastPathComponent == "out" })
+        let foundNativeOutputs = (existingScratchContents ?? []).contains(where: {
+          $0.lastPathComponent == "debug" || $0.lastPathComponent == "release"
+        })
+        if foundNativeOutputs && foundSwiftBuildOutputs {
+          inferredBuildSystem = .swiftbuild
+        } else if foundNativeOutputs {
+          inferredBuildSystem = .native
+        } else if foundSwiftBuildOutputs {
+          inferredBuildSystem = .swiftbuild
+        } else {
+          inferredBuildSystem = nil
+        }
       }
     } else {
       inferredBuildSystem = nil
@@ -190,6 +198,20 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
       projectRoot: path,
       configPath: packagePath
     )
+  }
+
+  /// Converts the SourceKit LSP SwiftPM build configuration value to a SwiftPM API equivalent
+  ///
+  /// -Parameters:
+  ///   - options: The `SourceKitLSPOptions` to use to determine the build configuration.
+  /// - Returns: The `PackageModel.BuildConfiguration` equivalent of the SourceKit `SKOptions.Configuration`.
+  static func getSwiftPMBuildConfiguration(options: SourceKitLSPOptions) -> PackageModel.BuildConfiguration {
+    return switch options.swiftPMOrDefault.configuration {
+    case .debug, nil:
+      .debug
+    case .release:
+      .release
+    }
   }
 
   /// Creates a build server using the Swift Package Manager, if this workspace is a package.
@@ -325,13 +347,7 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
       )
     )
 
-    let buildConfiguration: PackageModel.BuildConfiguration
-    switch options.swiftPMOrDefault.configuration {
-    case .debug, nil:
-      buildConfiguration = .debug
-    case .release:
-      buildConfiguration = .release
-    }
+    let buildConfiguration = Self.getSwiftPMBuildConfiguration(options: options)
 
     let buildFlags = BuildFlags(
       cCompilerFlags: (options.swiftPMOrDefault.cCompilerFlags ?? []).map { BuildFlag(value: $0, source: nil) },
