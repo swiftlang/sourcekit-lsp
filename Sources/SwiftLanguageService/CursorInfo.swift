@@ -28,6 +28,9 @@ struct CursorInfo {
   /// name and USR.
   var symbolInfo: SymbolDetails
 
+  /// A human-readable string representation of the symbol at the given location, eg. a variable's type.
+  var typeName: String?
+
   /// The annotated declaration XML string.
   var annotatedDeclaration: String?
 
@@ -39,10 +42,12 @@ struct CursorInfo {
 
   init(
     _ symbolInfo: SymbolDetails,
+    typeName: String?,
     annotatedDeclaration: String?,
     documentation: String?
   ) {
     self.symbolInfo = symbolInfo
+    self.typeName = typeName
     self.annotatedDeclaration = annotatedDeclaration
     self.documentation = documentation
   }
@@ -107,6 +112,7 @@ struct CursorInfo {
         receiverUsrs: dict[keys.receivers]?.compactMap { $0[keys.usr] as String? } ?? [],
         systemModule: module
       ),
+      typeName: dict[keys.typeName],
       annotatedDeclaration: dict[keys.annotatedDecl],
       documentation: dict[keys.docComment]
     )
