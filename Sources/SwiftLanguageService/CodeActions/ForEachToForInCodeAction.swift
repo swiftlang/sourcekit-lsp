@@ -297,6 +297,8 @@ private func extractParameter(from closure: ClosureExprSyntax) -> ClosureParam? 
       TypeAnnotationSyntax(colon: .colonToken(trailingTrivia: .space), type: $0)
     }
     return ClosureParam(name: p.firstName.text, typeAnnotation: typeAnnotation, needsDollarZeroRewrite: false)
+  @unknown default:
+    return nil
   }
 }
 
