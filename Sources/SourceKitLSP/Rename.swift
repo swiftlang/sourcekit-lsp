@@ -123,7 +123,7 @@ extension SourceKitLSPServer {
     guard let reference else {
       return nil
     }
-    let uri = reference.location.documentUri
+    guard let uri = reference.location.uri else { return nil }
     guard let snapshot = self.documentManager.latestSnapshotOrDisk(uri, language: .swift) else {
       return nil
     }
@@ -193,7 +193,9 @@ extension SourceKitLSPServer {
       case .objc: .objective_c
       case .swift: .swift
       }
-    let definitionDocumentUri = definitionOccurrence.location.documentUri
+    guard let definitionDocumentUri = definitionOccurrence.location.uri else {
+      throw ResponseError.requestFailed("Definition occurrence has no file path")
+    }
 
     let definitionName = overrideName ?? definitionSymbol.name
 
@@ -329,7 +331,7 @@ extension SourceKitLSPServer {
     let usrsToRename = try overridingAndOverriddenUsrs(of: usr, index: index)
     let occurrencesToRename = try usrsToRename.flatMap { try index.occurrences(ofUSR: $0, roles: renameRoles) }
     for occurrence in occurrencesToRename {
-      let uri = occurrence.location.documentUri
+      guard let uri = occurrence.location.uri else { continue }
 
       // Determine whether we should add the location produced by the index to those that will be renamed, or if it has
       // already been handled by the set provided by the AST.

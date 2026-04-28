@@ -146,25 +146,15 @@ struct TestDiscovery {
     func testItem(
       for testSymbolOccurrence: SymbolOccurrence,
       context: [String]
-    ) -> AnnotatedTestItem {
+    ) -> AnnotatedTestItem? {
       let id = (context + [testSymbolOccurrence.symbol.name]).joined(separator: "/")
 
-      // Technically, we always need to convert UTF-8 columns to UTF-16 columns, which requires reading the file.
-      // In practice, they are almost always the same.
-      // We chose to avoid hitting the file system even if it means that we might report an incorrect column.
-      let position = Position(
-        line: testSymbolOccurrence.location.line - 1,  // 1-based -> 0-based
-        utf16index: testSymbolOccurrence.location.utf8Column - 1
-      )
-      let location = Location(
-        uri: testSymbolOccurrence.location.documentUri,
-        range: Range(position)
-      )
+      guard let location = testSymbolOccurrence.location.lspLocation else { return nil }
 
       let children =
         occurrencesByParent[testSymbolOccurrence.symbol.usr, default: []]
         .sorted()
-        .map {
+        .compactMap {
           testItem(for: $0, context: context + [testSymbolOccurrence.symbol.name])
         }
       return AnnotatedTestItem(
@@ -183,7 +173,7 @@ struct TestDiscovery {
 
     return occurrencesByParent[nil, default: []]
       .sorted()
-      .map { testItem(for: $0, context: []) }
+      .compactMap { testItem(for: $0, context: []) }
   }
 
   /// Combine 'syntacticTests' and 'semanticTests'.
