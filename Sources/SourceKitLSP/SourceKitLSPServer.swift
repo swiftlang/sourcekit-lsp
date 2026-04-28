@@ -1797,15 +1797,9 @@ extension SourceKitLSPServer {
       try Task.checkCancellation()
     }
 
-    return try await symbolsIndexAndWorkspaces.sorted(by: { $0.symbol < $1.symbol }).asyncMap {
+    return try await symbolsIndexAndWorkspaces.sorted(by: { $0.symbol < $1.symbol }).asyncCompactMap {
       (symbolOccurrence, index, workspace) in
-      let symbolPosition = Position(
-        line: symbolOccurrence.location.line - 1,  // 1-based -> 0-based
-        // Technically we would need to convert the UTF-8 column to a UTF-16 column. This would require reading the
-        // file. In practice they almost always coincide, so we accept the incorrectness here to avoid the file read.
-        utf16index: symbolOccurrence.location.utf8Column - 1
-      )
-      let symbolLocation = Location(uri: symbolOccurrence.location.documentUri, range: Range(symbolPosition))
+      guard let symbolLocation = symbolOccurrence.location.lspLocation else { return nil }
       let location = await workspace.buildServerManager.locationAdjustedForCopiedFiles(symbolLocation)
 
       let containerNames = try index.containerNames(of: symbolOccurrence)
@@ -2155,7 +2149,7 @@ extension SourceKitLSPServer {
                 }
                 return true
               })
-            }.compactMap { indexToLSPLocation($0.location) }
+            }.compactMap { $0.location.lspLocation }
           }
           locations += overriddenLocations
         }
@@ -2175,7 +2169,7 @@ extension SourceKitLSPServer {
           guard let baseDeclOccurrence = try index.primaryDefinitionOrDeclarationOccurrence(ofUSR: $0) else {
             return nil
           }
-          return indexToLSPLocation(baseDeclOccurrence.location)
+          return baseDeclOccurrence.location.lspLocation
         }
       }
 
@@ -2253,7 +2247,7 @@ extension SourceKitLSPServer {
         occurrences = try index.occurrences(relatedToUSR: usr, roles: .overrideOf)
       }
 
-      return occurrences.compactMap { indexToLSPLocation($0.location) }
+      return occurrences.compactMap { $0.location.lspLocation }
     }
     let remappedLocations = await workspace.buildServerManager.locationsAdjustedForCopiedFiles(locations)
     return .locations(remappedLocations.sorted())
@@ -2280,7 +2274,7 @@ extension SourceKitLSPServer {
       if req.context.includeDeclaration {
         roles.formUnion([.declaration, .definition])
       }
-      return try index.occurrences(ofUSR: usr, roles: roles).compactMap { indexToLSPLocation($0.location) }
+      return try index.occurrences(ofUSR: usr, roles: roles).compactMap { $0.location.lspLocation }
     }
     let remappedLocations = await workspace.buildServerManager.locationsAdjustedForCopiedFiles(locations)
     return remappedLocations.unique.sorted()
@@ -2290,7 +2284,7 @@ extension SourceKitLSPServer {
     definition: SymbolOccurrence,
     index: CheckedIndex
   ) throws -> CallHierarchyItem? {
-    guard let location = indexToLSPLocation(definition.location) else {
+    guard let location = definition.location.lspLocation else {
       return nil
     }
     let name = try index.fullyQualifiedName(of: definition)
@@ -2405,11 +2399,6 @@ extension SourceKitLSPServer {
     }
 
     // TODO: Remove this workaround once https://github.com/swiftlang/swift/issues/75600 is fixed
-    func indexToLSPLocation2(_ location: SymbolLocation) -> Location? {
-      return indexToLSPLocation(location)
-    }
-
-    // TODO: Remove this workaround once https://github.com/swiftlang/swift/issues/75600 is fixed
     func indexToLSPCallHierarchyItem2(
       definition: SymbolOccurrence,
       index: CheckedIndex
@@ -2424,7 +2413,7 @@ extension SourceKitLSPServer {
         continue
       }
 
-      let locations = callsList.compactMap { indexToLSPLocation2($0.location) }.sorted()
+      let locations = callsList.compactMap { $0.location.lspLocation }.sorted()
       let remappedLocations = await workspace.buildServerManager.locationsAdjustedForCopiedFiles(locations)
       guard !remappedLocations.isEmpty else {
         continue
@@ -2449,11 +2438,6 @@ extension SourceKitLSPServer {
     }
 
     // TODO: Remove this workaround once https://github.com/swiftlang/swift/issues/75600 is fixed
-    func indexToLSPLocation2(_ location: SymbolLocation) -> Location? {
-      return indexToLSPLocation(location)
-    }
-
-    // TODO: Remove this workaround once https://github.com/swiftlang/swift/issues/75600 is fixed
     func indexToLSPCallHierarchyItem2(
       definition: SymbolOccurrence,
       index: CheckedIndex
@@ -2469,7 +2453,7 @@ extension SourceKitLSPServer {
       guard occurrence.symbol.kind.isCallable else {
         continue
       }
-      guard let location = indexToLSPLocation2(occurrence.location) else {
+      guard let location = occurrence.location.lspLocation else {
         continue
       }
       let remappedLocation = await workspace.buildServerManager.locationAdjustedForCopiedFiles(location)
@@ -2497,7 +2481,7 @@ extension SourceKitLSPServer {
     let name: String
     let detail: String?
 
-    guard let location = indexToLSPLocation(definition.location) else {
+    guard let location = definition.location.lspLocation else {
       return nil
     }
 
@@ -2571,11 +2555,6 @@ extension SourceKitLSPServer {
     }.compactMap(\.usr)
 
     // TODO: Remove this workaround once https://github.com/swiftlang/swift/issues/75600 is fixed
-    func indexToLSPLocation2(_ location: SymbolLocation) -> Location? {
-      return indexToLSPLocation(location)
-    }
-
-    // TODO: Remove this workaround once https://github.com/swiftlang/swift/issues/75600 is fixed
     func indexToLSPTypeHierarchyItem2(
       definition: SymbolOccurrence,
       moduleName: String?,
@@ -2605,7 +2584,7 @@ extension SourceKitLSPServer {
         break
       }
 
-      guard indexToLSPLocation2(info.location) != nil else {
+      guard info.location.lspLocation != nil else {
         continue
       }
 
