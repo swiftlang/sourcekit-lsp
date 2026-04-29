@@ -12,6 +12,7 @@
 
 import Foundation
 @_spi(SourceKitLSP) package import LanguageServerProtocol
+import LanguageServerProtocolTransport
 @_spi(SourceKitLSP) import SKLogging
 import SwiftExtensions
 import ToolsProtocolsSwiftExtensions
