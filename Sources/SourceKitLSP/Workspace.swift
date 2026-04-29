@@ -16,6 +16,7 @@ import Foundation
 import IndexStoreDB
 @_spi(SourceKitLSP) package import LanguageServerProtocol
 @_spi(SourceKitLSP) import LanguageServerProtocolExtensions
+import LanguageServerProtocolTransport
 @_spi(SourceKitLSP) import SKLogging
 import SKOptions
 package import SemanticIndex
@@ -340,6 +341,7 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
 
       func send<Request: RequestType>(
         _ request: Request,
+        method: String,
         id: RequestID,
         reply: @escaping @Sendable (LSPResult<Request.Response>) -> Void
       ) {
@@ -349,7 +351,7 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
           reply(.failure(ResponseError.unknown("Connection to the editor closed")))
           return
         }
-        sourceKitLSPServer.client.send(request, id: id, reply: reply)
+        sourceKitLSPServer.client.send(request, method: method, id: id, reply: reply)
       }
 
       /// Whether the client can handle `WorkDoneProgress` requests.
