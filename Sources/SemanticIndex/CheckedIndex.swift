@@ -379,6 +379,13 @@ package final actor UncheckedIndex: Sendable {
     return CheckedIndex(unchecked: self, checkLevel: checkLevel)
   }
 
+  package nonisolated func allSymbolNames() throws -> [String] {
+    guard let underlyingIndexStoreDB else {
+      throw IndexClosedError()
+    }
+    return underlyingIndexStoreDB.allSymbolNames()
+  }
+
   /// Wait for IndexStoreDB to be updated based on new unit files written to disk.
   package nonisolated func pollForUnitChangesAndWait() {
     guard let underlyingIndexStoreDB else {
