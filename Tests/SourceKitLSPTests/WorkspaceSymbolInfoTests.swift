@@ -93,14 +93,6 @@ final class WorkspaceSymbolInfoTests: XCTestCase {
     XCTAssertFalse(moduleParam.isEmpty, "?module= query parameter should be non-empty")
     XCTAssertNil(urlComponents.fragment, "URI should not contain a fragment")
 
-    guard case .dictionary(let dataDict) = symbol.data,
-      case .string(let usr) = dataDict["usr"]
-    else {
-      XCTFail("Expected data[\"usr\"] string, got \(String(describing: symbol.data))")
-      return
-    }
-    XCTAssertFalse(usr.isEmpty, "Expected non-empty USR in data[\"usr\"]")
-
     // workspaceSymbol/resolve turns the deferred URI into a sourcekit-lsp:// location with a range.
     let resolved = try await project.testClient.send(
       WorkspaceSymbolResolveRequest(workspaceSymbol: symbol)

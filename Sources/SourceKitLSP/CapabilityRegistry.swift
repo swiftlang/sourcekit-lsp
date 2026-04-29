@@ -119,7 +119,7 @@ package final actor CapabilityRegistry {
   }
 
   /// Whether the client supports `workspaceSymbol/resolve` for lazy location resolution.
-  /// Requires `workspace.symbol.resolveSupport.properties` to contain `"location"` or `"location.range"`.
+  /// Requires `workspace.symbol.resolveSupport.properties` to contain `"location"` or `"location."`.
   package nonisolated var clientSupportsWorkspaceSymbolResolve: Bool {
     return clientCapabilities.workspace?.symbol?.resolveSupport?.properties.contains(where: {
       $0 == "location" || $0.hasPrefix("location.")
