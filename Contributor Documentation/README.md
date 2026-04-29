@@ -2,6 +2,7 @@
 
 The following documentation documents are primarily intended for developers of SourceKit-LSP.
 
+- [Adding LSP and BSP Messages](Adding%20LSP%20and%20BSP%20Messages.md)
 - [Background Indexing](Background%20Indexing.md)
 - [BSP Extension](BSP%20Extensions.md)
 - [Code Action](Code%20Action.md)
