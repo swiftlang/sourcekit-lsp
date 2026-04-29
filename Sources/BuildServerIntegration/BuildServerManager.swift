@@ -346,6 +346,165 @@ private extension BuildServerSpec {
   }
 }
 
+/// Maps build-directory copies of source files back to their original source URIs.
+///
+/// During target preparation the build system may copy source files into the build directory
+/// (recorded as `copyDestinations` in `SourceFileInfo`). Index records and diagnostics can
+/// therefore reference the copy rather than the original. `CopiedFileMap` holds the reverse
+/// mapping — copy URI → original source URI — so that the server can translate those locations
+/// back to the files the user is actually editing before returning them to the client.
+package struct CopiedFileMap: Sendable {
+  private var map: [DocumentURI: DocumentURI]
+
+  init(map: [DocumentURI: DocumentURI]) {
+    self.map = map
+  }
+
+  /// Returns `true` if `uri` is a copy of a source file created during target preparation.
+  package func isCopiedFile(_ uri: DocumentURI) -> Bool {
+    return map[uri] != nil
+  }
+
+  /// Returns the original source URI for the given copied file URI, or `nil` if the URI is not a known copy.
+  package func originalURI(for uri: DocumentURI) -> DocumentURI? {
+    return map[uri]
+  }
+
+  /// Check if the URI referenced by `location` has been copied during the preparation phase. If so, adjust the URI to
+  /// the original source file.
+  package func locationAdjustedForCopiedFiles(_ location: Location) -> Location {
+    guard let originalUri = map[location.uri] else {
+      return location
+    }
+
+    if let fileUrl = originalUri.fileURL, !FileManager.default.fileExists(at: fileUrl) {
+      return location
+    }
+    // If we regularly get issues that the copied file is out-of-sync with its original, we can check that the contents
+    // of the lines touched by the location match and only return the original URI if they do. For now, we avoid this
+    // check due to its performance cost of reading files from disk.
+    return Location(uri: originalUri, range: location.range)
+  }
+
+  /// Check if the URI referenced by `location` has been copied during the preparation phase. If so, adjust the URI to
+  /// the original source file.
+  package func locationsAdjustedForCopiedFiles(_ locations: [Location]) -> [Location] {
+    return locations.map { locationAdjustedForCopiedFiles($0) }
+  }
+
+  private func uriAdjustedForCopiedFiles(_ uri: DocumentURI) -> DocumentURI {
+    guard let originalUri = map[uri] else {
+      return uri
+    }
+    return originalUri
+  }
+
+  package func workspaceEditAdjustedForCopiedFiles(_ workspaceEdit: WorkspaceEdit?) -> WorkspaceEdit? {
+    guard var edit = workspaceEdit else {
+      return nil
+    }
+    if let changes = edit.changes {
+      var newChanges: [DocumentURI: [TextEdit]] = [:]
+      for (uri, edits) in changes {
+        let newUri = self.uriAdjustedForCopiedFiles(uri)
+        newChanges[newUri, default: []] += edits
+      }
+      edit.changes = newChanges
+    }
+    if let documentChanges = edit.documentChanges {
+      edit.documentChanges = documentChanges.map { change in
+        switch change {
+        case .textDocumentEdit(var textEdit):
+          textEdit.textDocument.uri = self.uriAdjustedForCopiedFiles(textEdit.textDocument.uri)
+          return .textDocumentEdit(textEdit)
+        case .createFile(var create):
+          create.uri = self.uriAdjustedForCopiedFiles(create.uri)
+          return .createFile(create)
+        case .renameFile(var rename):
+          rename.oldUri = self.uriAdjustedForCopiedFiles(rename.oldUri)
+          rename.newUri = self.uriAdjustedForCopiedFiles(rename.newUri)
+          return .renameFile(rename)
+        case .deleteFile(var delete):
+          delete.uri = self.uriAdjustedForCopiedFiles(delete.uri)
+          return .deleteFile(delete)
+        }
+      }
+    }
+    return edit
+  }
+
+  package func locationsOrLocationLinksAdjustedForCopiedFiles(
+    _ response: LocationsOrLocationLinksResponse?
+  ) -> LocationsOrLocationLinksResponse? {
+    guard let response = response else {
+      return nil
+    }
+    switch response {
+    case .locations(let locations):
+      let remappedLocations = self.locationsAdjustedForCopiedFiles(locations)
+      return .locations(remappedLocations)
+    case .locationLinks(let locationLinks):
+      let remappedLinks = locationLinks.map { link -> LocationLink in
+        let adjustedTargetLocation = self.locationAdjustedForCopiedFiles(
+          Location(uri: link.targetUri, range: link.targetRange)
+        )
+        let adjustedTargetSelectionLocation = self.locationAdjustedForCopiedFiles(
+          Location(uri: link.targetUri, range: link.targetSelectionRange)
+        )
+        return LocationLink(
+          originSelectionRange: link.originSelectionRange,
+          targetUri: adjustedTargetLocation.uri,
+          targetRange: adjustedTargetLocation.range,
+          targetSelectionRange: adjustedTargetSelectionLocation.range
+        )
+      }
+      return .locationLinks(remappedLinks)
+    }
+  }
+
+  package func typeHierarchyItemAdjustedForCopiedFiles(_ item: TypeHierarchyItem) -> TypeHierarchyItem {
+    let adjustedLocation = self.locationAdjustedForCopiedFiles(Location(uri: item.uri, range: item.range))
+    let adjustedSelectionLocation = self.locationAdjustedForCopiedFiles(
+      Location(uri: item.uri, range: item.selectionRange)
+    )
+    return TypeHierarchyItem(
+      name: item.name,
+      kind: item.kind,
+      tags: item.tags,
+      detail: item.detail,
+      uri: adjustedLocation.uri,
+      range: adjustedLocation.range,
+      selectionRange: adjustedSelectionLocation.range,
+      data: item.data
+    )
+  }
+
+  package func callHierarchyItemAdjustedForCopiedFiles(_ item: CallHierarchyItem) -> CallHierarchyItem {
+    let adjustedLocation = self.locationAdjustedForCopiedFiles(Location(uri: item.uri, range: item.range))
+    let adjustedSelectionLocation = self.locationAdjustedForCopiedFiles(
+      Location(uri: item.uri, range: item.selectionRange)
+    )
+    return CallHierarchyItem(
+      name: item.name,
+      kind: item.kind,
+      tags: item.tags,
+      detail: item.detail,
+      uri: adjustedLocation.uri,
+      range: adjustedLocation.range,
+      selectionRange: adjustedSelectionLocation.range,
+      data: .dictionary([
+        "usr": item.data.flatMap { data in
+          if case let .dictionary(dict) = data {
+            return dict["usr"]
+          }
+          return nil
+        } ?? .null,
+        "uri": .string(adjustedLocation.uri.stringValue),
+      ])
+    )
+  }
+}
+
 /// Entry point for all build server queries.
 package actor BuildServerManager: QueueBasedMessageHandler {
   package let messageHandlingHelper = QueueBasedMessageHandlerHelper(
@@ -504,14 +663,14 @@ package actor BuildServerManager: QueueBasedMessageHandler {
   private let cachedSourceFilesAndDirectories = Cache<SourceFilesAndDirectoriesKey, SourceFilesAndDirectories>()
 
   /// Task that computes the latest map of copied file URIs to their original source locations.
-  private var copiedFileMap: Task<[DocumentURI: DocumentURI], Never>?
+  private var copiedFileMap: Task<CopiedFileMap, Never>?
 
   /// The last computed copied file map, which may be out-of-date.
   ///
   /// Even with out-of-date information for the copied file map, we can provide reasonable functionality - in the worst
   /// case we jump to a file in the build directory instead of the source directory. We don't want to block requests
   /// like definition on receiving up-to-date build target information from the build server.
-  private var cachedCopiedFileMap: [DocumentURI: DocumentURI] = [:]
+  package private(set) var cachedCopiedFileMap: CopiedFileMap = CopiedFileMap(map: [:])
 
   /// The `SourceKitInitializeBuildResponseData` received from the `build/initialize` request, if any.
   package var initializationData: SourceKitInitializeBuildResponseData? {
@@ -980,142 +1139,9 @@ package actor BuildServerManager: QueueBasedMessageHandler {
     }
   }
 
-  /// Check if the URI referenced by `location` has been copied during the preparation phase. If so, adjust the URI to
-  /// the original source file.
-  package func locationAdjustedForCopiedFiles(_ location: Location) -> Location {
-    guard let originalUri = cachedCopiedFileMap[location.uri] else {
-      return location
-    }
-    if let fileUrl = originalUri.fileURL, !FileManager.default.fileExists(at: fileUrl) {
-      return location
-    }
-    // If we regularly get issues that the copied file is out-of-sync with its original, we can check that the contents
-    // of the lines touched by the location match and only return the original URI if they do. For now, we avoid this
-    // check due to its performance cost of reading files from disk.
-    return Location(uri: originalUri, range: location.range)
-  }
-
-  /// Check if the URI referenced by `location` has been copied during the preparation phase. If so, adjust the URI to
-  /// the original source file.
-  package func locationsAdjustedForCopiedFiles(_ locations: [Location]) -> [Location] {
-    return locations.map { locationAdjustedForCopiedFiles($0) }
-  }
-
-  private func uriAdjustedForCopiedFiles(_ uri: DocumentURI) -> DocumentURI {
-    guard let originalUri = cachedCopiedFileMap[uri] else {
-      return uri
-    }
-    return originalUri
-  }
-
-  package func workspaceEditAdjustedForCopiedFiles(_ workspaceEdit: WorkspaceEdit?) -> WorkspaceEdit? {
-    guard var edit = workspaceEdit else {
-      return nil
-    }
-    if let changes = edit.changes {
-      var newChanges: [DocumentURI: [TextEdit]] = [:]
-      for (uri, edits) in changes {
-        let newUri = self.uriAdjustedForCopiedFiles(uri)
-        newChanges[newUri, default: []] += edits
-      }
-      edit.changes = newChanges
-    }
-    if let documentChanges = edit.documentChanges {
-      edit.documentChanges = documentChanges.map { change in
-        switch change {
-        case .textDocumentEdit(var textEdit):
-          textEdit.textDocument.uri = self.uriAdjustedForCopiedFiles(textEdit.textDocument.uri)
-          return .textDocumentEdit(textEdit)
-        case .createFile(var create):
-          create.uri = self.uriAdjustedForCopiedFiles(create.uri)
-          return .createFile(create)
-        case .renameFile(var rename):
-          rename.oldUri = self.uriAdjustedForCopiedFiles(rename.oldUri)
-          rename.newUri = self.uriAdjustedForCopiedFiles(rename.newUri)
-          return .renameFile(rename)
-        case .deleteFile(var delete):
-          delete.uri = self.uriAdjustedForCopiedFiles(delete.uri)
-          return .deleteFile(delete)
-        }
-      }
-    }
-    return edit
-  }
-
-  package func locationsOrLocationLinksAdjustedForCopiedFiles(
-    _ response: LocationsOrLocationLinksResponse?
-  ) -> LocationsOrLocationLinksResponse? {
-    guard let response = response else {
-      return nil
-    }
-    switch response {
-    case .locations(let locations):
-      let remappedLocations = self.locationsAdjustedForCopiedFiles(locations)
-      return .locations(remappedLocations)
-    case .locationLinks(let locationLinks):
-      let remappedLinks = locationLinks.map { link -> LocationLink in
-        let adjustedTargetLocation = self.locationAdjustedForCopiedFiles(
-          Location(uri: link.targetUri, range: link.targetRange)
-        )
-        let adjustedTargetSelectionLocation = self.locationAdjustedForCopiedFiles(
-          Location(uri: link.targetUri, range: link.targetSelectionRange)
-        )
-        return LocationLink(
-          originSelectionRange: link.originSelectionRange,
-          targetUri: adjustedTargetLocation.uri,
-          targetRange: adjustedTargetLocation.range,
-          targetSelectionRange: adjustedTargetSelectionLocation.range
-        )
-      }
-      return .locationLinks(remappedLinks)
-    }
-  }
-
-  package func typeHierarchyItemAdjustedForCopiedFiles(_ item: TypeHierarchyItem) -> TypeHierarchyItem {
-    let adjustedLocation = self.locationAdjustedForCopiedFiles(Location(uri: item.uri, range: item.range))
-    let adjustedSelectionLocation = self.locationAdjustedForCopiedFiles(
-      Location(uri: item.uri, range: item.selectionRange)
-    )
-    return TypeHierarchyItem(
-      name: item.name,
-      kind: item.kind,
-      tags: item.tags,
-      detail: item.detail,
-      uri: adjustedLocation.uri,
-      range: adjustedLocation.range,
-      selectionRange: adjustedSelectionLocation.range,
-      data: item.data
-    )
-  }
-
-  package func callHierarchyItemAdjustedForCopiedFiles(_ item: CallHierarchyItem) -> CallHierarchyItem {
-    let adjustedLocation = self.locationAdjustedForCopiedFiles(Location(uri: item.uri, range: item.range))
-    let adjustedSelectionLocation = self.locationAdjustedForCopiedFiles(
-      Location(uri: item.uri, range: item.selectionRange)
-    )
-    return CallHierarchyItem(
-      name: item.name,
-      kind: item.kind,
-      tags: item.tags,
-      detail: item.detail,
-      uri: adjustedLocation.uri,
-      range: adjustedLocation.range,
-      selectionRange: adjustedSelectionLocation.range,
-      data: .dictionary([
-        "usr": item.data.flatMap { data in
-          if case let .dictionary(dict) = data {
-            return dict["usr"]
-          }
-          return nil
-        } ?? .null,
-        "uri": .string(adjustedLocation.uri.stringValue),
-      ])
-    )
-  }
-
   @discardableResult
-  package func scheduleRecomputeCopyFileMap() -> Task<[DocumentURI: DocumentURI], Never> {
-    let task = Task<[DocumentURI: DocumentURI], Never> { [previousUpdateTask = copiedFileMap] in
+  package func scheduleRecomputeCopyFileMap() -> Task<CopiedFileMap, Never> {
+    let task = Task<CopiedFileMap, Never> { [previousUpdateTask = copiedFileMap] in
       previousUpdateTask?.cancel()
       return await orLog("Re-computing copy file map") {
         let sourceFilesAndDirectories = try await self.sourceFilesAndDirectories()
@@ -1126,9 +1152,9 @@ package actor BuildServerManager: QueueBasedMessageHandler {
             copiedFileMap[copyDestination] = file
           }
         }
-        self.cachedCopiedFileMap = copiedFileMap
-        return copiedFileMap
-      } ?? [:]
+        self.cachedCopiedFileMap = CopiedFileMap(map: copiedFileMap)
+        return self.cachedCopiedFileMap
+      } ?? CopiedFileMap(map: [:])
     }
     copiedFileMap = task
     return task
@@ -1140,7 +1166,7 @@ package actor BuildServerManager: QueueBasedMessageHandler {
     if await !targets(for: document).isEmpty {
       return true
     }
-    if await self.copiedFileMap?.value[document] != nil {
+    if await self.copiedFileMap?.value.isCopiedFile(document) == true {
       return true
     }
     return false
@@ -1281,7 +1307,7 @@ package actor BuildServerManager: QueueBasedMessageHandler {
     language: Language?,
     fallbackAfterTimeout: Bool
   ) async throws -> FileBuildSettings? {
-    guard let copySource = cachedCopiedFileMap[document] else {
+    guard let copySource = cachedCopiedFileMap.originalURI(for: document) else {
       return nil
     }
     let copySourceSettings = await self.buildSettingsInferredFromMainFile(
