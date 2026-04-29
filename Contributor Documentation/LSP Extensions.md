@@ -396,7 +396,7 @@ New request that returns structured location information for a list of exact sym
 Unlike the standard `workspace/symbol` request (which accepts a fuzzy query string), this request takes exact names — typically obtained from `sourcekit/workspace/symbolNames` — and returns all index occurrences for each name across every workspace.
 
 For each name the response contains zero or more `WorkspaceSymbolItem` values:
-- Source-file symbols carry a `SymbolInformation` with a `file://` URI and the exact 0-based line/column.
+- Source-file symbols carry a `SymbolInformation` with a `file://` URI and the exact position.
 - SDK/stdlib symbols carry a `WorkspaceSymbol` with `location: .uri(...)` pointing at the `file://` URI of the `.swiftinterface` or `.swiftmodule` file, with the fully-qualified module name as a `?module=` query parameter. The symbol's USR is stored in `data["usr"]`. Call `workspaceSymbol/resolve` to obtain the exact `Location` within the generated interface. The client must advertise `workspace.symbol.resolveSupport`; without it, the raw `file://` URI is returned as `SymbolInformation` instead.
 
 Every requested name is present in the response as a flat array; items carry their name in the `name` field of the `SymbolInformation` or `WorkspaceSymbol`.

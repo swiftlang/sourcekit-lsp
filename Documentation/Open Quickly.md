@@ -21,7 +21,7 @@ Given a list of names selected by the client after searching, returns structured
 
 The shape of each result item depends on the symbol's origin:
 
-**Source-file symbols** — returned as `SymbolInformation` with a `file://` URI and the exact 0-based line/column from the index.
+**Source-file symbols** — returned as `SymbolInformation` with a `file://` URI and the range from the index.
 
 ```
 → WorkspaceSymbolInfoRequest { names: ["MyViewController"] }
@@ -128,7 +128,7 @@ Client                                            Server
 
 1. **Discovery** — fetch all names; client filters locally.
 2. **Resolution** — send matching name(s) to populate the search result list; server returns symbol details (kind, container name, location) for display.
-   - Source symbols: `SymbolInformation` with a `file://` URI and exact 0-based line/column. No further steps required.
+   - Source symbols: `SymbolInformation` with a `file://` URI and exact position. No further steps required.
    - SDK/stdlib symbols: `WorkspaceSymbol` with `location: .uri(file:// URL?module=...)` pointing to the module file and the USR in `data["usr"]`, when the client advertises `workspace.symbol.resolveSupport`. Otherwise falls back to `SymbolInformation` with the raw `file://` URI.
 3. **Location resolution** — call `workspaceSymbol/resolve` with the selected `WorkspaceSymbol` to open the generated interface and resolve the symbol position. The server synthesizes the final `sourcekit-lsp://` URI and fills in `location.range`.
 4. **Content retrieval** — fetch the generated interface text. The editor scrolls to `location.range.start` from the resolve step.

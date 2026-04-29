@@ -1773,9 +1773,13 @@ extension SourceKitLSPServer {
 
   /// Handle a workspace/symbolNames request, returning the name list.
   func workspaceSymbolNames(_ req: WorkspaceSymbolNamesRequest) async throws -> WorkspaceSymbolNamesResponse {
-    var symbols = try await self.workspaces.asyncFlatMap { workspace in
-      try await workspace.uncheckedIndex?.allSymbolNames() ?? []
-    }
+    var symbols = await self.workspaces
+      .concurrentMap { workspace in
+        await orLog("Getting symbol names in workspace") {
+          try await workspace.uncheckedIndex?.allSymbolNames() ?? []
+        } ?? []
+      }
+      .flatMap { $0 }
     if !symbols.isSortedAndUnique {
       symbols.sortAndDedupe()
     }
@@ -1784,10 +1788,11 @@ extension SourceKitLSPServer {
 
   /// Map a `SymbolOccurrence` from the index to a `WorkspaceSymbolItem` suitable for returning in a
   /// `workspace/symbolInfo` response.
-  private func workspaceSymbolItem(
+  private nonisolated func workspaceSymbolItem(
     for symbolOccurrence: SymbolOccurrence,
     in index: CheckedIndex,
-    copiedFileMap: CopiedFileMap
+    copiedFileMap: CopiedFileMap,
+    canUseWorkspaceSymbolResolve: Bool
   ) throws -> WorkspaceSymbolItem? {
     let containerNames = try index.containerNames(of: symbolOccurrence)
     let containerName: String? =
@@ -1803,7 +1808,7 @@ extension SourceKitLSPServer {
     // For SDK symbols (location in `.swiftinterface`/`.swiftmodule`), return a `WorkspaceSymbol`
     // with a deferred location so the client can resolve it via `workspaceSymbol/resolve`.
     // Falls through to `SymbolInformation` with regular file:// URL for clients without `workspace.symbol.resolveSupport`.
-    if capabilityRegistry?.clientSupportsWorkspaceSymbolResolve ?? false,
+    if canUseWorkspaceSymbolResolve,
       symbolOccurrence.location.path.hasSuffix(".swiftinterface")
         || symbolOccurrence.location.path.hasSuffix(".swiftmodule")
     {
@@ -1865,23 +1870,44 @@ extension SourceKitLSPServer {
   /// Every requested name is present as a key in the response, mapping to an empty array when there
   /// are no occurrences.
   func workspaceSymbolInfo(_ req: WorkspaceSymbolInfoRequest) async throws -> WorkspaceSymbolInfoResponse {
-    var result: [WorkspaceSymbolItem] = []
-    for workspace in workspaces {
+    let canUseWorkspaceSymbolResolve = self.capabilityRegistry?.clientSupportsWorkspaceSymbolResolve ?? false
+
+    var groupedResultPerWorkspace = await workspaces.concurrentMap { workspace -> [String: [WorkspaceSymbolItem]] in
       guard let index = await workspace.index(checkedFor: .deletedFiles) else {
-        continue
+        return [:]
       }
+      var result: [String: [WorkspaceSymbolItem]] = [:]
       let copiedFileMap = await workspace.buildServerManager.cachedCopiedFileMap
       for name in req.names {
+        if Task.isCancelled { return [:] }
         var symbols: [SymbolOccurrence] = []
-        try index.forEachCanonicalSymbolOccurrence(byName: name) { symbolOccurrence in
-          symbols.append(symbolOccurrence)
-          return true
-        }
-        try Task.checkCancellation()
-        for symbol in symbols {
-          if let item = try self.workspaceSymbolItem(for: symbol, in: index, copiedFileMap: copiedFileMap) {
-            result.append(item)
+        _ = orLog("getting symbol information") {
+          try index.forEachCanonicalSymbolOccurrence(byName: name) { symbolOccurrence in
+            symbols.append(symbolOccurrence)
+            return true
           }
+        }
+        if Task.isCancelled { return [:] }
+        result[name] = symbols.compactMap { symbol in
+          orLog("getting symbol information") {
+            try self.workspaceSymbolItem(
+              for: symbol,
+              in: index,
+              copiedFileMap: copiedFileMap,
+              canUseWorkspaceSymbolResolve: canUseWorkspaceSymbolResolve
+            )
+          }
+        }
+      }
+      return result
+    }
+
+    // Flatten the result.
+    var result: [WorkspaceSymbolItem] = []
+    for name in req.names {
+      for grouped in groupedResultPerWorkspace {
+        if let items = grouped[name] {
+          result.append(contentsOf: items)
         }
       }
     }
@@ -1899,7 +1925,7 @@ extension SourceKitLSPServer {
     guard
       case .uri(let uriOnly) = symbol.location,
       let urlComponents = URLComponents(url: uriOnly.uri.arbitrarySchemeURL, resolvingAgainstBaseURL: false),
-      let fullModuleName = urlComponents.queryItems?.first(where: { $0.name == "module" })?.value
+      let fullModuleName = urlComponents.queryItems?.last(where: { $0.name == "module" })?.value
     else {
       return symbol
     }
@@ -1921,7 +1947,14 @@ extension SourceKitLSPServer {
         nil
       }
 
-    let moduleFileURI = DocumentURI(filePath: urlComponents.path, isDirectory: false)
+    let moduleFileURI = DocumentURI(
+      {
+        var components = urlComponents
+        components.fragment = nil
+        components.query = nil
+        return components.url!
+      }()
+    )
     for workspace in workspaces {
       let mainFile = await workspace.buildServerManager
         .mainFiles(containing: moduleFileURI)
@@ -1962,6 +1995,7 @@ extension SourceKitLSPServer {
     guard req.query.count >= minWorkspaceSymbolPatternLength else {
       return []
     }
+    let canUseWorkspaceSymbolResolve = self.capabilityRegistry?.clientSupportsWorkspaceSymbolResolve ?? false
     var items: [WorkspaceSymbolItem] = []
     for workspace in workspaces {
       guard let index = await workspace.index(checkedFor: .deletedFiles) else {
@@ -1987,10 +2021,14 @@ extension SourceKitLSPServer {
       }
       try Task.checkCancellation()
       items += try symbols.sorted(by: <).compactMap {
-        try self.workspaceSymbolItem(for: $0, in: index, copiedFileMap: copiedFileMap)
+        try self.workspaceSymbolItem(
+          for: $0,
+          in: index,
+          copiedFileMap: copiedFileMap,
+          canUseWorkspaceSymbolResolve: canUseWorkspaceSymbolResolve
+        )
       }
     }
-
     return items
   }
 
@@ -2146,8 +2184,7 @@ extension SourceKitLSPServer {
       throw ResponseError.unknown("Unable to infer language for \(buildSettingsUri)")
     }
 
-    return try await primaryLanguageService(for: buildSettingsUri, language, in: workspace)
-      .getReferenceDocument(req)
+    return try await primaryLanguageService(for: buildSettingsUri, language, in: workspace).getReferenceDocument(req)
   }
 
   func codeAction(

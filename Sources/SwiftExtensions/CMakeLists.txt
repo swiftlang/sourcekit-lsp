@@ -1,5 +1,6 @@
 set(sources
   Array+Safe.swift
+  Array+SortAndDedupe.swift
   AsyncUtils.swift
   Cache.swift
   CartesianProduct.swift

@@ -242,11 +242,9 @@ package enum MessageHandlingDependencyTracker: QueueBasedMessageHandlerDependenc
       self = .freestanding
     case is WorkspaceSemanticTokensRefreshRequest:
       self = .freestanding
-    case is WorkspaceSymbolResolveRequest:
+    case is WorkspaceSymbolInfoRequest:
       self = .freestanding
     case is WorkspaceSymbolNamesRequest:
-      self = .freestanding
-    case is WorkspaceSymbolInfoRequest:
       self = .freestanding
     case is WorkspaceSymbolResolveRequest:
       self = .freestanding
