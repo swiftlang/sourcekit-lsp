@@ -127,7 +127,7 @@ private func edits(from original: DocumentSnapshot, to edited: String) -> [TextE
   // Map the offset-based edits to line-column based edits to be consumed by LSP
 
   return concurrentEdits.edits.compactMap {
-    TextEdit(range: original.absolutePositionRange(of: $0.range), newText: $0.replacement)
+    TextEdit(range: original.positionRange(of: $0.range), newText: $0.replacement)
   }
 }
 

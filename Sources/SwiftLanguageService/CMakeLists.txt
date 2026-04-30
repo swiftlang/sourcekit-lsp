@@ -27,6 +27,7 @@ add_library(SwiftLanguageService STATIC
   GeneratedInterfaceManager.swift
   IndentationRemover.swift
   InlayHints.swift
+  InlayHintManager.swift
   InlayHintResolve.swift
   MacroExpansion.swift
   OpenInterface.swift

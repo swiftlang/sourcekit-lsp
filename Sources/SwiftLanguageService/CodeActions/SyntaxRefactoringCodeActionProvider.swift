@@ -86,7 +86,7 @@ extension [SourceEdit] {
   func asWorkspaceEdit(snapshot: DocumentSnapshot) -> WorkspaceEdit? {
     let textEdits = compactMap { edit -> TextEdit? in
       let edit = TextEdit(
-        range: snapshot.absolutePositionRange(of: edit.range),
+        range: snapshot.positionRange(of: edit.range),
         newText: edit.replacement
       )
 
