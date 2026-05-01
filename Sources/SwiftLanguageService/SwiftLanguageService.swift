@@ -929,11 +929,8 @@ extension SwiftLanguageService {
     }
 
     let uri = req.textDocument.uri
-    let range = req.range
-    let sharedCursorInfo = SharedCursorInfo { [weak self] in
-      guard let self = self else {
-        throw CancellationError()
-      }
+    let sharedCursorInfo = SharedCursorInfo { [weak self] range in
+      guard let self else { throw CancellationError() }
       return try await self.cursorInfo(
         uri,
         range,
@@ -991,7 +988,7 @@ extension SwiftLanguageService {
   }
 
   func retrieveRefactorCodeActions(_ scope: CodeActionScope) async throws -> [CodeAction] {
-    let cursorInfoResult = try await scope.sharedCursorInfo.value
+    let cursorInfoResult = try await scope.cursorInfo(for: scope.request.range)
     let params = scope.request
 
     var canInlineMacro = false

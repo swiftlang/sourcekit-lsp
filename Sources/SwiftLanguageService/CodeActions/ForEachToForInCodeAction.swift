@@ -27,7 +27,7 @@ struct ForEachToForInCodeAction: SyntaxCodeActionProvider {
       return []
     }
 
-    guard let info = try? await scope.cursorInfo(),
+    guard let info = try? await scope.cursorInfo(at: scope.snapshot.position(of: match.forEachToken.position)),
       isStdlibSequenceForEach(info)
     else {
       return []
@@ -99,6 +99,7 @@ private struct Match {
   let callExpr: FunctionCallExprSyntax
   let sequence: ExprSyntax
   let closure: ClosureExprSyntax
+  let forEachToken: TokenSyntax
 }
 
 /// Matches only when the cursor/selection is on the `forEach` token.
@@ -141,7 +142,8 @@ private func findForEachCall(in scope: CodeActionScope) -> Match? {
   return Match(
     callExpr: callExpr,
     sequence: sequence,
-    closure: closure
+    closure: closure,
+    forEachToken: token
   )
 }
 

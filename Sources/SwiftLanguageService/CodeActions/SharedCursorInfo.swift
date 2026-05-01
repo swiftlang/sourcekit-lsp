@@ -10,25 +10,40 @@
 //
 //===----------------------------------------------------------------------===//
 
-/// A lazily-evaluated, shared async value that is computed at most once.
-///
-/// The first access triggers the operation; subsequent accesses await the same `Task`.
-actor AsyncLazy<Success: Sendable> {
-  private let operation: @Sendable () async throws -> Success
+@_spi(SourceKitLSP) import LanguageServerProtocol
 
-  init(_ operation: @escaping @Sendable () async throws -> Success) {
+/// Request-scoped cache for cursor info requests used by code actions.
+actor SharedCursorInfo {
+  private let operation: @Sendable (Range<Position>) async throws -> CursorInfoResponse
+
+  private var tasks: [Range<Position>: Task<CursorInfoResponse, any Error>] = [:]
+
+  init(_ operation: @escaping @Sendable (Range<Position>) async throws -> CursorInfoResponse) {
     self.operation = operation
   }
 
-  private lazy var task: Task<Success, any Error> = Task {
-    try await operation()
+  deinit {
+    for task in tasks.values {
+      task.cancel()
+    }
   }
 
-  var value: Success {
-    get async throws {
+  func value(for range: Range<Position>) async throws -> CursorInfoResponse {
+    let task: Task<CursorInfoResponse, any Error>
+    if let existingTask = tasks[range] {
+      task = existingTask
+    } else {
+      let newTask = Task {
+        try await operation(range)
+      }
+      tasks[range] = newTask
+      task = newTask
+    }
+
+    return try await withTaskCancellationHandler {
       try await task.value
+    } onCancel: {
+      task.cancel()
     }
   }
 }
-
-typealias SharedCursorInfo = AsyncLazy<CursorInfoResponse>

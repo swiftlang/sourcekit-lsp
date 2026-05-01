@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2024 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2026 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -43,7 +43,7 @@ struct CodeActionScope {
   /// The innermost node that contains the entire selected source range
   var innermostNodeContainingRange: Syntax?
 
-  /// Shared lazy cursorInfo cache for semantic information at the request position.
+  /// Shared cursorInfo cache for semantic information requested by code action providers.
   var sharedCursorInfo: SharedCursorInfo
 
   init?(
@@ -66,9 +66,23 @@ struct CodeActionScope {
     self.innermostNodeContainingRange = findCommonAncestorOrSelf(Syntax(left), Syntax(right))
   }
 
-  /// Returns the first `CursorInfo` from the shared cache, or `nil` if unavailable.
+  /// Retrieve cursor info for the original code action request range.
   func cursorInfo() async throws -> CursorInfo? {
-    try await sharedCursorInfo.value.cursorInfo.first
+    try await cursorInfo(for: request.range).cursorInfo.first
+  }
+
+  /// Retrieve cursor info at the given position.
+  ///
+  /// Each code action provider should call this at the position that is
+  /// semantically relevant for its refactoring (e.g. the `forEach` token,
+  /// the variable name, etc.) rather than relying on the original request range.
+  func cursorInfo(at position: Position) async throws -> CursorInfo? {
+    try await cursorInfo(for: position..<position).cursorInfo.first
+  }
+
+  /// Retrieve cursor info for the given range.
+  func cursorInfo(for range: Range<Position>) async throws -> CursorInfoResponse {
+    try await sharedCursorInfo.value(for: range)
   }
 }
 
