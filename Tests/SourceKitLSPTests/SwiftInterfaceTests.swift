@@ -105,7 +105,7 @@ final class SwiftInterfaceTests: SourceKitLSPTestCase {
       uri: project.fileURI,
       position: project.positions["3️⃣"],
       testClient: project.testClient,
-      swiftInterfaceFiles: ["Swift.swiftinterface", "_Concurrency.swiftinterface", "TaskGroup.swift"],
+      swiftInterfaceFiles: ["Swift.swiftinterface", "TaskGroup.swift"],
       lineContains: "public func withTaskGroup"
     )
   }
@@ -270,7 +270,7 @@ final class SwiftInterfaceTests: SourceKitLSPTestCase {
       uri: uri,
       position: positions["1️⃣"],
       testClient: testClient,
-      swiftInterfaceFile: "Swift.Collection.Array.swiftinterface",
+      swiftInterfaceFiles: ["Swift.Collection.Array.swiftinterface"],
       lineContains: "func filter<E>(_ isIncluded: (Element) throws(E) -> Bool) throws(E) -> [Element]"
     )
   }
@@ -289,7 +289,7 @@ final class SwiftInterfaceTests: SourceKitLSPTestCase {
       uri: project.fileURI,
       position: project.positions["1️⃣"],
       testClient: project.testClient,
-      swiftInterfaceFile: "Swift.Collection.Array.swiftinterface",
+      swiftInterfaceFiles: ["Swift.Collection.Array.swiftinterface"],
       lineContains: "func filter<E>(_ isIncluded: (Element) throws(E) -> Bool) throws(E) -> [Element]"
     )
   }
@@ -397,33 +397,6 @@ final class SwiftInterfaceTests: SourceKitLSPTestCase {
   }
 }
 
-private func assertSystemSwiftInterface(
-  uri: DocumentURI,
-  position: Position,
-  testClient: TestSourceKitLSPClient,
-  swiftInterfaceFile: String,
-  linePrefix: String? = nil,
-  lineContains: String? = nil,
-  line: UInt = #line
-) async throws {
-  try await assertSystemSwiftInterface(
-    uri: uri,
-    position: position,
-    testClient: testClient,
-    swiftInterfaceFiles: [swiftInterfaceFile],
-    linePrefix: linePrefix,
-    lineContains: lineContains,
-    line: line
-  )
-}
-
-#if compiler(>=6.4)
-@available(
-  *,
-  deprecated,
-  message: "temporary workaround for '_Concurrency.swiftinterface' should no longer be necessary"
-)
-#endif
 private func assertSystemSwiftInterface(
   uri: DocumentURI,
   position: Position,
