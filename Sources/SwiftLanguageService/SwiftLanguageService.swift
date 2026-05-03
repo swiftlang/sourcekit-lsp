@@ -948,6 +948,7 @@ extension SwiftLanguageService {
       (retrieveSyntaxCodeActions, nil),
       (retrieveRefactorCodeActions, .refactor),
       (retrieveQuickFixCodeActions, .quickFix),
+      (addMissingImports, .quickFix),
       (retrieveRemoveUnusedImportsCodeAction, .sourceOrganizeImports),
     ]
     let wantedActionKinds = req.context.only
@@ -1151,6 +1152,8 @@ extension SwiftLanguageService {
       try await expandMacro(command)
     } else if let command = req.swiftCommand(ofType: RemoveUnusedImportsCommand.self) {
       try await removeUnusedImports(command)
+    } else if let command = req.swiftCommand(ofType: AddMissingImportsCommand.self) {
+      try await executeAddMissingImport(command)
     } else {
       throw ResponseError.unknown("unknown command \(req.command)")
     }

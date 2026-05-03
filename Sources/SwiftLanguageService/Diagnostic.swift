@@ -246,10 +246,14 @@ extension Diagnostic {
 
     var code: DiagnosticCode? = nil
     var codeDescription: CodeDescription? = nil
+
+    // Extract the diagnostic ID for internal use (e.g., "cannot_find_in_scope")
+    let diagnosticID: String? = diag[keys.id]
+
     // If this diagnostic has one or more educational notes, the first one is
     // treated as primary and used to fill in the diagnostic code and
     // description. `useEducationalNoteAsCode` ensures a note name is only used
-    // as a code if the cline supports an extended code description.
+    // as a code if the client supports an extended code description.
     if useEducationalNoteAsCode,
       let educationalNotePaths: SKDResponseArray = diag[keys.educationalNotePaths],
       educationalNotePaths.count > 0,
@@ -268,6 +272,11 @@ extension Diagnostic {
         code = .string(name)
         codeDescription = .init(href: DocumentURI(url))
       }
+    }
+
+    // If no educational note available, fall back to diagnostic ID (e.g., "cannot_find_in_scope")
+    if code == nil, let diagnosticID {
+      code = .string(diagnosticID)
     }
 
     var actions: [CodeAction]? = nil
