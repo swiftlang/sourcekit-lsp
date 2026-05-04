@@ -389,6 +389,65 @@ export interface IsIndexingResult {
 }
 ```
 
+## `sourcekit/workspace/symbolInfo`
+
+New request that returns structured location information for a list of exact symbol names.
+
+Unlike the standard `workspace/symbol` request (which accepts a fuzzy query string), this request takes exact names — typically obtained from `sourcekit/workspace/symbolNames` — and returns all index occurrences for each name across every workspace.
+
+For each name the response contains zero or more `WorkspaceSymbolItem` values:
+- Source-file symbols carry a `SymbolInformation` with a `file://` URI and the exact position.
+- SDK/stdlib symbols carry a `WorkspaceSymbol` with `location: .uri(...)` pointing at the `file://` URI of the `.swiftinterface` or `.swiftmodule` file, with the fully-qualified module name as a `?module=` query parameter. The symbol's USR is stored in `data["usr"]`. Call `workspaceSymbol/resolve` to obtain the exact `Location` within the generated interface. The client must advertise `workspace.symbol.resolveSupport`; without it, the raw `file://` URI is returned as `SymbolInformation` instead.
+
+Every requested name is present in the response as a flat array; items carry their name in the `name` field of the `SymbolInformation` or `WorkspaceSymbol`.
+
+> [!IMPORTANT]
+> This request is experimental and may be modified or removed in future versions of SourceKit-LSP without notice. Do not rely on it.
+
+- params: `WorkspaceSymbolInfoParams`
+- result: `WorkspaceSymbolInfoResult`
+
+```ts
+export interface WorkspaceSymbolInfoParams {
+  /**
+   * Symbol names to resolve.
+   */
+  names: string[];
+}
+
+export interface WorkspaceSymbolInfoResult {
+  /**
+   * Flat list of all symbols matching the requested names.
+   * Each item carries the symbol name in its `name` field.
+   */
+  results: WorkspaceSymbolItem[];
+}
+```
+
+## `sourcekit/workspace/symbolNames`
+
+New request that returns the flat, deduplicated list of every symbol name in the workspace index, including names from indexed system modules (stdlib, SDK frameworks).
+
+Clients use this list to drive a local search UI (fuzzy matching, prefix filtering, etc.) without a round-trip per keystroke. After the user selects a name, send a `sourcekit/workspace/symbolInfo` request to resolve it to concrete locations.
+
+> [!IMPORTANT]
+> This request is experimental and may be modified or removed in future versions of SourceKit-LSP without notice. Do not rely on it.
+
+- params: `WorkspaceSymbolNamesParams`
+- result: `WorkspaceSymbolNamesResult`
+
+```ts
+export interface WorkspaceSymbolNamesParams {}
+
+export interface WorkspaceSymbolNamesResult {
+  /**
+   * Flat, deduplicated list of all symbol names in the workspace index,
+   * including names from system modules (stdlib, SDK).
+   */
+  names: string[];
+}
+```
+
 ## `window/didChangeActiveDocument`
 
 New notification from the client to the server, telling SourceKit-LSP which document is the currently active primary document.

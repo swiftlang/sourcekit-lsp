@@ -890,6 +890,12 @@ extension SourceKitLSPServer: QueueBasedMessageHandler {
       await request.reply { try await subtypes(request.params) }
     case let request as RequestAndReply<TypeHierarchySupertypesRequest>:
       await request.reply { try await supertypes(request.params) }
+    case let request as RequestAndReply<WorkspaceSymbolNamesRequest>:
+      await request.reply { try await workspaceSymbolNames(request.params) }
+    case let request as RequestAndReply<WorkspaceSymbolInfoRequest>:
+      await request.reply { try await workspaceSymbolInfo(request.params) }
+    case let request as RequestAndReply<WorkspaceSymbolResolveRequest>:
+      await request.reply { try await workspaceSymbolResolve(request.params) }
     case let request as RequestAndReply<WorkspaceSymbolsRequest>:
       await request.reply { try await workspaceSymbols(request.params) }
     case let request as RequestAndReply<WorkspaceTestsRequest>:
@@ -1169,6 +1175,8 @@ extension SourceKitLSPServer {
       GetReferenceDocumentRequest.method: .dictionary(["version": .int(1)]),
       DidChangeActiveDocumentNotification.method: .dictionary(["version": .int(1)]),
       WorkspacePlaygroundsRefreshRequest.method: .dictionary(["version": .int(1)]),
+      WorkspaceSymbolNamesRequest.method: .dictionary(["version": .int(1)]),
+      WorkspaceSymbolInfoRequest.method: .dictionary(["version": .int(1)]),
     ]
     if let toolchain = await toolchainRegistry.preferredToolchain(containing: [\.swiftc]), toolchain.swiftPlay != nil {
       experimentalCapabilities[WorkspacePlaygroundsRequest.method] = .dictionary(["version": .int(1)])
@@ -1315,7 +1323,7 @@ extension SourceKitLSPServer {
           await orLog("Shutting down build server") {
             await workspace.buildServerManager.shutdown()
           }
-          await workspace.index(checkedFor: .deletedFiles)?.unchecked.close()
+          await workspace.uncheckedIndex?.close()
         }
       }
     }
@@ -1763,6 +1771,220 @@ extension SourceKitLSPServer {
     return try await languageService.signatureHelp(req)
   }
 
+  /// Handle a workspace/symbolNames request, returning the name list.
+  func workspaceSymbolNames(_ req: WorkspaceSymbolNamesRequest) async throws -> WorkspaceSymbolNamesResponse {
+    var symbols = await self.workspaces
+      .concurrentMap { workspace in
+        await orLog("Getting symbol names in workspace") {
+          try await workspace.uncheckedIndex?.allSymbolNames() ?? []
+        } ?? []
+      }
+      .flatMap { $0 }
+    if !symbols.isSortedAndUnique {
+      symbols.sortAndDedupe()
+    }
+    return WorkspaceSymbolNamesResponse(names: symbols)
+  }
+
+  /// Map a `SymbolOccurrence` from the index to a `WorkspaceSymbolItem` suitable for returning in a
+  /// `workspace/symbolInfo` response.
+  private nonisolated func workspaceSymbolItem(
+    for symbolOccurrence: SymbolOccurrence,
+    in index: CheckedIndex,
+    copiedFileMap: CopiedFileMap,
+    canUseWorkspaceSymbolResolve: Bool
+  ) throws -> WorkspaceSymbolItem? {
+    let containerNames = try index.containerNames(of: symbolOccurrence)
+    let containerName: String? =
+      if !containerNames.isEmpty {
+        switch symbolOccurrence.symbol.language {
+        case .cxx, .c, .objc: containerNames.joined(separator: "::")
+        case .swift: containerNames.joined(separator: ".")
+        }
+      } else {
+        nil
+      }
+
+    // For SDK symbols (location in `.swiftinterface`/`.swiftmodule`), return a `WorkspaceSymbol`
+    // with a deferred location so the client can resolve it via `workspaceSymbol/resolve`.
+    // Falls through to `SymbolInformation` with regular file:// URL for clients without `workspace.symbol.resolveSupport`.
+    if canUseWorkspaceSymbolResolve,
+      symbolOccurrence.location.path.hasSuffix(".swiftinterface")
+        || symbolOccurrence.location.path.hasSuffix(".swiftmodule")
+    {
+      // URL: file://<path>.swiftinterface?module=<moduleName>
+      // Clients use `module` to show e.g. "Swift > String".
+      guard let documentURL = symbolOccurrence.location.uri?.fileURL else {
+        return nil
+      }
+      guard var urlComponents = URLComponents(url: documentURL, resolvingAgainstBaseURL: false) else {
+        return nil
+      }
+      urlComponents.queryItems = [
+        URLQueryItem(name: "module", value: symbolOccurrence.location.moduleName)
+      ]
+      guard let locationURL = urlComponents.url else {
+        return nil
+      }
+
+      // Data: {"usr": "<usr>"}
+      // Used by `workspaceSymbol/resolve` to find the symbol in the interface.
+      let usr = symbolOccurrence.symbol.usr
+      let data: LSPAny? = usr.isEmpty ? nil : .dictionary(["usr": .string(usr)])
+
+      return WorkspaceSymbolItem.workspaceSymbol(
+        WorkspaceSymbol(
+          name: symbolOccurrence.symbol.name,
+          kind: symbolOccurrence.symbol.kind.asLspSymbolKind(),
+          containerName: containerName,
+          location: .uri(.init(uri: DocumentURI(locationURL))),
+          data: data
+        )
+      )
+    }
+
+    guard let symbolLocation = symbolOccurrence.location.lspLocation else { return nil }
+    let location = copiedFileMap.locationAdjustedForCopiedFiles(symbolLocation)
+    return WorkspaceSymbolItem.symbolInformation(
+      SymbolInformation(
+        name: symbolOccurrence.symbol.name,
+        kind: symbolOccurrence.symbol.kind.asLspSymbolKind(),
+        deprecated: nil,
+        location: location,
+        containerName: containerName
+      )
+    )
+  }
+
+  /// Handle a `workspace/symbolInfo` request.
+  ///
+  /// For each name in `req.names`, looks up all canonical occurrences in every workspace index and
+  /// converts them to `WorkspaceSymbolItem` values:
+  /// - Source-file symbols get a `file://` URI with the exact 0-based line/column from the index.
+  /// - SDK/stdlib symbols (index location ends in `.swiftinterface` or `.swiftmodule`) get a
+  ///   `WorkspaceSymbol` with `location: .uri(file:// URL?module=...)` and the USR in `data`, provided
+  ///   the client advertises `workspace.symbol.resolveSupport`. The client should call
+  ///   `workspaceSymbol/resolve` to obtain the exact location within the interface.
+  ///   Without that capability the raw `file://` URI from the index record is returned instead.
+  ///
+  /// Every requested name is present as a key in the response, mapping to an empty array when there
+  /// are no occurrences.
+  func workspaceSymbolInfo(_ req: WorkspaceSymbolInfoRequest) async throws -> WorkspaceSymbolInfoResponse {
+    let canUseWorkspaceSymbolResolve = self.capabilityRegistry?.clientSupportsWorkspaceSymbolResolve ?? false
+
+    var groupedResultPerWorkspace = await workspaces.concurrentMap { workspace -> [String: [WorkspaceSymbolItem]] in
+      guard let index = await workspace.index(checkedFor: .deletedFiles) else {
+        return [:]
+      }
+      var result: [String: [WorkspaceSymbolItem]] = [:]
+      let copiedFileMap = await workspace.buildServerManager.cachedCopiedFileMap
+      for name in req.names {
+        if Task.isCancelled { return [:] }
+        var symbols: [SymbolOccurrence] = []
+        _ = orLog("getting symbol information") {
+          try index.forEachCanonicalSymbolOccurrence(byName: name) { symbolOccurrence in
+            symbols.append(symbolOccurrence)
+            return true
+          }
+        }
+        if Task.isCancelled { return [:] }
+        result[name] = symbols.compactMap { symbol in
+          orLog("getting symbol information") {
+            try self.workspaceSymbolItem(
+              for: symbol,
+              in: index,
+              copiedFileMap: copiedFileMap,
+              canUseWorkspaceSymbolResolve: canUseWorkspaceSymbolResolve
+            )
+          }
+        }
+      }
+      return result
+    }
+
+    // Flatten the result.
+    var result: [WorkspaceSymbolItem] = []
+    for name in req.names {
+      for grouped in groupedResultPerWorkspace {
+        if let items = grouped[name] {
+          result.append(contentsOf: items)
+        }
+      }
+    }
+    return WorkspaceSymbolInfoResponse(results: result)
+  }
+
+  /// Handle a `workspaceSymbol/resolve` request.
+  ///
+  /// If the symbol has a `location: .uri(moduleFileURL?module=...)` (as emitted by
+  /// `workspace/symbolInfo` for SDK/stdlib symbols), opens the generated Swift interface, resolves
+  /// the symbol position using `data["usr"]`, and returns the symbol with `location: .location(...)`.
+  /// Symbols with an already-resolved `location: .location(...)` are returned unchanged.
+  func workspaceSymbolResolve(_ req: WorkspaceSymbolResolveRequest) async throws -> WorkspaceSymbol {
+    var symbol = req.workspaceSymbol
+    guard
+      case .uri(let uriOnly) = symbol.location,
+      let urlComponents = URLComponents(url: uriOnly.uri.arbitrarySchemeURL, resolvingAgainstBaseURL: false),
+      let fullModuleName = urlComponents.queryItems?.last(where: { $0.name == "module" })?.value
+    else {
+      return symbol
+    }
+
+    let moduleName: String
+    let groupName: String?
+    if let dotIndex = fullModuleName.firstIndex(of: ".") {
+      moduleName = String(fullModuleName[fullModuleName.startIndex..<dotIndex])
+      groupName = String(fullModuleName[fullModuleName.index(after: dotIndex)...])
+    } else {
+      moduleName = fullModuleName
+      groupName = nil
+    }
+
+    let usr: String? =
+      if case .dictionary(let dataDict) = symbol.data, case .string(let usr) = dataDict["usr"] {
+        usr
+      } else {
+        nil
+      }
+
+    let moduleFileURI = DocumentURI(
+      {
+        var components = urlComponents
+        components.fragment = nil
+        components.query = nil
+        return components.url!
+      }()
+    )
+    for workspace in workspaces {
+      let mainFile = await workspace.buildServerManager
+        .mainFiles(containing: moduleFileURI)
+        .sorted(by: { $0.arbitrarySchemeURL.absoluteString < $1.arbitrarySchemeURL.absoluteString })
+        .first
+      guard let mainFile else {
+        continue
+      }
+      let languageService = try await primaryLanguageService(for: mainFile, .swift, in: workspace)
+      let details = await orLog("Opening generated interface in workspaceSymbol/resolve") {
+        try await languageService.openGeneratedInterface(
+          document: mainFile,
+          moduleName: moduleName,
+          groupName: groupName,
+          symbolUSR: usr
+        )
+      }
+      if let details {
+        symbol.location = .location(
+          Location(uri: details.uri, range: Range(details.position ?? Position(line: 0, utf16index: 0)))
+        )
+      }
+      return symbol
+    }
+
+    throw ResponseError.requestFailed(
+      "No source file found that imports \(fullModuleName); cannot open generated interface"
+    )
+  }
+
   /// Handle a workspace/symbol request, returning the SymbolInformation.
   /// - returns: An array with SymbolInformation for each matching symbol in the workspace.
   func workspaceSymbols(_ req: WorkspaceSymbolsRequest) async throws -> [WorkspaceSymbolItem]? {
@@ -1773,6 +1995,7 @@ extension SourceKitLSPServer {
     guard req.query.count >= minWorkspaceSymbolPatternLength else {
       return []
     }
+    let canUseWorkspaceSymbolResolve = self.capabilityRegistry?.clientSupportsWorkspaceSymbolResolve ?? false
     var items: [WorkspaceSymbolItem] = []
     for workspace in workspaces {
       guard let index = await workspace.index(checkedFor: .deletedFiles) else {
@@ -1797,32 +2020,12 @@ extension SourceKitLSPServer {
         return true
       }
       try Task.checkCancellation()
-      for symbolOccurrence in symbols.sorted(by: <) {
-        try Task.checkCancellation()
-        guard let symbolLocation = symbolOccurrence.location.lspLocation else { continue }
-        let location = copiedFileMap.locationAdjustedForCopiedFiles(symbolLocation)
-
-        let containerNames = try index.containerNames(of: symbolOccurrence)
-        let containerName: String?
-        if containerNames.isEmpty {
-          containerName = nil
-        } else {
-          switch symbolOccurrence.symbol.language {
-          case .cxx, .c, .objc: containerName = containerNames.joined(separator: "::")
-          case .swift: containerName = containerNames.joined(separator: ".")
-          }
-        }
-
-        items.append(
-          WorkspaceSymbolItem.symbolInformation(
-            SymbolInformation(
-              name: symbolOccurrence.symbol.name,
-              kind: symbolOccurrence.symbol.kind.asLspSymbolKind(),
-              deprecated: nil,
-              location: location,
-              containerName: containerName
-            )
-          )
+      items += try symbols.sorted(by: <).compactMap {
+        try self.workspaceSymbolItem(
+          for: $0,
+          in: index,
+          copiedFileMap: copiedFileMap,
+          canUseWorkspaceSymbolResolve: canUseWorkspaceSymbolResolve
         )
       }
     }

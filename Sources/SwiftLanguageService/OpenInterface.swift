@@ -42,7 +42,7 @@ extension SwiftLanguageService {
         nil
       }
 
-    if self.capabilityRegistry.clientHasExperimentalCapability(GetReferenceDocumentRequest.method) {
+    if self.capabilityRegistry.clientHasWorkspaceGetReferenceDocumentSupport {
       return GeneratedInterfaceDetails(uri: try urlData.uri, position: position)
     }
     let interfaceFilePath = self.generatedInterfacesPath

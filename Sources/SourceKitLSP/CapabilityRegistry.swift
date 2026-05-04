@@ -114,6 +114,18 @@ package final actor CapabilityRegistry {
     return clientHasExperimentalCapability(WorkspacePlaygroundsRefreshRequest.method)
   }
 
+  package nonisolated var clientHasWorkspaceGetReferenceDocumentSupport: Bool {
+    return clientHasExperimentalCapability(GetReferenceDocumentRequest.method)
+  }
+
+  /// Whether the client supports `workspaceSymbol/resolve` for lazy location resolution.
+  /// Requires `workspace.symbol.resolveSupport.properties` to contain `"location"` or `"location."`.
+  package nonisolated var clientSupportsWorkspaceSymbolResolve: Bool {
+    return clientCapabilities.workspace?.symbol?.resolveSupport?.properties.contains(where: {
+      $0 == "location" || $0.hasPrefix("location.")
+    }) ?? false
+  }
+
   package nonisolated func clientHasExperimentalCapability(_ name: String) -> Bool {
     guard case .dictionary(let experimentalCapabilities) = clientCapabilities.experimental else {
       return false
