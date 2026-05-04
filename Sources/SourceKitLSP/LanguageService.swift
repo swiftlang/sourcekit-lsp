@@ -46,12 +46,12 @@ package struct AnnotatedTestItem: Sendable {
   }
 }
 
-package struct RenameLocation: Sendable {
+package struct RenameLocation: Sendable, Hashable {
   /// How the identifier at a given location is being used.
   ///
   /// This is primarily used to influence how argument labels should be renamed in Swift and if a location should be
   /// rejected if argument labels don't match.
-  package enum Usage {
+  package enum Usage: Hashable {
     /// The definition of a function/subscript/variable/...
     case definition
 
