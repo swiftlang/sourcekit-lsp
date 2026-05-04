@@ -29,6 +29,7 @@ package struct DummyBuildServerManagerConnectionToClient: BuildServerManagerConn
 
   package func send<Request: RequestType>(
     _ request: Request,
+    method: String,
     id: RequestID,
     reply: @escaping @Sendable (LSPResult<Request.Response>) -> Void
   ) {

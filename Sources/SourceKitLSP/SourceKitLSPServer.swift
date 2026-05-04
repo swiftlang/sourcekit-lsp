@@ -54,7 +54,7 @@ package actor SourceKitLSPServer {
   private let workspaceQueue = AsyncQueue<Serial>()
 
   /// The connection to the editor.
-  package nonisolated let client: any Connection
+  nonisolated let client: LegacyNameFallbackConnection
 
   /// Set to `true` after the `SourceKitLSPServer` has send the reply to the `InitializeRequest`.
   ///
@@ -179,7 +179,7 @@ package actor SourceKitLSPServer {
     self.hooks = hooks
     self.onExit = onExit
 
-    self.client = client
+    self.client = LegacyNameFallbackConnection(client, legacyNames: MessageRegistry.lspLegacyNames)
     self.indexTaskScheduler = TaskScheduler(
       maxConcurrentTasksByPriority: Self.maxConcurrentIndexingTasksByPriority(isIndexingPaused: false, options: options)
     )
@@ -1086,12 +1086,12 @@ extension SourceKitLSPServer {
       let onWorkspaceTestsChanged =
         capabilityRegistry!.clientHasWorkspaceTestsRefreshSupport
         ? { @Sendable [weak self] in
-          _ = Task { try await self?.client.send(WorkspaceTestsRefreshRequest()) }
+          _ = Task { try await self?.sendRequestToClient(WorkspaceTestsRefreshRequest()) }
         } : nil
       let onWorkspacePlaygroundsChanged =
         capabilityRegistry!.clientHasWorkspacePlaygroundsRefreshSupport
         ? { @Sendable [weak self] in
-          _ = Task { try await self?.client.send(WorkspacePlaygroundsRefreshRequest()) }
+          _ = Task { try await self?.sendRequestToClient(WorkspacePlaygroundsRefreshRequest()) }
         } : nil
       await entryPointManager.setCallbacks(
         onWorkspaceTestsChanged: onWorkspaceTestsChanged,
@@ -1161,17 +1161,23 @@ extension SourceKitLSPServer {
       ? nil
       : ExecuteCommandOptions(commands: languageServiceRegistry.languageServices.flatMap { $0.type.builtInCommands })
 
-    var experimentalCapabilities: [String: LSPAny] = [
-      WorkspaceTestsRequest.method: .dictionary(["version": .int(2)]),
-      WorkspaceTestsRefreshRequest.method: .dictionary(["version": .int(1)]),
-      DocumentTestsRequest.method: .dictionary(["version": .int(2)]),
-      TriggerReindexRequest.method: .dictionary(["version": .int(1)]),
-      GetReferenceDocumentRequest.method: .dictionary(["version": .int(1)]),
-      DidChangeActiveDocumentNotification.method: .dictionary(["version": .int(1)]),
-      WorkspacePlaygroundsRefreshRequest.method: .dictionary(["version": .int(1)]),
-    ]
+    var experimentalCapabilities: [String: LSPAny] = [:]
+    // Add both the current and legacy method names so old clients still discover the capability.
+    func addCapabilities(_ method: String, _ value: LSPAny) {
+      experimentalCapabilities[method] = value
+      if let legacy = MessageRegistry.lspLegacyNames[method] { experimentalCapabilities[legacy] = value }
+    }
+    addCapabilities(WorkspaceTestsRequest.method, .dictionary(["version": .int(2)]))
+    addCapabilities(WorkspaceTestsRefreshRequest.method, .dictionary(["version": .int(1)]))
+    addCapabilities(DocumentTestsRequest.method, .dictionary(["version": .int(2)]))
+    addCapabilities(DoccDocumentationRequest.method, .dictionary(["version": .int(1)]))
+    addCapabilities(TriggerReindexRequest.method, .dictionary(["version": .int(1)]))
+    addCapabilities(GetReferenceDocumentRequest.method, .dictionary(["version": .int(1)]))
+    addCapabilities(DidChangeActiveDocumentNotification.method, .dictionary(["version": .int(1)]))
+    addCapabilities(SynchronizeRequest.method, .dictionary(["version": .int(1)]))
     if let toolchain = await toolchainRegistry.preferredToolchain(containing: [\.swiftc]), toolchain.swiftPlay != nil {
-      experimentalCapabilities[WorkspacePlaygroundsRequest.method] = .dictionary(["version": .int(1)])
+      addCapabilities(WorkspacePlaygroundsRefreshRequest.method, .dictionary(["version": .int(1)]))
+      addCapabilities(WorkspacePlaygroundsRequest.method, .dictionary(["version": .int(1)]))
     }
     for (key, value) in languageServiceRegistry.languageServices.flatMap({ $0.type.experimentalCapabilities }) {
       if let existingValue = experimentalCapabilities[key] {

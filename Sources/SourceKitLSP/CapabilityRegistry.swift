@@ -12,6 +12,7 @@
 
 @_spi(SourceKitLSP) package import LanguageServerProtocol
 @_spi(SourceKitLSP) import LanguageServerProtocolExtensions
+import LanguageServerProtocolTransport
 @_spi(SourceKitLSP) import SKLogging
 import SwiftExtensions
 
@@ -104,14 +105,23 @@ package final actor CapabilityRegistry {
 
   package nonisolated var clientSupportsActiveDocumentNotification: Bool {
     return clientHasExperimentalCapability(DidChangeActiveDocumentNotification.method)
+      || MessageRegistry.lspLegacyNames[DidChangeActiveDocumentNotification.method].map {
+        clientHasExperimentalCapability($0)
+      } ?? false
   }
 
   package nonisolated var clientHasWorkspaceTestsRefreshSupport: Bool {
     return clientHasExperimentalCapability(WorkspaceTestsRefreshRequest.method)
+      || MessageRegistry.lspLegacyNames[WorkspaceTestsRefreshRequest.method].map {
+        clientHasExperimentalCapability($0)
+      } ?? false
   }
 
   package nonisolated var clientHasWorkspacePlaygroundsRefreshSupport: Bool {
     return clientHasExperimentalCapability(WorkspacePlaygroundsRefreshRequest.method)
+      || MessageRegistry.lspLegacyNames[WorkspacePlaygroundsRefreshRequest.method].map {
+        clientHasExperimentalCapability($0)
+      } ?? false
   }
 
   package nonisolated func clientHasExperimentalCapability(_ name: String) -> Bool {

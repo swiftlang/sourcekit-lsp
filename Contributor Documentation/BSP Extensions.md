@@ -28,7 +28,7 @@ export interface SourceKitInitializeBuildResponseData {
   /** Whether the build server supports the `buildTarget/prepare` request */
   prepareProvider?: bool;
 
-  /** Whether the server implements the `textDocument/sourceKitOptions` request. */
+  /** Whether the server implements the `sourcekit/textDocument/sourceKitOptions` request. */
   sourceKitOptionsProvider?: bool;
 
   /** The files to watch for changes.
@@ -91,7 +91,7 @@ If `data` contains a string value for the `workDoneProgressTitle` key, then the 
 
 `changes` can be `null` to indicate that all targets have changed.
 
-## `buildTarget/prepare`
+## `sourcekit/buildTarget/prepare`
 
 The prepare build target request is sent from the client to the server to prepare the given list of build targets for editor functionality.
 
@@ -99,9 +99,12 @@ To do so, the build server should perform any work that is necessary to typechec
 
 The server communicates during the initialize handshake whether this method is supported or not by setting `prepareProvider: true` in `SourceKitInitializeBuildResponseData`.
 
-- method: `buildTarget/prepare`
+- method: `sourcekit/buildTarget/prepare`
 - params: `PrepareParams`
 - result: `void`
+
+> [!NOTE]
+> This request was previously named `buildTarget/prepare`. The old name is still accepted for backward compatibility.
 
 ```ts
 export interface PrepareParams {
@@ -156,7 +159,7 @@ export interface SourceKitSourceItemData {
 }
 ```
 
-## `textDocument/sourceKitOptions`
+## `sourcekit/textDocument/sourceKitOptions`
 
 The `TextDocumentSourceKitOptionsRequest` request is sent from the client to the server to query for the list of compiler options necessary to compile this file in the given target.
 
@@ -164,9 +167,14 @@ The build settings are considered up-to-date and can be cached by SourceKit-LSP 
 
 The request may return `nil` if it doesn't have any build settings for this file in the given target.
 
-- method: `textDocument/sourceKitOptions`
+- method: `sourcekit/textDocument/sourceKitOptions`
 - params: `TextDocumentSourceKitOptionsParams`
 - result: `TextDocumentSourceKitOptionsResult`
+
+> [!NOTE]
+> This request was previously named `textDocument/sourceKitOptions`. The old name is still accepted for backward compatibility.
+
+Also note that the `data` field in `TextDocumentSourceKitOptionsResult` is exposed to LSP clients via `sourcekit/workspace/sourceKitOptions` (previously `workspace/_sourceKitOptions`).
 
 ```ts
 export interface TextDocumentSourceKitOptionsRequest {
@@ -236,10 +244,13 @@ SourceKit-LSP may send file change notifications for a superset of the files tha
 
 Definition is the same as in LSP.
 
-## `workspace/waitForBuildSystemUpdates`
+## `sourcekit/workspace/waitForBuildSystemUpdates`
 
 This request is a no-op and doesn't have any effects.
 
 If the build server is currently updating the build graph, this request should return after those updates have finished processing.
 
-- method: `workspace/waitForBuildSystemUpdates`
+- method: `sourcekit/workspace/waitForBuildSystemUpdates`
+
+> [!NOTE]
+> This request was previously named `workspace/waitForBuildSystemUpdates`. The old name is still accepted for backward compatibility.
