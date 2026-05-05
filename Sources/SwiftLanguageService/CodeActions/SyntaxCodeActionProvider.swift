@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2024 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2026 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -11,7 +11,6 @@
 //===----------------------------------------------------------------------===//
 
 @_spi(SourceKitLSP) import LanguageServerProtocol
-@_spi(SourceKitLSP) import SKLogging
 import SourceKitLSP
 import SwiftRefactor
 import SwiftSyntax
@@ -22,11 +21,11 @@ protocol SyntaxCodeActionProvider: SendableMetatype {
   /// Produce code actions within the given scope. Each code action
   /// corresponds to one syntactic transformation that can be performed, such
   /// as adding or removing separators from an integer literal.
-  static func codeActions(in scope: SyntaxCodeActionScope) -> [CodeAction]
+  static func codeActions(in scope: CodeActionScope) async -> [CodeAction]
 }
 
-/// Defines the scope in which a syntactic code action occurs.
-struct SyntaxCodeActionScope {
+/// Defines the scope in which code actions are evaluated.
+struct CodeActionScope {
   /// The snapshot of the document on which the code actions will be evaluated.
   var snapshot: DocumentSnapshot
 
@@ -44,14 +43,19 @@ struct SyntaxCodeActionScope {
   /// The innermost node that contains the entire selected source range
   var innermostNodeContainingRange: Syntax?
 
+  /// Shared cursorInfo cache for semantic information requested by code action providers.
+  var sharedCursorInfo: SharedCursorInfo
+
   init?(
     snapshot: DocumentSnapshot,
     syntaxTree file: SourceFileSyntax,
-    request: CodeActionRequest
+    request: CodeActionRequest,
+    sharedCursorInfo: SharedCursorInfo
   ) {
     self.snapshot = snapshot
     self.request = request
     self.file = file
+    self.sharedCursorInfo = sharedCursorInfo
 
     guard let left = tokenForRefactoring(at: request.range.lowerBound, snapshot: snapshot, syntaxTree: file),
       let right = tokenForRefactoring(at: request.range.upperBound, snapshot: snapshot, syntaxTree: file)
@@ -60,6 +64,25 @@ struct SyntaxCodeActionScope {
     }
     self.range = left.position..<right.endPosition
     self.innermostNodeContainingRange = findCommonAncestorOrSelf(Syntax(left), Syntax(right))
+  }
+
+  /// Retrieve cursor info for the original code action request range.
+  func cursorInfo() async throws -> CursorInfo? {
+    try await cursorInfo(for: request.range).cursorInfo.first
+  }
+
+  /// Retrieve cursor info at the given position.
+  ///
+  /// Each code action provider should call this at the position that is
+  /// semantically relevant for its refactoring (e.g. the `forEach` token,
+  /// the variable name, etc.) rather than relying on the original request range.
+  func cursorInfo(at position: Position) async throws -> CursorInfo? {
+    try await cursorInfo(for: position..<position).cursorInfo.first
+  }
+
+  /// Retrieve cursor info for the given range.
+  func cursorInfo(for range: Range<Position>) async throws -> CursorInfoResponse {
+    try await sharedCursorInfo.value(for: range)
   }
 }
 

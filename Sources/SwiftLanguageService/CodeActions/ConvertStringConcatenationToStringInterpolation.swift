@@ -212,7 +212,7 @@ struct ConvertStringConcatenationToStringInterpolation: SyntaxRefactoringProvide
 extension ConvertStringConcatenationToStringInterpolation: SyntaxRefactoringCodeActionProvider {
   static let title: String = "Convert String Concatenation to String Interpolation"
 
-  static func nodeToRefactor(in scope: SyntaxCodeActionScope) -> SequenceExprSyntax? {
+  static func nodeToRefactor(in scope: CodeActionScope) -> SequenceExprSyntax? {
     guard let expr = scope.innermostNodeContainingRange,
       let seqExpr = expr.findParentOfSelf(
         ofType: SequenceExprSyntax.self,
