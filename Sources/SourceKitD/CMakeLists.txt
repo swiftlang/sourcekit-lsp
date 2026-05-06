@@ -6,6 +6,7 @@ set(sources
   SKDResponseArray.swift
   SKDResponseDictionary.swift
   SourceKitD.swift
+  SourceKitDCore.swift
   SourceKitDRegistry.swift
   sourcekitd_functions.swift
   sourcekitd_uids.swift)

@@ -195,13 +195,13 @@ private extension SourceKitD {
       frameworkUrl
       .appending(components: "sourcekitdInProc.framework", "sourcekitdInProc")
     if FileManager.default.fileExists(at: inProcUrl) {
-      return try SourceKitD(dylib: inProcUrl, pluginPaths: nil, initialize: false)
+      return try SourceKitD(core: SourceKitDCoreForPlugin(dylibPath: inProcUrl))
     }
 
     let sourcekitdUrl =
       frameworkUrl
       .appending(components: "sourcekitd.framework", "sourcekitd")
-    return try SourceKitD(dylib: sourcekitdUrl, pluginPaths: nil, initialize: false)
+    return try SourceKitD(core: SourceKitDCoreForPlugin(dylibPath: sourcekitdUrl))
   }
 }
 #endif
@@ -217,10 +217,7 @@ public func sourcekitd_plugin_initialize_2(
   #if canImport(Darwin)
   if parentLibraryPath == "SOURCEKIT_LSP_PLUGIN_PARENT_LIBRARY_RTLD_DEFAULT" {
     SourceKitD.forPlugin = try! SourceKitD(
-      dlhandle: .rtldDefault,
-      path: URL(string: "rtld-default://")!,
-      pluginPaths: nil,
-      initialize: false
+      core: SourceKitDCoreForPlugin(dlhandle: .rtldDefault, path: URL(string: "rtld-default://")!)
     )
   } else {
     SourceKitD.forPlugin = try! SourceKitD.inProcLibrary(relativeTo: URL(fileURLWithPath: parentLibraryPath))
@@ -228,9 +225,7 @@ public func sourcekitd_plugin_initialize_2(
   #else
   // On other platforms, sourcekitd is always in process, so we can load it straight away.
   SourceKitD.forPlugin = try! SourceKitD(
-    dylib: URL(fileURLWithPath: parentLibraryPath),
-    pluginPaths: nil,
-    initialize: false
+    core: SourceKitDCoreForPlugin(dylibPath: URL(fileURLWithPath: parentLibraryPath))
   )
   #endif
   let sourcekitd = SourceKitD.forPlugin
@@ -284,5 +279,43 @@ public func sourcekitd_plugin_initialize_2(
     case .requestHandled: return true
     case .handleInSourceKitD: return false
     }
+  }
+}
+
+private final class SourceKitDCoreForPlugin: SourceKitDCore, Sendable {
+  let dlHandle: DLHandle
+  let path: URL
+  private let ownsHandle: Bool
+
+  init(dylibPath: URL) throws {
+    #if os(Windows)
+    let dlopenModes: DLOpenFlags = []
+    #else
+    let dlopenModes: DLOpenFlags = [.lazy, .local, .noLoad]
+    #endif
+    self.dlHandle = try dlopen(dylibPath.filePath, mode: dlopenModes)
+    self.path = dylibPath
+    self.ownsHandle = true
+  }
+
+  init(dlhandle: DLHandle, path: URL) {
+    self.dlHandle = dlhandle
+    self.path = path
+    self.ownsHandle = false
+  }
+
+  deinit {
+    if ownsHandle {
+      try? dlHandle.close()
+    } else {
+      dlHandle.leak()
+    }
+  }
+
+  func initializeService(
+    api: sourcekitd_api_functions_t,
+    notificationCallback: @escaping @Sendable (sourcekitd_api_response_t) -> Void
+  ) {
+    // Borrowed handle — sourcekitd is already initialized.
   }
 }
