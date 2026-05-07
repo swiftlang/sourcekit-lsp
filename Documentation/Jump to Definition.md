@@ -42,7 +42,12 @@ Client                                    Server
   │                                          │
   │  [open tab, scroll to range]             │
   │                                          │
-  │── textDocument/didOpen ─────────────────▶│  [increment ref count]
+  │── textDocument/didOpen {                 │
+  │     uri: "sourcekit-lsp://...",          │
+  │     languageId: "swift",                 │
+  │     version: 1,                          │
+  │     text: "<interface content>"          │  [increment ref count]
+  │   } ────────────────────────────────────▶│
   │                                          │
   │  [user closes the tab]                   │
   │                                          │
@@ -62,8 +67,10 @@ Client                                    Server
    client scrolls to `range` from the definition response — `symbolPosition`
    is not used here since the position is already known from step 1.
 3. **Open notification** — once the client opens the tab it sends
-   `textDocument/didOpen`, which increments the ref count in
-   `GeneratedInterfaceManager`. This keeps the interface open in
+   `textDocument/didOpen` with the interface content (already fetched
+   in step 2) as `text`, `languageId` set to `"swift"`, and `version`
+   set to `1`. The server increments the ref count in
+   `GeneratedInterfaceManager`, keeping the interface open in
    sourcekitd as long as the tab is open.
 4. **Close notification** — when the client closes the tab it sends
    `textDocument/didClose`, which decrements the ref count. When the
