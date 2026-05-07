@@ -1798,7 +1798,7 @@ extension SourceKitLSPServer {
       for symbolOccurrence in symbols.sorted(by: <) {
         try Task.checkCancellation()
         guard let symbolLocation = symbolOccurrence.location.lspLocation else { continue }
-        let location = copiedFileMap.locationAdjustedForCopiedFiles(symbolLocation)
+        let location = symbolLocation.adjusted(for: copiedFileMap)
 
         let containerNames = try index.containerNames(of: symbolOccurrence)
         let containerName: String?
@@ -2219,10 +2219,10 @@ extension SourceKitLSPServer {
     if indexBasedResponse.isEmpty {
       return await orLog("Fallback definition request", level: .info) {
         let result = try await languageService.definition(req)
-        return copiedFileMap.locationsOrLocationLinksAdjustedForCopiedFiles(result)
+        return result?.adjusted(for: copiedFileMap)
       }
     }
-    let remappedLocations = copiedFileMap.locationsAdjustedForCopiedFiles(indexBasedResponse)
+    let remappedLocations = indexBasedResponse.adjusted(for: copiedFileMap)
     return .locations(remappedLocations)
   }
 
@@ -2249,8 +2249,8 @@ extension SourceKitLSPServer {
 
       return occurrences.compactMap { $0.location.lspLocation }
     }
-    let remappedLocations = await workspace.buildServerManager.cachedCopiedFileMap
-      .locationsAdjustedForCopiedFiles(locations)
+    let copiedFileMap = await workspace.buildServerManager.cachedCopiedFileMap
+    let remappedLocations = locations.adjusted(for: copiedFileMap)
     return .locations(remappedLocations.sorted())
   }
 
@@ -2277,8 +2277,8 @@ extension SourceKitLSPServer {
       }
       return try index.occurrences(ofUSR: usr, roles: roles).compactMap { $0.location.lspLocation }
     }
-    let remappedLocations = await workspace.buildServerManager.cachedCopiedFileMap
-      .locationsAdjustedForCopiedFiles(locations)
+    let copiedFileMap = await workspace.buildServerManager.cachedCopiedFileMap
+    let remappedLocations = locations.adjusted(for: copiedFileMap)
     return remappedLocations.unique.sorted()
   }
 
@@ -2340,7 +2340,7 @@ extension SourceKitLSPServer {
       guard let item = try indexToLSPCallHierarchyItem2(definition: definition, index: index) else {
         continue
       }
-      callHierarchyItems.append(copiedFileMap.callHierarchyItemAdjustedForCopiedFiles(item))
+      callHierarchyItems.append(item.adjusted(for: copiedFileMap))
     }
     callHierarchyItems.sort(by: { Location(uri: $0.uri, range: $0.range) < Location(uri: $1.uri, range: $1.range) })
 
@@ -2399,7 +2399,7 @@ extension SourceKitLSPServer {
       }
 
       let locations = callsList.compactMap { $0.location.lspLocation }.sorted()
-      let remappedLocations = copiedFileMap.locationsAdjustedForCopiedFiles(locations)
+      let remappedLocations = locations.adjusted(for: copiedFileMap)
       guard !remappedLocations.isEmpty else {
         continue
       }
@@ -2407,7 +2407,7 @@ extension SourceKitLSPServer {
       guard let item = try indexToLSPCallHierarchyItem2(definition: definition, index: index) else {
         continue
       }
-      let remappedItem = copiedFileMap.callHierarchyItemAdjustedForCopiedFiles(item)
+      let remappedItem = item.adjusted(for: copiedFileMap)
 
       calls.append(CallHierarchyIncomingCall(from: remappedItem, fromRanges: remappedLocations.map(\.range)))
     }
@@ -2442,7 +2442,7 @@ extension SourceKitLSPServer {
       guard let location = occurrence.location.lspLocation else {
         continue
       }
-      let remappedLocation = copiedFileMap.locationAdjustedForCopiedFiles(location)
+      let remappedLocation = location.adjusted(for: copiedFileMap)
 
       // Resolve the callee's definition to find its location
       guard let definition = try index.primaryDefinitionOrDeclarationOccurrence(ofUSR: occurrence.symbol.usr) else {
@@ -2452,7 +2452,7 @@ extension SourceKitLSPServer {
       guard let item = try indexToLSPCallHierarchyItem2(definition: definition, index: index) else {
         continue
       }
-      let remappedItem = copiedFileMap.callHierarchyItemAdjustedForCopiedFiles(item)
+      let remappedItem = item.adjusted(for: copiedFileMap)
 
       calls.append(CallHierarchyOutgoingCall(to: remappedItem, fromRanges: [remappedLocation.range]))
     }
@@ -2576,7 +2576,7 @@ extension SourceKitLSPServer {
       guard let item = try indexToLSPTypeHierarchyItem2(definition: info, moduleName: moduleName, index: index) else {
         continue
       }
-      typeHierarchyItems.append(copiedFileMap.typeHierarchyItemAdjustedForCopiedFiles(item))
+      typeHierarchyItems.append(item.adjusted(for: copiedFileMap))
     }
     typeHierarchyItems.sort(by: { $0.name < $1.name })
 
@@ -2645,7 +2645,7 @@ extension SourceKitLSPServer {
       else {
         continue
       }
-      types.append(copiedFileMap.typeHierarchyItemAdjustedForCopiedFiles(item))
+      types.append(item.adjusted(for: copiedFileMap))
     }
     return types.sorted(by: { $0.name < $1.name })
   }
@@ -2698,7 +2698,7 @@ extension SourceKitLSPServer {
       else {
         continue
       }
-      types.append(copiedFileMap.typeHierarchyItemAdjustedForCopiedFiles(item))
+      types.append(item.adjusted(for: copiedFileMap))
     }
     return types.sorted { $0.name < $1.name }
   }

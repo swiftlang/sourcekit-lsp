@@ -487,7 +487,8 @@ extension ClangLanguageService {
     guard let workspace = self.workspace.value else {
       return result
     }
-    return await workspace.buildServerManager.cachedCopiedFileMap.locationsOrLocationLinksAdjustedForCopiedFiles(result)
+    let copiedFileMap = await workspace.buildServerManager.cachedCopiedFileMap
+    return result?.adjusted(for: copiedFileMap)
   }
 
   package func typeDefinition(_ req: TypeDefinitionRequest) async throws -> LocationsOrLocationLinksResponse? {
@@ -636,7 +637,8 @@ extension ClangLanguageService {
     guard let workspace = self.workspace.value else {
       return workspaceEdit
     }
-    return await workspace.buildServerManager.cachedCopiedFileMap.workspaceEditAdjustedForCopiedFiles(workspaceEdit)
+    let copiedFileMap = await workspace.buildServerManager.cachedCopiedFileMap
+    return workspaceEdit.map { $0.adjusted(for: copiedFileMap) }
   }
 
   // MARK: - Other
@@ -656,9 +658,9 @@ extension ClangLanguageService {
     guard let workspace = self.workspace.value else {
       return (workspaceEdit, symbolDetail?.usr)
     }
-    let remappedEdit = await workspace.buildServerManager.cachedCopiedFileMap
-      .workspaceEditAdjustedForCopiedFiles(workspaceEdit)
-    return (remappedEdit ?? WorkspaceEdit(), symbolDetail?.usr)
+    let copiedFileMap = await workspace.buildServerManager.cachedCopiedFileMap
+    let remappedEdit = workspaceEdit.adjusted(for: copiedFileMap)
+    return (remappedEdit, symbolDetail?.usr)
   }
 
   package func syntacticTestItems(for snapshot: DocumentSnapshot) async -> [AnnotatedTestItem]? {
