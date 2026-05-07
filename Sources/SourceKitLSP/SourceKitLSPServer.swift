@@ -1727,9 +1727,7 @@ extension SourceKitLSPServer {
     request: CompletionItemResolveRequest
   ) async throws -> CompletionItem {
     // Swift completion items specify the URI of the item they originate from in the `data`
-    guard case .dictionary(let dict) = request.item.data, case .string(let uriString) = dict["uri"],
-      let uri = try? DocumentURI(string: uriString)
-    else {
+    guard let uri = ResolveItemData(fromLSPAny: request.item.data)?.uri else {
       return request.item
     }
     guard let workspace = await self.workspaceForDocument(uri: uri) else {
@@ -2033,10 +2031,7 @@ extension SourceKitLSPServer {
   func inlayHintResolve(
     request: InlayHintResolveRequest
   ) async throws -> InlayHint {
-    guard case .dictionary(let dict) = request.inlayHint.data,
-      case .string(let uriString) = dict["uri"],
-      let uri = try? DocumentURI(string: uriString)
-    else {
+    guard let uri = ResolveItemData(fromLSPAny: request.inlayHint.data)?.uri else {
       return request.inlayHint
     }
     guard let workspace = await self.workspaceForDocument(uri: uri) else {
@@ -2305,10 +2300,7 @@ extension SourceKitLSPServer {
       range: location.range,
       selectionRange: location.range,
       // We encode usr and uri for incoming/outgoing call lookups in the implementation-specific data field
-      data: .dictionary([
-        "usr": .string(symbol.usr),
-        "uri": .string(location.uri.stringValue),
-      ])
+      data: HierarchyItemData(uri: location.uri, usr: symbol.usr).encodeToLSPAny()
     )
   }
 
@@ -2357,24 +2349,8 @@ extension SourceKitLSPServer {
     return Array(callHierarchyItems.prefix(1))
   }
 
-  /// Extracts our implementation-specific data about a call hierarchy
-  /// item as encoded in `indexToLSPCallHierarchyItem`.
-  ///
-  /// - Parameter data: The opaque data structure to extract
-  /// - Returns: The extracted data if successful or nil otherwise
-  private nonisolated func extractCallHierarchyItemData(_ rawData: LSPAny?) -> (uri: DocumentURI, usr: String)? {
-    guard case let .dictionary(data) = rawData,
-      case let .string(uriString) = data["uri"],
-      case let .string(usr) = data["usr"],
-      let uri = orLog("DocumentURI for call hierarchy item", { try DocumentURI(string: uriString) })
-    else {
-      return nil
-    }
-    return (uri: uri, usr: usr)
-  }
-
   func incomingCalls(_ req: CallHierarchyIncomingCallsRequest) async throws -> [CallHierarchyIncomingCall]? {
-    guard let data = extractCallHierarchyItemData(req.item.data),
+    guard let data = HierarchyItemData(fromLSPAny: req.item.data),
       let workspace = await self.workspaceForDocument(uri: data.uri),
       let index = await workspace.index(checkedFor: .deletedFiles)
     else {
@@ -2439,7 +2415,7 @@ extension SourceKitLSPServer {
   }
 
   func outgoingCalls(_ req: CallHierarchyOutgoingCallsRequest) async throws -> [CallHierarchyOutgoingCall]? {
-    guard let data = extractCallHierarchyItemData(req.item.data),
+    guard let data = HierarchyItemData(fromLSPAny: req.item.data),
       let workspace = await self.workspaceForDocument(uri: data.uri),
       let index = await workspace.index(checkedFor: .deletedFiles)
     else {
@@ -2529,10 +2505,7 @@ extension SourceKitLSPServer {
       range: location.range,
       selectionRange: location.range,
       // We encode usr and uri for incoming/outgoing type lookups in the implementation-specific data field
-      data: .dictionary([
-        "usr": .string(symbol.usr),
-        "uri": .string(location.uri.stringValue),
-      ])
+      data: HierarchyItemData(uri: location.uri, usr: symbol.usr).encodeToLSPAny()
     )
   }
 
@@ -2619,24 +2592,8 @@ extension SourceKitLSPServer {
     return Array(typeHierarchyItems.prefix(1))
   }
 
-  /// Extracts our implementation-specific data about a type hierarchy
-  /// item as encoded in `indexToLSPTypeHierarchyItem`.
-  ///
-  /// - Parameter data: The opaque data structure to extract
-  /// - Returns: The extracted data if successful or nil otherwise
-  private nonisolated func extractTypeHierarchyItemData(_ rawData: LSPAny?) -> (uri: DocumentURI, usr: String)? {
-    guard case let .dictionary(data) = rawData,
-      case let .string(uriString) = data["uri"],
-      case let .string(usr) = data["usr"],
-      let uri = orLog("DocumentURI for type hierarchy item", { try DocumentURI(string: uriString) })
-    else {
-      return nil
-    }
-    return (uri: uri, usr: usr)
-  }
-
   func supertypes(_ req: TypeHierarchySupertypesRequest) async throws -> [TypeHierarchyItem]? {
-    guard let data = extractTypeHierarchyItemData(req.item.data),
+    guard let data = HierarchyItemData(fromLSPAny: req.item.data),
       let workspace = await self.workspaceForDocument(uri: data.uri),
       let index = await workspace.index(checkedFor: .deletedFiles)
     else {
@@ -2694,7 +2651,7 @@ extension SourceKitLSPServer {
   }
 
   func subtypes(_ req: TypeHierarchySubtypesRequest) async throws -> [TypeHierarchyItem]? {
-    guard let data = extractTypeHierarchyItemData(req.item.data),
+    guard let data = HierarchyItemData(fromLSPAny: req.item.data),
       let workspace = await self.workspaceForDocument(uri: data.uri),
       let index = await workspace.index(checkedFor: .deletedFiles)
     else {

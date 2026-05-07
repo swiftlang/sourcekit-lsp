@@ -15,6 +15,7 @@ add_library(SourceKitLSP STATIC
   LogMessageNotification+representingStructureUsingEmojiPrefixIfNecessary.swift
   MacroExpansionReferenceDocumentURLData.swift
   MessageHandlingDependencyTracker.swift
+  MessageMetadata.swift
   OnDiskDocumentManager.swift
   PlaygroundDiscovery.swift
   ReferenceDocumentURL.swift
