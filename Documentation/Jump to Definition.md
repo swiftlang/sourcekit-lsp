@@ -4,12 +4,17 @@ Jump to definition for SDK/stdlib symbols works by generating a
 textual Swift interface on demand and returning a `sourcekit-lsp://`
 URI that the client can fetch via `workspace/getReferenceDocument`.
 
+`sourcekit-lsp://` URIs are opaque. Clients must treat them as
+identifiers and must not parse their structure to extract information.
+
 ## Requests Involved
 
 | Request | Direction | Purpose |
 |---|---|---|
 | `textDocument/definition` | Client → Server | Resolve the symbol under the cursor to a location |
 | `workspace/getReferenceDocument` | Client → Server | Fetch the content of a `sourcekit-lsp://` URI |
+| `textDocument/didOpen` | Client → Server | Notify the server that the generated interface is open |
+| `textDocument/didClose` | Client → Server | Notify the server that the generated interface was closed |
 
 `workspace/getReferenceDocument` is a SourceKit-LSP extension. The
 client must advertise support in `ClientCapabilities.experimental`:
@@ -36,6 +41,14 @@ Client                                    Server
   │◀─ { content: "..." } ────────────────────│
   │                                          │
   │  [open tab, scroll to range]             │
+  │                                          │
+  │── textDocument/didOpen ─────────────────▶│  [increment ref count]
+  │                                          │
+  │  [user closes the tab]                   │
+  │                                          │
+  │── textDocument/didClose ────────────────▶│  [decrement ref count;
+  │                                          │   close in sourcekitd
+  │                                          │   when it reaches 0]
 ```
 
 1. **Definition** — the client requests the definition of the symbol
@@ -48,6 +61,14 @@ Client                                    Server
    via `workspace/getReferenceDocument` to display its content. The
    client scrolls to `range` from the definition response — `symbolPosition`
    is not used here since the position is already known from step 1.
+3. **Open notification** — once the client opens the tab it sends
+   `textDocument/didOpen`, which increments the ref count in
+   `GeneratedInterfaceManager`. This keeps the interface open in
+   sourcekitd as long as the tab is open.
+4. **Close notification** — when the client closes the tab it sends
+   `textDocument/didClose`, which decrements the ref count. When the
+   ref count reaches zero the interface is eligible for eviction from
+   the cache and will eventually be closed in sourcekitd.
 
 ## Server-Side Flow
 
@@ -138,8 +159,7 @@ in the interface, so the client knows where to scroll without calling
 
 ### 6. `workspace/getReferenceDocument` handling
 
-Because the URI is fully resolved (`sourcekitdDocumentName != nil`)
-the server skips the stub-resolution path and goes straight to the
+The server extracts `buildSettingsFrom` from the URI to determine the
 language service:
 
 ```swift
