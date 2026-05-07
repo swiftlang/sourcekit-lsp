@@ -64,8 +64,7 @@ Client                                    Server
    server-side via `editor.find_usr`).
 2. **Content retrieval** — the client fetches the generated interface
    via `workspace/getReferenceDocument` to display its content. The
-   client scrolls to `range` from the definition response — `symbolPosition`
-   is not used here since the position is already known from step 1.
+   client scrolls to `range` from the definition response.
 3. **Open notification** — once the client opens the tab it sends
    `textDocument/didOpen` with the interface content (already fetched
    in step 2) as `text`, `languageId` set to `"swift"`, and `version`
@@ -174,6 +173,4 @@ primaryLanguageService(for: buildSettingsUri, ...).getReferenceDocument(req)
 ```
 
 `SwiftLanguageService.getReferenceDocument` retrieves the cached
-interface snapshot. Since the URI carries no USR fragment,
-`symbolPosition` in the response is `nil` — the client uses
-`Location.range` from the definition response instead.
+interface snapshot.
