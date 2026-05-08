@@ -39,6 +39,14 @@ package final class DLHandle: Sendable {
   package static let rtldDefault = DLHandle(rawValue: Handle(handle: UnsafeMutableRawPointer(bitPattern: -2)!))
   #endif
 
+  /// Wrap a raw handle that is owned by an external system. The caller must call `leak()` before
+  /// `deinit` gets called prevent the assertion, since the external owner manages the lifecycle.
+  #if !os(Windows)
+  package static func adoptExisting(_ rawHandle: UnsafeMutableRawPointer) -> DLHandle {
+    DLHandle(rawValue: Handle(handle: rawHandle))
+  }
+  #endif
+
   fileprivate let rawValue: ThreadSafeBox<Handle?>
 
   fileprivate init(rawValue: Handle) {
@@ -86,8 +94,10 @@ package struct DLOpenFlags: RawRepresentable, OptionSet, Sendable {
   // Platform-specific flags.
   #if os(macOS)
   package static let first: DLOpenFlags = DLOpenFlags(rawValue: RTLD_FIRST)
+  package static let noLoad: DLOpenFlags = DLOpenFlags(rawValue: RTLD_NOLOAD)
   #else
   package static let first: DLOpenFlags = DLOpenFlags(rawValue: 0)
+  package static let noLoad: DLOpenFlags = DLOpenFlags(rawValue: 0)
   #endif
   #endif
 

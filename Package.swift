@@ -430,6 +430,7 @@ var targets: [Target] = [
       "SKUtilities",
       "SourceKitD",
       "SourceKitLSP",
+      "SwiftExtensions",
       "SwiftLanguageService",
       "ToolchainRegistry",
       .product(name: "BuildServerProtocol", package: "swift-tools-protocols"),
