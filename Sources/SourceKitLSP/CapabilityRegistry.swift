@@ -119,7 +119,12 @@ package final actor CapabilityRegistry {
   }
 
   /// Whether the client supports `workspaceSymbol/resolve` for lazy location resolution.
-  /// Requires `workspace.symbol.resolveSupport.properties` to contain `"location"` or `"location."`.
+  /// Requires `workspace.symbol.resolveSupport.properties` to contain `"location"` or a
+  /// `"location."` prefix (e.g. `"location.range"`).
+  ///
+  /// Strictly speaking, replacing the URI requires `"location"` or `"location.uri"`, but
+  /// VS Code only advertises `"location.range"` while still handling URI changes in practice,
+  /// so we accept any `"location."` prefix.
   package nonisolated var clientSupportsWorkspaceSymbolResolve: Bool {
     return clientCapabilities.workspace?.symbol?.resolveSupport?.properties.contains(where: {
       $0 == "location" || $0.hasPrefix("location.")
