@@ -1825,10 +1825,8 @@ extension SourceKitLSPServer {
         return nil
       }
 
-      // Data: {"usr": "<usr>"}
-      // Used by `workspaceSymbol/resolve` to find the symbol in the interface.
       let usr = symbolOccurrence.symbol.usr
-      let data: LSPAny? = usr.isEmpty ? nil : .dictionary(["usr": .string(usr)])
+      let data: LSPAny? = usr.isEmpty ? nil : WorkspaceSymbolData(usr: usr).encodeToLSPAny()
 
       return WorkspaceSymbolItem.workspaceSymbol(
         WorkspaceSymbol(
@@ -1938,12 +1936,7 @@ extension SourceKitLSPServer {
       groupName = nil
     }
 
-    let usr: String? =
-      if case .dictionary(let dataDict) = symbol.data, case .string(let usr) = dataDict["usr"] {
-        usr
-      } else {
-        nil
-      }
+    let usr = WorkspaceSymbolData(fromLSPAny: symbol.data)?.usr
 
     let moduleFileURI = DocumentURI(
       {

@@ -33,3 +33,12 @@ struct ResolveItemData: Codable, Hashable, LSPAnyCodable {
     self.uri = uri
   }
 }
+
+/// Metadata stored in `WorkspaceSymbol.data` to support `workspaceSymbol/resolve` for SDK symbols.
+struct WorkspaceSymbolData: Codable, Hashable, LSPAnyCodable {
+  var usr: String
+
+  init(usr: String) {
+    self.usr = usr
+  }
+}
