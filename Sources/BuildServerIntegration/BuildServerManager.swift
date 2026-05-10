@@ -370,138 +370,19 @@ package struct CopiedFileMap: Sendable {
     return map[uri]
   }
 
-  /// Check if the URI referenced by `location` has been copied during the preparation phase. If so, adjust the URI to
-  /// the original source file.
-  package func locationAdjustedForCopiedFiles(_ location: Location) -> Location {
-    guard let originalUri = map[location.uri] else {
-      return location
+  /// If `uri` refers to a copy of a source file created during preparation, returns the URI of the
+  /// original source file (provided it exists on disk). Otherwise returns `uri` unchanged.
+  package func adjustedURI(for uri: DocumentURI) -> DocumentURI {
+    guard let originalUri = map[uri] else {
+      return uri
     }
-
     if let fileUrl = originalUri.fileURL, !FileManager.default.fileExists(at: fileUrl) {
-      return location
+      return uri
     }
     // If we regularly get issues that the copied file is out-of-sync with its original, we can check that the contents
     // of the lines touched by the location match and only return the original URI if they do. For now, we avoid this
     // check due to its performance cost of reading files from disk.
-    return Location(uri: originalUri, range: location.range)
-  }
-
-  /// Check if the URI referenced by `location` has been copied during the preparation phase. If so, adjust the URI to
-  /// the original source file.
-  package func locationsAdjustedForCopiedFiles(_ locations: [Location]) -> [Location] {
-    return locations.map { locationAdjustedForCopiedFiles($0) }
-  }
-
-  private func uriAdjustedForCopiedFiles(_ uri: DocumentURI) -> DocumentURI {
-    guard let originalUri = map[uri] else {
-      return uri
-    }
     return originalUri
-  }
-
-  package func workspaceEditAdjustedForCopiedFiles(_ workspaceEdit: WorkspaceEdit?) -> WorkspaceEdit? {
-    guard var edit = workspaceEdit else {
-      return nil
-    }
-    if let changes = edit.changes {
-      var newChanges: [DocumentURI: [TextEdit]] = [:]
-      for (uri, edits) in changes {
-        let newUri = self.uriAdjustedForCopiedFiles(uri)
-        newChanges[newUri, default: []] += edits
-      }
-      edit.changes = newChanges
-    }
-    if let documentChanges = edit.documentChanges {
-      edit.documentChanges = documentChanges.map { change in
-        switch change {
-        case .textDocumentEdit(var textEdit):
-          textEdit.textDocument.uri = self.uriAdjustedForCopiedFiles(textEdit.textDocument.uri)
-          return .textDocumentEdit(textEdit)
-        case .createFile(var create):
-          create.uri = self.uriAdjustedForCopiedFiles(create.uri)
-          return .createFile(create)
-        case .renameFile(var rename):
-          rename.oldUri = self.uriAdjustedForCopiedFiles(rename.oldUri)
-          rename.newUri = self.uriAdjustedForCopiedFiles(rename.newUri)
-          return .renameFile(rename)
-        case .deleteFile(var delete):
-          delete.uri = self.uriAdjustedForCopiedFiles(delete.uri)
-          return .deleteFile(delete)
-        }
-      }
-    }
-    return edit
-  }
-
-  package func locationsOrLocationLinksAdjustedForCopiedFiles(
-    _ response: LocationsOrLocationLinksResponse?
-  ) -> LocationsOrLocationLinksResponse? {
-    guard let response = response else {
-      return nil
-    }
-    switch response {
-    case .locations(let locations):
-      let remappedLocations = self.locationsAdjustedForCopiedFiles(locations)
-      return .locations(remappedLocations)
-    case .locationLinks(let locationLinks):
-      let remappedLinks = locationLinks.map { link -> LocationLink in
-        let adjustedTargetLocation = self.locationAdjustedForCopiedFiles(
-          Location(uri: link.targetUri, range: link.targetRange)
-        )
-        let adjustedTargetSelectionLocation = self.locationAdjustedForCopiedFiles(
-          Location(uri: link.targetUri, range: link.targetSelectionRange)
-        )
-        return LocationLink(
-          originSelectionRange: link.originSelectionRange,
-          targetUri: adjustedTargetLocation.uri,
-          targetRange: adjustedTargetLocation.range,
-          targetSelectionRange: adjustedTargetSelectionLocation.range
-        )
-      }
-      return .locationLinks(remappedLinks)
-    }
-  }
-
-  package func typeHierarchyItemAdjustedForCopiedFiles(_ item: TypeHierarchyItem) -> TypeHierarchyItem {
-    let adjustedLocation = self.locationAdjustedForCopiedFiles(Location(uri: item.uri, range: item.range))
-    let adjustedSelectionLocation = self.locationAdjustedForCopiedFiles(
-      Location(uri: item.uri, range: item.selectionRange)
-    )
-    return TypeHierarchyItem(
-      name: item.name,
-      kind: item.kind,
-      tags: item.tags,
-      detail: item.detail,
-      uri: adjustedLocation.uri,
-      range: adjustedLocation.range,
-      selectionRange: adjustedSelectionLocation.range,
-      data: item.data
-    )
-  }
-
-  package func callHierarchyItemAdjustedForCopiedFiles(_ item: CallHierarchyItem) -> CallHierarchyItem {
-    let adjustedLocation = self.locationAdjustedForCopiedFiles(Location(uri: item.uri, range: item.range))
-    let adjustedSelectionLocation = self.locationAdjustedForCopiedFiles(
-      Location(uri: item.uri, range: item.selectionRange)
-    )
-    return CallHierarchyItem(
-      name: item.name,
-      kind: item.kind,
-      tags: item.tags,
-      detail: item.detail,
-      uri: adjustedLocation.uri,
-      range: adjustedLocation.range,
-      selectionRange: adjustedSelectionLocation.range,
-      data: .dictionary([
-        "usr": item.data.flatMap { data in
-          if case let .dictionary(dict) = data {
-            return dict["usr"]
-          }
-          return nil
-        } ?? .null,
-        "uri": .string(adjustedLocation.uri.stringValue),
-      ])
-    )
   }
 }
 
