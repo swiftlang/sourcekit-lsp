@@ -23,7 +23,7 @@ extension IntegerLiteralExprSyntax.Radix {
 /// Syntactic code action provider to convert integer literals between
 /// different bases.
 struct ConvertIntegerLiteral: SyntaxCodeActionProvider {
-  static func codeActions(in scope: SyntaxCodeActionScope) -> [CodeAction] {
+  package static func codeActions(in scope: SyntaxCodeActionScope) -> [CodeAction] {
     guard
       let token = scope.innermostNodeContainingRange,
       let integerExpr = token.parent?.as(IntegerLiteralExprSyntax.self),

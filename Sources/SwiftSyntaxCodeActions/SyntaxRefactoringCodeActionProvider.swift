@@ -13,7 +13,7 @@
 @_spi(SourceKitLSP) import LanguageServerProtocol
 import SourceKitLSP
 import SwiftRefactor
-import SwiftSyntax
+package import SwiftSyntax
 
 /// Protocol that adapts a SyntaxRefactoringProvider (that comes from
 /// swift-syntax) into a SyntaxCodeActionProvider.
@@ -30,7 +30,7 @@ protocol SyntaxRefactoringCodeActionProvider: SyntaxCodeActionProvider, EditRefa
 /// SyntaxCodeActionProviders with a \c Void context can automatically be
 /// adapted provide a code action based on their refactoring operation.
 extension SyntaxRefactoringCodeActionProvider {
-  static func codeActions(in scope: SyntaxCodeActionScope) -> [CodeAction] {
+  package static func codeActions(in scope: SyntaxCodeActionScope) -> [CodeAction] {
     guard let node = nodeToRefactor(in: scope) else {
       return []
     }
@@ -64,7 +64,7 @@ extension SyntaxRefactoringCodeActionProvider where Context == Void {
 extension SyntaxProtocol {
   /// Finds the innermost parent of the given type that satisfies `matching`,
   /// while not walking outside of nodes that satisfy `stoppingIf`.
-  func findParentOfSelf<ParentType: SyntaxProtocol>(
+  package func findParentOfSelf<ParentType: SyntaxProtocol>(
     ofType: ParentType.Type,
     stoppingIf: (Syntax) -> Bool,
     matching: (ParentType) -> Bool = { _ in true }

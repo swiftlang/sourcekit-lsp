@@ -432,6 +432,7 @@ var targets: [Target] = [
       "SourceKitLSP",
       "SwiftExtensions",
       "SwiftLanguageService",
+      "SwiftSyntaxCodeActions",
       "ToolchainRegistry",
       .product(name: "BuildServerProtocol", package: "swift-tools-protocols"),
       .product(name: "IndexStoreDB", package: "indexstore-db"),
@@ -492,6 +493,7 @@ var targets: [Target] = [
       "SourceKitD",
       "SourceKitLSP",
       "SwiftExtensions",
+      "SwiftSyntaxCodeActions",
       "ToolchainRegistry",
       "TSCExtensions",
       .product(name: "BuildServerProtocol", package: "swift-tools-protocols"),
@@ -510,6 +512,27 @@ var targets: [Target] = [
         "SwiftOperators",
         "SwiftParser",
         "SwiftParserDiagnostics",
+        "SwiftRefactor",
+        "SwiftSyntax",
+        "SwiftSyntaxBuilder",
+      ]),
+    exclude: ["CMakeLists.txt"],
+  ),
+
+  // MARK: SwiftSyntaxCodeActions
+
+  .target(
+    name: "SwiftSyntaxCodeActions",
+    dependencies: [
+      "SourceKitLSP",
+      "SwiftExtensions",
+      .product(name: "LanguageServerProtocol", package: "swift-tools-protocols"),
+      .product(name: "SKLogging", package: "swift-tools-protocols"),
+    ]
+      + swiftSyntaxDependencies([
+        "SwiftBasicFormat",
+        "SwiftOperators",
+        "SwiftParser",
         "SwiftRefactor",
         "SwiftSyntax",
         "SwiftSyntaxBuilder",

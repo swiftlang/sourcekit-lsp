@@ -18,6 +18,6 @@ Before implementing a new code action, contributors should first file a GitHub i
 
 ## Implementation location
 
-Code actions should generally be implemented in [**sourcekit-lsp**](https://github.com/swiftlang/sourcekit-lsp/tree/main/Sources/SwiftLanguageService/CodeActions), since they are primarily a language-server feature.
+Code actions should generally be implemented in [**sourcekit-lsp**](https://github.com/swiftlang/sourcekit-lsp/tree/main/Sources/SwiftSyntaxCodeActions), since they are primarily a language-server feature.
 
 They should only be implemented in [**swift-syntax**](https://github.com/swiftlang/swift-syntax/tree/main/Sources/SwiftRefactor) when there is a clear reason to do so, such as when the functionality needs to be reused outside of the language server.

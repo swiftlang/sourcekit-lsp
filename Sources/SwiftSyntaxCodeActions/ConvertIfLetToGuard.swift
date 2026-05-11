@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-@_spi(SourceKitLSP) import LanguageServerProtocol
+@_spi(SourceKitLSP) package import LanguageServerProtocol
 import SourceKitLSP
 import SwiftBasicFormat
 import SwiftExtensions
@@ -38,7 +38,7 @@ import SwiftSyntaxBuilder
 /// return value
 /// ```
 @_spi(Testing) public struct ConvertIfLetToGuard: SyntaxCodeActionProvider {
-  static func codeActions(in scope: SyntaxCodeActionScope) -> [CodeAction] {
+  package static func codeActions(in scope: SyntaxCodeActionScope) -> [CodeAction] {
     guard let ifExpr = findConvertibleIfExpr(in: scope) else {
       return []
     }

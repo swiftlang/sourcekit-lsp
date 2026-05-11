@@ -28,6 +28,7 @@ import SwiftExtensions
 @_spi(ExperimentalLanguageFeatures) package import SwiftParser
 import SwiftParserDiagnostics
 package import SwiftSyntax
+import SwiftSyntaxCodeActions
 package import ToolchainRegistry
 @_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
