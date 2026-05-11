@@ -50,6 +50,9 @@ public enum ExperimentalFeature: String, Codable, Sendable, CaseIterable {
   /// - Note: Internal option, for testing only
   case synchronizeCopyFileMap = "synchronize-copy-file-map"
 
+  /// Surface inferred actor isolation for closures as inlay hints.
+  case inferredClosureIsolationInlayHints = "inferred-isolation-inlay-hints"
+
   /// All non-internal experimental features.
   public static var allNonInternalCases: [ExperimentalFeature] {
     allCases.filter { !$0.isInternal }
@@ -74,6 +77,8 @@ public enum ExperimentalFeature: String, Codable, Sendable, CaseIterable {
       return true
     case .synchronizeCopyFileMap:
       return true
+    case .inferredClosureIsolationInlayHints:
+      return false
     }
   }
 }

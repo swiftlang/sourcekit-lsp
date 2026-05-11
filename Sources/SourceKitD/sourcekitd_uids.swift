@@ -367,6 +367,8 @@ package struct sourcekitd_api_keys {
   package let variableType: sourcekitd_api_uid_t
   /// `key.variable_type_explicit`
   package let variableTypeExplicit: sourcekitd_api_uid_t
+  /// `key.actor_isolation`
+  package let actorIsolation: sourcekitd_api_uid_t
   /// `key.fully_qualified`
   package let fullyQualified: sourcekitd_api_uid_t
   /// `key.canonicalize_type`
@@ -708,6 +710,7 @@ package struct sourcekitd_api_keys {
     variableLength = api.uid_get_from_cstr("key.variable_length")!
     variableType = api.uid_get_from_cstr("key.variable_type")!
     variableTypeExplicit = api.uid_get_from_cstr("key.variable_type_explicit")!
+    actorIsolation = api.uid_get_from_cstr("key.actor_isolation")!
     fullyQualified = api.uid_get_from_cstr("key.fully_qualified")!
     canonicalizeType = api.uid_get_from_cstr("key.canonicalize_type")!
     internalDiagnostic = api.uid_get_from_cstr("key.internal_diagnostic")!
@@ -886,6 +889,8 @@ package struct sourcekitd_api_requests {
   package let collectExpressionType: sourcekitd_api_uid_t
   /// `source.request.variable.type`
   package let collectVariableType: sourcekitd_api_uid_t
+  /// `source.request.inferred_isolation.collect`
+  package let collectInferredIsolation: sourcekitd_api_uid_t
   /// `source.request.configuration.global`
   package let globalConfiguration: sourcekitd_api_uid_t
   /// `source.request.dependency_updated`
@@ -955,6 +960,7 @@ package struct sourcekitd_api_requests {
     testNotification = api.uid_get_from_cstr("source.request.test_notification")!
     collectExpressionType = api.uid_get_from_cstr("source.request.expression.type")!
     collectVariableType = api.uid_get_from_cstr("source.request.variable.type")!
+    collectInferredIsolation = api.uid_get_from_cstr("source.request.inferred_isolation.collect")!
     globalConfiguration = api.uid_get_from_cstr("source.request.configuration.global")!
     dependencyUpdated = api.uid_get_from_cstr("source.request.dependency_updated")!
     diagnostics = api.uid_get_from_cstr("source.request.diagnostics")!
