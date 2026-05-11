@@ -92,6 +92,8 @@ When SourceKit-LSP is installed as part of a toolchain, it finds the Swift versi
 
 To adjust the toolchain that should be used by SourceKit-LSP (eg. because you want to use new `sourcekitd` features that are only available in a Swift open source toolchain snapshot but not your default toolchain), set the `SOURCEKIT_TOOLCHAIN_PATH` environment variable to your toolchain when running SourceKit-LSP.
 
+For a full walkthrough of building and using a local SourceKit toolchain, see [Using a Local Build of SourceKit](Contributor%20Documentation/Using%20a%20Local%20Build%20of%20SourceKit.md).
+
 ## Logging
 
 SourceKit-LSP has extensive logging to the system log on macOS and to `~/.sourcekit-lsp/logs/` or stderr on other platforms.
