@@ -1,6 +1,9 @@
 # Contributing
 
-This document contains notes about development and testing of SourceKit-LSP, the [Contributor Documentation](Contributor%20Documentation/) folder has some more detailed documentation.
+This document contains notes about development and testing of SourceKit-LSP, the [Contributor Documentation](Contributor%20Documentation/) folder has some more detailed documentation. For general information on contributing to Swift, see the [Contributing to Swift](https://github.com/swiftlang/project-operations/blob/main/contributing/contributing-to-swift.md) guide.
+
+> [!NOTE]
+> If using AI tools to contribute, please also read the [Use of AI Tools in Contributions](https://github.com/swiftlang/project-operations/blob/main/contributing/ai-tools.md) guide.
 
 ## Building & Testing
 
