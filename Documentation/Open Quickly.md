@@ -137,6 +137,9 @@ Client                                            Server
 
 When `sourcekit/workspace/symbolInfo` returns a `WorkspaceSymbol` for an SDK or stdlib symbol, the location is a `file://` URL pointing to the `.swiftinterface` or `.swiftmodule` file recorded in the index, with the fully-qualified module name appended as a `?module=` query parameter. The `data` field carries only the USR. There is no special URI scheme to parse.
 
+> [!NOTE]
+> The `file://path/to/module.{swiftinterface,swiftmodule}?module=<moduleName>` URL format is intended to become a general-purpose format used throughout sourcekit-lsp wherever a module file location with associated module name needs to be represented. It is currently only produced by `sourcekit/workspace/symbolInfo`.
+
 `DocumentURI` equality and hashing use the filesystem path (via `withUnsafeFileSystemRepresentation`), which strips query parameters, so the URL with `?module=` compares equal to the clean path for all index and build-system lookups.
 
 ### `WorkspaceSymbol` fields
