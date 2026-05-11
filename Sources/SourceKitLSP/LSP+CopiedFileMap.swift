@@ -66,15 +66,12 @@ extension LocationsOrLocationLinksResponse {
     case .locationLinks(let locationLinks):
       return .locationLinks(
         locationLinks.map { link in
-          let adjustedTarget = Location(uri: link.targetUri, range: link.targetRange)
-            .adjusted(for: copiedFileMap)
-          let adjustedTargetSelection = Location(uri: link.targetUri, range: link.targetSelectionRange)
-            .adjusted(for: copiedFileMap)
+          let adjustedTargetURI = copiedFileMap.adjustedURI(for: link.targetUri)
           return LocationLink(
             originSelectionRange: link.originSelectionRange,
-            targetUri: adjustedTarget.uri,
-            targetRange: adjustedTarget.range,
-            targetSelectionRange: adjustedTargetSelection.range
+            targetUri: adjustedTargetURI,
+            targetRange: link.targetRange,
+            targetSelectionRange: link.targetSelectionRange
           )
         }
       )
@@ -84,20 +81,19 @@ extension LocationsOrLocationLinksResponse {
 
 extension TypeHierarchyItem {
   package func adjusted(for copiedFileMap: CopiedFileMap) -> TypeHierarchyItem {
-    let adjustedLocation = Location(uri: uri, range: range).adjusted(for: copiedFileMap)
-    let adjustedSelectionLocation = Location(uri: uri, range: selectionRange).adjusted(for: copiedFileMap)
+    let adjustedURI = copiedFileMap.adjustedURI(for: uri)
     let adjustedData =
       HierarchyItemData(fromLSPAny: data).map { itemData in
-        HierarchyItemData(uri: adjustedLocation.uri, usr: itemData.usr).encodeToLSPAny()
+        HierarchyItemData(uri: adjustedURI, usr: itemData.usr).encodeToLSPAny()
       } ?? self.data
     return TypeHierarchyItem(
       name: name,
       kind: kind,
       tags: tags,
       detail: detail,
-      uri: adjustedLocation.uri,
-      range: adjustedLocation.range,
-      selectionRange: adjustedSelectionLocation.range,
+      uri: adjustedURI,
+      range: range,
+      selectionRange: selectionRange,
       data: adjustedData
     )
   }
@@ -105,20 +101,19 @@ extension TypeHierarchyItem {
 
 extension CallHierarchyItem {
   package func adjusted(for copiedFileMap: CopiedFileMap) -> CallHierarchyItem {
-    let adjustedLocation = Location(uri: uri, range: range).adjusted(for: copiedFileMap)
-    let adjustedSelectionLocation = Location(uri: uri, range: selectionRange).adjusted(for: copiedFileMap)
+    let adjustedURI = copiedFileMap.adjustedURI(for: uri)
     let adjustedData =
       HierarchyItemData(fromLSPAny: data).map { itemData in
-        HierarchyItemData(uri: adjustedLocation.uri, usr: itemData.usr).encodeToLSPAny()
+        HierarchyItemData(uri: adjustedURI, usr: itemData.usr).encodeToLSPAny()
       } ?? self.data
     return CallHierarchyItem(
       name: name,
       kind: kind,
       tags: tags,
       detail: detail,
-      uri: adjustedLocation.uri,
-      range: adjustedLocation.range,
-      selectionRange: adjustedSelectionLocation.range,
+      uri: adjustedURI,
+      range: range,
+      selectionRange: selectionRange,
       data: adjustedData
     )
   }
