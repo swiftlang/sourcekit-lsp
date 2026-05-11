@@ -31,7 +31,7 @@ extension WorkspaceEdit {
     if let changes = self.changes {
       var newChanges: [DocumentURI: [TextEdit]] = [:]
       for (uri, edits) in changes {
-        newChanges[copiedFileMap.originalURI(for: uri) ?? uri, default: []] += edits
+        newChanges[copiedFileMap.adjustedURI(for: uri), default: []] += edits
       }
       edit.changes = newChanges
     }
@@ -39,18 +39,17 @@ extension WorkspaceEdit {
       edit.documentChanges = documentChanges.map { change in
         switch change {
         case .textDocumentEdit(var textEdit):
-          textEdit.textDocument.uri =
-            copiedFileMap.originalURI(for: textEdit.textDocument.uri) ?? textEdit.textDocument.uri
+          textEdit.textDocument.uri = copiedFileMap.adjustedURI(for: textEdit.textDocument.uri)
           return .textDocumentEdit(textEdit)
         case .createFile(var create):
-          create.uri = copiedFileMap.originalURI(for: create.uri) ?? create.uri
+          create.uri = copiedFileMap.adjustedURI(for: create.uri)
           return .createFile(create)
         case .renameFile(var rename):
-          rename.oldUri = copiedFileMap.originalURI(for: rename.oldUri) ?? rename.oldUri
-          rename.newUri = copiedFileMap.originalURI(for: rename.newUri) ?? rename.newUri
+          rename.oldUri = copiedFileMap.adjustedURI(for: rename.oldUri)
+          rename.newUri = copiedFileMap.adjustedURI(for: rename.newUri)
           return .renameFile(rename)
         case .deleteFile(var delete):
-          delete.uri = copiedFileMap.originalURI(for: delete.uri) ?? delete.uri
+          delete.uri = copiedFileMap.adjustedURI(for: delete.uri)
           return .deleteFile(delete)
         }
       }
@@ -67,15 +66,12 @@ extension LocationsOrLocationLinksResponse {
     case .locationLinks(let locationLinks):
       return .locationLinks(
         locationLinks.map { link in
-          let adjustedTarget = Location(uri: link.targetUri, range: link.targetRange)
-            .adjusted(for: copiedFileMap)
-          let adjustedTargetSelection = Location(uri: link.targetUri, range: link.targetSelectionRange)
-            .adjusted(for: copiedFileMap)
+          let adjustedTargetURI = copiedFileMap.adjustedURI(for: link.targetUri)
           return LocationLink(
             originSelectionRange: link.originSelectionRange,
-            targetUri: adjustedTarget.uri,
-            targetRange: adjustedTarget.range,
-            targetSelectionRange: adjustedTargetSelection.range
+            targetUri: adjustedTargetURI,
+            targetRange: link.targetRange,
+            targetSelectionRange: link.targetSelectionRange
           )
         }
       )
@@ -85,37 +81,39 @@ extension LocationsOrLocationLinksResponse {
 
 extension TypeHierarchyItem {
   package func adjusted(for copiedFileMap: CopiedFileMap) -> TypeHierarchyItem {
-    let adjustedLocation = Location(uri: uri, range: range).adjusted(for: copiedFileMap)
-    let adjustedSelectionLocation = Location(uri: uri, range: selectionRange).adjusted(for: copiedFileMap)
+    let adjustedURI = copiedFileMap.adjustedURI(for: uri)
+    let adjustedData =
+      HierarchyItemData(fromLSPAny: data).map { itemData in
+        HierarchyItemData(uri: adjustedURI, usr: itemData.usr).encodeToLSPAny()
+      } ?? self.data
     return TypeHierarchyItem(
       name: name,
       kind: kind,
       tags: tags,
       detail: detail,
-      uri: adjustedLocation.uri,
-      range: adjustedLocation.range,
-      selectionRange: adjustedSelectionLocation.range,
-      data: data
+      uri: adjustedURI,
+      range: range,
+      selectionRange: selectionRange,
+      data: adjustedData
     )
   }
 }
 
 extension CallHierarchyItem {
   package func adjusted(for copiedFileMap: CopiedFileMap) -> CallHierarchyItem {
-    let adjustedLocation = Location(uri: uri, range: range).adjusted(for: copiedFileMap)
-    let adjustedSelectionLocation = Location(uri: uri, range: selectionRange).adjusted(for: copiedFileMap)
+    let adjustedURI = copiedFileMap.adjustedURI(for: uri)
     let adjustedData =
       HierarchyItemData(fromLSPAny: data).map { itemData in
-        HierarchyItemData(uri: adjustedLocation.uri, usr: itemData.usr).encodeToLSPAny()
+        HierarchyItemData(uri: adjustedURI, usr: itemData.usr).encodeToLSPAny()
       } ?? self.data
     return CallHierarchyItem(
       name: name,
       kind: kind,
       tags: tags,
       detail: detail,
-      uri: adjustedLocation.uri,
-      range: adjustedLocation.range,
-      selectionRange: adjustedSelectionLocation.range,
+      uri: adjustedURI,
+      range: range,
+      selectionRange: selectionRange,
       data: adjustedData
     )
   }
