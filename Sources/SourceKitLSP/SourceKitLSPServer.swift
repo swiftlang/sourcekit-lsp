@@ -1168,18 +1168,18 @@ extension SourceKitLSPServer {
       : ExecuteCommandOptions(commands: languageServiceRegistry.languageServices.flatMap { $0.type.builtInCommands })
 
     var experimentalCapabilities: [String: LSPAny] = [
-      WorkspaceTestsRequest.method: .dictionary(["version": .int(2)]),
-      WorkspaceTestsRefreshRequest.method: .dictionary(["version": .int(1)]),
-      DocumentTestsRequest.method: .dictionary(["version": .int(2)]),
-      TriggerReindexRequest.method: .dictionary(["version": .int(1)]),
-      GetReferenceDocumentRequest.method: .dictionary(["version": .int(1)]),
-      DidChangeActiveDocumentNotification.method: .dictionary(["version": .int(1)]),
-      WorkspacePlaygroundsRefreshRequest.method: .dictionary(["version": .int(1)]),
-      WorkspaceSymbolNamesRequest.method: .dictionary(["version": .int(1)]),
-      WorkspaceSymbolInfoRequest.method: .dictionary(["version": .int(1)]),
+      WorkspaceTestsRequest.method: ["version": 2],
+      WorkspaceTestsRefreshRequest.method: ["version": 1],
+      DocumentTestsRequest.method: ["version": 2],
+      TriggerReindexRequest.method: ["version": 1],
+      GetReferenceDocumentRequest.method: ["version": 1],
+      DidChangeActiveDocumentNotification.method: ["version": 1],
+      WorkspacePlaygroundsRefreshRequest.method: ["version": 1],
+      WorkspaceSymbolNamesRequest.method: ["version": 1],
+      WorkspaceSymbolInfoRequest.method: ["version": 1],
     ]
     if let toolchain = await toolchainRegistry.preferredToolchain(containing: [\.swiftc]), toolchain.swiftPlay != nil {
-      experimentalCapabilities[WorkspacePlaygroundsRequest.method] = .dictionary(["version": .int(1)])
+      experimentalCapabilities[WorkspacePlaygroundsRequest.method] = ["version": 1]
     }
     for (key, value) in languageServiceRegistry.languageServices.flatMap({ $0.type.experimentalCapabilities }) {
       if let existingValue = experimentalCapabilities[key] {
