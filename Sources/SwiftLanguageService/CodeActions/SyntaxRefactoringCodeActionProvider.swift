@@ -11,9 +11,43 @@
 //===----------------------------------------------------------------------===//
 
 @_spi(SourceKitLSP) import LanguageServerProtocol
+@_spi(SourceKitLSP) import SKLogging
 import SourceKitLSP
 import SwiftRefactor
 import SwiftSyntax
+
+/// Data that is included in a `CodeAction` response for which the client should resolve the edit lazily using a `codeAction/resolve` request.
+///
+/// This data allows us to re-construct the `SyntaxCodeActionScope`.
+struct UnresolvedCodeActionData: Codable, LSPAnyCodable {
+  /// A string representation of the syntax refactoring action's type.
+  let action: String
+
+  /// The document on which the code action should be applied.
+  let document: VersionedTextDocumentIdentifier
+
+  /// The range at which the code action was originally requested.
+  let range: Range<Position>
+
+  init<Metatype: SyntaxRefactoringCodeActionProvider>(
+    actionType: Metatype.Type,
+    document: VersionedTextDocumentIdentifier,
+    range: Range<Position>,
+  ) {
+    self.action = "\(Metatype.self)"
+    self.document = document
+    self.range = range
+  }
+}
+
+enum SyntaxCodeActionContextResult<Context> {
+  /// The cont
+  case context(Context)
+  /// Report a code action without the `edit` properties. The client is expected to send a `codeAction/resolve` request to resolve the edit.
+  ///
+  /// Must only be returned if the the client can resolve edits.
+  case resolveEditLazily
+}
 
 /// Protocol that adapts a SyntaxRefactoringProvider (that comes from
 /// swift-syntax) into a SyntaxCodeActionProvider.
@@ -24,18 +58,45 @@ protocol SyntaxRefactoringCodeActionProvider: SyntaxCodeActionProvider, EditRefa
   /// scope.
   static func nodeToRefactor(in scope: SyntaxCodeActionScope) -> Input?
 
-  static func refactoringContext(for scope: SyntaxCodeActionScope) -> Context
+  /// Retrieve the refactoring context to refactor the given node in the given scope.
+  ///
+  /// Throwing an error from this method causes the code action to be reported without any workspace edits. The client is expected to send a
+  /// `codeAction/resolve` request when the user selects the code action in order to retrieve the semantic information and compute the actual edits.
+  static func refactoringContext(
+    for node: Input,
+    in scope: SyntaxCodeActionScope
+  ) async -> SyntaxCodeActionContextResult<Context>
 }
 
-/// SyntaxCodeActionProviders with a \c Void context can automatically be
-/// adapted provide a code action based on their refactoring operation.
 extension SyntaxRefactoringCodeActionProvider {
-  static func codeActions(in scope: SyntaxCodeActionScope) -> [CodeAction] {
+  static func codeActions(in scope: SyntaxCodeActionScope) async -> [CodeAction] {
     guard let node = nodeToRefactor(in: scope) else {
       return []
     }
 
-    guard let sourceEdits = try? Self.textRefactor(syntax: node, in: refactoringContext(for: scope)) else {
+    let context: Context
+    switch await refactoringContext(for: node, in: scope) {
+    case .context(let c): context = c
+    case .resolveEditLazily:
+      guard scope.resolveSupport?.canResolveEdit ?? false else {
+        logger.fault(
+          "Refactoring action \(Self.self) requested lazy resolution of edits but client cannot resolve edits"
+        )
+        return []
+      }
+      return [
+        CodeAction(
+          title: Self.title,
+          kind: .refactorInline,
+          data: UnresolvedCodeActionData(
+            actionType: Self.self,
+            document: VersionedTextDocumentIdentifier(scope.snapshot.uri, version: scope.snapshot.version),
+            range: scope.requestedRange
+          ).encodeToLSPAny()
+        )
+      ]
+    }
+    guard let sourceEdits = try? Self.textRefactor(syntax: node, in: context) else {
       return []
     }
 
@@ -53,9 +114,14 @@ extension SyntaxRefactoringCodeActionProvider {
   }
 }
 
+/// SyntaxCodeActionProviders with a `Void` context can automatically be adapted provide a code action based on their
+/// refactoring operation.
 extension SyntaxRefactoringCodeActionProvider where Context == Void {
-  static func refactoringContext(for scope: SyntaxCodeActionScope) -> Context {
-    return ()
+  static func refactoringContext(
+    for node: Input,
+    in scope: SyntaxCodeActionScope
+  ) -> SyntaxCodeActionContextResult<Context> {
+    return .context(())
   }
 }
 

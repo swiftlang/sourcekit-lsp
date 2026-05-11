@@ -1276,6 +1276,139 @@ final class CodeActionTests: SourceKitLSPTestCase {
     }
   }
 
+  func testConvertStoredPropertyToComputedWithTypeAnnotation() async throws {
+    try await assertCodeActions(
+      """
+      struct S {
+          1️⃣var x: Int = 252️⃣
+      }
+      """,
+      markers: ["1️⃣"],
+      ranges: [("1️⃣", "2️⃣")],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Convert Stored Property to Computed Property",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: Position(line: 0, utf16index: 10)..<Position(line: 1, utf16index: 19),
+                  newText: "\n    var x: Int { 25 }"
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testConvertStoredPropertyToComputedWithoutTypeAnnotationWithoutResolveSupport() async throws {
+    try await assertCodeActions(
+      """
+      struct S {1️⃣
+        2️⃣var x = 253️⃣
+      }
+      """,
+      markers: ["2️⃣"],
+      exhaustive: false,
+      expected: { uri, positions in
+        [
+          CodeAction(
+            title: "Convert Stored Property to Computed Property",
+            kind: .refactorInline,
+            edit: WorkspaceEdit(
+              changes: [
+                uri: [
+                  TextEdit(range: positions["1️⃣"]..<positions["3️⃣"], newText: "\n  var x :Int{ 25 }")
+                ]
+              ],
+            )
+          )
+        ]
+      }
+    )
+  }
+
+  func testConvertStoredPropertyToComputedWithoutTypeAnnotationWithResolveSupport() async throws {
+    var capabilities = clientCapabilitiesWithCodeActionSupport
+    capabilities.textDocument?.codeAction?.resolveSupport = .init(properties: ["edit"])
+    let testClient = try await TestSourceKitLSPClient(capabilities: capabilities)
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
+      """
+      struct S {1️⃣
+        2️⃣var x = 253️⃣
+      }
+      """,
+      uri: uri
+    )
+    let actions = try await testClient.send(
+      CodeActionRequest(
+        range: positions["2️⃣"]..<positions["3️⃣"],
+        context: CodeActionContext(),
+        textDocument: TextDocumentIdentifier(uri)
+      )
+    )
+    let convertAction = try XCTUnwrap(
+      actions?.codeActions?.filter { $0.title == "Convert Stored Property to Computed Property" }.only
+    )
+    XCTAssertNil(convertAction.edit)
+
+    let resolved = try await testClient.send(CodeActionResolveRequest(codeAction: convertAction))
+    XCTAssertEqual(
+      resolved.edit,
+      WorkspaceEdit(
+        changes: [
+          uri: [
+            TextEdit(range: positions["1️⃣"]..<positions["3️⃣"], newText: "\n  var x :Int{ 25 }")
+          ]
+        ],
+      )
+    )
+  }
+
+  func testConvertStoredPropertyToComputedWithoutTypeAnnotationButAmbiguousTypeAndResolveSupport() async throws {
+    var capabilities = clientCapabilitiesWithCodeActionSupport
+    capabilities.textDocument?.codeAction?.resolveSupport = .init(properties: ["edit"])
+    let testClient = try await TestSourceKitLSPClient(capabilities: capabilities)
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
+      """
+      struct S {1️⃣
+        2️⃣var x = invalid3️⃣
+      }
+      """,
+      uri: uri
+    )
+    let actions = try await testClient.send(
+      CodeActionRequest(
+        range: positions["2️⃣"]..<positions["3️⃣"],
+        context: CodeActionContext(),
+        textDocument: TextDocumentIdentifier(uri)
+      )
+    )
+    let convertAction = try XCTUnwrap(
+      actions?.codeActions?.filter { $0.title == "Convert Stored Property to Computed Property" }.only
+    )
+    XCTAssertNil(convertAction.edit)
+
+    let resolved = try await testClient.send(CodeActionResolveRequest(codeAction: convertAction))
+    XCTAssertEqual(
+      resolved.edit,
+      WorkspaceEdit(
+        changes: [
+          uri: [
+            TextEdit(range: positions["1️⃣"]..<positions["3️⃣"], newText: "\n  var x :<#Type#>{ invalid }")
+          ]
+        ],
+      )
+    )
+  }
+
   func testApplyDeMorganLawNegatedAnd() async throws {
     try await assertCodeActions(
       """

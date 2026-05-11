@@ -39,7 +39,7 @@ extension ConvertCommentToDocComment: SyntaxRefactoringCodeActionProvider {
   static let title = "Convert Comment to Doc Comment"
 
   static func nodeToRefactor(in scope: SyntaxCodeActionScope) -> DeclSyntax? {
-    let cursorPosition = scope.snapshot.absolutePosition(of: scope.request.range.lowerBound)
+    let cursorPosition = scope.snapshot.absolutePosition(of: scope.requestedRange.lowerBound)
     guard let token = scope.file.token(at: cursorPosition) else {
       return nil
     }
