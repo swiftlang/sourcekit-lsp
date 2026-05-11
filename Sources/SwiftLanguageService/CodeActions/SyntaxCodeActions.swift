@@ -28,6 +28,7 @@ let allSyntaxCodeActions: [any SyntaxCodeActionProvider.Type] = {
     ConvertZeroParameterFunctionToComputedProperty.self,
     FormatRawStringLiteral.self,
     MigrateToNewIfLetSyntax.self,
+    MoveMembersToExtension.self,
     OpaqueParameterToGeneric.self,
     RemoveRedundantParentheses.self,
     RemoveSeparatorsFromIntegerLiteral.self,
@@ -41,5 +42,6 @@ let allSyntaxCodeActions: [any SyntaxCodeActionProvider.Type] = {
 
 let supersededSourcekitdRefactoringActions: Set<String> = [
   "source.refactoring.kind.convert.to.computed.property",  // Superseded by ConvertStoredPropertyToComputed
+  "source.refactoring.kind.move.members.to.extension",  // Superseded by MoveMembersToExtension
   "source.refactoring.kind.simplify.long.number.literal",  // Superseded by AddSeparatorsToIntegerLiteral
 ]
