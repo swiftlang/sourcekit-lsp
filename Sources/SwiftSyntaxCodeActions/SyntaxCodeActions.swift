@@ -14,7 +14,7 @@ import SwiftRefactor
 
 /// List of all of the syntactic code action providers, which can be used
 /// to produce code actions using only the swift-syntax tree of a file.
-let allSyntaxCodeActions: [any SyntaxCodeActionProvider.Type] = {
+package let allSyntaxCodeActions: [any SyntaxCodeActionProvider.Type] = {
   var result: [any SyntaxCodeActionProvider.Type] = [
     AddDocumentation.self,
     AddSeparatorsToIntegerLiteral.self,
@@ -39,7 +39,7 @@ let allSyntaxCodeActions: [any SyntaxCodeActionProvider.Type] = {
   return result
 }()
 
-let supersededSourcekitdRefactoringActions: Set<String> = [
+package let supersededSourcekitdRefactoringActions: Set<String> = [
   "source.refactoring.kind.convert.to.computed.property",  // Superseded by ConvertStoredPropertyToComputed
   "source.refactoring.kind.simplify.long.number.literal",  // Superseded by AddSeparatorsToIntegerLiteral
 ]

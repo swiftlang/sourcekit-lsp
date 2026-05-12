@@ -20,7 +20,7 @@ import SwiftSyntax
 /// Syntactic code action provider to provide refactoring actions that
 /// edit a package manifest.
 struct PackageManifestEdits: SyntaxCodeActionProvider {
-  static func codeActions(in scope: SyntaxCodeActionScope) -> [CodeAction] {
+  package static func codeActions(in scope: SyntaxCodeActionScope) -> [CodeAction] {
     guard let call = scope.innermostNodeContainingRange?.findEnclosingCall() else {
       return []
     }

@@ -10,15 +10,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-@_spi(SourceKitLSP) import LanguageServerProtocol
+@_spi(SourceKitLSP) package import LanguageServerProtocol
 @_spi(SourceKitLSP) import SKLogging
-import SourceKitLSP
+package import SourceKitLSP
 import SwiftRefactor
-import SwiftSyntax
+package import SwiftSyntax
 
 /// Describes types that provide one or more code actions based on purely
 /// syntactic information.
-protocol SyntaxCodeActionProvider: SendableMetatype {
+package protocol SyntaxCodeActionProvider: SendableMetatype {
   /// Produce code actions within the given scope. Each code action
   /// corresponds to one syntactic transformation that can be performed, such
   /// as adding or removing separators from an integer literal.
@@ -26,25 +26,25 @@ protocol SyntaxCodeActionProvider: SendableMetatype {
 }
 
 /// Defines the scope in which a syntactic code action occurs.
-struct SyntaxCodeActionScope {
+package struct SyntaxCodeActionScope {
   /// The snapshot of the document on which the code actions will be evaluated.
-  var snapshot: DocumentSnapshot
+  package var snapshot: DocumentSnapshot
 
   /// The actual code action request, which can specify additional parameters
   /// to guide the code actions.
-  var request: CodeActionRequest
+  package var request: CodeActionRequest
 
   /// The source file in which the syntactic code action will operate.
-  var file: SourceFileSyntax
+  package var file: SourceFileSyntax
 
   /// The UTF-8 byte range in the source file in which code actions should be
   /// considered, i.e., where the cursor or selection is.
-  var range: Range<AbsolutePosition>
+  package var range: Range<AbsolutePosition>
 
   /// The innermost node that contains the entire selected source range
-  var innermostNodeContainingRange: Syntax?
+  package var innermostNodeContainingRange: Syntax?
 
-  init?(
+  package init?(
     snapshot: DocumentSnapshot,
     syntaxTree file: SourceFileSyntax,
     request: CodeActionRequest

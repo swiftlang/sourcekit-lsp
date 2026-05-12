@@ -17,6 +17,7 @@ import SwiftLanguageService
 import SwiftParser
 import SwiftRefactor
 import SwiftSyntax
+import SwiftSyntaxCodeActions
 import XCTest
 
 fileprivate extension Range where Bound == AbsolutePosition {

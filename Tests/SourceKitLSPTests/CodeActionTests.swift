@@ -19,6 +19,7 @@ import SwiftExtensions
 import SwiftParser
 import SwiftSyntax
 import SwiftSyntaxBuilder
+import SwiftSyntaxCodeActions
 import XCTest
 
 private typealias CodeActionCapabilities = TextDocumentClientCapabilities.CodeAction
