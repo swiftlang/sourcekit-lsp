@@ -40,8 +40,34 @@ final class ReferencesTests: SourceKitLSPTestCase {
     XCTAssertEqual(
       response,
       [
-        Location(uri: project.fileURI, range: Range(project.positions["1️⃣"])),
+        Location(uri: project.fileURI, range: Range(project.positions["1️⃣"]))
+      ]
+    )
+  }
+
+  func testReferencesExcludesOwnDefinition() async throws {
+    let project = try await IndexedSingleSwiftFileTestProject(
+      """
+      func 1️⃣foo() {}
+
+      func bar() {
+        2️⃣foo()
+        3️⃣foo()
+      }
+      """
+    )
+    let response = try await project.testClient.send(
+      ReferencesRequest(
+        textDocument: TextDocumentIdentifier(project.fileURI),
+        position: project.positions["1️⃣"],
+        context: ReferencesContext(includeDeclaration: true)
+      )
+    )
+    XCTAssertEqual(
+      response,
+      [
         Location(uri: project.fileURI, range: Range(project.positions["2️⃣"])),
+        Location(uri: project.fileURI, range: Range(project.positions["3️⃣"])),
       ]
     )
   }

@@ -2273,7 +2273,7 @@ extension SourceKitLSPServer {
       logger.info("Finding references for USR \(usr)")
       var roles: SymbolRole = [.reference]
       if req.context.includeDeclaration {
-        roles.formUnion([.declaration, .definition])
+        roles.formUnion([.declaration])
       }
       return try index.occurrences(ofUSR: usr, roles: roles).compactMap { $0.location.lspLocation }
     }
