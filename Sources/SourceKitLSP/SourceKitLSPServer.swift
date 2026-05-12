@@ -1877,7 +1877,7 @@ extension SourceKitLSPServer {
       for name in req.names {
         if Task.isCancelled { return [:] }
         var symbols: [SymbolOccurrence] = []
-        _ = orLog("getting symbol information") {
+        _ = orLog("Getting symbol occurrences") {
           try index.forEachCanonicalSymbolOccurrence(byName: name) { symbolOccurrence in
             symbols.append(symbolOccurrence)
             return true
@@ -1885,7 +1885,7 @@ extension SourceKitLSPServer {
         }
         if Task.isCancelled { return [:] }
         result[name] = symbols.compactMap { symbol in
-          orLog("getting symbol information") {
+          orLog("Getting symbol information") {
             try self.workspaceSymbolItem(
               for: symbol,
               in: index,
@@ -1897,6 +1897,8 @@ extension SourceKitLSPServer {
       }
       return result
     }
+
+    try Task.checkCancellation()
 
     // Flatten the result.
     var result: [WorkspaceSymbolItem] = []

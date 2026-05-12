@@ -129,7 +129,7 @@ final class WorkspaceSymbolInfoTests: XCTestCase {
     // so its symbols are never written to any index store.
     try await withTestScratchDir { binaryModuleDir in
       let sourceFile = binaryModuleDir.appendingPathComponent("BinaryLib.swift")
-      try "public struct BinaryOnlyStruct {}".write(to: sourceFile, atomically: true, encoding: .utf8)
+      try await "public struct BinaryOnlyStruct {}".writeWithRetry(to: sourceFile)
 
       var args = [
         swiftc.path,
