@@ -176,7 +176,7 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
   /// The source code index, if available.
   ///
   /// Usually a checked index (retrieved using `index(checkedFor:)`) should be used instead of the unchecked index.
-  private var uncheckedIndex: UncheckedIndex? {
+  package var uncheckedIndex: UncheckedIndex? {
     get async {
       return await buildServerManager.mainFilesProvider(as: UncheckedIndex.self)
     }

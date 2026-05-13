@@ -191,7 +191,7 @@ extension SwiftLanguageService {
     }
 
     if self.capabilityRegistry.clientHasExperimentalCapability(PeekDocumentsRequest.method),
-      self.capabilityRegistry.clientHasExperimentalCapability(GetReferenceDocumentRequest.method)
+      self.capabilityRegistry.clientHasWorkspaceGetReferenceDocumentSupport
     {
       let expansionURIs = try macroExpansionReferenceDocumentURLs.map { try $0.uri }
 
