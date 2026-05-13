@@ -55,8 +55,8 @@ final class ExpandMacroTests: SourceKitLSPTestCase {
       files: files,
       manifest: SwiftPMTestProject.minimalMacroPackageManifest,
       capabilities: ClientCapabilities(experimental: [
-        PeekDocumentsRequest.method: .dictionary(["supported": .bool(peekDocuments)]),
-        GetReferenceDocumentRequest.method: .dictionary(["supported": .bool(getReferenceDocument)]),
+        PeekDocumentsRequest.method: ["supported": .bool(peekDocuments)],
+        GetReferenceDocumentRequest.method: ["supported": .bool(getReferenceDocument)],
       ]),
       options: SourceKitLSPOptions.testDefault(),
       enableBackgroundIndexing: true
@@ -207,8 +207,8 @@ final class ExpandMacroTests: SourceKitLSPTestCase {
       files: files,
       manifest: SwiftPMTestProject.minimalMacroPackageManifest,
       capabilities: ClientCapabilities(experimental: [
-        PeekDocumentsRequest.method: .dictionary(["supported": .bool(peekDocuments)]),
-        GetReferenceDocumentRequest.method: .dictionary(["supported": .bool(getReferenceDocument)]),
+        PeekDocumentsRequest.method: ["supported": .bool(peekDocuments)],
+        GetReferenceDocumentRequest.method: ["supported": .bool(getReferenceDocument)],
       ]),
       options: SourceKitLSPOptions.testDefault(),
       enableBackgroundIndexing: true
@@ -359,8 +359,8 @@ final class ExpandMacroTests: SourceKitLSPTestCase {
       files: files,
       manifest: SwiftPMTestProject.minimalMacroPackageManifest,
       capabilities: ClientCapabilities(experimental: [
-        PeekDocumentsRequest.method: .dictionary(["supported": .bool(true)]),
-        GetReferenceDocumentRequest.method: .dictionary(["supported": .bool(true)]),
+        PeekDocumentsRequest.method: ["supported": true],
+        GetReferenceDocumentRequest.method: ["supported": true],
       ]),
       options: SourceKitLSPOptions.testDefault(),
       enableBackgroundIndexing: true

@@ -1126,7 +1126,7 @@ final class WorkspaceTests: SourceKitLSPTestCase {
         )
         """,
       capabilities: ClientCapabilities(experimental: [
-        DidChangeActiveDocumentNotification.method: .dictionary(["supported": .bool(true)])
+        DidChangeActiveDocumentNotification.method: ["supported": true]
       ]),
       hooks: Hooks(
         indexHooks: IndexHooks(preparationTaskDidStart: { task in

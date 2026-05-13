@@ -46,7 +46,7 @@ final class SwiftInterfaceTests: SourceKitLSPTestCase {
   func testSystemModuleInterfaceReferenceDocument() async throws {
     let testClient = try await TestSourceKitLSPClient(
       capabilities: ClientCapabilities(experimental: [
-        GetReferenceDocumentRequest.method: .dictionary(["supported": .bool(true)])
+        GetReferenceDocumentRequest.method: ["supported": true]
       ])
     )
     let uri = DocumentURI(for: .swift)
@@ -121,7 +121,7 @@ final class SwiftInterfaceTests: SourceKitLSPTestCase {
       }
       """,
       capabilities: ClientCapabilities(experimental: [
-        GetReferenceDocumentRequest.method: .dictionary(["supported": .bool(true)])
+        GetReferenceDocumentRequest.method: ["supported": true]
       ]),
       indexSystemModules: true,
       extraCompilerArguments: Self.ignoreModuleSourceInfoFlags
@@ -215,7 +215,7 @@ final class SwiftInterfaceTests: SourceKitLSPTestCase {
         )
         """,
       capabilities: ClientCapabilities(experimental: [
-        GetReferenceDocumentRequest.method: .dictionary(["supported": .bool(true)])
+        GetReferenceDocumentRequest.method: ["supported": true]
       ]),
       enableBackgroundIndexing: true
     )
@@ -309,7 +309,7 @@ final class SwiftInterfaceTests: SourceKitLSPTestCase {
     let testClient = try await TestSourceKitLSPClient(
       options: options,
       capabilities: ClientCapabilities(experimental: [
-        GetReferenceDocumentRequest.method: .dictionary(["supported": .bool(true)])
+        GetReferenceDocumentRequest.method: ["supported": true]
       ])
     )
     let uri = DocumentURI(for: .swift)
@@ -340,7 +340,7 @@ final class SwiftInterfaceTests: SourceKitLSPTestCase {
   func testFoundationImportNavigation() async throws {
     let testClient = try await TestSourceKitLSPClient(
       capabilities: ClientCapabilities(experimental: [
-        GetReferenceDocumentRequest.method: .dictionary(["supported": .bool(true)])
+        GetReferenceDocumentRequest.method: ["supported": true]
       ])
     )
     let uri = DocumentURI(for: .swift)
@@ -367,7 +367,7 @@ final class SwiftInterfaceTests: SourceKitLSPTestCase {
 
     let testClient = try await TestSourceKitLSPClient(
       capabilities: ClientCapabilities(experimental: [
-        GetReferenceDocumentRequest.method: .dictionary(["supported": .bool(true)])
+        GetReferenceDocumentRequest.method: ["supported": true]
       ])
     )
     let uri = DocumentURI(for: .swift)
