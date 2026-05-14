@@ -110,14 +110,19 @@ package struct PreparationTaskDescription: IndexTaskDescription {
         )
         signposter.endInterval("Preparing", state)
       }
+      let prepareResponse: BuildTargetPrepareResponse?
       do {
-        try await buildServerManager.prepare(targets: Set(targetsToPrepare))
+        prepareResponse = try await buildServerManager.prepare(targets: Set(targetsToPrepare))
       } catch {
         logger.error("Preparation failed: \(error.forLogging)")
+        prepareResponse = nil
       }
       await hooks.preparationTaskDidFinish?(self)
       if !Task.isCancelled {
-        await preparationUpToDateTracker.markUpToDate(targetsToPrepare, updateOperationStartDate: startDate)
+        await preparationUpToDateTracker.markUpToDate(
+          targetsToPrepare + (prepareResponse?.implicitlyPreparedTargets ?? []),
+          updateOperationStartDate: startDate
+        )
       }
     }
   }
