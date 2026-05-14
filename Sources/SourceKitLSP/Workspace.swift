@@ -476,9 +476,17 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
   }
 
   /// Remove the language services association for a document when it is closed.
+  ///
+  /// If any other open document shares the same build-settings file as `uri`, the language service
+  /// is still in use and will not be removed.
   func removeLanguageServices(for uri: DocumentURI) {
+    let key = uri.buildSettingsFile
+    let openDocuments = sourceKitLSPServer?.documentManager.openDocuments ?? []
+    guard !openDocuments.contains(where: { $0.buildSettingsFile == key }) else {
+      return
+    }
     languageServices.withLock { languageServices in
-      languageServices[uri.buildSettingsFile] = nil
+      languageServices[key] = nil
     }
   }
 

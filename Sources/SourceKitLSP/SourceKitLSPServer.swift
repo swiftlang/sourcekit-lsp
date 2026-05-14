@@ -1465,9 +1465,7 @@ extension SourceKitLSPServer {
       await languageService.closeDocument(notification)
     }
 
-    if !documentManager.openDocuments.contains(where: { $0.buildSettingsFile == uri.buildSettingsFile }) {
-      workspace.removeLanguageServices(for: uri)
-    }
+    workspace.removeLanguageServices(for: uri)
 
     workspaceQueue.async {
       self.workspaceForUri[notification.textDocument.uri] = nil
