@@ -1943,7 +1943,6 @@ extension SourceKitLSPServer {
     let moduleFileURI = DocumentURI(
       {
         var components = urlComponents
-        components.fragment = nil
         components.query = nil
         return components.url!
       }()
