@@ -395,6 +395,43 @@ final class SwiftInterfaceTests: SourceKitLSPTestCase {
     XCTAssertEqual(transformLocation.uri.scheme, "sourcekit-lsp")
     assertContains(transformLocation.uri.pseudoPath, "Foundation.NSAffineTransform.swiftinterface")
   }
+
+  func testClosingGeneratedInterfacePreservesOriginatingLanguageService() async throws {
+    let project = try await IndexedSingleSwiftFileTestProject(
+      """
+      func test(x: 1️⃣String) {
+        let y: 2️⃣Int = 1
+      }
+      """,
+      capabilities: ClientCapabilities(experimental: [
+        GetReferenceDocumentRequest.method: .dictionary(["supported": true])
+      ]),
+      extraCompilerArguments: Self.ignoreModuleSourceInfoFlags
+    )
+
+    let definition = try await project.testClient.send(
+      DefinitionRequest(
+        textDocument: TextDocumentIdentifier(project.fileURI),
+        position: project.positions["1️⃣"]
+      )
+    )
+    let interfaceUri = try XCTUnwrap(definition?.locations?.only?.uri)
+    let interfaceContents = try await project.testClient.send(GetReferenceDocumentRequest(uri: interfaceUri))
+    project.testClient.send(
+      DidOpenTextDocumentNotification(
+        textDocument: TextDocumentItem(uri: interfaceUri, language: .swift, version: 1, text: interfaceContents.content)
+      )
+    )
+    project.testClient.send(DidCloseTextDocumentNotification(textDocument: TextDocumentIdentifier(interfaceUri)))
+
+    let hover = try await project.testClient.send(
+      HoverRequest(
+        textDocument: TextDocumentIdentifier(project.fileURI),
+        position: project.positions["2️⃣"]
+      )
+    )
+    XCTAssertNotNil(hover)
+  }
 }
 
 private func assertSystemSwiftInterface(
