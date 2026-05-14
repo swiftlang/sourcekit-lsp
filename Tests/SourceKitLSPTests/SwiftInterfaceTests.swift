@@ -397,36 +397,38 @@ final class SwiftInterfaceTests: SourceKitLSPTestCase {
   }
 
   func testClosingGeneratedInterfacePreservesOriginatingLanguageService() async throws {
-    let testClient = try await TestSourceKitLSPClient(
-      capabilities: ClientCapabilities(experimental: [
-        GetReferenceDocumentRequest.method: .dictionary(["supported": .bool(true)])
-      ])
-    )
-    let uri = DocumentURI(for: .swift)
-
-    let positions = testClient.openDocument(
+    let project = try await IndexedSingleSwiftFileTestProject(
       """
       func test(x: 1️⃣String) {
         let y: 2️⃣Int = 1
       }
       """,
-      uri: uri
+      capabilities: ClientCapabilities(experimental: [
+        GetReferenceDocumentRequest.method: .dictionary(["supported": true])
+      ]),
+      extraCompilerArguments: Self.ignoreModuleSourceInfoFlags
     )
 
-    let definition = try await testClient.send(
-      DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
-    )
-    let interfaceUri = try XCTUnwrap(definition?.locations?.only?.uri)
-    let interfaceContents = try await testClient.send(GetReferenceDocumentRequest(uri: interfaceUri))
-    testClient.send(
-      DidOpenTextDocumentNotification(
-        textDocument: TextDocumentItem(uri: interfaceUri, language: .swift, version: 0, text: interfaceContents.content)
+    let definition = try await project.testClient.send(
+      DefinitionRequest(
+        textDocument: TextDocumentIdentifier(project.fileURI),
+        position: project.positions["1️⃣"]
       )
     )
-    testClient.send(DidCloseTextDocumentNotification(textDocument: TextDocumentIdentifier(interfaceUri)))
+    let interfaceUri = try XCTUnwrap(definition?.locations?.only?.uri)
+    let interfaceContents = try await project.testClient.send(GetReferenceDocumentRequest(uri: interfaceUri))
+    project.testClient.send(
+      DidOpenTextDocumentNotification(
+        textDocument: TextDocumentItem(uri: interfaceUri, language: .swift, version: 1, text: interfaceContents.content)
+      )
+    )
+    project.testClient.send(DidCloseTextDocumentNotification(textDocument: TextDocumentIdentifier(interfaceUri)))
 
-    let hover = try await testClient.send(
-      HoverRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
+    let hover = try await project.testClient.send(
+      HoverRequest(
+        textDocument: TextDocumentIdentifier(project.fileURI),
+        position: project.positions["2️⃣"]
+      )
     )
     XCTAssertNotNil(hover)
   }
