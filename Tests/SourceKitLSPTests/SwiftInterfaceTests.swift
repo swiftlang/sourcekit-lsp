@@ -106,7 +106,7 @@ final class SwiftInterfaceTests: SourceKitLSPTestCase {
       position: project.positions["3️⃣"],
       testClient: project.testClient,
       swiftInterfaceFiles: ["Swift.swiftinterface", "_Concurrency.swiftinterface", "TaskGroup.swift"],
-      lineContains: "public func withTaskGroup"
+      lineContains: "public nonisolated(nonsending) func withTaskGroup"
     )
   }
 
