@@ -10,43 +10,44 @@
 //
 //===----------------------------------------------------------------------===//
 
-@_spi(SourceKitLSP) import LanguageServerProtocol
-import SourceKitLSP
+@_spi(SourceKitLSP) package import LanguageServerProtocol
+@_spi(SourceKitLSP) import SKLogging
+package import SourceKitLSP
 import SwiftRefactor
-import SwiftSyntax
+package import SwiftSyntax
 
 /// Describes types that provide one or more code actions based on purely
 /// syntactic information.
-protocol SyntaxCodeActionProvider: SendableMetatype {
+package protocol SyntaxCodeActionProvider: SendableMetatype {
   /// Produce code actions within the given scope. Each code action
   /// corresponds to one syntactic transformation that can be performed, such
   /// as adding or removing separators from an integer literal.
-  static func codeActions(in scope: CodeActionScope) async -> [CodeAction]
+  static func codeActions(in scope: SyntaxCodeActionScope) async -> [CodeAction]
 }
 
-/// Defines the scope in which code actions are evaluated.
-struct CodeActionScope {
+/// Defines the scope in which a syntactic code action occurs.
+package struct SyntaxCodeActionScope {
   /// The snapshot of the document on which the code actions will be evaluated.
-  var snapshot: DocumentSnapshot
+  package var snapshot: DocumentSnapshot
 
   /// The actual code action request, which can specify additional parameters
   /// to guide the code actions.
-  var request: CodeActionRequest
+  package var request: CodeActionRequest
 
   /// The source file in which the syntactic code action will operate.
-  var file: SourceFileSyntax
+  package var file: SourceFileSyntax
 
   /// The UTF-8 byte range in the source file in which code actions should be
   /// considered, i.e., where the cursor or selection is.
-  var range: Range<AbsolutePosition>
+  package var range: Range<AbsolutePosition>
 
   /// The innermost node that contains the entire selected source range
-  var innermostNodeContainingRange: Syntax?
+  package var innermostNodeContainingRange: Syntax?
 
   /// Shared cursorInfo cache for semantic information requested by code action providers.
-  var sharedCursorInfo: SharedCursorInfo
+  package var sharedCursorInfo: SharedCursorInfo
 
-  init?(
+  package init?(
     snapshot: DocumentSnapshot,
     syntaxTree file: SourceFileSyntax,
     request: CodeActionRequest,
@@ -67,22 +68,13 @@ struct CodeActionScope {
   }
 
   /// Retrieve cursor info for the original code action request range.
-  func cursorInfo() async throws -> CursorInfo? {
-    try await cursorInfo(for: request.range).cursorInfo.first
+  package func cursorInfo() async throws -> CursorInfo? {
+    try await cursorInfoResponse().cursorInfo.first
   }
 
-  /// Retrieve cursor info at the given position.
-  ///
-  /// Each code action provider should call this at the position that is
-  /// semantically relevant for its refactoring (e.g. the `forEach` token,
-  /// the variable name, etc.) rather than relying on the original request range.
-  func cursorInfo(at position: Position) async throws -> CursorInfo? {
-    try await cursorInfo(for: position..<position).cursorInfo.first
-  }
-
-  /// Retrieve cursor info for the given range.
-  func cursorInfo(for range: Range<Position>) async throws -> CursorInfoResponse {
-    try await sharedCursorInfo.value(for: range)
+  /// Retrieve cursor info response for the original code action request range.
+  package func cursorInfoResponse() async throws -> CursorInfoResponse {
+    try await sharedCursorInfo.value
   }
 }
 

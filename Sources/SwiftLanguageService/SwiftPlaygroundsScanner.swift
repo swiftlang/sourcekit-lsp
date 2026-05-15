@@ -69,7 +69,7 @@ final class SwiftPlaygroundsScanner: SyntaxVisitor {
     label: String?,
     range: Range<AbsolutePosition>
   ) {
-    let positionRange = snapshot.absolutePositionRange(of: range)
+    let positionRange = snapshot.positionRange(of: range)
 
     result.append(
       TextDocumentPlayground(

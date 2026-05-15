@@ -10,9 +10,12 @@
 //
 //===----------------------------------------------------------------------===//
 
+@_spi(SourceKitLSP) import BuildServerProtocol
 @_spi(SourceKitLSP) import LanguageServerProtocol
 import SKLogging
 import SKTestSupport
+import SwiftExtensions
+import ToolchainRegistry
 import XCTest
 
 final class RenameTests: SourceKitLSPTestCase {
@@ -1322,5 +1325,125 @@ final class RenameTests: SourceKitLSPTestCase {
       RenameRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"], newName: "foo(x:)")
     )
     XCTAssertEqual(result?.changes, [:])
+  }
+
+  func testRenameDedupesMultiUnitIndexEntries() async throws {
+    final class BuildServer: CustomBuildServer {
+      let inProgressRequestsTracker = CustomBuildServerInProgressRequestTracker()
+
+      private let projectRoot: URL
+
+      private let libATarget = BuildTargetIdentifier(uri: try! URI(string: "build://targetA"))
+      private let libBTarget = BuildTargetIdentifier(uri: try! URI(string: "build://targetB"))
+
+      private var sources: [SourcesItem] {
+        return [
+          SourcesItem(
+            target: libATarget,
+            sources: [
+              sourceItem(
+                for: projectRoot.appending(component: "Shared.swift"),
+                outputPath: fakeOutputPath(for: "Shared.swift", in: "LibA")
+              ),
+              sourceItem(
+                for: projectRoot.appending(component: "LibA.swift"),
+                outputPath: fakeOutputPath(for: "LibA.swift", in: "LibA")
+              ),
+            ]
+          ),
+          SourcesItem(
+            target: libBTarget,
+            sources: [
+              sourceItem(
+                for: projectRoot.appending(component: "Shared.swift"),
+                outputPath: fakeOutputPath(for: "Shared.swift", in: "LibB")
+              )
+            ]
+          ),
+        ]
+      }
+
+      init(projectRoot: URL, connectionToSourceKitLSP: any LanguageServerProtocol.Connection) {
+        self.projectRoot = projectRoot
+      }
+
+      func initializeBuildRequest(_ request: InitializeBuildRequest) async throws -> InitializeBuildResponse {
+        return try initializationResponseSupportingBackgroundIndexing(
+          projectRoot: projectRoot,
+          outputPathsProvider: true
+        )
+      }
+
+      func workspaceBuildTargetsRequest(
+        _ request: WorkspaceBuildTargetsRequest
+      ) async throws -> WorkspaceBuildTargetsResponse {
+        WorkspaceBuildTargetsResponse(targets: [
+          BuildTarget(id: libATarget, languageIds: [.swift], dependencies: []),
+          BuildTarget(id: libBTarget, languageIds: [.swift], dependencies: []),
+        ])
+      }
+
+      func buildTargetSourcesRequest(_ request: BuildTargetSourcesRequest) async throws -> BuildTargetSourcesResponse {
+        return BuildTargetSourcesResponse(items: sources.filter { request.targets.contains($0.target) })
+      }
+
+      func textDocumentSourceKitOptionsRequest(
+        _ request: TextDocumentSourceKitOptionsRequest
+      ) async throws -> TextDocumentSourceKitOptionsResponse? {
+        let targetSources = try XCTUnwrap(sources.first(where: { $0.target == request.target })?.sources)
+        let sourceInfo = try XCTUnwrap(targetSources.first(where: { $0.uri == request.textDocument.uri }))
+        var arguments = targetSources.map(\.uri.pseudoPath)
+        arguments += [
+          "-module-name", "Shared",
+          "-index-unit-output-path", try XCTUnwrap(sourceInfo.sourceKitData?.outputPath),
+        ]
+        if request.target == libBTarget {
+          arguments.append("-DLIB_B")
+        }
+        if let defaultSDKPath {
+          arguments += ["-sdk", defaultSDKPath]
+        }
+        return TextDocumentSourceKitOptionsResponse(compilerArguments: arguments)
+      }
+    }
+
+    let project = try await CustomBuildServerTestProject(
+      files: [
+        "Shared.swift": """
+        func 1️⃣foo2️⃣() {}
+        #if LIB_B
+        func extra() {}
+        #endif
+        """,
+        "LibA.swift": """
+        func bar() {
+          3️⃣foo4️⃣()
+        }
+        """,
+      ],
+      buildServer: BuildServer.self,
+      enableBackgroundIndexing: true
+    )
+
+    let newName = "baz"
+    let (libAUri, libAPositions) = try project.openDocument("LibA.swift")
+    let result = try await project.testClient.send(
+      RenameRequest(
+        textDocument: TextDocumentIdentifier(libAUri),
+        position: libAPositions["3️⃣"],
+        newName: newName
+      )
+    )
+    XCTAssertEqual(
+      result,
+      WorkspaceEdit(changes: [
+        try project.uri(for: "Shared.swift"): [
+          TextEdit(range: try project.range(from: "1️⃣", to: "2️⃣", in: "Shared.swift"), newText: newName)
+        ],
+        libAUri: [
+          TextEdit(range: libAPositions["3️⃣"]..<libAPositions["4️⃣"], newText: newName)
+        ],
+      ])
+    )
   }
 }

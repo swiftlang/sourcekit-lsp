@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-@_spi(SourceKitLSP) import LanguageServerProtocol
+@_spi(SourceKitLSP) package import LanguageServerProtocol
 import SourceKitLSP
 import SwiftBasicFormat
 import SwiftExtensions
@@ -38,7 +38,7 @@ import SwiftSyntaxBuilder
 /// return value
 /// ```
 @_spi(Testing) public struct ConvertIfLetToGuard: SyntaxCodeActionProvider {
-  static func codeActions(in scope: CodeActionScope) async -> [CodeAction] {
+  package static func codeActions(in scope: SyntaxCodeActionScope) async -> [CodeAction] {
     guard let ifExpr = findConvertibleIfExpr(in: scope) else {
       return []
     }
@@ -100,7 +100,7 @@ import SwiftSyntaxBuilder
     }
 
     let edit = TextEdit(
-      range: scope.snapshot.absolutePositionRange(
+      range: scope.snapshot.positionRange(
         of: ifExpr.positionAfterSkippingLeadingTrivia..<lastStatement.endPosition
       ),
       newText: replacementText
@@ -115,7 +115,7 @@ import SwiftSyntaxBuilder
     ]
   }
 
-  private static func findConvertibleIfExpr(in scope: CodeActionScope) -> IfExprSyntax? {
+  private static func findConvertibleIfExpr(in scope: SyntaxCodeActionScope) -> IfExprSyntax? {
     var node: Syntax? = scope.innermostNodeContainingRange
     while let c = node, !isFunctionBoundary(c) {
       if let ifExpr = c.as(IfExprSyntax.self) {

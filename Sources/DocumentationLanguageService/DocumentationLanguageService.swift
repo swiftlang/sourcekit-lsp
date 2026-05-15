@@ -36,7 +36,7 @@ package actor DocumentationLanguageService: LanguageService, Sendable {
 
   package static var experimentalCapabilities: [String: LSPAny] {
     return [
-      DoccDocumentationRequest.method: .dictionary(["version": .int(1)])
+      DoccDocumentationRequest.method: ["version": 1]
     ]
   }
 

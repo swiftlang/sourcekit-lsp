@@ -25,9 +25,10 @@ import SemanticIndex
 package import SourceKitD
 package import SourceKitLSP
 import SwiftExtensions
-@_spi(ExperimentalLanguageFeatures) public import SwiftParser
+@_spi(ExperimentalLanguageFeatures) package import SwiftParser
 import SwiftParserDiagnostics
 package import SwiftSyntax
+import SwiftSyntaxCodeActions
 package import ToolchainRegistry
 @_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
@@ -158,6 +159,8 @@ package actor SwiftLanguageService: LanguageService, Sendable {
   ///   might have finished. This isn't an issue since the tasks do not retain `self`.
   private var inFlightPublishDiagnosticsTasks: [DocumentURI: Task<Void, Never>] = [:]
 
+  let inlayHintManager = InlayHintManager()
+
   let syntaxTreeManager = SyntaxTreeManager()
 
   /// The `semanticIndexManager` of the workspace this language service was created for.
@@ -249,7 +252,11 @@ package actor SwiftLanguageService: LanguageService, Sendable {
       logger.fault("Failed to find SourceKit plugin for toolchain at \(toolchain.path.path)")
       pluginPaths = nil
     }
-    self.sourcekitd = try await SourceKitD.getOrCreate(dylibPath: sourcekitd, pluginPaths: pluginPaths)
+    if let core = try hooks.sourcekitdCoreInjector?(toolchain.path) {
+      self.sourcekitd = try await SourceKitD.getOrCreate(core: core)
+    } else {
+      self.sourcekitd = try await SourceKitD.getOrCreate(dylibPath: sourcekitd, pluginPaths: pluginPaths)
+    }
     self.capabilityRegistry = workspace.capabilityRegistry
     self.semanticIndexManagerTask = workspace.semanticIndexManagerTask
     self.hooks = hooks
@@ -582,6 +589,7 @@ extension SwiftLanguageService {
       }
     case nil:
       cancelInFlightPublishDiagnosticsTask(for: notification.textDocument.uri)
+      await inlayHintManager.removeCachedInlayHints(for: notification.textDocument.uri)
       await diagnosticReportManager.removeItemsFromCache(with: notification.textDocument.uri)
 
       let buildSettings = await self.compileCommand(for: snapshot.uri, fallbackAfterTimeout: true)
@@ -606,6 +614,7 @@ extension SwiftLanguageService {
     buildSettingsForOpenFiles[notification.textDocument.uri] = nil
     await syntaxTreeManager.clearSyntaxTrees(for: notification.textDocument.uri)
     await syntaxTreeManager.clearExperimentalFeatures(for: notification.textDocument.uri)
+    await inlayHintManager.removeCachedInlayHints(for: notification.textDocument.uri)
     switch try? ReferenceDocumentURL(from: notification.textDocument.uri) {
     case .macroExpansion:
       break
@@ -759,6 +768,19 @@ extension SwiftLanguageService {
       edits: concurrentEdits
     )
 
+    if await sourceKitLSPServer?.capabilityRegistry?.clientCapabilities.workspace?.inlayHint?.refreshSupport ?? false {
+      // Only process the edits if the client supports inlay hint refreshing
+      // If the client does not support refreshing, we have to calculate the inlay hints using SourceKit each time and
+      // cannot cache them. Thus, we also do not have to update any cached inlay hints.
+      await inlayHintManager.processEdits(
+        for: notification.textDocument.uri,
+        contentChanges: notification.contentChanges,
+        swiftLanguageService: self,
+        preEditSnapshot: preEditSnapshot,
+        postEditSnapshot: postEditSnapshot
+      )
+    }
+
     await publishDiagnosticsIfNeeded(for: notification.textDocument.uri)
   }
 
@@ -830,7 +852,7 @@ extension SwiftLanguageService {
     if let snapshot = try? await latestSnapshot(for: uri) {
       let tree = await syntaxTreeManager.syntaxTree(for: snapshot)
       if let token = tree.token(at: snapshot.absolutePosition(of: position)) {
-        tokenRange = snapshot.absolutePositionRange(of: token.trimmedRange)
+        tokenRange = snapshot.positionRange(of: token.trimmedRange)
       }
     }
 
@@ -880,7 +902,7 @@ extension SwiftLanguageService {
 
         result.append(
           ColorInformation(
-            range: snapshot.absolutePositionRange(of: node.position..<node.endPosition),
+            range: snapshot.positionRange(of: node.position..<node.endPosition),
             color: Color(red: red, green: green, blue: blue, alpha: alpha)
           )
         )
@@ -929,11 +951,11 @@ extension SwiftLanguageService {
     }
 
     let uri = req.textDocument.uri
-    let sharedCursorInfo = SharedCursorInfo { [weak self] range in
+    let sharedCursorInfo = SharedCursorInfo { [weak self] in
       guard let self else { throw CancellationError() }
       return try await self.cursorInfo(
         uri,
-        range,
+        req.range,
         fallbackSettingsAfterTimeout: true,
         additionalParameters: { skreq in
           skreq.set(self.keys.retrieveRefactorActions, to: 1)
@@ -944,7 +966,7 @@ extension SwiftLanguageService {
     let snapshot = try documentManager.latestSnapshot(uri)
     let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
     guard
-      let scope = CodeActionScope(
+      let scope = SyntaxCodeActionScope(
         snapshot: snapshot,
         syntaxTree: syntaxTree,
         request: req,
@@ -977,7 +999,7 @@ extension SwiftLanguageService {
     return response
   }
 
-  func retrieveSyntaxCodeActions(_ scope: CodeActionScope) async -> [CodeAction] {
+  func retrieveSyntaxCodeActions(_ scope: SyntaxCodeActionScope) async -> [CodeAction] {
     return await allSyntaxCodeActions.concurrentMap { provider in
       await provider.codeActions(in: scope)
     }.flatMap { $0 }
@@ -987,8 +1009,8 @@ extension SwiftLanguageService {
     return req.codeAction
   }
 
-  func retrieveRefactorCodeActions(_ scope: CodeActionScope) async throws -> [CodeAction] {
-    let cursorInfoResult = try await scope.cursorInfo(for: scope.request.range)
+  func retrieveRefactorCodeActions(_ scope: SyntaxCodeActionScope) async throws -> [CodeAction] {
+    let cursorInfoResult = try await scope.cursorInfoResponse()
     let params = scope.request
 
     var canInlineMacro = false
@@ -1012,7 +1034,7 @@ extension SwiftLanguageService {
     return refactorActions
   }
 
-  func retrieveQuickFixCodeActions(_ scope: CodeActionScope) async throws -> [CodeAction] {
+  func retrieveQuickFixCodeActions(_ scope: SyntaxCodeActionScope) async throws -> [CodeAction] {
     let params = scope.request
     let snapshot = scope.snapshot
     let buildSettings = await self.compileCommand(for: params.textDocument.uri, fallbackAfterTimeout: true)

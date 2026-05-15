@@ -176,7 +176,7 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
   /// The source code index, if available.
   ///
   /// Usually a checked index (retrieved using `index(checkedFor:)`) should be used instead of the unchecked index.
-  private var uncheckedIndex: UncheckedIndex? {
+  package var uncheckedIndex: UncheckedIndex? {
     get async {
       return await buildServerManager.mainFilesProvider(as: UncheckedIndex.self)
     }
@@ -476,9 +476,17 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
   }
 
   /// Remove the language services association for a document when it is closed.
+  ///
+  /// If any other open document shares the same build-settings file as `uri`, the language service
+  /// is still in use and will not be removed.
   func removeLanguageServices(for uri: DocumentURI) {
+    let key = uri.buildSettingsFile
+    let openDocuments = sourceKitLSPServer?.documentManager.openDocuments ?? []
+    guard !openDocuments.contains(where: { $0.buildSettingsFile == key }) else {
+      return
+    }
     languageServices.withLock { languageServices in
-      languageServices[uri.buildSettingsFile] = nil
+      languageServices[key] = nil
     }
   }
 
@@ -566,7 +574,7 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
       //
       // Technically, we might be doing unnecessary work here if the output file map is already up-to-date. But since
       // this option is mostly intended for testing purposes, this is acceptable.
-      await buildServerManager.scheduleRecomputeCopyFileMap().value
+      _ = await buildServerManager.scheduleRecomputeCopyFileMap().value
     }
     if request.index ?? false {
       if let semanticIndexManager = await semanticIndexManager {

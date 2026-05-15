@@ -1177,7 +1177,7 @@ final class WorkspaceTestDiscoveryTests: SourceKitLSPTestCase {
       ],
       manifest: packageManifestWithTestTarget,
       capabilities: ClientCapabilities(experimental: [
-        WorkspaceTestsRefreshRequest.method: .bool(true)
+        WorkspaceTestsRefreshRequest.method: true
       ]),
       preInitialization: { testClient in
         testClient.handleSingleRequest { (_: WorkspaceTestsRefreshRequest) in
@@ -1222,7 +1222,7 @@ final class WorkspaceTestDiscoveryTests: SourceKitLSPTestCase {
       ],
       manifest: packageManifestWithTestTarget,
       capabilities: ClientCapabilities(experimental: [
-        WorkspaceTestsRefreshRequest.method: .bool(true)
+        WorkspaceTestsRefreshRequest.method: true
       ]),
       preInitialization: { testClient in
         testClient.handleSingleRequest { (_: WorkspaceTestsRefreshRequest) in
@@ -1284,7 +1284,7 @@ final class WorkspaceTestDiscoveryTests: SourceKitLSPTestCase {
       ],
       manifest: packageManifestWithTestTarget,
       capabilities: ClientCapabilities(experimental: [
-        WorkspaceTestsRefreshRequest.method: .bool(true)
+        WorkspaceTestsRefreshRequest.method: true
       ]),
       preInitialization: { testClient in
         testClient.handleSingleRequest { (_: WorkspaceTestsRefreshRequest) in
@@ -1313,7 +1313,7 @@ final class WorkspaceTestDiscoveryTests: SourceKitLSPTestCase {
       ],
       manifest: packageManifestWithTestTarget,
       capabilities: ClientCapabilities(experimental: [
-        WorkspaceTestsRefreshRequest.method: .bool(true)
+        WorkspaceTestsRefreshRequest.method: true
       ])
     )
 
@@ -1370,7 +1370,7 @@ final class WorkspaceTestDiscoveryTests: SourceKitLSPTestCase {
       ],
       manifest: packageManifestWithTestTarget,
       capabilities: ClientCapabilities(experimental: [
-        WorkspaceTestsRefreshRequest.method: .bool(true)
+        WorkspaceTestsRefreshRequest.method: true
       ]),
       preInitialization: { testClient in
         testClient.handleSingleRequest { (_: WorkspaceTestsRefreshRequest) in

@@ -22,12 +22,12 @@ import SwiftSyntaxBuilder
 /// Only active when the cursor is on the `forEach` token. Uses shared `cursorInfo`
 /// to verify that `.forEach` refers to `Sequence.forEach` from the Swift stdlib.
 struct ForEachToForInCodeAction: SyntaxCodeActionProvider {
-  static func codeActions(in scope: CodeActionScope) async -> [CodeAction] {
+  package static func codeActions(in scope: SyntaxCodeActionScope) async -> [CodeAction] {
     guard let match = findForEachCall(in: scope) else {
       return []
     }
 
-    guard let info = try? await scope.cursorInfo(at: scope.snapshot.position(of: match.forEachToken.position)),
+    guard let info = try? await scope.cursorInfo(),
       isStdlibSequenceForEach(info)
     else {
       return []
@@ -103,7 +103,7 @@ private struct Match {
 }
 
 /// Matches only when the cursor/selection is on the `forEach` token.
-private func findForEachCall(in scope: CodeActionScope) -> Match? {
+private func findForEachCall(in scope: SyntaxCodeActionScope) -> Match? {
   guard let token = selectedForEachToken(in: scope),
     token.text == "forEach",
     let memberName = token.parent?.as(DeclReferenceExprSyntax.self),
@@ -148,10 +148,10 @@ private func findForEachCall(in scope: CodeActionScope) -> Match? {
 }
 
 /// Matches the original request range against a single token exactly. We cannot rely on
-/// `scope.innermostNodeContainingRange` for this because `CodeActionScope` normalizes the
+/// `scope.innermostNodeContainingRange` for this because `SyntaxCodeActionScope` normalizes the
 /// selection via `tokenForRefactoring`, which may shift a boundary-position cursor to the
 /// previous token.
-private func selectedForEachToken(in scope: CodeActionScope) -> TokenSyntax? {
+private func selectedForEachToken(in scope: SyntaxCodeActionScope) -> TokenSyntax? {
   let lowerBound = scope.snapshot.absolutePosition(of: scope.request.range.lowerBound)
   let upperBound = scope.snapshot.absolutePosition(of: scope.request.range.upperBound)
 

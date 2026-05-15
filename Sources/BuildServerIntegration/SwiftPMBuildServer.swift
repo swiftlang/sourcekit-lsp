@@ -37,7 +37,6 @@ import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
 package import class ToolchainRegistry.Toolchain
 import struct TSCBasic.FileSystemError
-
 private typealias AbsolutePath = Basics.AbsolutePath
 
 /// A build target in SwiftPM
@@ -122,6 +121,7 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
 
   private let toolchain: Toolchain
   private let swiftPMWorkspace: Workspace
+  private let defaultScratchDirectory: AbsolutePath
 
   private let pluginConfiguration: PluginConfiguration
   private let traitConfiguration: TraitConfiguration
@@ -161,25 +161,34 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
       scratchPath = try? AbsolutePath(validating: path.filePath).appending(component: ".build")
     }
     let inferredBuildSystem: SwiftPMBuildSystem?
-    if let scratchPath {
-      let existingScratchContents = try? FileManager.default.contentsOfDirectory(
-        at: scratchPath.asURL,
-        includingPropertiesForKeys: nil
-      )
-      let foundSwiftBuildOutputs = (existingScratchContents ?? []).contains(where: { $0.lastPathComponent == "out" })
-      let foundNativeOutputs = (existingScratchContents ?? []).contains(where: {
-        $0.lastPathComponent == "debug" || $0.lastPathComponent == "release"
-      })
-      if foundNativeOutputs && foundSwiftBuildOutputs {
-        // TODO: update this shortly after SwiftPM's default build system changes.
-        // https://github.com/swiftlang/sourcekit-lsp/issues/2576
-        inferredBuildSystem = .native
-      } else if foundNativeOutputs {
-        inferredBuildSystem = .native
-      } else if foundSwiftBuildOutputs {
-        inferredBuildSystem = .swiftbuild
+    if let scratchPath: AbsolutePath {
+      let config = Self.getSwiftPMBuildConfiguration(options: options)
+      let buildSystemFilePath = scratchPath.appending(".buildSystem_\(config)")
+      if FileManager.default.fileExists(at: buildSystemFilePath.asURL) {
+        do {
+          let buildSystem = try String(contentsOf: buildSystemFilePath.asURL)
+          inferredBuildSystem = SwiftPMBuildSystem(rawValue: buildSystem)
+        } catch {
+          inferredBuildSystem = nil
+        }
       } else {
-        inferredBuildSystem = nil
+        let existingScratchContents = try? FileManager.default.contentsOfDirectory(
+          at: scratchPath.asURL,
+          includingPropertiesForKeys: nil
+        )
+        let foundSwiftBuildOutputs = (existingScratchContents ?? []).contains(where: { $0.lastPathComponent == "out" })
+        let foundNativeOutputs = (existingScratchContents ?? []).contains(where: {
+          $0.lastPathComponent == "debug" || $0.lastPathComponent == "release"
+        })
+        if foundNativeOutputs && foundSwiftBuildOutputs {
+          inferredBuildSystem = .swiftbuild
+        } else if foundNativeOutputs {
+          inferredBuildSystem = .native
+        } else if foundSwiftBuildOutputs {
+          inferredBuildSystem = .swiftbuild
+        } else {
+          inferredBuildSystem = nil
+        }
       }
     } else {
       inferredBuildSystem = nil
@@ -189,6 +198,20 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
       projectRoot: path,
       configPath: packagePath
     )
+  }
+
+  /// Converts the SourceKit LSP SwiftPM build configuration value to a SwiftPM API equivalent
+  ///
+  /// -Parameters:
+  ///   - options: The `SourceKitLSPOptions` to use to determine the build configuration.
+  /// - Returns: The `PackageModel.BuildConfiguration` equivalent of the SourceKit `SKOptions.Configuration`.
+  static func getSwiftPMBuildConfiguration(options: SourceKitLSPOptions) -> PackageModel.BuildConfiguration {
+    return switch options.swiftPMOrDefault.configuration {
+    case .debug, nil:
+      .debug
+    case .release:
+      .release
+    }
   }
 
   /// Creates a build server using the Swift Package Manager, if this workspace is a package.
@@ -250,6 +273,7 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
     }
 
     let absProjectRoot = try AbsolutePath(validating: projectRoot.filePath)
+    self.defaultScratchDirectory = Workspace.DefaultLocations.scratchDirectory(forRootPackage: absProjectRoot)
     self.toolsets =
       try options.swiftPMOrDefault.toolsets?.map {
         try AbsolutePath(validating: $0, relativeTo: absProjectRoot)
@@ -323,19 +347,13 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
       )
     )
 
-    let buildConfiguration: PackageModel.BuildConfiguration
-    switch options.swiftPMOrDefault.configuration {
-    case .debug, nil:
-      buildConfiguration = .debug
-    case .release:
-      buildConfiguration = .release
-    }
+    let buildConfiguration = Self.getSwiftPMBuildConfiguration(options: options)
 
     let buildFlags = BuildFlags(
-      cCompilerFlags: options.swiftPMOrDefault.cCompilerFlags ?? [],
-      cxxCompilerFlags: options.swiftPMOrDefault.cxxCompilerFlags ?? [],
-      swiftCompilerFlags: options.swiftPMOrDefault.swiftCompilerFlags ?? [],
-      linkerFlags: options.swiftPMOrDefault.linkerFlags ?? []
+      cCompilerFlags: (options.swiftPMOrDefault.cCompilerFlags ?? []).map { BuildFlag(value: $0, source: nil) },
+      cxxCompilerFlags: (options.swiftPMOrDefault.cxxCompilerFlags ?? []).map { BuildFlag(value: $0, source: nil) },
+      swiftCompilerFlags: (options.swiftPMOrDefault.swiftCompilerFlags ?? []).map { BuildFlag(value: $0, source: nil) },
+      linkerFlags: (options.swiftPMOrDefault.linkerFlags ?? []).map { BuildFlag(value: $0, source: nil) },
     )
 
     self.toolsBuildParameters = try BuildParameters(
@@ -481,7 +499,7 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
 
     let modulesGraph = try await self.swiftPMWorkspace.loadPackageGraph(
       rootInput: PackageGraphRootInput(packages: [AbsolutePath(validating: projectRoot.filePath)]),
-      forceResolvedVersions: !isForIndexBuild,
+      forceResolvedVersions: options.swiftPMOrDefault.forceResolvedVersions ?? !isForIndexBuild,
       observabilityScope: observabilitySystem.topScope.makeChildScope(description: "Load package graph")
     )
 
@@ -919,6 +937,23 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
     return DocumentURI(url.deletingLastPathComponent()) == DocumentURI(self.projectRoot)
   }
 
+  private func isInScratchDirectory(_ url: URL) -> Bool {
+    guard let filePath = try? AbsolutePath(validating: url.filePath) else {
+      return false
+    }
+    if filePath.isDescendantOfOrEqual(to: self.swiftPMWorkspace.location.scratchDirectory) {
+      return true
+    }
+
+    // Also ignore the default '.build' directory. SourceKit-LSP uses '.build/index-build' as its scratch
+    // directory by default, but users can configure a custom scratch path outside of '.build'. In that case,
+    // regular 'swift build' output still lands in '.build', so we want to ignore events there too.
+    if filePath.isDescendantOfOrEqual(to: self.defaultScratchDirectory) {
+      return true
+    }
+    return false
+  }
+
   /// An event is relevant if it modifies a file that matches one of the file rules used by the SwiftPM workspace.
   private func fileEventShouldTriggerPackageReload(event: FileEvent) -> Bool {
     guard let fileURL = event.uri.fileURL else {
@@ -926,6 +961,9 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
     }
     if isPackageManifestOrPackageResolved(fileURL) {
       return true
+    }
+    if isInScratchDirectory(fileURL) {
+      return false
     }
     switch event.type {
     case .created, .deleted:

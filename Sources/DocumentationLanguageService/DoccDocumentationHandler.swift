@@ -109,9 +109,10 @@ extension DocumentationLanguageService {
           let symbolOccurrence = try await index.primaryDefinitionOrDeclarationOccurrence(
             ofDocCSymbolLink: symbolLink,
             fetchSymbolGraph: { location in
+              guard let uri = location.uri else { return nil }
               return try await sourceKitLSPServer.primaryLanguageService(
-                for: location.documentUri,
-                workspace.buildServerManager.defaultLanguageInCanonicalTarget(for: location.documentUri),
+                for: uri,
+                workspace.buildServerManager.defaultLanguageInCanonicalTarget(for: uri),
                 in: workspace
               )
               .symbolGraph(forOnDiskContentsAt: location, in: workspace, manager: onDiskDocumentManager)
@@ -120,9 +121,12 @@ extension DocumentationLanguageService {
         else {
           throw ResponseError.requestFailed(doccDocumentationError: .symbolNotFound(symbolName))
         }
+        guard let uri = symbolOccurrence.location.uri else {
+          throw ResponseError.unknown("Symbol location has no file path")
+        }
         let symbolGraph = try await sourceKitLSPServer.primaryLanguageService(
-          for: symbolOccurrence.location.documentUri,
-          workspace.buildServerManager.defaultLanguageInCanonicalTarget(for: symbolOccurrence.location.documentUri),
+          for: uri,
+          workspace.buildServerManager.defaultLanguageInCanonicalTarget(for: uri),
           in: workspace
         ).symbolGraph(forOnDiskContentsAt: symbolOccurrence.location, in: workspace, manager: onDiskDocumentManager)
         return try await documentationManager.renderDocCDocumentation(
@@ -173,13 +177,13 @@ extension DocumentationLanguageService {
           catalogURL: catalogURL,
           for: symbolUSR,
           fetchSymbolGraph: { location in
-            try await sourceKitLSPServer.primaryLanguageService(
-              for: location.documentUri,
+            guard let uri = location.uri else { return nil }
+            return try await sourceKitLSPServer.primaryLanguageService(
+              for: uri,
               snapshot.language,
               in: workspace
             )
             .symbolGraph(forOnDiskContentsAt: location, in: workspace, manager: onDiskDocumentManager)
-
           }
         )
       }

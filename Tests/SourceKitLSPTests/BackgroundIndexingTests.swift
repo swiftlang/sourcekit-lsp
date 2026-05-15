@@ -58,10 +58,10 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
             uri: uri,
             range: Range(positions["2️⃣"]),
             selectionRange: Range(positions["2️⃣"]),
-            data: .dictionary([
-              "usr": .string("s:9MyLibrary3baryyF"),
+            data: [
+              "usr": "s:9MyLibrary3baryyF",
               "uri": .string(uri.stringValue),
-            ])
+            ]
           ),
           fromRanges: [Range(positions["3️⃣"])]
         )
@@ -101,10 +101,10 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
             uri: try project.uri(for: "MyOtherFile.swift"),
             range: Range(try project.position(of: "2️⃣", in: "MyOtherFile.swift")),
             selectionRange: Range(try project.position(of: "2️⃣", in: "MyOtherFile.swift")),
-            data: .dictionary([
-              "usr": .string("s:9MyLibrary3baryyF"),
+            data: [
+              "usr": "s:9MyLibrary3baryyF",
               "uri": .string(try project.uri(for: "MyOtherFile.swift").stringValue),
-            ])
+            ]
           ),
           fromRanges: [Range(try project.position(of: "3️⃣", in: "MyOtherFile.swift"))]
         )
@@ -154,10 +154,10 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
             uri: try project.uri(for: "MyOtherFile.swift"),
             range: Range(try project.position(of: "2️⃣", in: "MyOtherFile.swift")),
             selectionRange: Range(try project.position(of: "2️⃣", in: "MyOtherFile.swift")),
-            data: .dictionary([
-              "usr": .string("s:4LibB3baryyF"),
+            data: [
+              "usr": "s:4LibB3baryyF",
               "uri": .string(try project.uri(for: "MyOtherFile.swift").stringValue),
-            ])
+            ]
           ),
           fromRanges: [Range(try project.position(of: "3️⃣", in: "MyOtherFile.swift"))]
         )
@@ -274,10 +274,10 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
             uri: testFileUri,
             range: try project.range(from: "2️⃣", to: "2️⃣", in: "Test.swift"),
             selectionRange: try project.range(from: "2️⃣", to: "2️⃣", in: "Test.swift"),
-            data: .dictionary([
-              "usr": .string("s:9MyLibrary4testyyF"),
+            data: [
+              "usr": "s:9MyLibrary4testyyF",
               "uri": .string(testFileUri.stringValue),
-            ])
+            ]
           ),
           fromRanges: [try project.range(from: "3️⃣", to: "3️⃣", in: "Test.swift")]
         )
@@ -318,10 +318,10 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
             uri: uri,
             range: Range(positions["2️⃣"]),
             selectionRange: Range(positions["2️⃣"]),
-            data: .dictionary([
-              "usr": .string("c:@F@test"),
+            data: [
+              "usr": "c:@F@test",
               "uri": .string(uri.stringValue),
-            ])
+            ]
           ),
           fromRanges: [Range(positions["3️⃣"])]
         )
@@ -454,10 +454,10 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
             uri: otherFileUri,
             range: Range(otherFilePositions["2️⃣"]),
             selectionRange: Range(otherFilePositions["2️⃣"]),
-            data: .dictionary([
-              "usr": .string("s:9MyLibrary3baryyF"),
+            data: [
+              "usr": "s:9MyLibrary3baryyF",
               "uri": .string(otherFileUri.stringValue),
-            ])
+            ]
           ),
           fromRanges: [Range(otherFilePositions["3️⃣"])]
         )
@@ -514,10 +514,10 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
             uri: uri,
             range: Range(newPositions["2️⃣"]),
             selectionRange: Range(newPositions["2️⃣"]),
-            data: .dictionary([
-              "usr": .string("c:@F@test"),
+            data: [
+              "usr": "c:@F@test",
               "uri": .string(uri.stringValue),
-            ])
+            ]
           ),
           fromRanges: [Range(newPositions["3️⃣"])]
         )
@@ -1442,10 +1442,10 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
         uri: try project.uri(for: "LibB.swift"),
         range: try project.range(from: "2️⃣", to: "2️⃣", in: "LibB.swift"),
         selectionRange: try project.range(from: "2️⃣", to: "2️⃣", in: "LibB.swift"),
-        data: .dictionary([
-          "usr": .string("s:4LibB4testSiyF"),
+        data: [
+          "usr": "s:4LibB4testSiyF",
           "uri": .string(try project.uri(for: "LibB.swift").stringValue),
-        ])
+        ]
       ),
       fromRanges: [try project.range(from: "3️⃣", to: "3️⃣", in: "LibB.swift")]
     )
@@ -2859,10 +2859,10 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
             uri: try project.uri(for: "MyOtherFile.swift"),
             range: Range(try project.position(of: "2️⃣", in: "MyOtherFile.swift")),
             selectionRange: Range(try project.position(of: "2️⃣", in: "MyOtherFile.swift")),
-            data: .dictionary([
-              "usr": .string("s:4main3baryyF"),
+            data: [
+              "usr": "s:4main3baryyF",
               "uri": .string(try project.uri(for: "MyOtherFile.swift").stringValue),
-            ])
+            ]
           ),
           fromRanges: [Range(try project.position(of: "3️⃣", in: "MyOtherFile.swift"))]
         )
@@ -2958,10 +2958,10 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
             uri: try project.uri(for: "MyOtherFile.swift"),
             range: Range(try project.position(of: "4️⃣", in: "MyOtherFile.swift")),
             selectionRange: Range(try project.position(of: "4️⃣", in: "MyOtherFile.swift")),
-            data: .dictionary([
-              "usr": .string("s:4main3baryyF"),
+            data: [
+              "usr": "s:4main3baryyF",
               "uri": .string(try project.uri(for: "MyOtherFile.swift").stringValue),
-            ])
+            ]
           ),
           fromRanges: [Range(try project.position(of: "5️⃣", in: "MyOtherFile.swift"))]
         ),
@@ -2973,10 +2973,10 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
             uri: try project.uri(for: "MyFile.swift"),
             range: Range(try project.position(of: "2️⃣", in: "MyFile.swift")),
             selectionRange: Range(try project.position(of: "2️⃣", in: "MyFile.swift")),
-            data: .dictionary([
-              "usr": .string("s:4main3booyyF"),
+            data: [
+              "usr": "s:4main3booyyF",
               "uri": .string(try project.uri(for: "MyFile.swift").stringValue),
-            ])
+            ]
           ),
           fromRanges: [Range(try project.position(of: "3️⃣", in: "MyFile.swift"))]
         ),

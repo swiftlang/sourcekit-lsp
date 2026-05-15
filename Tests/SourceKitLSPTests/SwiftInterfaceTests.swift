@@ -46,7 +46,7 @@ final class SwiftInterfaceTests: SourceKitLSPTestCase {
   func testSystemModuleInterfaceReferenceDocument() async throws {
     let testClient = try await TestSourceKitLSPClient(
       capabilities: ClientCapabilities(experimental: [
-        GetReferenceDocumentRequest.method: .dictionary(["supported": .bool(true)])
+        GetReferenceDocumentRequest.method: ["supported": true]
       ])
     )
     let uri = DocumentURI(for: .swift)
@@ -121,7 +121,7 @@ final class SwiftInterfaceTests: SourceKitLSPTestCase {
       }
       """,
       capabilities: ClientCapabilities(experimental: [
-        GetReferenceDocumentRequest.method: .dictionary(["supported": .bool(true)])
+        GetReferenceDocumentRequest.method: ["supported": true]
       ]),
       indexSystemModules: true,
       extraCompilerArguments: Self.ignoreModuleSourceInfoFlags
@@ -215,7 +215,7 @@ final class SwiftInterfaceTests: SourceKitLSPTestCase {
         )
         """,
       capabilities: ClientCapabilities(experimental: [
-        GetReferenceDocumentRequest.method: .dictionary(["supported": .bool(true)])
+        GetReferenceDocumentRequest.method: ["supported": true]
       ]),
       enableBackgroundIndexing: true
     )
@@ -309,7 +309,7 @@ final class SwiftInterfaceTests: SourceKitLSPTestCase {
     let testClient = try await TestSourceKitLSPClient(
       options: options,
       capabilities: ClientCapabilities(experimental: [
-        GetReferenceDocumentRequest.method: .dictionary(["supported": .bool(true)])
+        GetReferenceDocumentRequest.method: ["supported": true]
       ])
     )
     let uri = DocumentURI(for: .swift)
@@ -340,7 +340,7 @@ final class SwiftInterfaceTests: SourceKitLSPTestCase {
   func testFoundationImportNavigation() async throws {
     let testClient = try await TestSourceKitLSPClient(
       capabilities: ClientCapabilities(experimental: [
-        GetReferenceDocumentRequest.method: .dictionary(["supported": .bool(true)])
+        GetReferenceDocumentRequest.method: ["supported": true]
       ])
     )
     let uri = DocumentURI(for: .swift)
@@ -367,7 +367,7 @@ final class SwiftInterfaceTests: SourceKitLSPTestCase {
 
     let testClient = try await TestSourceKitLSPClient(
       capabilities: ClientCapabilities(experimental: [
-        GetReferenceDocumentRequest.method: .dictionary(["supported": .bool(true)])
+        GetReferenceDocumentRequest.method: ["supported": true]
       ])
     )
     let uri = DocumentURI(for: .swift)
@@ -394,6 +394,43 @@ final class SwiftInterfaceTests: SourceKitLSPTestCase {
     // Verify we can identify this as a swiftinterface file
     XCTAssertEqual(transformLocation.uri.scheme, "sourcekit-lsp")
     assertContains(transformLocation.uri.pseudoPath, "Foundation.NSAffineTransform.swiftinterface")
+  }
+
+  func testClosingGeneratedInterfacePreservesOriginatingLanguageService() async throws {
+    let project = try await IndexedSingleSwiftFileTestProject(
+      """
+      func test(x: 1️⃣String) {
+        let y: 2️⃣Int = 1
+      }
+      """,
+      capabilities: ClientCapabilities(experimental: [
+        GetReferenceDocumentRequest.method: .dictionary(["supported": true])
+      ]),
+      extraCompilerArguments: Self.ignoreModuleSourceInfoFlags
+    )
+
+    let definition = try await project.testClient.send(
+      DefinitionRequest(
+        textDocument: TextDocumentIdentifier(project.fileURI),
+        position: project.positions["1️⃣"]
+      )
+    )
+    let interfaceUri = try XCTUnwrap(definition?.locations?.only?.uri)
+    let interfaceContents = try await project.testClient.send(GetReferenceDocumentRequest(uri: interfaceUri))
+    project.testClient.send(
+      DidOpenTextDocumentNotification(
+        textDocument: TextDocumentItem(uri: interfaceUri, language: .swift, version: 1, text: interfaceContents.content)
+      )
+    )
+    project.testClient.send(DidCloseTextDocumentNotification(textDocument: TextDocumentIdentifier(interfaceUri)))
+
+    let hover = try await project.testClient.send(
+      HoverRequest(
+        textDocument: TextDocumentIdentifier(project.fileURI),
+        position: project.positions["2️⃣"]
+      )
+    )
+    XCTAssertNotNil(hover)
   }
 }
 

@@ -430,7 +430,9 @@ var targets: [Target] = [
       "SKUtilities",
       "SourceKitD",
       "SourceKitLSP",
+      "SwiftExtensions",
       "SwiftLanguageService",
+      "SwiftSyntaxCodeActions",
       "ToolchainRegistry",
       .product(name: "BuildServerProtocol", package: "swift-tools-protocols"),
       .product(name: "IndexStoreDB", package: "indexstore-db"),
@@ -491,6 +493,7 @@ var targets: [Target] = [
       "SourceKitD",
       "SourceKitLSP",
       "SwiftExtensions",
+      "SwiftSyntaxCodeActions",
       "ToolchainRegistry",
       "TSCExtensions",
       .product(name: "BuildServerProtocol", package: "swift-tools-protocols"),
@@ -509,6 +512,27 @@ var targets: [Target] = [
         "SwiftOperators",
         "SwiftParser",
         "SwiftParserDiagnostics",
+        "SwiftRefactor",
+        "SwiftSyntax",
+        "SwiftSyntaxBuilder",
+      ]),
+    exclude: ["CMakeLists.txt"],
+  ),
+
+  // MARK: SwiftSyntaxCodeActions
+
+  .target(
+    name: "SwiftSyntaxCodeActions",
+    dependencies: [
+      "SourceKitLSP",
+      "SwiftExtensions",
+      .product(name: "LanguageServerProtocol", package: "swift-tools-protocols"),
+      .product(name: "SKLogging", package: "swift-tools-protocols"),
+    ]
+      + swiftSyntaxDependencies([
+        "SwiftBasicFormat",
+        "SwiftOperators",
+        "SwiftParser",
         "SwiftRefactor",
         "SwiftSyntax",
         "SwiftSyntaxBuilder",
@@ -692,7 +716,7 @@ if buildOnlyTests {
 
 let package = Package(
   name: "SourceKitLSP",
-  platforms: [.macOS(.v14)],
+  platforms: [.macOS(.v15)],
   products: products,
   dependencies: dependencies,
   targets: targets,

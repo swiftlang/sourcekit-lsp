@@ -19,6 +19,7 @@ import SwiftExtensions
 import SwiftParser
 import SwiftSyntax
 import SwiftSyntaxBuilder
+import SwiftSyntaxCodeActions
 import XCTest
 
 private typealias CodeActionCapabilities = TextDocumentClientCapabilities.CodeAction
@@ -146,14 +147,14 @@ final class CodeActionTests: SourceKitLSPTestCase {
       let data = try JSONEncoder().encode(metadata)
       return try JSONDecoder().decode(LSPAny.self, from: data)
     }()
-    XCTAssertEqual(expectedCommandMetadata, .dictionary(["sourcekitlsp_textDocument": ["uri": "file:///a.swift"]]))
+    XCTAssertEqual(expectedCommandMetadata, ["sourcekitlsp_textDocument": ["uri": "file:///a.swift"]])
 
     let expectedResolveMetadata: LSPAny = try {
       let metadata = CodeActionResolveMetadata(textDocument: textDocument)
       let data = try JSONEncoder().encode(metadata)
       return try JSONDecoder().decode(LSPAny.self, from: data)
     }()
-    XCTAssertEqual(expectedResolveMetadata, .dictionary(["textDocument": ["uri": "file:///a.swift"]]))
+    XCTAssertEqual(expectedResolveMetadata, ["textDocument": ["uri": "file:///a.swift"]])
 
     let command = Command(title: "Title", command: "Command", arguments: [1, "text", 2.2, nil])
     let codeAction = CodeAction(title: "1")
@@ -199,7 +200,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
     let url = URL(fileURLWithPath: "/a.swift")
     let textDocument = TextDocumentIdentifier(url)
 
-    let originalData: LSPAny = .dictionary(["custom": "value"])
+    let originalData: LSPAny = ["custom": "value"]
     var codeAction = CodeAction(title: "With data")
     codeAction.data = originalData
 

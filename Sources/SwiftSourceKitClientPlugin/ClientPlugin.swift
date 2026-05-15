@@ -45,11 +45,7 @@ public func sourcekitd_plugin_initialize_2(
     return
   }
 
-  SourceKitD.forPlugin = try! SourceKitD(
-    dylib: pluginPath,
-    pluginPaths: nil,
-    initialize: false
-  )
+  SourceKitD.forPlugin = try! SourceKitD(core: SourceKitDCoreForPlugin(dylibPath: pluginPath))
   let sourcekitd = SourceKitD.forPlugin
 
   let customBufferStart = sourcekitd.pluginApi.plugin_initialize_custom_buffer_start(params)
@@ -59,4 +55,31 @@ public func sourcekitd_plugin_initialize_2(
     arrayBuffKind,
     CompletionResultsArray.arrayFuncs.rawValue
   )
+}
+
+private final class SourceKitDCoreForPlugin: SourceKitDCore, Sendable {
+  let dlHandle: DLHandle
+  let path: URL
+
+  init(dylibPath: URL) throws {
+    #if os(Windows)
+    let dlopenModes: DLOpenFlags = []
+    #else
+    let dlopenModes: DLOpenFlags = [.lazy, .local, .noLoad]
+    #endif
+    self.dlHandle = try dlopen(dylibPath.filePath, mode: dlopenModes)
+    self.path = dylibPath
+  }
+
+  deinit {
+    try? dlHandle.close()
+  }
+
+  func initializeService(
+    api: sourcekitd_api_functions_t,
+    notificationCallback: @escaping @Sendable (sourcekitd_api_response_t) -> Void
+  ) {
+    // Borrowed handle — sourcekitd is already initialized.
+  }
+
 }

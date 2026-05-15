@@ -11,10 +11,11 @@
 //===----------------------------------------------------------------------===//
 
 package import BuildServerIntegration
-import Foundation
+package import Foundation
 @_spi(SourceKitLSP) package import LanguageServerProtocol
 @_spi(SourceKitLSP) import LanguageServerProtocolExtensions
 package import SemanticIndex
+package import SourceKitD
 
 import struct TSCBasic.AbsolutePath
 import struct TSCBasic.RelativePath
@@ -35,6 +36,11 @@ public struct Hooks: Sendable {
   /// This allows tests to simulate a `clangd` process that's unresponsive.
   package var preForwardRequestToClangd: (@Sendable (any RequestType) async -> Void)?
 
+  /// If set, called by `SwiftLanguageService` instead of `SourceKitD.getOrCreate` to obtain a
+  /// pre-initialized sourcekitd connection, avoiding double-initialization when running in-process.
+  /// The URL passed is the toolchain root (`.xctoolchain` bundle path).
+  package var sourcekitdCoreInjector: (@Sendable (URL) throws -> (any SourceKitDCore)?)?
+
   public init() {
     self.init(indexHooks: IndexHooks(), buildServerHooks: BuildServerHooks())
   }
@@ -43,11 +49,13 @@ public struct Hooks: Sendable {
     indexHooks: IndexHooks = IndexHooks(),
     buildServerHooks: BuildServerHooks = BuildServerHooks(),
     preHandleRequest: (@Sendable (any RequestType) async -> Void)? = nil,
-    preForwardRequestToClangd: (@Sendable (any RequestType) async -> Void)? = nil
+    preForwardRequestToClangd: (@Sendable (any RequestType) async -> Void)? = nil,
+    sourcekitdCoreInjector: (@Sendable (URL) throws -> (any SourceKitDCore)?)? = nil
   ) {
     self.indexHooks = indexHooks
     self.buildServerHooks = buildServerHooks
     self.preHandleRequest = preHandleRequest
     self.preForwardRequestToClangd = preForwardRequestToClangd
+    self.sourcekitdCoreInjector = sourcekitdCoreInjector
   }
 }

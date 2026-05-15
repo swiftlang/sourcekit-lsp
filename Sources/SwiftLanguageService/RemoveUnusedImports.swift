@@ -19,6 +19,7 @@ import SourceKitD
 import SourceKitLSP
 import SwiftExtensions
 import SwiftSyntax
+import SwiftSyntaxCodeActions
 
 /// The remove unused imports command tries to remove unnecessary imports in a file on a best-effort basis by deleting
 /// imports in reverse source order and seeing if the file still builds. Note that while this works in most cases, there
@@ -67,7 +68,7 @@ package struct RemoveUnusedImportsCommand: SwiftCommand {
 }
 
 extension SwiftLanguageService {
-  func retrieveRemoveUnusedImportsCodeAction(_ scope: CodeActionScope) async throws -> [CodeAction] {
+  func retrieveRemoveUnusedImportsCodeAction(_ scope: SyntaxCodeActionScope) async throws -> [CodeAction] {
     guard
       let node = scope.innermostNodeContainingRange,
       node.findParentOfSelf(ofType: ImportDeclSyntax.self, stoppingIf: { _ in false }) != nil

@@ -13,8 +13,10 @@ add_library(SourceKitLSP STATIC
   LanguageService.swift
   LanguageServiceRegistry.swift
   LogMessageNotification+representingStructureUsingEmojiPrefixIfNecessary.swift
+  LSP+CopiedFileMap.swift
   MacroExpansionReferenceDocumentURLData.swift
   MessageHandlingDependencyTracker.swift
+  MessageMetadata.swift
   OnDiskDocumentManager.swift
   PlaygroundDiscovery.swift
   ReferenceDocumentURL.swift
@@ -24,7 +26,7 @@ add_library(SourceKitLSP STATIC
   SourceKitIndexDelegate.swift
   SourceKitLSPCommandMetadata.swift
   SourceKitLSPServer.swift
-  SymbolLocation+DocumentURI.swift
+  SymbolLocation+LSPConversions.swift
   SyntacticIndex.swift
   TestDiscovery.swift
   TextEdit+IsNoop.swift

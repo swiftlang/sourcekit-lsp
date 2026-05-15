@@ -1,6 +1,9 @@
 # Contributing
 
-This document contains notes about development and testing of SourceKit-LSP, the [Contributor Documentation](Contributor%20Documentation/) folder has some more detailed documentation.
+This document contains notes about development and testing of SourceKit-LSP, the [Contributor Documentation](Contributor%20Documentation/) folder has some more detailed documentation. For general information on contributing to Swift, see the [Contributing to Swift](https://github.com/swiftlang/project-operations/blob/main/contributing/contributing-to-swift.md) guide.
+
+> [!NOTE]
+> If using AI tools to contribute, please also read the [Use of AI Tools in Contributions](https://github.com/swiftlang/project-operations/blob/main/contributing/ai-tools.md) guide.
 
 ## Building & Testing
 
@@ -91,6 +94,8 @@ If you want test your changes to SourceKit-LSP inside your editor, you can point
 When SourceKit-LSP is installed as part of a toolchain, it finds the Swift version to use relative to itself. When building SourceKit-LSP locally, it picks a default toolchain on your system, which usually corresponds to the toolchain that is used if you invoke `swift` without any specified path.
 
 To adjust the toolchain that should be used by SourceKit-LSP (eg. because you want to use new `sourcekitd` features that are only available in a Swift open source toolchain snapshot but not your default toolchain), set the `SOURCEKIT_TOOLCHAIN_PATH` environment variable to your toolchain when running SourceKit-LSP.
+
+For a full walkthrough of building and using a local SourceKit toolchain, see [Using a Local Build of SourceKit](Contributor%20Documentation/Using%20a%20Local%20Build%20of%20SourceKit.md).
 
 ## Logging
 
