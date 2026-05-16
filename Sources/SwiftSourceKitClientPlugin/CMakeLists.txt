@@ -17,4 +17,7 @@ target_link_libraries(SwiftSourceKitClientPlugin PRIVATE
   SwiftSourceKitPluginCommon
   $<$<NOT:$<PLATFORM_ID:Darwin>>:FoundationXML>)
 
-install(TARGETS SwiftSourceKitClientPlugin DESTINATION lib)
+install(TARGETS SwiftSourceKitClientPlugin
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib
+  RUNTIME DESTINATION bin)
