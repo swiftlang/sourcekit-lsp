@@ -497,7 +497,7 @@ final class SwiftPMIntegrationTests: SourceKitLSPTestCase {
       let topLocation = try XCTUnwrap(topResult?.locations?.only)
       XCTAssertTrue(topLocation.uri.pseudoPath.hasSuffix("generated.swift"))
       XCTAssertEqual(topLocation.range.lowerBound, Position(line: 0, utf16index: 4))
-      XCTAssertEqual(topLocation.range.upperBound, Position(line: 0, utf16index: 4))
+      XCTAssertEqual(topLocation.range.upperBound, Position(line: 0, utf16index: 16))
 
       let targetResult = try await project.testClient.send(
         DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
@@ -505,7 +505,7 @@ final class SwiftPMIntegrationTests: SourceKitLSPTestCase {
       let targetLocation = try XCTUnwrap(targetResult?.locations?.only)
       XCTAssertTrue(targetLocation.uri.pseudoPath.hasSuffix("generated.swift"))
       XCTAssertEqual(targetLocation.range.lowerBound, Position(line: 1, utf16index: 4))
-      XCTAssertEqual(targetLocation.range.upperBound, Position(line: 1, utf16index: 4))
+      XCTAssertEqual(targetLocation.range.upperBound, Position(line: 1, utf16index: 19))
     }
 
     // Make a change to the top level input file of the plugin command

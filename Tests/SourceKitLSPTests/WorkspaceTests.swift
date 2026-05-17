@@ -779,7 +779,7 @@ final class WorkspaceTests: SourceKitLSPTestCase {
         """,
         "Sources/lib/lib.swift": """
         public struct Lib {
-          public func 5️⃣foo() {}
+          public func 5️⃣foo6️⃣() {}
           public init() {}
         }
         """,
@@ -804,10 +804,14 @@ final class WorkspaceTests: SourceKitLSPTestCase {
     let fooDefinitionResponse = try await project.testClient.send(
       DefinitionRequest(textDocument: TextDocumentIdentifier(mainUri), position: mainPositions["3️⃣"])
     )
+
     XCTAssertEqual(
       fooDefinitionResponse,
       .locations([
-        Location(uri: try project.uri(for: "lib.swift"), range: try Range(project.position(of: "5️⃣", in: "lib.swift")))
+        Location(
+          uri: try project.uri(for: "lib.swift"),
+          range: try project.range(from: "5️⃣", to: "6️⃣", in: "lib.swift")
+        )
       ])
     )
 
