@@ -341,11 +341,7 @@ final class LocalClangTests: SourceKitLSPTestCase {
     struct MyObject * newObject();
     """.writeWithRetry(to: XCTUnwrap(headerUri.fileURL))
 
-    let clangdServer = try await project.testClient.server.primaryLanguageService(
-      for: mainUri,
-      .c,
-      in: project.testClient.server.workspaceForDocument(uri: mainUri)!
-    )
+    let clangdServer = try await unwrap(project.testClient.primaryLanguageService(for: mainUri))
 
     await clangdServer.documentDependenciesUpdated([mainUri])
 

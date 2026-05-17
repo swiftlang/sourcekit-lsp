@@ -87,10 +87,6 @@ package actor ClangLanguageService: LanguageService, MessageHandler {
   /// Used to make sure we are not restarting `clangd` twice.
   private var clangRestartScheduled = false
 
-  /// The `InitializeRequest` with which `clangd` was originally initialized.
-  /// Stored so we can replay the initialization when clangd crashes.
-  private var initializeRequest: InitializeRequest?
-
   /// The workspace this `ClangLanguageServer` was opened for.
   ///
   /// `clangd` doesn't have support for multi-root workspaces, so we need to start a separate `clangd` instance for every workspace root.
@@ -128,7 +124,8 @@ package actor ClangLanguageService: LanguageService, MessageHandler {
     self.workspace = WeakWorkspace(workspace)
     self.state = .connected
     self.sourceKitLSPServer = sourceKitLSPServer
-    try startClangdProcess()
+
+    try await self.initialize()
   }
 
   private func buildSettings(for document: DocumentURI, fallbackAfterTimeout: Bool) async -> ClangBuildSettings? {
@@ -147,9 +144,8 @@ package actor ClangLanguageService: LanguageService, MessageHandler {
     return ClangBuildSettings(settings, clangPath: clangPath)
   }
 
-  package nonisolated func canHandle(workspace: Workspace, toolchain: Toolchain) -> Bool {
-    // We launch different clangd instance for each workspace because clangd doesn't have multi-root workspace support.
-    return workspace === self.workspace.value && self.clangdPath == toolchain.clangd
+  package nonisolated func canHandle(toolchain: Toolchain) -> Bool {
+    return self.clangdPath == toolchain.clangd
   }
 
   package func addStateChangeHandler(handler: @escaping (LanguageServerState, LanguageServerState) -> Void) {
@@ -207,8 +203,8 @@ package actor ClangLanguageService: LanguageService, MessageHandler {
     precondition(self.clangRestartScheduled == false)
     self.clangRestartScheduled = true
 
-    guard let initializeRequest = self.initializeRequest else {
-      logger.error("clangd crashed before it was sent an InitializeRequest.")
+    guard self.capabilities != nil else {
+      logger.error("clangd crashed before initialization completed.")
       return
     }
 
@@ -225,12 +221,7 @@ package actor ClangLanguageService: LanguageService, MessageHandler {
       try await Task.sleep(for: restartDelay)
       self.clangRestartScheduled = false
       do {
-        try self.startClangdProcess()
-        // We assume that clangd will return the same capabilities after restarting.
-        // Theoretically they could have changed and we would need to inform SourceKitLSPServer about them.
-        // But since SourceKitLSPServer more or less ignores them right now anyway, this should be fine for now.
-        _ = try await self.initialize(initializeRequest)
-        await self.clientInitialized(InitializedNotification())
+        try await self.initialize()
         if let sourceKitLSPServer {
           await sourceKitLSPServer.reopenDocuments(for: self)
         } else {
@@ -369,11 +360,22 @@ extension ClangLanguageService {
 
 extension ClangLanguageService {
 
-  package func initialize(_ initialize: InitializeRequest) async throws -> InitializeResult {
-    // Store the initialize request so we can replay it in case clangd crashes
-    self.initializeRequest = initialize
-
-    let result = try await clangd.send(initialize)
+  private func initialize() async throws {
+    guard let workspace = self.workspace.value else {
+      throw ResponseError.internalError("Workspace no longer exists")
+    }
+    try self.startClangdProcess()
+    let result = try await clangd.send(
+      InitializeRequest(
+        processId: Int(ProcessInfo.processInfo.processIdentifier),
+        rootPath: nil,
+        rootURI: workspace.rootUri,
+        initializationOptions: nil,
+        capabilities: workspace.capabilityRegistry.clientCapabilities,
+        trace: .off,
+        workspaceFolders: nil
+      )
+    )
     self.capabilities = result.capabilities
     if let legend = result.capabilities.semanticTokensProvider?.legend {
       self.semanticTokensTranslator = SemanticTokensLegendTranslator(
@@ -381,11 +383,28 @@ extension ClangLanguageService {
         sourceKitLSPLegend: SemanticTokensLegend.sourceKitLSPLegend
       )
     }
-    return result
-  }
-
-  package func clientInitialized(_ initialized: InitializedNotification) async {
-    clangd.send(initialized)
+    if let sourceKitLSPServer {
+      // Since `ClangLanguageService` is created per toolchain, different clangd
+      // instances can report different capabilities. Calling `registerCapabilities`
+      // here means a later instance may overwrite capabilities registered by an
+      // earlier one. This is fine for now because SourceKitLSPServer more or less
+      // ignores the registered capabilities for clangd at the moment.
+      await sourceKitLSPServer.registerCapabilities(
+        for: result.capabilities,
+        languages: [.c, .cpp, .objective_c, .objective_cpp],
+        registry: workspace.capabilityRegistry
+      )
+    }
+    var syncKind: TextDocumentSyncKind
+    switch result.capabilities.textDocumentSync {
+    case .options(let options): syncKind = options.change ?? .incremental
+    case .kind(let kind): syncKind = kind
+    default: syncKind = .incremental
+    }
+    guard syncKind == .incremental else {
+      throw ResponseError.internalError("non-incremental update not implemented")
+    }
+    clangd.send(InitializedNotification())
   }
 
   package func shutdown() async {

@@ -51,16 +51,8 @@ package actor DocumentationLanguageService: LanguageService, Sendable {
     self.documentationManager = DocCDocumentationManager(buildServerManager: workspace.buildServerManager)
   }
 
-  package nonisolated func canHandle(workspace: Workspace, toolchain: Toolchain) -> Bool {
+  package nonisolated func canHandle(toolchain: Toolchain) -> Bool {
     return true
-  }
-
-  package func initialize(
-    _ initialize: InitializeRequest
-  ) async throws -> InitializeResult {
-    return InitializeResult(
-      capabilities: ServerCapabilities()
-    )
   }
 
   package func shutdown() async {

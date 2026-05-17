@@ -489,6 +489,15 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
 
     return DocumentPositions(markers: markers, textWithoutMarkers: textWithoutMarkers)
   }
+
+  /// Returns the primary language service for the given document URI.
+  ///
+  /// Sends a `SynchronizeRequest` first so that any pending `DidOpenTextDocumentNotification`
+  /// for `uri` is fully processed (and `setLanguageServices` called) before the cache is read.
+  package func primaryLanguageService(for uri: DocumentURI) async throws -> (any LanguageService)? {
+    _ = try await send(SynchronizeRequest())
+    return await server.workspaceForDocument(uri: uri)?.primaryLanguageService(for: uri)
+  }
 }
 
 // MARK: - DocumentPositions

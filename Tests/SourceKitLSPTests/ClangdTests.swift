@@ -159,11 +159,7 @@ final class ClangdTests: SourceKitLSPTestCase {
     )
 
     // Monitor clangd to notice when it gets restarted
-    let clangdServer = try await testClient.server.primaryLanguageService(
-      for: uri,
-      .c,
-      in: unwrap(testClient.server.workspaceForDocument(uri: uri))
-    )
+    let clangdServer = try await unwrap(testClient.primaryLanguageService(for: uri))
     await clangdServer.addStateChangeHandler { oldState, newState in
       if oldState == .connectionInterrupted, newState == .connected {
         clangdRestarted.value = true

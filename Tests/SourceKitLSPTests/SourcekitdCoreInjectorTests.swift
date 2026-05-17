@@ -56,12 +56,7 @@ final class SourcekitdCoreInjectorTests: SourceKitLSPTestCase {
       "func 1️⃣foo() -> Int { 42 }",
       uri: uri
     )
-
-    // Wait until SwiftLanguageService is available for the opened document.
-    let workspace = try await unwrap(testClient.server.workspaceForDocument(uri: uri))
-    let swiftLS = try await unwrap(
-      testClient.server.primaryLanguageService(for: uri, .swift, in: workspace) as? SwiftLanguageService
-    )
+    let swiftLS = try await unwrap(testClient.primaryLanguageService(for: uri) as? SwiftLanguageService)
 
     // The injector must have been called with the toolchain root (not the sourcekitd dylib path).
     XCTAssertGreaterThan(injectorCallCount.value, 0)

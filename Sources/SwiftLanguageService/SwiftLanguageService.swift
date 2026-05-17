@@ -304,6 +304,8 @@ package actor SwiftLanguageService: LanguageService, Sendable {
     // Create sub-directories for each type of generated file
     try FileManager.default.createDirectory(at: generatedInterfacesPath, withIntermediateDirectories: true)
     try FileManager.default.createDirectory(at: generatedMacroExpansionsPath, withIntermediateDirectories: true)
+
+    await self.initialize()
   }
 
   /// - Important: For testing only
@@ -359,7 +361,7 @@ package actor SwiftLanguageService: LanguageService, Sendable {
     )
   }
 
-  package nonisolated func canHandle(workspace: Workspace, toolchain: Toolchain) -> Bool {
+  package nonisolated func canHandle(toolchain: Toolchain) -> Bool {
     return self.sourcekitdPath == toolchain.sourcekitd
   }
 
@@ -398,12 +400,11 @@ package actor SwiftLanguageService: LanguageService, Sendable {
 }
 
 extension SwiftLanguageService {
-
-  package func initialize(_ initialize: InitializeRequest) async throws -> InitializeResult {
+  private func initialize() async {
     await sourcekitd.addNotificationHandler(self)
 
-    return InitializeResult(
-      capabilities: ServerCapabilities(
+    await sourceKitLSPServer?.registerCapabilities(
+      for: ServerCapabilities(
         textDocumentSync: .options(
           TextDocumentSyncOptions(
             openClose: true,
@@ -427,7 +428,7 @@ extension SwiftLanguageService {
         documentSymbolProvider: .bool(true),
         codeActionProvider: .value(
           CodeActionServerCapabilities(
-            clientCapabilities: initialize.capabilities.textDocument?.codeAction,
+            clientCapabilities: capabilityRegistry.clientCapabilities.textDocument?.codeAction,
             codeActionOptions: CodeActionOptions(codeActionKinds: [.quickFix, .refactor]),
             supportsCodeActions: true
           )
@@ -449,12 +450,17 @@ extension SwiftLanguageService {
           workspaceDiagnostics: false
         ),
         selectionRangeProvider: .bool(true)
-      )
+      ),
+      languages: [.swift],
+      registry: capabilityRegistry
     )
   }
 
   package func shutdown() async {
-    await self.sourcekitd.removeNotificationHandler(self)
+    await sourcekitd.removeNotificationHandler(self)
+    if state == .connectionInterrupted || state == .semanticFunctionalityDisabled {
+      await sourceKitLSPServer?.sourcekitdCrashedWorkDoneProgress.end()
+    }
   }
 
   package func canonicalDeclarationPosition(of position: Position, in uri: DocumentURI) async -> Position? {
