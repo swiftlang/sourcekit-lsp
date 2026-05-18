@@ -122,7 +122,7 @@ package struct SwiftCompileCommand: Sendable, Equatable, Hashable {
 
 package actor SwiftLanguageService: LanguageService, Sendable {
   /// The ``SourceKitLSPServer`` instance that created this `SwiftLanguageService`.
-  private(set) weak var sourceKitLSPServer: SourceKitLSPServer?
+  weak let sourceKitLSPServer: SourceKitLSPServer?
 
   private let sourcekitdPath: URL
 

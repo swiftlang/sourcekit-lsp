@@ -51,7 +51,7 @@ package actor ClangLanguageService: LanguageService, MessageHandler {
   /// The ``SourceKitLSPServer`` instance that created this `ClangLanguageService`.
   ///
   /// Used to send requests and notifications to the editor.
-  private weak var sourceKitLSPServer: SourceKitLSPServer?
+  private weak let sourceKitLSPServer: SourceKitLSPServer?
 
   /// The connection to the clangd LSP. `nil` until `startClangdProcesss` has been called.
   var clangd: (any Connection)!

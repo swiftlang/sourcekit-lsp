@@ -31,7 +31,7 @@ actor IndexProgressManager {
 
   /// The `SourceKitLSPServer` for which this manages the index progress. It gathers all `SemanticIndexManagers` from
   /// the workspaces in the `SourceKitLSPServer`.
-  private weak var sourceKitLSPServer: SourceKitLSPServer?
+  private weak let sourceKitLSPServer: SourceKitLSPServer?
 
   /// This is the target number of index tasks (eg. the `3` in `1/3 done`).
   ///

@@ -21,7 +21,7 @@ package import ToolchainRegistry
 
 package actor DocumentationLanguageService: LanguageService, Sendable {
   /// The ``SourceKitLSPServer`` instance that created this `DocumentationLanguageService`.
-  private(set) weak var sourceKitLSPServer: SourceKitLSPServer?
+  weak let sourceKitLSPServer: SourceKitLSPServer?
 
   let documentationManager: DocCDocumentationManager
 
