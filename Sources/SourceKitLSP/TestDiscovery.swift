@@ -248,7 +248,8 @@ struct TestDiscovery {
         documentManager.snapshotHasInMemoryModifications(snapshot)
       {
         // In-memory modified files. Perform syntactic scan now.
-        if let scannedTests = await workspace.primaryLanguageService(for: uri)?.syntacticTestItems(for: snapshot) {
+        let languageService = try workspace.primaryLanguageService(forOpenDocument: uri)
+        if let scannedTests = await languageService.syntacticTestItems(for: snapshot) {
           syntacticTests += scannedTests
           // The file has in-memory modifications, so the semantic index is out-of-date. Don't use it.
         } else {
