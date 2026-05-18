@@ -33,7 +33,7 @@ actor MacroExpansionManager {
     self.swiftLanguageService = swiftLanguageService
   }
 
-  private weak var swiftLanguageService: SwiftLanguageService?
+  private weak let swiftLanguageService: SwiftLanguageService?
 
   /// The cache that stores reportTasks for a combination of uri, range and build settings.
   ///
