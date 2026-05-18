@@ -16,6 +16,14 @@ import Csourcekitd
 import SourceKitD
 import SourceKitLSP
 
+/// The result of a sourcekitd `cursor_info` request, containing symbol information,
+/// available refactor actions, and an optional symbol graph.
+struct CursorInfoResponse: Sendable {
+  var cursorInfo: [CursorInfo]
+  var refactorActions: [SemanticRefactorCommand]
+  var symbolGraph: String?
+}
+
 /// Detailed information about a symbol under the cursor.
 ///
 /// Wraps the information returned by sourcekitd's `cursor_info` request, such as symbol name, USR,
@@ -151,7 +159,7 @@ extension SwiftLanguageService {
     _ range: Range<Position>,
     includeSymbolGraph: Bool = false,
     additionalParameters appendAdditionalParameters: ((SKDRequestDictionary) -> Void)? = nil
-  ) async throws -> (cursorInfo: [CursorInfo], refactorActions: [SemanticRefactorCommand], symbolGraph: String?) {
+  ) async throws -> CursorInfoResponse {
     let documentManager = try self.documentManager
 
     let offsetRange = snapshot.utf8OffsetRange(of: range)
@@ -189,7 +197,7 @@ extension SwiftLanguageService {
       ) ?? []
     let symbolGraph: String? = dict[keys.symbolGraph]
 
-    return (cursorInfoResults, refactorActions, symbolGraph)
+    return CursorInfoResponse(cursorInfo: cursorInfoResults, refactorActions: refactorActions, symbolGraph: symbolGraph)
   }
 
   func cursorInfo(
@@ -198,7 +206,7 @@ extension SwiftLanguageService {
     includeSymbolGraph: Bool = false,
     fallbackSettingsAfterTimeout: Bool,
     additionalParameters appendAdditionalParameters: ((SKDRequestDictionary) -> Void)? = nil
-  ) async throws -> (cursorInfo: [CursorInfo], refactorActions: [SemanticRefactorCommand], symbolGraph: String?) {
+  ) async throws -> CursorInfoResponse {
     return try await self.cursorInfo(
       self.latestSnapshot(for: uri),
       compileCommand: await self.compileCommand(for: uri, fallbackAfterTimeout: fallbackSettingsAfterTimeout),

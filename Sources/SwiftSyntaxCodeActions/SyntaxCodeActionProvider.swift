@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2024 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2026 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -22,7 +22,7 @@ package protocol SyntaxCodeActionProvider: SendableMetatype {
   /// Produce code actions within the given scope. Each code action
   /// corresponds to one syntactic transformation that can be performed, such
   /// as adding or removing separators from an integer literal.
-  static func codeActions(in scope: SyntaxCodeActionScope) -> [CodeAction]
+  static func codeActions(in scope: SyntaxCodeActionScope) async -> [CodeAction]
 }
 
 /// Defines the scope in which a syntactic code action occurs.
@@ -44,14 +44,19 @@ package struct SyntaxCodeActionScope {
   /// The innermost node that contains the entire selected source range
   package var innermostNodeContainingRange: Syntax?
 
+  /// Shared cursorInfo cache for semantic information requested by code action providers.
+  package var sharedCursorInfo: SharedCursorInfo
+
   package init?(
     snapshot: DocumentSnapshot,
     syntaxTree file: SourceFileSyntax,
-    request: CodeActionRequest
+    request: CodeActionRequest,
+    sharedCursorInfo: SharedCursorInfo
   ) {
     self.snapshot = snapshot
     self.request = request
     self.file = file
+    self.sharedCursorInfo = sharedCursorInfo
 
     guard let left = tokenForRefactoring(at: request.range.lowerBound, snapshot: snapshot, syntaxTree: file),
       let right = tokenForRefactoring(at: request.range.upperBound, snapshot: snapshot, syntaxTree: file)
@@ -60,6 +65,16 @@ package struct SyntaxCodeActionScope {
     }
     self.range = left.position..<right.endPosition
     self.innermostNodeContainingRange = findCommonAncestorOrSelf(Syntax(left), Syntax(right))
+  }
+
+  /// Retrieve cursor info for the original code action request range.
+  package func cursorInfo() async throws -> CursorInfo? {
+    try await cursorInfoResponse().cursorInfo.first
+  }
+
+  /// Retrieve cursor info response for the original code action request range.
+  package func cursorInfoResponse() async throws -> CursorInfoResponse {
+    try await sharedCursorInfo.value
   }
 }
 

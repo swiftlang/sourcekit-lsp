@@ -24,7 +24,7 @@ package import SwiftSyntax
 ///
 /// This code action supports both boolean (`!`, `&&`, `||`) and bitwise (`~`, `&`, `|`) operators.
 struct ApplyDeMorganLaw: SyntaxCodeActionProvider {
-  package static func codeActions(in scope: SyntaxCodeActionScope) -> [CodeAction] {
+  package static func codeActions(in scope: SyntaxCodeActionScope) async -> [CodeAction] {
     guard let node = scope.innermostNodeContainingRange else {
       return []
     }
