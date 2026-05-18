@@ -2767,7 +2767,6 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
   }
 
   func testIndexMultipleSwiftFilesInSameCompilerInvocation() async throws {
-    try await SkipUnless.canIndexMultipleSwiftFilesInSingleInvocation()
     let hooks = Hooks(
       indexHooks: IndexHooks(
         updateIndexStoreTaskDidStart: { taskDescription in

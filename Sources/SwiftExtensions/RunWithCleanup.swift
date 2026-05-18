@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if swift(>=6.4)
+#if compiler(>=6.5)
 #warning("Remove this in favor of SE-0493 (Support async calls in defer bodies) when possible")
 #endif
 /// Run `body` and always ensure that `cleanup` gets run, independently of whether `body` threw an error or returned a
