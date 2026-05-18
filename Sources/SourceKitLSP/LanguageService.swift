@@ -115,11 +115,10 @@ package protocol LanguageService: AnyObject, Sendable {
     workspace: Workspace
   ) async throws
 
-  /// Returns `true` if this instance of the language server can handle documents in `workspace` using the given
-  /// toolchain.
+  /// Returns `true` if this instance can serve requests for the given toolchain.
   ///
-  /// If this returns `false`, a new language server will be started for `workspace`.
-  func canHandle(workspace: Workspace, toolchain: Toolchain) -> Bool
+  /// If this returns `false`, a new language server will be started for the toolchain.
+  func canHandle(toolchain: Toolchain) -> Bool
 
   /// Identifiers of the commands that this language service can handle.
   static var builtInCommands: [String] { get }
@@ -127,18 +126,7 @@ package protocol LanguageService: AnyObject, Sendable {
   /// Experimental capabilities that should be reported to the client if this language service is enabled.
   static var experimentalCapabilities: [String: LSPAny] { get }
 
-  /// Whether this language service should be kept alive when its workspace is closed.
-  ///
-  /// When `true`, the language service will not be shut down even if all workspaces referencing it are closed.
-  /// This is useful for language services that use global state (like sourcekitd) where shutting down and
-  /// restarting would cause unnecessary overhead since the new instance will just reinitialize the same
-  /// global state.
-  static var isImmortal: Bool { get }
-
   // MARK: - Lifetime
-
-  func initialize(_ initialize: InitializeRequest) async throws -> InitializeResult
-  func clientInitialized(_ initialized: InitializedNotification) async
 
   /// Shut the server down and return once the server has finished shutting down
   func shutdown() async
@@ -358,10 +346,6 @@ package extension LanguageService {
   static var builtInCommands: [String] { [] }
 
   static var experimentalCapabilities: [String: LSPAny] { [:] }
-
-  static var isImmortal: Bool { false }
-
-  func clientInitialized(_ initialized: InitializedNotification) async {}
 
   func openOnDiskDocument(snapshot: DocumentSnapshot, buildSettings: FileBuildSettings) async throws {
     throw ResponseError.unknown("\(#function) not implemented in \(Self.self) for \(snapshot.uri)")

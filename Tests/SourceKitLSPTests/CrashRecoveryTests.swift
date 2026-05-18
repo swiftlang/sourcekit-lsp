@@ -80,14 +80,7 @@ final class CrashRecoveryTests: SourceKitLSPTestCase {
 
     // Crash sourcekitd
 
-    let swiftLanguageService =
-      try unwrap(
-        await testClient.server.primaryLanguageService(
-          for: uri,
-          .swift,
-          in: testClient.server.workspaceForDocument(uri: uri)!
-        ) as? SwiftLanguageService
-      )
+    let swiftLanguageService = try await unwrap(testClient.primaryLanguageService(for: uri) as? SwiftLanguageService)
 
     await swiftLanguageService.crash()
 
@@ -121,11 +114,7 @@ final class CrashRecoveryTests: SourceKitLSPTestCase {
   }
 
   private func crashClangd(for testClient: TestSourceKitLSPClient, document docUri: DocumentURI) async throws {
-    let clangdServer = try await testClient.server.primaryLanguageService(
-      for: docUri,
-      .cpp,
-      in: testClient.server.workspaceForDocument(uri: docUri)!
-    )
+    let clangdServer = try await unwrap(testClient.primaryLanguageService(for: docUri))
 
     let clangdCrashed = self.expectation(description: "clangd crashed")
     let clangdRestarted = self.expectation(description: "clangd restarted")
@@ -268,11 +257,7 @@ final class CrashRecoveryTests: SourceKitLSPTestCase {
 
     // Keep track of clangd crashes
 
-    let clangdServer = try await testClient.server.primaryLanguageService(
-      for: uri,
-      .cpp,
-      in: testClient.server.workspaceForDocument(uri: uri)!
-    )
+    let clangdServer = try await unwrap(testClient.primaryLanguageService(for: uri))
 
     let clangdCrashed = self.expectation(description: "clangd crashed")
     clangdCrashed.assertForOverFulfill = false
@@ -334,14 +319,7 @@ final class CrashRecoveryTests: SourceKitLSPTestCase {
       uri: uri
     )
 
-    let swiftLanguageService =
-      try unwrap(
-        await testClient.server.primaryLanguageService(
-          for: uri,
-          .swift,
-          in: testClient.server.workspaceForDocument(uri: uri)!
-        ) as? SwiftLanguageService
-      )
+    let swiftLanguageService = try await unwrap(testClient.primaryLanguageService(for: uri) as? SwiftLanguageService)
 
     await swiftLanguageService.crash()
 
@@ -374,13 +352,7 @@ final class CrashRecoveryTests: SourceKitLSPTestCase {
     )
 
     // Monitor sourcekitd to notice when it gets terminated
-    let swiftService = try await unwrap(
-      testClient.server.primaryLanguageService(
-        for: uri,
-        .swift,
-        in: unwrap(testClient.server.workspaceForDocument(uri: uri))
-      ) as? SwiftLanguageService
-    )
+    let swiftService = try await unwrap(testClient.primaryLanguageService(for: uri) as? SwiftLanguageService)
     await swiftService.addStateChangeHandler { oldState, newState in
       logger.debug("sourcekitd changed state: \(String(describing: oldState)) -> \(String(describing: newState))")
       if newState == .connectionInterrupted {

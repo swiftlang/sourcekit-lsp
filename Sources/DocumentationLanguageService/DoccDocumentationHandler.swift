@@ -110,10 +110,9 @@ extension DocumentationLanguageService {
             ofDocCSymbolLink: symbolLink,
             fetchSymbolGraph: { location in
               guard let uri = location.uri else { return nil }
-              return try await sourceKitLSPServer.primaryLanguageService(
+              return try await workspace.primaryLanguageService(
                 for: uri,
-                workspace.buildServerManager.defaultLanguageInCanonicalTarget(for: uri),
-                in: workspace
+                workspace.buildServerManager.defaultLanguageInCanonicalTarget(for: uri)
               )
               .symbolGraph(forOnDiskContentsAt: location, in: workspace, manager: onDiskDocumentManager)
             }
@@ -124,10 +123,9 @@ extension DocumentationLanguageService {
         guard let uri = symbolOccurrence.location.uri else {
           throw ResponseError.unknown("Symbol location has no file path")
         }
-        let symbolGraph = try await sourceKitLSPServer.primaryLanguageService(
+        let symbolGraph = try await workspace.primaryLanguageService(
           for: uri,
-          workspace.buildServerManager.defaultLanguageInCanonicalTarget(for: uri),
-          in: workspace
+          workspace.buildServerManager.defaultLanguageInCanonicalTarget(for: uri)
         ).symbolGraph(forOnDiskContentsAt: symbolOccurrence.location, in: workspace, manager: onDiskDocumentManager)
         return try await documentationManager.renderDocCDocumentation(
           symbolUSR: symbolOccurrence.symbol.usr,
@@ -161,10 +159,9 @@ extension DocumentationLanguageService {
     guard let sourceKitLSPServer else {
       throw ResponseError.internalError("SourceKit-LSP is shutting down")
     }
-    let (symbolGraph, symbolUSR, overrideDocComments) = try await sourceKitLSPServer.primaryLanguageService(
+    let (symbolGraph, symbolUSR, overrideDocComments) = try await workspace.primaryLanguageService(
       for: snapshot.uri,
-      snapshot.language,
-      in: workspace
+      snapshot.language
     ).symbolGraph(for: snapshot, at: position)
     // Locate the documentation extension and include it in the request if one exists
     let markupExtensionFile = await sourceKitLSPServer.withOnDiskDocumentManager {
@@ -178,10 +175,9 @@ extension DocumentationLanguageService {
           for: symbolUSR,
           fetchSymbolGraph: { location in
             guard let uri = location.uri else { return nil }
-            return try await sourceKitLSPServer.primaryLanguageService(
+            return try await workspace.primaryLanguageService(
               for: uri,
-              snapshot.language,
-              in: workspace
+              snapshot.language
             )
             .symbolGraph(forOnDiskContentsAt: location, in: workspace, manager: onDiskDocumentManager)
           }

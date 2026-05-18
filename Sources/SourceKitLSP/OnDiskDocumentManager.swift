@@ -49,7 +49,7 @@ package actor OnDiskDocumentManager {
       version: 0,
       lineTable: LineTable(try String(contentsOf: fileURL, encoding: .utf8))
     )
-    let languageService = try await sourceKitLSPServer.primaryLanguageService(for: uri, language, in: workspace)
+    let languageService = try await workspace.primaryLanguageService(for: uri, language)
 
     let originalBuildSettings = await workspace.buildServerManager.buildSettingsInferredFromMainFile(
       for: uri,
@@ -70,7 +70,7 @@ package actor OnDiskDocumentManager {
     for (snapshot, _, workspace) in openSnapshots.values {
       await orLog("Closing snapshot from on-disk contents: \(snapshot.uri.forLogging)") {
         let languageService =
-          try await sourceKitLSPServer.primaryLanguageService(for: snapshot.uri, snapshot.language, in: workspace)
+          try await workspace.primaryLanguageService(for: snapshot.uri, snapshot.language)
         try await languageService.closeOnDiskDocument(uri: snapshot.uri)
       }
     }
