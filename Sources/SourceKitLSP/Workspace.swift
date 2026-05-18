@@ -249,7 +249,7 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
     self.sourceFilesWithSameRealpathInferrer = SourceFilesWithSameRealpathInferrer(
       buildServerManager: buildServerManager
     )
-    self.semanticIndexManagerTask = Task {
+    self.semanticIndexManagerTask = Task { [weak sourceKitLSPServer] in
       if options.backgroundIndexingOrDefault,
         let uncheckedIndex = await buildServerManager.mainFilesProvider(as: UncheckedIndex.self),
         await buildServerManager.initializationData?.prepareProvider ?? false
@@ -261,13 +261,13 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
           hooks: hooks.indexHooks,
           indexTaskScheduler: indexTaskScheduler,
           preparationBatchingStrategy: options.preparationBatchingStrategy,
-          logMessageToIndexLog: { [weak sourceKitLSPServer] in
+          logMessageToIndexLog: {
             sourceKitLSPServer?.logMessageToIndexLog(message: $0, type: $1, structure: $2)
           },
-          indexTasksWereScheduled: { [weak sourceKitLSPServer] in
+          indexTasksWereScheduled: {
             sourceKitLSPServer?.indexProgressManager.indexTasksWereScheduled(count: $0)
           },
-          indexProgressStatusDidChange: { [weak sourceKitLSPServer] in
+          indexProgressStatusDidChange: {
             sourceKitLSPServer?.indexProgressManager.indexProgressStatusDidChange()
           }
         )
@@ -394,10 +394,11 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
       options: options,
       connectionToClient: ConnectionToClient(sourceKitLSPServer: sourceKitLSPServer),
       buildServerHooks: hooks.buildServerHooks,
-      createMainFilesProvider: { (initializationData, mainFilesChangedCallback) -> (any MainFilesProvider)? in
+      createMainFilesProvider: {
+        [weak sourceKitLSPServer] (initializationData, mainFilesChangedCallback) -> (any MainFilesProvider)? in
         await createIndex(
           initializationData: initializationData,
-          indexChangedCallback: { [weak sourceKitLSPServer] in
+          indexChangedCallback: {
             // Notify that main files may have changed.
             await mainFilesChangedCallback()
 

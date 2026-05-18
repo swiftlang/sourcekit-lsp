@@ -682,8 +682,9 @@ package actor BuildServerManager: QueueBasedMessageHandler {
       await buildServerAdapter.send(OnBuildInitializedNotification())
       return initializeResponse
     }
-    self.mainFilesProvider = Task {
-      await createMainFilesProvider(initializationData) { [weak self] in
+    self.mainFilesProvider = Task { [weak self] in
+      guard let self else { return nil }
+      return await createMainFilesProvider(await self.initializationData) { [weak self] in
         await self?.mainFilesChanged()
       }
     }

@@ -218,9 +218,9 @@ package actor ClangLanguageService: LanguageService, MessageHandler {
     self.lastClangdRestart = Date()
 
     Task {
-      try await Task.sleep(for: restartDelay)
-      self.clangRestartScheduled = false
       do {
+        try await Task.sleep(for: restartDelay)
+        self.clangRestartScheduled = false
         try await self.initialize()
         if let sourceKitLSPServer {
           await sourceKitLSPServer.reopenDocuments(for: self)
@@ -228,6 +228,8 @@ package actor ClangLanguageService: LanguageService, MessageHandler {
           logger.fault("Cannot reopen documents because SourceKitLSPServer is no longer alive")
         }
         self.state = .connected
+      } catch is CancellationError {
+        // ignore.
       } catch {
         logger.fault("Failed to restart clangd after a crash.")
       }

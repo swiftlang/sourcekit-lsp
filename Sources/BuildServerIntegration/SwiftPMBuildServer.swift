@@ -166,7 +166,7 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
       let buildSystemFilePath = scratchPath.appending(".buildSystem_\(config)")
       if FileManager.default.fileExists(at: buildSystemFilePath.asURL) {
         do {
-          let buildSystem = try String(contentsOf: buildSystemFilePath.asURL)
+          let buildSystem = try String(contentsOf: buildSystemFilePath.asURL, encoding: .utf8)
           inferredBuildSystem = SwiftPMBuildSystem(rawValue: buildSystem)
         } catch {
           inferredBuildSystem = nil

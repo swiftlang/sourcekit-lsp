@@ -1653,7 +1653,7 @@ extension SourceKitLSPServer {
   func workspaceSymbolInfo(_ req: WorkspaceSymbolInfoRequest) async throws -> WorkspaceSymbolInfoResponse {
     let canUseWorkspaceSymbolResolve = self.capabilityRegistry?.clientSupportsWorkspaceSymbolResolve ?? false
 
-    var groupedResultPerWorkspace = await workspaces.concurrentMap { workspace -> [String: [WorkspaceSymbolItem]] in
+    let groupedResultPerWorkspace = await workspaces.concurrentMap { workspace -> [String: [WorkspaceSymbolItem]] in
       guard let index = await workspace.index(checkedFor: .deletedFiles) else {
         return [:]
       }
