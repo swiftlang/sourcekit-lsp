@@ -189,10 +189,11 @@ struct SwiftPMBuildServerTests {
         files: [
           "pkg/Sources/lib/a.swift": "",
           "pkg/Package.swift": """
-          // swift-tools-version:4.2
+          // swift-tools-version:5.8
           import PackageDescription
           let package = Package(
             name: "a",
+            platforms: [.macOS(.v13)],
             targets: [.target(name: "lib")]
           )
           """,
@@ -229,7 +230,7 @@ struct SwiftPMBuildServerTests {
 
       expectArgumentsContain("-target", arguments: arguments)  // Only one!
       #if os(macOS)
-      let versionString = PackageModel.Platform.macOS.oldestSupportedVersion.versionString
+      let versionString = "13.0"  // matches the explicit platforms: [.macOS(.v13)] above
       if options.swiftPMOrDefault.buildSystem == .swiftbuild {
         expectArgumentsContain(
           "-target",
@@ -1214,6 +1215,7 @@ struct SwiftPMBuildServerTests {
       manifest: """
         let package = Package(
           name: "MyLibrary",
+          platforms: [.macOS(.v13)],
           targets: [
             .target(name: "Foo", dependencies: ["Bar"]),
             .target(name: "Bar"),
