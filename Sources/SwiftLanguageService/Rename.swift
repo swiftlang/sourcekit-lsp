@@ -607,6 +607,19 @@ extension SwiftLanguageService {
     )
 
     guard let functionLikeRange = await findFunctionLikeRange(of: startOfIdentifierPosition, in: snapshot) else {
+      if let symbolInfo, symbolInfo.count == 2,
+        symbolInfo.first(where: { $0.kind == .constructor }) != nil,
+        let structClassEnumActorSymbolInfo = symbolInfo.first(where: {
+          // There is no SymbolKind for actors, they just use `.class`.
+          $0.kind == .struct || $0.kind == .class || $0.kind == .enum
+        })
+      {
+        // We have multiple symbols at the position but none of them have a function-like range. This can happen when
+        // invoking a rename from the name of a initializer call like `MyStruct(x: 1)` with the cursor inside `MyStruct`.
+        // In this case, we want to rename the struct/class/actor instead of the initializer.
+        return (startOfIdentifierPosition, structClassEnumActorSymbolInfo.usr, nil)
+      }
+
       return (startOfIdentifierPosition, symbolInfo?.only?.usr, nil)
     }
     if let onlySymbol = symbolInfo?.only, onlySymbol.kind == .constructor {
