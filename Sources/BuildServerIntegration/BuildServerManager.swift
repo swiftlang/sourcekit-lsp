@@ -628,13 +628,29 @@ package actor BuildServerManager: QueueBasedMessageHandler {
       }
       let initializeResponse: InitializeBuildResponse?
       do {
+        var experimentalCapabilities: [String: LSPAny] = [:]
+        func addCapability(_ method: String, _ value: LSPAny) {
+          experimentalCapabilities[method] = value
+          if let legacy = MessageRegistry.bspLegacyNames[method] {
+            experimentalCapabilities[legacy] = value
+          }
+        }
+        // client -> server
+        addCapability(BuildTargetPrepareRequest.method, .dictionary(["version": .int(1)]))
+        addCapability(TextDocumentSourceKitOptionsRequest.method, .dictionary(["version": .int(1)]))
+        addCapability(WorkspaceWaitForBuildSystemUpdatesRequest.method, .dictionary(["version": .int(1)]))
+        // server -> client
+        addCapability(FileOptionsChangedNotification.method, .dictionary(["version": .int(1)]))
         initializeResponse = try await buildServerAdapter.send(
           InitializeBuildRequest(
             displayName: "SourceKit-LSP",
             version: "",
             bspVersion: "2.2.0",
             rootUri: URI(buildServerSpec.projectRoot),
-            capabilities: BuildClientCapabilities(languageIds: [.c, .cpp, .objective_c, .objective_cpp, .swift])
+            capabilities: BuildClientCapabilities(
+              languageIds: [.c, .cpp, .objective_c, .objective_cpp, .swift],
+              experimental: .dictionary(experimentalCapabilities)
+            )
           )
         )
       } catch {
