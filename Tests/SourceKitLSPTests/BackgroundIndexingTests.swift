@@ -1079,7 +1079,7 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
     let project = try await SwiftPMTestProject(
       files: [
         "Lib/MyFile.swift": """
-        public func 1️⃣foo() {}
+        public func 1️⃣foo3️⃣() {}
         """,
         "MyExec/MyExec.swift": """
         import Lib
@@ -1119,7 +1119,7 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
     let definition = try await project.testClient.send(
       DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
     )
-    XCTAssertEqual(definition, .locations([try project.location(from: "1️⃣", to: "1️⃣", in: "MyFile.swift")]))
+    XCTAssertEqual(definition, .locations([try project.location(from: "1️⃣", to: "3️⃣", in: "MyFile.swift")]))
   }
 
   func testCrossModuleFunctionalityEvenIfLowLevelModuleHasErrors() async throws {
@@ -1135,7 +1135,7 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
         "LibB/LibB.swift": """
         import LibA
 
-        public func 1️⃣libBTest() -> Int {
+        public func 1️⃣libBTest3️⃣() -> Int {
           return libATest()
         }
         """,
@@ -1165,7 +1165,7 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
     let response = try await project.testClient.send(
       DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
     )
-    XCTAssertEqual(response, .locations([try project.location(from: "1️⃣", to: "1️⃣", in: "LibB.swift")]))
+    XCTAssertEqual(response, .locations([try project.location(from: "1️⃣", to: "3️⃣", in: "LibB.swift")]))
   }
 
   func testCrossModuleFunctionalityWithErrors() async throws {
@@ -1174,7 +1174,7 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
     let project = try await SwiftPMTestProject(
       files: [
         "LibA/LibA.swift": """
-        public func 1️⃣libATest() -> Invalid {
+        public func 1️⃣libATest3️⃣() -> Invalid {
           return ""
         }
         """,
@@ -1203,7 +1203,7 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
     let response = try await project.testClient.send(
       DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
     )
-    XCTAssertEqual(response, .locations([try project.location(from: "1️⃣", to: "1️⃣", in: "LibA.swift")]))
+    XCTAssertEqual(response, .locations([try project.location(from: "1️⃣", to: "3️⃣", in: "LibA.swift")]))
   }
 
   func testCrossModuleFunctionalityWithPreparationNoSkipping() async throws {
@@ -1219,7 +1219,7 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
         "LibB/LibB.swift": """
         import LibA
 
-        public func 1️⃣libBTest() -> Int {
+        public func 1️⃣libBTest3️⃣() -> Int {
           return libATest()
         }
         """,
@@ -1249,7 +1249,7 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
     let response = try await project.testClient.send(
       DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
     )
-    XCTAssertEqual(response, .locations([try project.location(from: "1️⃣", to: "1️⃣", in: "LibB.swift")]))
+    XCTAssertEqual(response, .locations([try project.location(from: "1️⃣", to: "3️⃣", in: "LibB.swift")]))
   }
 
   func testUpdatePackageDependency() async throws {
@@ -1644,7 +1644,7 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
       "LibA.swift",
       newMarkedContents: """
         public struct LibA {
-          public func 2️⃣test() {}
+          public func 2️⃣test3️⃣() {}
         }
         """
     )
@@ -1655,7 +1655,7 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
       let definitionAfterEdit = try await project.testClient.send(
         DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
       )
-      return definitionAfterEdit?.locations == [Location(uri: libAUri, range: Range(newAMarkers["2️⃣"]))]
+      return definitionAfterEdit?.locations == [Location(uri: libAUri, range: newAMarkers["2️⃣"]..<newAMarkers["3️⃣"])]
     }
   }
 

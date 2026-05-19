@@ -25,7 +25,7 @@ class DefinitionTests: SourceKitLSPTestCase {
 
     let positions = testClient.openDocument(
       """
-      let 1️⃣foo = 1
+      let 1️⃣foo3️⃣ = 1
       _ = foo2️⃣
       """,
       uri: uri
@@ -34,7 +34,7 @@ class DefinitionTests: SourceKitLSPTestCase {
     let response = try await testClient.send(
       DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
     )
-    XCTAssertEqual(response?.locations, [Location(uri: uri, range: Range(positions["1️⃣"]))])
+    XCTAssertEqual(response?.locations, [Location(uri: uri, range: positions["1️⃣"]..<positions["3️⃣"])])
   }
 
   func testJumpToDefinitionIncludesOverrides() async throws {
@@ -180,8 +180,8 @@ class DefinitionTests: SourceKitLSPTestCase {
     let uri = DocumentURI(for: .swift)
     let positions = testClient.openDocument(
       """
-      struct 1️⃣Foo {
-        2️⃣init() {}
+      struct 1️⃣Foo4️⃣ {
+        2️⃣init()5️⃣ {}
       }
       _ = 3️⃣Foo()
       """,
@@ -194,8 +194,8 @@ class DefinitionTests: SourceKitLSPTestCase {
     XCTAssertEqual(
       response,
       .locations([
-        Location(uri: uri, range: Range(positions["1️⃣"])),
-        Location(uri: uri, range: Range(positions["2️⃣"])),
+        Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
+        Location(uri: uri, range: positions["2️⃣"]..<positions["5️⃣"]),
       ])
     )
   }
@@ -205,8 +205,8 @@ class DefinitionTests: SourceKitLSPTestCase {
     let uri = DocumentURI(for: .swift)
     let positions = testClient.openDocument(
       """
-      func 1️⃣foo() -> Int { 1 }
-      func 2️⃣foo() -> String { "" }
+      func 1️⃣foo()4️⃣ -> Int { 1 }
+      func 2️⃣foo()5️⃣ -> String { "" }
       func test() {
         _ = 3️⃣foo()
       }
@@ -220,8 +220,8 @@ class DefinitionTests: SourceKitLSPTestCase {
     XCTAssertEqual(
       response,
       .locations([
-        Location(uri: uri, range: Range(positions["1️⃣"])),
-        Location(uri: uri, range: Range(positions["2️⃣"])),
+        Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
+        Location(uri: uri, range: positions["2️⃣"]..<positions["5️⃣"]),
       ])
     )
   }
@@ -314,7 +314,7 @@ class DefinitionTests: SourceKitLSPTestCase {
 
     let positions = testClient.openDocument(
       """
-      class 1️⃣Foo {}
+      class 1️⃣Foo3️⃣ {}
 
       func test() {
         2️⃣Foo()
@@ -328,7 +328,7 @@ class DefinitionTests: SourceKitLSPTestCase {
     )
     XCTAssertEqual(
       response?.locations,
-      [Location(uri: uri, range: Range(positions["1️⃣"]))]
+      [Location(uri: uri, range: positions["1️⃣"]..<positions["3️⃣"])]
     )
   }
 
@@ -358,7 +358,7 @@ class DefinitionTests: SourceKitLSPTestCase {
 
     let (aUri, updatedAPositions) = try await project.changeFileOnDisk(
       "FileA.swift",
-      newMarkedContents: "func 2️⃣sayHello() {}"
+      newMarkedContents: "func 2️⃣sayHello()3️⃣ {}"
     )
 
     // Wait until SourceKit-LSP has handled the `DidChangeWatchedFilesNotification` (which it only does after a delay
@@ -375,7 +375,7 @@ class DefinitionTests: SourceKitLSPTestCase {
     )
     XCTAssertEqual(
       afterChangingFileA,
-      .locations([Location(uri: aUri, range: Range(updatedAPositions["2️⃣"]))])
+      .locations([Location(uri: aUri, range: updatedAPositions["2️⃣"]..<updatedAPositions["3️⃣"])])
     )
 
     let afterChange = try await project.testClient.send(
@@ -383,7 +383,7 @@ class DefinitionTests: SourceKitLSPTestCase {
     )
     XCTAssertEqual(
       afterChange,
-      .locations([Location(uri: aUri, range: Range(updatedAPositions["2️⃣"]))])
+      .locations([Location(uri: aUri, range: updatedAPositions["2️⃣"]..<updatedAPositions["3️⃣"])])
     )
   }
 
@@ -392,7 +392,7 @@ class DefinitionTests: SourceKitLSPTestCase {
     let project = try await SwiftPMTestProject(
       files: [
         "LibA/LibA.swift": """
-        public func 1️⃣sayHello() {}
+        public func 1️⃣sayHello3️⃣() {}
         """,
         "LibB/LibB.swift": """
         import LibA
@@ -447,7 +447,7 @@ class DefinitionTests: SourceKitLSPTestCase {
     )
     XCTAssertEqual(
       afterBuilding,
-      .locations([try project.location(from: "1️⃣", to: "1️⃣", in: "LibA.swift")])
+      .locations([try project.location(from: "1️⃣", to: "3️⃣", in: "LibA.swift")])
     )
   }
 

@@ -383,7 +383,7 @@ final class InlayHintTests: SourceKitLSPTestCase {
   func testInlayHintResolve() async throws {
     try await runInlayHintTestCase(
       initialText: """
-        struct 1️⃣MyType {}
+        struct 1️⃣MyType3️⃣ {}
         let x2️⃣ = MyType()
         """,
     ) { context in
@@ -411,7 +411,7 @@ final class InlayHintTests: SourceKitLSPTestCase {
       }
 
       XCTAssertEqual(location.uri, context.uri)
-      XCTAssertEqual(location.range, Range(context.positions["1️⃣"]))
+      XCTAssertEqual(location.range, context.positions["1️⃣"]..<context.positions["3️⃣"])
     }
   }
 
