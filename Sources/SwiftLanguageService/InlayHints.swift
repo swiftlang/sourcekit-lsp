@@ -12,7 +12,6 @@
 
 import Foundation
 @_spi(SourceKitLSP) package import LanguageServerProtocol
-import SKOptions
 import SKUtilities
 import SourceKitLSP
 import SwiftExtensions
@@ -30,14 +29,13 @@ extension SwiftLanguageService {
       // The client does not support workspace/inlayHint/refresh.
       // We have to compute inlay hints on every request, because we cannot trigger a refresh when the inlay hints have been recomputed in the background.
       let snapshot = try await latestSnapshot(for: uri)
-      async let typeInlayHints = inlayHintManager.computeTypeInlayHints(
+      let typeInlayHints = try await inlayHintManager.computeInlayHints(
         swiftLanguageService: self,
         for: snapshot,
         range: req.range
       )
       return try await typeInlayHints
         + computeIfConfigInlayHints(snapshot: snapshot, range: req.range)
-        + computeInferredIsolationInlayHints(snapshot: snapshot, range: req.range)
     }
 
     if let hints = await inlayHintManager.getCachedInlayHints(
@@ -47,7 +45,6 @@ extension SwiftLanguageService {
     ) {
       return try await hints
         + computeIfConfigInlayHints(snapshot: snapshot, range: req.range)
-        + computeInferredIsolationInlayHints(snapshot: snapshot, range: req.range)
     }
 
     // No cached hints are available. The inlay hint manager has scheduled a refresh task if needed, so we can just
@@ -83,37 +80,6 @@ extension SwiftLanguageService {
         tooltip: .string("Condition of this conditional compilation clause")
       )
     }
-  }
-
-  private func computeInferredIsolationInlayHints(
-    snapshot: DocumentSnapshot,
-    range: Range<Position>?
-  ) async throws -> [InlayHint] {
-    let inferredIsolationInlays: [InlayHint]
-    if options.hasExperimentalFeature(.inferredClosureIsolationInlayHints) {
-      // TODO: should we perform the request concurrently with others?
-      let inferredIsolationResults = try await inferredIsolations(snapshot.uri, range)
-      inferredIsolationInlays = inferredIsolationResults
-        .lazy
-        .filter { $0.kind == "closure" } // Only kind right now
-        .map { info -> InlayHint in
-          // Anchor the inlay right after the closure's opening brace.
-          // TODO: is there a better way to do this?
-          let offset = snapshot.utf8Offset(of: info.range.lowerBound)
-          let anchor =  snapshot.positionOf(utf8Offset: offset + 1)
-
-          return InlayHint(
-            position: anchor,
-            label: .string("\(info.isolation)"),
-            kind: .type, // TODO: is this appropriate?
-            paddingLeft: true,
-          )
-        }
-    } else {
-      inferredIsolationInlays = []
-    }
-
-    return inferredIsolationInlays
   }
 }
 

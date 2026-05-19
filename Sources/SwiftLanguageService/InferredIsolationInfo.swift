@@ -12,6 +12,7 @@
 
 import Dispatch
 @_spi(SourceKitLSP) import LanguageServerProtocol
+import SKOptions
 import SourceKitD
 import SourceKitLSP
 
@@ -57,6 +58,11 @@ extension SwiftLanguageService {
     _ uri: DocumentURI,
     _ range: Range<Position>? = nil
   ) async throws -> [InferredIsolationInfo] {
+    // TODO: too defensive?
+    guard options.hasExperimentalFeature(.inferredClosureIsolationInlayHints) else {
+      return []
+    }
+
     let snapshot = try await self.latestSnapshot(for: uri)
 
     let skreq = sourcekitd.dictionary([

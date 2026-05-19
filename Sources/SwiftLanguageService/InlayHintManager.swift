@@ -13,6 +13,7 @@
 import Foundation
 @_spi(SourceKitLSP) package import LanguageServerProtocol
 @_spi(SourceKitLSP) import SKLogging
+import SKOptions
 import SKUtilities
 import SourceKitLSP
 import SwiftExtensions
@@ -49,7 +50,7 @@ actor InlayHintManager {
   /// Cached inlay hints for each document.
   ///
   /// Each entry stores hints for the full document and the document version they were computed for.
-  /// - Note: The capacity has been chosen without scientific measurements. 20 seems like a resonable number of open documents a client may have.
+  /// - Note: The capacity has been chosen without scientific measurements. 20 seems like a reasonable number of open documents a client may have.
   private var cache = LRUCache<DocumentURI, InlayHintCacheEntry>(capacity: 20)
 
   /// Documents that currently have a background inlay-hint recomputation in progress.
@@ -210,7 +211,7 @@ actor InlayHintManager {
           // type can make type hints for all other variables that use the edited variable stale). Caching and returning
           // inlay hints for only a subrange of the document would add a lot of complexity, because we would need to track
           // which hints are valid for which ranges and versions.
-          let updatedHints = try await computeTypeInlayHints(swiftLanguageService: service, for: snapshot, range: nil)
+          let updatedHints = try await computeInlayHints(swiftLanguageService: service, for: snapshot, range: nil)
 
           try Task.checkCancellation()
 
@@ -250,7 +251,33 @@ actor InlayHintManager {
     )
   }
 
-  func computeTypeInlayHints(
+  func computeInlayHints(
+    swiftLanguageService service: SwiftLanguageService,
+    for snapshot: DocumentSnapshot,
+    range: Range<Position>?
+  ) async throws -> [InlayHint] {
+    try await withThrowingTaskGroup { group -> [InlayHint] in
+      group.addTask {
+        try await self.computeTypeInlayHints(swiftLanguageService: service, for: snapshot, range: range)
+      }
+
+      if (service.options.hasExperimentalFeature(.inferredClosureIsolationInlayHints)) {
+        group.addTask {
+          // TODO: how should we deal with errors?
+          try await self.computeIsolationInlayHints(swiftLanguageService: service, snapshot: snapshot, range: range)
+        }
+      }
+
+      var results = [InlayHint]()
+      for try await hints in group {
+        results.append(contentsOf: hints)
+      }
+
+      return results.sorted { $0.position < $1.position }
+    }
+  }
+
+  private func computeTypeInlayHints(
     swiftLanguageService service: SwiftLanguageService,
     for snapshot: DocumentSnapshot,
     range: Range<Position>?
@@ -278,7 +305,30 @@ actor InlayHintManager {
           data: resolveData.encodeToLSPAny()
         )
       }
-      .sorted { $0.position < $1.position }
+  }
+
+  private func computeIsolationInlayHints(
+    swiftLanguageService service: SwiftLanguageService,
+    snapshot: DocumentSnapshot,
+    range: Range<Position>?
+  ) async throws -> [InlayHint] {
+    let infos = try await service.inferredIsolations(snapshot.uri, range)
+    return infos
+      .lazy
+      .filter { $0.kind == "closure" } // Only kind right now
+      .map { info -> InlayHint in
+        // Anchor the inlay right after the closure's opening brace.
+        // TODO: is there a better way to do this?
+        let offset = snapshot.utf8Offset(of: info.range.lowerBound)
+        let anchor =  snapshot.positionOf(utf8Offset: offset + 1)
+
+        return InlayHint(
+          position: anchor,
+          label: .string("\(info.isolation)"),
+          kind: .type, // TODO: is this appropriate?
+          paddingLeft: true,
+        )
+      }
   }
 
   func removeCachedInlayHints(for uri: DocumentURI) {
