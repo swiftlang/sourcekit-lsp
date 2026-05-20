@@ -1245,6 +1245,51 @@ struct SwiftPMBuildServerTests {
     #expect(diagnostics.isEmpty)
   }
 
+  @Test func testPkgConfigDirectories() async throws {
+    var options = try await SourceKitLSPOptions.testDefault(experimentalFeatures: [.sourceKitOptionsRequest])
+    options.swiftPMOrDefault.pkgConfigPaths = ["pcfiles"]
+    let project = try await SwiftPMTestProject(
+      files: [
+        "MyExecutable/main.swift": """
+        import MyClib
+        """,
+        "MyClib/module.modulemap": """
+        module MyClib [system] {
+          header "shim.h"
+          link "myclib"
+          export *
+        }
+        """,
+        "MyClib/shim.h": "",
+        "/pcfiles/myclib.pc": """
+        Name: myclib
+        Cflags: -I/sourcekit-lsp-test-pkg-config-include
+        """,
+      ],
+      manifest: """
+        let package = Package(
+          name: "MyPkg",
+          targets: [
+            .executableTarget(name: "MyExecutable", dependencies: ["MyClib"]),
+            .systemLibrary(name: "MyClib", pkgConfig: "myclib"),
+          ]
+        )
+        """,
+      options: options
+    )
+
+    let uri = try project.openDocument("main.swift").uri
+
+    let buildSettings = try await project.testClient.send(
+      SourceKitOptionsRequest(
+        textDocument: TextDocumentIdentifier(uri),
+        prepareTarget: false,
+        allowFallbackSettings: false
+      )
+    )
+    #expect(buildSettings.compilerArguments.contains("-I/sourcekit-lsp-test-pkg-config-include"))
+  }
+
   // MARK: - Package reload filtering
 
   /// Creates a minimal package containing a zip-based binary target and returns the server ready
