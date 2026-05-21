@@ -496,7 +496,7 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
   /// for `uri` is fully processed (and `setLanguageServices` called) before the cache is read.
   package func primaryLanguageService(for uri: DocumentURI) async throws -> (any LanguageService)? {
     _ = try await send(SynchronizeRequest())
-    return await server.workspaceForDocument(uri: uri)?.primaryLanguageService(for: uri)
+    return try await unwrap(server.workspaceForDocument(uri: uri)).primaryLanguageService(forOpenDocument: uri)
   }
 }
 

@@ -380,7 +380,7 @@ package actor SourceKitLSPServer {
 
     // This should be created as soon as we receive an open call, even if the document
     // isn't yet ready.
-    for languageService in workspace.languageServices(for: doc) {
+    for languageService in workspace.languageServices(forOpenDocument: doc) {
       await notificationHandler(notification, languageService)
     }
   }
@@ -399,7 +399,7 @@ package actor SourceKitLSPServer {
       guard let workspace = await self.workspaceForDocument(uri: request.textDocument.uri) else {
         throw ResponseError.workspaceNotOpen(request.textDocument.uri)
       }
-      let languageServices = workspace.languageServices(for: doc)
+      let languageServices = workspace.languageServices(forOpenDocument: doc)
       if languageServices.isEmpty {
         throw ResponseError.unknown("No language service for '\(request.textDocument.uri)' found")
       }
@@ -431,7 +431,7 @@ package actor SourceKitLSPServer {
       guard let workspace = await self.workspaceForDocument(uri: documentUri) else {
         continue
       }
-      guard workspace.languageServices(for: documentUri).contains(where: { $0 === languageService }) else {
+      guard workspace.languageServices(forOpenDocument: documentUri).contains(where: { $0 === languageService }) else {
         continue
       }
       guard let snapshot = try? self.documentManager.latestSnapshot(documentUri) else {
@@ -1237,7 +1237,7 @@ extension SourceKitLSPServer {
       return
     }
 
-    workspace.setLanguageServices(for: uri, languageServices)
+    workspace.setLanguageServices(forOpenDocument: uri, languageServices)
 
     await workspace.buildServerManager.registerForChangeNotifications(for: uri, language: language)
 
@@ -1267,7 +1267,7 @@ extension SourceKitLSPServer {
       return
     }
 
-    for languageService in workspace.languageServices(for: uri) {
+    for languageService in workspace.languageServices(forOpenDocument: uri) {
       await languageService.reopenDocument(notification)
     }
   }
@@ -1283,11 +1283,11 @@ extension SourceKitLSPServer {
 
     await workspace.buildServerManager.unregisterForChangeNotifications(for: uri)
 
-    for languageService in workspace.languageServices(for: uri) {
+    for languageService in workspace.languageServices(forOpenDocument: uri) {
       await languageService.closeDocument(notification)
     }
 
-    workspace.removeLanguageServices(for: uri)
+    workspace.removeLanguageServices(forOpenDocument: uri)
 
     workspaceQueue.async {
       self.workspaceForUri[notification.textDocument.uri] = nil
@@ -1317,7 +1317,7 @@ extension SourceKitLSPServer {
       // Already logged failure
       return
     }
-    for languageService in workspace.languageServices(for: uri) {
+    for languageService in workspace.languageServices(forOpenDocument: uri) {
       await languageService.changeDocument(
         notification,
         preEditSnapshot: preEditSnapshot,
@@ -1526,8 +1526,8 @@ extension SourceKitLSPServer {
     guard let workspace = await self.workspaceForDocument(uri: uri) else {
       throw ResponseError.workspaceNotOpen(uri)
     }
-    let language = try documentManager.latestSnapshot(uri.buildSettingsFile).language
-    return try await workspace.primaryLanguageService(for: uri, language).completionItemResolve(request)
+    let languageService = try workspace.primaryLanguageService(forOpenDocument: uri)
+    return try await languageService.completionItemResolve(request)
   }
 
   func doccDocumentation(
@@ -1927,16 +1927,15 @@ extension SourceKitLSPServer {
     guard let workspace = await self.workspaceForDocument(uri: uri) else {
       throw ResponseError.workspaceNotOpen(uri)
     }
-    let language = try documentManager.latestSnapshot(uri.buildSettingsFile).language
     // First, check if we have a language service that explicitly declares support for this command.
-    if let languageService = await workspace.languageServices(for: uri, language)
+    if let languageService = workspace.languageServices(forOpenDocument: uri)
       .first(where: { type(of: $0).builtInCommands.contains(req.command) })
     {
       return try await languageService.executeCommand(executeCommand)
     }
     // Otherwise handle it in the primary language service. This is important to handle eg. commands in clangd, which
     // are not declared as built-in commands.
-    return try await workspace.primaryLanguageService(for: uri, language).executeCommand(executeCommand)
+    return try await workspace.primaryLanguageService(forOpenDocument: uri).executeCommand(executeCommand)
   }
 
   func getReferenceDocument(_ req: GetReferenceDocumentRequest) async throws -> GetReferenceDocumentResponse {
@@ -1989,9 +1988,8 @@ extension SourceKitLSPServer {
     var forwardedReq = req
     forwardedReq.codeAction.data = resolveMetadata.underlyingData
 
-    let language = try documentManager.latestSnapshot(uri.buildSettingsFile).language
-    return try await workspace.primaryLanguageService(for: uri, language)
-      .codeActionResolve(forwardedReq)
+    let languageService = try workspace.primaryLanguageService(forOpenDocument: uri)
+    return try await languageService.codeActionResolve(forwardedReq)
   }
 
   func codeLens(
@@ -2019,8 +2017,8 @@ extension SourceKitLSPServer {
     guard let workspace = await self.workspaceForDocument(uri: uri) else {
       return request.inlayHint
     }
-    let language = try documentManager.latestSnapshot(uri.buildSettingsFile).language
-    return try await workspace.primaryLanguageService(for: uri, language).inlayHintResolve(request)
+    let languageService = try workspace.primaryLanguageService(forOpenDocument: uri)
+    return try await languageService.inlayHintResolve(request)
   }
 
   func documentDiagnostic(

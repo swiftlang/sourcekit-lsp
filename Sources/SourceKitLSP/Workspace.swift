@@ -199,7 +199,8 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
   }
 
   /// Language service for an open document, if available.
-  private let languageServices: ThreadSafeBox<[DocumentURI: [any LanguageService]]> = ThreadSafeBox(initialValue: [:])
+  private let languageServicesForOpenDocument: ThreadSafeBox<[DocumentURI: [any LanguageService]]> =
+    ThreadSafeBox(initialValue: [:])
 
   /// All language services that are registered with this workspace.
   var allLanguageServices: [any LanguageService] {
@@ -542,8 +543,7 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
     for uri: DocumentURI,
     _ language: Language
   ) async -> [any LanguageService] {
-    let cached = languageServices.value[uri.buildSettingsFile]
-    if let cached, !cached.isEmpty {
+    if let cached = languageServicesForOpenDocument.value[uri.buildSettingsFile] {
       return cached
     }
 
@@ -594,24 +594,29 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
   ///
   /// Callers should try to merge the results from the different language services or prefer results
   /// from language services that occur earlier in this array, whichever is more suitable.
-  package func languageServices(for uri: DocumentURI) -> [any LanguageService] {
-    return languageServices.value[uri.buildSettingsFile] ?? []
+  package func languageServices(forOpenDocument uri: DocumentURI) -> [any LanguageService] {
+    return languageServicesForOpenDocument.value[uri.buildSettingsFile] ?? []
   }
 
   /// The primary language service for an open document.
   ///
-  /// Convenience wrapper around the sync `languageServices(for:)`. Returns `nil` if the document
-  /// has not been opened or has already been closed.
-  package func primaryLanguageService(for uri: DocumentURI) -> (any LanguageService)? {
-    return languageServices(for: uri).first
+  /// Convenience wrapper around `languageServices(forOpenDocument:)`. Throws if the document has
+  /// not been opened or has already been closed.
+  package func primaryLanguageService(forOpenDocument uri: DocumentURI) throws -> any LanguageService {
+    let services = languageServices(forOpenDocument: uri)
+    if let first = services.first {
+      return first
+    }
+    throw ResponseError.unknown("No language service for '\(uri)' found")
   }
 
   /// Set the language services for a document URI.
   ///
   /// This should only be called from `openDocument` to ensure there are no race conditions.
-  func setLanguageServices(for uri: DocumentURI, _ newLanguageService: [any LanguageService]) {
-    languageServices.withLock { languageServices in
-      languageServices[uri.buildSettingsFile] = newLanguageService
+  func setLanguageServices(forOpenDocument uri: DocumentURI, _ services: [any LanguageService]) {
+    guard !services.isEmpty else { return }  // Don't cache empty value.
+    languageServicesForOpenDocument.withLock { languageServices in
+      languageServices[uri.buildSettingsFile] = services
     }
   }
 
@@ -619,19 +624,19 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
   ///
   /// If any other open document shares the same build-settings file as `uri`, the language service
   /// is still in use and will not be removed.
-  func removeLanguageServices(for uri: DocumentURI) {
+  func removeLanguageServices(forOpenDocument uri: DocumentURI) {
     let key = uri.buildSettingsFile
     let openDocuments = sourceKitLSPServer?.documentManager.openDocuments ?? []
     guard !openDocuments.contains(where: { $0.buildSettingsFile == key }) else {
       return
     }
-    languageServices.withLock { languageServices in
+    languageServicesForOpenDocument.withLock { languageServices in
       languageServices[key] = nil
     }
   }
 
   func shutdown() async {
-    logger.info("Shutting down workspace \(self.rootUri?.description ?? "<nil>")")
+    logger.info("Shutting down workspace \(self.rootUri.forLogging)")
     async let languageServiceShutdown = shutdownAllLanguageServices()
     async let buildServerShutdown = buildServerManager.shutdown()
     async let indexClose = uncheckedIndex?.close()
@@ -654,7 +659,7 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
   /// - Changed settings for an already open file
   package func fileBuildSettingsChanged(_ changedFiles: Set<DocumentURI>) async {
     for uri in changedFiles {
-      for languageService in languageServices(for: uri) {
+      for languageService in languageServices(forOpenDocument: uri) {
         await languageService.documentUpdatedBuildSettings(uri)
       }
     }
@@ -667,7 +672,7 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
     var documentsByService: [ObjectIdentifier: (Set<DocumentURI>, any LanguageService)] = [:]
     for uri in changedFiles {
       logger.log("Dependencies updated for file \(uri.forLogging)")
-      for languageService in languageServices(for: uri) {
+      for languageService in languageServices(forOpenDocument: uri) {
         documentsByService[ObjectIdentifier(languageService), default: ([], languageService)].0.insert(uri)
       }
     }
