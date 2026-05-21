@@ -125,7 +125,7 @@ public final class InProcessSourceKitLSPClient: Sendable {
     reply: @Sendable @escaping (LSPResult<R.Response>) -> Void
   ) -> RequestID {
     let requestID = RequestID.string(
-      "sk-\(Int(nextRequestID.wrappingAdd(1, ordering: .sequentiallyConsistent).oldValue))"
+      "sk-\(Int(nextRequestID.wrappingAdd(1, ordering: .relaxed).oldValue))"
     )
     server.handle(request, id: requestID, reply: reply)
     return requestID

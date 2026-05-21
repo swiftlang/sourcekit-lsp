@@ -136,10 +136,10 @@ package actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
   /// it, the priority may get elevated.
   nonisolated var priority: TaskPriority {
     get {
-      TaskPriority(rawValue: _priority.load(ordering: .sequentiallyConsistent))
+      TaskPriority(rawValue: _priority.load(ordering: .relaxed))
     }
     set {
-      _priority.store(newValue.rawValue, ordering: .sequentiallyConsistent)
+      _priority.store(newValue.rawValue, ordering: .relaxed)
     }
   }
 
@@ -155,7 +155,7 @@ package actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
 
   /// Whether the task is currently executing or still queued to be executed later.
   package nonisolated var isExecuting: Bool {
-    return _isExecuting.load(ordering: .sequentiallyConsistent)
+    return _isExecuting.load(ordering: .relaxed)
   }
 
   package nonisolated func cancel() {
@@ -222,7 +222,7 @@ package actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
           taskPriorityChangedCallback(self.priority)
         }
       } onCancel: {
-        self.resultTaskCancelled.store(true, ordering: .sequentiallyConsistent)
+        self.resultTaskCancelled.store(true, ordering: .relaxed)
       }
     }
   }
@@ -243,15 +243,15 @@ package actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
     }
     precondition(executionTask == nil, "Task started twice")
     let task = Task.detached(priority: self.priority) {
-      if !Task.isCancelled && !self.resultTaskCancelled.load(ordering: .sequentiallyConsistent) {
+      if !Task.isCancelled && !self.resultTaskCancelled.load(ordering: .relaxed) {
         await self.description.execute()
       }
       return await self.finalizeExecution()
     }
-    _isExecuting.store(true, ordering: .sequentiallyConsistent)
+    _isExecuting.store(true, ordering: .relaxed)
     executionTask = task
     executionTaskCreatedContinuation.yield(task)
-    if self.resultTaskCancelled.load(ordering: .sequentiallyConsistent) {
+    if self.resultTaskCancelled.load(ordering: .relaxed) {
       // The queued task might have been cancelled after the execution ask was started but before the task was yielded
       // to `executionTaskCreatedContinuation`. In that case the result task will simply cancel the await on the
       // `executionTaskCreatedStream` and hence not call `valuePropagatingCancellation` on the execution task. This
@@ -266,7 +266,7 @@ package actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
   /// Implementation detail of `execute` that is called after `self.description.execute()` finishes.
   private func finalizeExecution() async -> ExecutionTaskFinishStatus {
     self.executionTask = nil
-    _isExecuting.store(false, ordering: .sequentiallyConsistent)
+    _isExecuting.store(false, ordering: .relaxed)
     if Task.isCancelled && self.cancelledToBeRescheduled {
       await executionStateChangedCallback?(self, .cancelledToBeRescheduled)
       self.cancelledToBeRescheduled = false

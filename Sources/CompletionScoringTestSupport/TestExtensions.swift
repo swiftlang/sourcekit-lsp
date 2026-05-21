@@ -116,9 +116,9 @@ extension XCTestCase {
       }
       let logFD = try FileHandle(forWritingAtPath: path).unwrap(orThrow: "Opening \(path) failed")
       try logFD.seekToEnd()
-      if printBeginingOfLog.load(ordering: .sequentiallyConsistent) {
+      if printBeginingOfLog.load(ordering: .relaxed) {
         try logFD.print("========= \(Date().description(with: .current)) =========")
-        printBeginingOfLog.store(false, ordering: .sequentiallyConsistent)
+        printBeginingOfLog.store(false, ordering: .relaxed)
       }
       return logFD
     }

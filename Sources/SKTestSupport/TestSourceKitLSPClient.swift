@@ -245,7 +245,7 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
     let shutdownSemaphore = WrappedSemaphore(name: "Shutdown")
     server.handle(
       ShutdownRequest(),
-      id: .number(Int(nextRequestID.wrappingAdd(1, ordering: .sequentiallyConsistent).oldValue))
+      id: .number(Int(nextRequestID.wrappingAdd(1, ordering: .relaxed).oldValue))
     ) { result in
       shutdownSemaphore.signal()
     }
@@ -293,7 +293,7 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
     _ request: R,
     completionHandler: @Sendable @escaping (LSPResult<R.Response>) -> Void
   ) -> RequestID {
-    let requestID = RequestID.number(Int(nextRequestID.wrappingAdd(1, ordering: .sequentiallyConsistent).oldValue))
+    let requestID = RequestID.number(Int(nextRequestID.wrappingAdd(1, ordering: .relaxed).oldValue))
     let replyOutstanding = ThreadSafeBox<Bool?>(initialValue: true)
     let timeoutTask = Task {
       try await Task.sleep(for: defaultTimeoutDuration)

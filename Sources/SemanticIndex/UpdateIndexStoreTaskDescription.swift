@@ -115,7 +115,7 @@ private enum UpdateIndexStorePartition {
 /// This task description can be scheduled in a `TaskScheduler`.
 package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
   package static let idPrefix = "update-indexstore"
-  package let id = updateIndexStoreIDForLogging.wrappingAdd(1, ordering: .sequentiallyConsistent).oldValue
+  package let id = updateIndexStoreIDForLogging.wrappingAdd(1, ordering: .relaxed).oldValue
 
   /// The files that should be indexed.
   package let filesToIndex: [FileAndOutputPath]

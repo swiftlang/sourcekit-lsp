@@ -832,7 +832,7 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
     let start = ContinuousClock.now
 
     let taskID: TaskId = TaskId(
-      id: "preparation-\(preparationTaskID.wrappingAdd(1, ordering: .sequentiallyConsistent).oldValue)"
+      id: "preparation-\(preparationTaskID.wrappingAdd(1, ordering: .relaxed).oldValue)"
     )
     connectionToSourceKitLSP.send(
       BuildServerProtocol.OnBuildLogMessageNotification(

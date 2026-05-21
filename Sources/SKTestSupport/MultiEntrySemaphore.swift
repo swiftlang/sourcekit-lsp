@@ -29,13 +29,13 @@ package final class MultiEntrySemaphore: Sendable {
   }
 
   package func signal() {
-    signaled.store(true, ordering: .sequentiallyConsistent)
+    signaled.store(true, ordering: .releasing)
   }
 
   package func waitOrThrow() async throws {
     do {
       try await repeatUntilExpectedResult(sleepInterval: .seconds(0.01)) {
-        signaled.load(ordering: .sequentiallyConsistent)
+        signaled.load(ordering: .acquiring)
       }
     } catch {
       struct TimeoutError: Error, CustomStringConvertible {

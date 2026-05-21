@@ -39,7 +39,7 @@ struct CompletionSessionID: Equatable, Codable {
   }
 
   static func next() -> CompletionSessionID {
-    return CompletionSessionID(value: nextSessionID.wrappingAdd(1, ordering: .sequentiallyConsistent).oldValue)
+    return CompletionSessionID(value: nextSessionID.wrappingAdd(1, ordering: .relaxed).oldValue)
   }
 
   init(from decoder: any Decoder) throws {

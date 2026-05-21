@@ -31,7 +31,7 @@ private let preparationIDForLogging = Atomic<UInt32>(1)
 package struct PreparationTaskDescription: IndexTaskDescription {
   package static let idPrefix = "prepare"
 
-  package let id = preparationIDForLogging.wrappingAdd(1, ordering: .sequentiallyConsistent).oldValue
+  package let id = preparationIDForLogging.wrappingAdd(1, ordering: .relaxed).oldValue
 
   /// The targets that should be prepared.
   package let targetsToPrepare: [BuildTargetIdentifier]
