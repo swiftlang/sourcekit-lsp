@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import SwiftExtensions
+import Synchronization
 @_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
 
@@ -21,19 +22,21 @@ import XCTest
 /// done, all index operations should be able to run, not just one.
 package final class MultiEntrySemaphore: Sendable {
   private let name: String
-  private let signaled = AtomicBool(initialValue: false)
+  private let signaled = Atomic<Bool>(false)
 
   package init(name: String) {
     self.name = name
   }
 
   package func signal() {
-    signaled.value = true
+    signaled.store(true, ordering: .sequentiallyConsistent)
   }
 
   package func waitOrThrow() async throws {
     do {
-      try await repeatUntilExpectedResult(sleepInterval: .seconds(0.01)) { signaled.value }
+      try await repeatUntilExpectedResult(sleepInterval: .seconds(0.01)) {
+        signaled.load(ordering: .sequentiallyConsistent)
+      }
     } catch {
       struct TimeoutError: Error, CustomStringConvertible {
         let name: String

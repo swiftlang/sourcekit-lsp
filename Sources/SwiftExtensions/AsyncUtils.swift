@@ -94,7 +94,7 @@ package func withTimeoutResult<T: Sendable>(
   body: @escaping @Sendable () async throws -> T,
   resultReceivedAfterTimeout: @escaping @Sendable (_ result: T) async -> Void
 ) async throws -> WithTimeoutResult<T> {
-  let didHitTimeout = AtomicBool(initialValue: false)
+  let didHitTimeout = ThreadSafeBox<Bool>(initialValue: false)
 
   let stream = AsyncThrowingStream<WithTimeoutResult<T>, any Error> { continuation in
     Task {

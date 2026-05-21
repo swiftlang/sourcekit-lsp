@@ -19,6 +19,7 @@ public import Foundation
 public import SKOptions
 package import SourceKitLSP
 import SwiftExtensions
+import Synchronization
 import TSCExtensions
 package import ToolchainRegistry
 @_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
@@ -29,7 +30,7 @@ import struct TSCBasic.AbsolutePath
 public final class InProcessSourceKitLSPClient: Sendable {
   private let server: SourceKitLSPServer
 
-  private let nextRequestID = AtomicUInt32(initialValue: 0)
+  private let nextRequestID = Atomic<UInt32>(0)
 
   public convenience init(
     toolchainPath: URL?,
@@ -123,7 +124,9 @@ public final class InProcessSourceKitLSPClient: Sendable {
     _ request: R,
     reply: @Sendable @escaping (LSPResult<R.Response>) -> Void
   ) -> RequestID {
-    let requestID = RequestID.string("sk-\(Int(nextRequestID.fetchAndIncrement()))")
+    let requestID = RequestID.string(
+      "sk-\(Int(nextRequestID.wrappingAdd(1, ordering: .sequentiallyConsistent).oldValue))"
+    )
     server.handle(request, id: requestID, reply: reply)
     return requestID
   }
