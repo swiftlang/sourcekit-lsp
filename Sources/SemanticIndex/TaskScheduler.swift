@@ -14,6 +14,7 @@ import Foundation
 @_spi(SourceKitLSP) import LanguageServerProtocolExtensions
 @_spi(SourceKitLSP) package import SKLogging
 import SwiftExtensions
+import Synchronization
 @_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 /// See comment on ``TaskDescriptionProtocol/dependencies(to:taskPriority:)``
@@ -127,7 +128,7 @@ package actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
   /// Every time `execute` gets called, a new task is placed in this continuation. See comment on `executionTask`.
   private let executionTaskCreatedContinuation: AsyncStream<Task<ExecutionTaskFinishStatus, Never>>.Continuation
 
-  private let _priority: AtomicUInt8
+  private let _priority: Atomic<UInt8>
 
   /// The latest known priority of the task.
   ///
@@ -135,10 +136,10 @@ package actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
   /// it, the priority may get elevated.
   nonisolated var priority: TaskPriority {
     get {
-      TaskPriority(rawValue: _priority.value)
+      TaskPriority(rawValue: _priority.load(ordering: .relaxed))
     }
     set {
-      _priority.value = newValue.rawValue
+      _priority.store(newValue.rawValue, ordering: .relaxed)
     }
   }
 
@@ -148,13 +149,13 @@ package actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
   private var cancelledToBeRescheduled: Bool = false
 
   /// Whether `resultTask` has been cancelled.
-  private let resultTaskCancelled: AtomicBool = .init(initialValue: false)
+  private let resultTaskCancelled = Atomic<Bool>(false)
 
-  private let _isExecuting: AtomicBool = .init(initialValue: false)
+  private let _isExecuting = Atomic<Bool>(false)
 
   /// Whether the task is currently executing or still queued to be executed later.
   package nonisolated var isExecuting: Bool {
-    return _isExecuting.value
+    return _isExecuting.load(ordering: .relaxed)
   }
 
   package nonisolated func cancel() {
@@ -188,7 +189,7 @@ package actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
     taskPriorityChangedCallback: @escaping @Sendable (_ newPriority: TaskPriority) -> Void,
     executionStateChangedCallback: (@Sendable (QueuedTask, TaskExecutionState) async -> Void)?
   ) async {
-    self._priority = AtomicUInt8(initialValue: priority.rawValue)
+    self._priority = Atomic<UInt8>(priority.rawValue)
     self.description = description
     self.executionStateChangedCallback = executionStateChangedCallback
 
@@ -221,7 +222,7 @@ package actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
           taskPriorityChangedCallback(self.priority)
         }
       } onCancel: {
-        self.resultTaskCancelled.value = true
+        self.resultTaskCancelled.store(true, ordering: .relaxed)
       }
     }
   }
@@ -242,15 +243,15 @@ package actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
     }
     precondition(executionTask == nil, "Task started twice")
     let task = Task.detached(priority: self.priority) {
-      if !Task.isCancelled && !self.resultTaskCancelled.value {
+      if !Task.isCancelled && !self.resultTaskCancelled.load(ordering: .relaxed) {
         await self.description.execute()
       }
       return await self.finalizeExecution()
     }
-    _isExecuting.value = true
+    _isExecuting.store(true, ordering: .relaxed)
     executionTask = task
     executionTaskCreatedContinuation.yield(task)
-    if self.resultTaskCancelled.value {
+    if self.resultTaskCancelled.load(ordering: .relaxed) {
       // The queued task might have been cancelled after the execution ask was started but before the task was yielded
       // to `executionTaskCreatedContinuation`. In that case the result task will simply cancel the await on the
       // `executionTaskCreatedStream` and hence not call `valuePropagatingCancellation` on the execution task. This
@@ -265,7 +266,7 @@ package actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
   /// Implementation detail of `execute` that is called after `self.description.execute()` finishes.
   private func finalizeExecution() async -> ExecutionTaskFinishStatus {
     self.executionTask = nil
-    _isExecuting.value = false
+    _isExecuting.store(false, ordering: .relaxed)
     if Task.isCancelled && self.cancelledToBeRescheduled {
       await executionStateChangedCallback?(self, .cancelledToBeRescheduled)
       self.cancelledToBeRescheduled = false
