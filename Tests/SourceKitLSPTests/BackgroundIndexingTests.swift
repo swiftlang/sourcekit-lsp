@@ -1379,7 +1379,7 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
   }
 
   func testAddingRandomSwiftFileDoesNotTriggerPackageReload() async throws {
-    let packageInitialized = AtomicBool(initialValue: false)
+    let packageInitialized = ThreadSafeBox<Bool>(initialValue: false)
 
     var testHooks = Hooks()
     testHooks.buildServerHooks.swiftPMTestHooks.reloadPackageDidStart = {
@@ -2152,7 +2152,7 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
   }
 
   func testIndexingProgressIfNonIndexableFileIsInPackage() async throws {
-    let receivedReportProgressNotification = AtomicBool(initialValue: false)
+    let receivedReportProgressNotification = ThreadSafeBox<Bool>(initialValue: false)
 
     let project = try await SwiftPMTestProject(
       files: [
@@ -2579,7 +2579,7 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
   }
 
   func testEnsureSymbolsLoadedIntoIndexstoreDbWhenIndexingHasFinished() async throws {
-    let testSetupComplete = AtomicBool(initialValue: false)
+    let testSetupComplete = ThreadSafeBox<Bool>(initialValue: false)
     let updateIndexStoreStarted = self.expectation(description: "Update index store started")
     let project = try await SwiftPMTestProject(
       files: [

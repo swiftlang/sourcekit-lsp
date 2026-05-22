@@ -248,7 +248,7 @@ final class TaskSchedulerTests: SourceKitLSPTestCase {
     let taskScheduler = TaskScheduler<ClosureTaskDescription>(maxConcurrentTasksByPriority: [(.low, 1)])
 
     /// True after the job was cancelled and is now being re-scheduled after increasing the number of execution slots.
-    let taskExecutedBefore = AtomicBool(initialValue: false)
+    let taskExecutedBefore = ThreadSafeBox<Bool>(initialValue: false)
 
     let taskStartedExecuting = self.expectation(description: "Task started executing")
     let executionSlotsReduced = self.expectation(description: "Execution slots reduced")

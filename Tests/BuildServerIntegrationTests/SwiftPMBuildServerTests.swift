@@ -1327,8 +1327,8 @@ struct SwiftPMBuildServerTests {
   @Test
   func testBinaryTargetArtifactEventsDoNotTriggerPackageReload() async throws {
     try await withTestScratchDir { tempDir in
-      let packageInitialized = AtomicBool(initialValue: false)
-      let unexpectedReloadStarted = AtomicBool(initialValue: false)
+      let packageInitialized = ThreadSafeBox<Bool>(initialValue: false)
+      let unexpectedReloadStarted = ThreadSafeBox<Bool>(initialValue: false)
 
       let (server, projectRoot) = try await makeServerWithBinaryTargetAndWaitForInitialLoad(
         in: tempDir,
@@ -1380,8 +1380,8 @@ struct SwiftPMBuildServerTests {
     try await withTestScratchDir { tempDir in
       let customScratch = tempDir.appending(component: "custom-scratch")
 
-      let packageInitialized = AtomicBool(initialValue: false)
-      let unexpectedReloadStarted = AtomicBool(initialValue: false)
+      let packageInitialized = ThreadSafeBox<Bool>(initialValue: false)
+      let unexpectedReloadStarted = ThreadSafeBox<Bool>(initialValue: false)
 
       let (server, projectRoot) = try await makeServerWithBinaryTargetAndWaitForInitialLoad(
         in: tempDir,
