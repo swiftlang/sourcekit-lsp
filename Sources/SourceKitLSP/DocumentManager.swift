@@ -17,6 +17,7 @@ package import SKUtilities
 import SemanticIndex
 import SwiftExtensions
 package import SwiftSyntax
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 /// An immutable snapshot of a document at a given time.
 ///

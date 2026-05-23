@@ -16,6 +16,7 @@ package import Foundation
 @_spi(SourceKitLSP) package import LanguageServerProtocol
 @_spi(SourceKitLSP) import SKLogging
 import SwiftExtensions
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 /// Essentially a `DocumentManager` from the `SourceKitLSP` module.
 ///

@@ -15,6 +15,7 @@ import RegexBuilder
 @_spi(SourceKitLSP) import SKLogging
 import SwiftExtensions
 import TSCExtensions
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 import class TSCBasic.Process
 

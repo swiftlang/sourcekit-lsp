@@ -2627,8 +2627,11 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
     let testHooks = Hooks(
       buildServerHooks: BuildServerHooks(preHandleRequest: { request in
         if let request = request as? BuildTargetPrepareRequest {
-          preparationRequests.value.append(request)
-          if preparationRequests.value.count >= 2 {
+          let count = preparationRequests.withLock { (value: inout [BuildTargetPrepareRequest]) in
+            value.append(request)
+            return value.count
+          }
+          if count >= 2 {
             twoPreparationRequestsReceived.fulfill()
           }
         }

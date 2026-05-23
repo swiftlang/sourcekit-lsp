@@ -19,6 +19,7 @@ import SourceKitLSP
 import SwiftExtensions
 @_spi(Testing) import SwiftLanguageService
 import ToolchainRegistry
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
 
 final class SourcekitdCoreInjectorTests: SourceKitLSPTestCase {
@@ -46,7 +47,7 @@ final class SourcekitdCoreInjectorTests: SourceKitLSPTestCase {
 
     let testClient = try await TestSourceKitLSPClient(
       hooks: Hooks(sourcekitdCoreInjector: { toolchainURL in
-        injectorCallCount.value += 1
+        injectorCallCount.withLock { $0 += 1 }
         capturedToolchainURL.value = toolchainURL
         return injectedCore
       })
@@ -113,7 +114,7 @@ private final class InjectedSourceKitDCore: SourceKitDCore, Sendable {
     api: sourcekitd_api_functions_t,
     notificationCallback: @escaping @Sendable (sourcekitd_api_response_t) -> Void
   ) {
-    _initializeServiceCallCount.value += 1
+    _initializeServiceCallCount.withLock { $0 += 1 }
     // Deliberately a no-op: we don't call sourcekitd_set_notification_handler here because
     // that would override the handler registered by the shared SourceKitDCoreImpl. For this
     // test only hover (a direct request/response) is exercised, so notifications are not needed.

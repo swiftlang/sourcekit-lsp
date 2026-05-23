@@ -20,6 +20,7 @@ import SwiftExtensions
 @_spi(Testing) import SwiftLanguageService
 import SwiftParser
 import SwiftSyntax
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
 
 final class LocalSwiftTests: SourceKitLSPTestCase {
@@ -1369,8 +1370,8 @@ final class LocalSwiftTests: SourceKitLSPTestCase {
       uri: uri
     )
     let swiftLanguageService = try await unwrap(testClient.primaryLanguageService(for: uri) as? SwiftLanguageService)
-    await swiftLanguageService.setReusedNodeCallback {
-      reusedNodes.value.append($0)
+    await swiftLanguageService.setReusedNodeCallback { node in
+      reusedNodes.withLock { $0.append(node) }
       reusedNodeCallback.fulfill()
     }
 

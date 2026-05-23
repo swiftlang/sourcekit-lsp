@@ -17,6 +17,7 @@ import SKTestSupport
 @_spi(Testing) import SourceKitLSP
 import SwiftExtensions
 import SwiftLanguageService
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
 
 final class ExecuteCommandTests: SourceKitLSPTestCase {

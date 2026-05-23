@@ -12,6 +12,7 @@
 
 @_spi(SourceKitLSP) import SKLogging
 import SwiftExtensions
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 #if os(Windows)
 import CRT
