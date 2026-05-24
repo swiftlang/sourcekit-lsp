@@ -32,7 +32,7 @@ extension Process {
   /// Should the process not terminate on SIGINT after 2 seconds, it is terminated using `SIGKILL`.
   @discardableResult
   package func waitUntilExitStoppingProcessOnTaskCancellation() async throws -> ProcessResult {
-    let hasExited = ThreadSafeBox<Bool>(initialValue: false)
+    let hasExited = AtomicBool(initialValue: false)
     return try await withTaskCancellationHandler {
       defer {
         hasExited.value = true

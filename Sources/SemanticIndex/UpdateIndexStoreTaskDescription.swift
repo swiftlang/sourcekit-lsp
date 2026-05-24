@@ -17,7 +17,6 @@ import Foundation
 @_spi(SourceKitLSP) import LanguageServerProtocolExtensions
 @_spi(SourceKitLSP) import SKLogging
 import SwiftExtensions
-import Synchronization
 import TSCExtensions
 import ToolchainRegistry
 @_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
@@ -31,7 +30,7 @@ import enum TSCBasic.SystemError
 import WinSDK
 #endif
 
-private let updateIndexStoreIDForLogging = Atomic<UInt32>(1)
+private let updateIndexStoreIDForLogging = AtomicUInt32(initialValue: 1)
 
 package enum FileToIndex: CustomLogStringConvertible, Hashable {
   /// A non-header file
@@ -115,7 +114,7 @@ private enum UpdateIndexStorePartition {
 /// This task description can be scheduled in a `TaskScheduler`.
 package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
   package static let idPrefix = "update-indexstore"
-  package let id = updateIndexStoreIDForLogging.wrappingAdd(1, ordering: .relaxed).oldValue
+  package let id = updateIndexStoreIDForLogging.fetchAndIncrement()
 
   /// The files that should be indexed.
   package let filesToIndex: [FileAndOutputPath]

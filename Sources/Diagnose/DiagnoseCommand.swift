@@ -222,8 +222,8 @@ package struct DiagnoseCommand: AsyncParsableCommand {
     let outputFileUrl = bundlePath.appending(component: "log.txt")
     try FileManager.default.createFile(at: outputFileUrl, contents: nil)
     let fileHandle = try FileHandle(forWritingTo: outputFileUrl)
-    let bytesCollected = ThreadSafeBox<Int32>(initialValue: 0)
-    let processExited = ThreadSafeBox<Bool>(initialValue: false)
+    let bytesCollected = AtomicInt32(initialValue: 0)
+    let processExited = AtomicBool(initialValue: false)
     // 50 MB is an average log size collected by sourcekit-lsp diagnose.
     // It's a good proxy to show some progress indication for the majority of the time.
     let expectedLogSize = 50_000_000
@@ -239,11 +239,8 @@ package struct DiagnoseCommand: AsyncParsableCommand {
       outputRedirection: .stream(
         stdout: { @Sendable bytes in
           try? fileHandle.write(contentsOf: bytes)
-          let totalBytes = bytesCollected.withLock { value -> Int32 in
-            value += Int32(bytes.count)
-            return value
-          }
-          var progress = Double(totalBytes) / Double(expectedLogSize)
+          bytesCollected.value += Int32(bytes.count)
+          var progress = Double(bytesCollected.value) / Double(expectedLogSize)
           if progress > 1 {
             // The log is larger than we expected. Halt at 100%
             progress = 1

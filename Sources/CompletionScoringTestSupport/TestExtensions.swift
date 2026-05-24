@@ -13,7 +13,6 @@
 package import CompletionScoring
 import Foundation
 import SwiftExtensions
-import Synchronization
 @_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
 
@@ -103,7 +102,7 @@ extension XCTestCase {
     UserDefaults.standard.string(forKey: "TestMeasurementLogPath")
   }()
 
-  static let printBeginingOfLog = Atomic<Bool>(true)
+  static let printBeginingOfLog = AtomicBool(initialValue: true)
 
   private static func openPerformanceLog() throws -> FileHandle? {
     try measurementsLogFile.map { path in
@@ -116,9 +115,9 @@ extension XCTestCase {
       }
       let logFD = try FileHandle(forWritingAtPath: path).unwrap(orThrow: "Opening \(path) failed")
       try logFD.seekToEnd()
-      if printBeginingOfLog.load(ordering: .relaxed) {
+      if printBeginingOfLog.value {
         try logFD.print("========= \(Date().description(with: .current)) =========")
-        printBeginingOfLog.store(false, ordering: .relaxed)
+        printBeginingOfLog.value = false
       }
       return logFD
     }

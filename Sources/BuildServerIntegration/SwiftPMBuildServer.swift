@@ -27,7 +27,6 @@ package import SKOptions
 import SourceControl
 @preconcurrency package import SourceKitLSPAPI
 import SwiftExtensions
-import Synchronization
 @_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import TSCExtensions
 package import ToolchainRegistry
@@ -80,7 +79,7 @@ fileprivate extension TSCBasic.AbsolutePath {
   }
 }
 
-private let preparationTaskID = Atomic<UInt32>(0)
+private let preparationTaskID: AtomicUInt32 = AtomicUInt32(initialValue: 0)
 
 /// Swift Package Manager build server and workspace support.
 ///
@@ -831,9 +830,7 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
     }
     let start = ContinuousClock.now
 
-    let taskID: TaskId = TaskId(
-      id: "preparation-\(preparationTaskID.wrappingAdd(1, ordering: .relaxed).oldValue)"
-    )
+    let taskID: TaskId = TaskId(id: "preparation-\(preparationTaskID.fetchAndIncrement())")
     connectionToSourceKitLSP.send(
       BuildServerProtocol.OnBuildLogMessageNotification(
         type: .info,

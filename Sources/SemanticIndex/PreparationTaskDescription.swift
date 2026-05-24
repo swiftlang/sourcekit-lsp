@@ -17,13 +17,12 @@ import Foundation
 @_spi(SourceKitLSP) import LanguageServerProtocolExtensions
 @_spi(SourceKitLSP) import SKLogging
 import SwiftExtensions
-import Synchronization
 @_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
 
-private let preparationIDForLogging = Atomic<UInt32>(1)
+private let preparationIDForLogging = AtomicUInt32(initialValue: 1)
 
 /// Describes a task to prepare a set of targets.
 ///
@@ -31,7 +30,7 @@ private let preparationIDForLogging = Atomic<UInt32>(1)
 package struct PreparationTaskDescription: IndexTaskDescription {
   package static let idPrefix = "prepare"
 
-  package let id = preparationIDForLogging.wrappingAdd(1, ordering: .relaxed).oldValue
+  package let id = preparationIDForLogging.fetchAndIncrement()
 
   /// The targets that should be prepared.
   package let targetsToPrepare: [BuildTargetIdentifier]
