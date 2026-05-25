@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import Dispatch
+import Foundation
 @_spi(SourceKitLSP) import LanguageServerProtocol
 import SourceKitD
 import SourceKitLSP
@@ -72,6 +73,24 @@ struct VariableTypeInfo {
     self.printedType = printedType
     self.hasExplicitType = hasExplicitType
     self.canBeFollowedByTypeAnnotation = tokenAtOffset?.canBeFollowedByTypeAnnotation ?? true
+  }
+
+  /// The type to use when writing a type annotation for the variable, eg. in an inlay hint.
+  ///
+  /// This differs from ``printedType`` when the variable is bound to a variadic parameter: sourcekitd prints the type
+  /// of such a variable as `T...` (eg. for `func foo(x: Int...) { let y = x }`, the type of `y` is printed as
+  /// `Int...`). The trailing `...` is only valid in a function parameter, so it cannot be used as a type annotation.
+  /// Inside the function body the variable is actually of the corresponding array type, so we rewrite `T...` to `[T]`.
+  var annotationType: String {
+    let trimmed = printedType.trimmingCharacters(in: .whitespaces)
+    guard trimmed.hasSuffix("...") else {
+      return printedType
+    }
+    let element = trimmed.dropLast(3).trimmingCharacters(in: .whitespaces)
+    guard !element.isEmpty else {
+      return printedType
+    }
+    return "[\(element)]"
   }
 }
 

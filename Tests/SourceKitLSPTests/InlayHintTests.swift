@@ -546,6 +546,25 @@ final class InlayHintTests: SourceKitLSPTestCase {
     )
   }
 
+  func testInferredVariadicParameter() async throws {
+    // A variable bound to a variadic parameter has the type `Int...` as printed by sourcekitd, but inside the function
+    // body it is actually of the corresponding array type. `Int...` is not a valid type annotation, so the hint (which
+    // doubles as the inserted text edit) should use `[Int]` instead.
+    try await runInlayHintTestCase(
+      initialText: """
+        func test(x: Int...) {
+          let y1️⃣ = x
+        }
+        """
+    ) { context in
+      try await context.checkInlayHintsComputedInTheBackgroundMatch(
+        expected: [
+          makeInlayHint(position: context.positions["1️⃣"], kind: .type, label: ": [Int]")
+        ]
+      )
+    }
+  }
+
   func testInlayHintCacheUpdatesAfterParameterTypeChange() async throws {
     try await runInlayHintTestCase(
       initialText: """

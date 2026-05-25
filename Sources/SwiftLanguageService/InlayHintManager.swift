@@ -262,7 +262,7 @@ actor InlayHintManager {
       .map { info -> InlayHint in
         let position = info.range.upperBound
         let variableStart = info.range.lowerBound
-        let label = ": \(info.printedType)"
+        let label = ": \(info.annotationType)"
         let textEdits: [TextEdit]?
         if info.canBeFollowedByTypeAnnotation {
           textEdits = [TextEdit(range: position..<position, newText: label)]
