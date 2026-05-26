@@ -1,5 +1,6 @@
 add_library(SwiftSyntaxCodeActions STATIC
   AddDocumentation.swift
+  AddExplicitEnumRawValues.swift
   ApplyDeMorganLaw.swift
   ConvertCommentToDocComment.swift
   ConvertIfLetToGuard.swift

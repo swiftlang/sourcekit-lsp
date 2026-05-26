@@ -776,6 +776,325 @@ final class CodeActionTests: SourceKitLSPTestCase {
     }
   }
 
+  func testAddExplicitEnumRawValuesInt() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣enum Status: Int {
+        case active2️⃣
+        case inactive3️⃣
+        case pending = 10
+        case archived4️⃣
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Add Explicit Raw Values",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(range: positions["2️⃣"]..<positions["2️⃣"], newText: " = 0"),
+                TextEdit(range: positions["3️⃣"]..<positions["3️⃣"], newText: " = 1"),
+                TextEdit(range: positions["4️⃣"]..<positions["4️⃣"], newText: " = 11"),
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testAddExplicitEnumRawValuesString() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣enum Direction: String {
+        case north2️⃣
+        case south = "down"
+        case east3️⃣
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Add Explicit Raw Values",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(range: positions["2️⃣"]..<positions["2️⃣"], newText: " = \"north\""),
+                TextEdit(range: positions["3️⃣"]..<positions["3️⃣"], newText: " = \"east\""),
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testAddExplicitEnumRawValuesContinuesAfterNegativeLiteral() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣enum Offset: Int {
+        case low = -5
+        case medium2️⃣
+        case high3️⃣
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Add Explicit Raw Values",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(range: positions["2️⃣"]..<positions["2️⃣"], newText: " = -4"),
+                TextEdit(range: positions["3️⃣"]..<positions["3️⃣"], newText: " = -3"),
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testAddExplicitEnumRawValuesContinuesAfterHexLiteral() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣enum Mask: Int {
+        case bit0 = 0x10
+        case bit12️⃣
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Add Explicit Raw Values",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(range: positions["2️⃣"]..<positions["2️⃣"], newText: " = 17")
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testAddExplicitEnumRawValuesNotOfferedWhenAllCasesExplicit() async throws {
+    try await assertNoCodeAction(
+      titled: "Add Explicit Raw Values",
+      in: """
+        1️⃣enum Status: Int {
+          case active = 0
+          case inactive = 1
+        }
+        """,
+      atMarker: "1️⃣"
+    )
+  }
+
+  func testAddExplicitEnumRawValuesNotOfferedWithoutRawValueType() async throws {
+    try await assertNoCodeAction(
+      titled: "Add Explicit Raw Values",
+      in: """
+        1️⃣enum Direction {
+          case north
+          case south
+        }
+        """,
+      atMarker: "1️⃣"
+    )
+  }
+
+  func testAddExplicitEnumRawValuesNotOfferedWithUnsupportedRawValue() async throws {
+    try await assertNoCodeAction(
+      titled: "Add Explicit Raw Values",
+      in: """
+        let base = 10
+        1️⃣enum Tier: Int {
+          case low = base
+          case high
+        }
+        """,
+      atMarker: "1️⃣"
+    )
+  }
+
+  func testAddExplicitEnumRawValuesStripsBackticksInImplicitStringRawValue() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣enum Keyword: String {
+        case `default`2️⃣
+        case ifBranch = "if"
+        case `class`3️⃣
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Add Explicit Raw Values",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(range: positions["2️⃣"]..<positions["2️⃣"], newText: " = \"default\""),
+                TextEdit(range: positions["3️⃣"]..<positions["3️⃣"], newText: " = \"class\""),
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testAddExplicitEnumRawValuesNotOfferedWhenRawValueTypeIsNotFirst() async throws {
+    // Per Swift's grammar, only the first inherited type may specify a raw
+    // value. `: CaseIterable, Int` is invalid Swift, so the code action must
+    // not be offered.
+    try await assertNoCodeAction(
+      titled: "Add Explicit Raw Values",
+      in: """
+        1️⃣enum Status: CaseIterable, Int {
+          case active
+          case inactive
+        }
+        """,
+      atMarker: "1️⃣"
+    )
+  }
+
+  func testAddExplicitEnumRawValuesNotOfferedWithIfConfigMembers() async throws {
+    // `#if` blocks change which cases are active in a given configuration, so
+    // the implicit raw value counter cannot be computed purely syntactically.
+    try await assertNoCodeAction(
+      titled: "Add Explicit Raw Values",
+      in: """
+        1️⃣enum Mode: Int {
+          case a
+          #if DEBUG
+          case b
+          #endif
+          case c
+        }
+        """,
+      atMarker: "1️⃣"
+    )
+  }
+
+  func testAddExplicitEnumRawValuesNotOfferedWithFreestandingMacro() async throws {
+    // Freestanding declaration macros can expand to enum cases, so the counter
+    // cannot be computed without expanding the macro.
+    try await assertNoCodeAction(
+      titled: "Add Explicit Raw Values",
+      in: """
+        1️⃣enum Mode: Int {
+          case a
+          #generatedCases()
+          case b
+        }
+        """,
+      atMarker: "1️⃣"
+    )
+  }
+
+  func testAddExplicitEnumRawValuesNotOfferedWithAssociatedValues() async throws {
+    // Cases with associated values cannot have raw values. Mixing them inside
+    // a raw-value enum is invalid Swift; the refactor should bail rather than
+    // produce broken output like `case payload = 0(String)`.
+    try await assertNoCodeAction(
+      titled: "Add Explicit Raw Values",
+      in: """
+        1️⃣enum Event: Int {
+          case empty
+          case payload(String)
+        }
+        """,
+      atMarker: "1️⃣"
+    )
+  }
+
+  func testAddExplicitEnumRawValuesUInt() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣enum Mask: UInt {
+        case bit02️⃣
+        case bit13️⃣
+        case bit2 = 4
+        case bit34️⃣
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Add Explicit Raw Values",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(range: positions["2️⃣"]..<positions["2️⃣"], newText: " = 0"),
+                TextEdit(range: positions["3️⃣"]..<positions["3️⃣"], newText: " = 1"),
+                TextEdit(range: positions["4️⃣"]..<positions["4️⃣"], newText: " = 5"),
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testAddExplicitEnumRawValuesNotOfferedForUnsignedEnumWithNegativeRawValue() async throws {
+    // `case = -1` is invalid Swift for an unsigned-integer raw type, so the
+    // refactor must not insert further values based on it.
+    try await assertNoCodeAction(
+      titled: "Add Explicit Raw Values",
+      in: """
+        1️⃣enum Mask: UInt {
+          case a = -1
+          case b
+        }
+        """,
+      atMarker: "1️⃣"
+    )
+  }
+
+  func testAddExplicitEnumRawValuesNotOfferedWhenEnumHasAttribute() async throws {
+    // Attached attribute macros can introduce members at expansion time, so
+    // the refactor bails whenever the enum has any attributes.
+    try await assertNoCodeAction(
+      titled: "Add Explicit Raw Values",
+      in: """
+        @available(*, deprecated)
+        1️⃣enum Status: Int {
+          case active
+          case inactive
+        }
+        """,
+      atMarker: "1️⃣"
+    )
+  }
+
   func testFormatRawStringLiteral() async throws {
     try await assertCodeActions(
       """
@@ -2086,6 +2405,35 @@ final class CodeActionTests: SourceKitLSPTestCase {
         )
       }
     }
+  }
+
+  /// Assert that no code action with the given title is offered at the given marker.
+  private func assertNoCodeAction(
+    titled title: String,
+    in markedText: String,
+    atMarker marker: String,
+    testName: String = #function,
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) async throws {
+    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
+    let uri = DocumentURI(for: .swift, testName: testName)
+    let positions = testClient.openDocument(markedText, uri: uri)
+    let position = positions[marker]
+    let result = try await testClient.send(
+      CodeActionRequest(
+        range: position..<position,
+        context: .init(),
+        textDocument: TextDocumentIdentifier(uri)
+      )
+    )
+    let codeActions = result?.codeActions ?? []
+    XCTAssertFalse(
+      codeActions.contains(where: { $0.title == title }),
+      "did not expect code action titled '\(title)' at marker \(marker), got: \(codeActions.map(\.title))",
+      file: file,
+      line: line
+    )
   }
 }
 
