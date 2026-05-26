@@ -136,7 +136,7 @@ final class ClangdTests: SourceKitLSPTestCase {
 
   func testRestartClangdIfItDoesntReply() async throws {
     // We simulate clangd not replying until it is restarted using a hook.
-    let clangdRestarted = AtomicBool(initialValue: false)
+    let clangdRestarted = ThreadSafeBox<Bool>(initialValue: false)
     let clangdRestartedExpectation = self.expectation(description: "clangd restarted")
     let hooks = Hooks(preForwardRequestToClangd: { request in
       if !clangdRestarted.value {

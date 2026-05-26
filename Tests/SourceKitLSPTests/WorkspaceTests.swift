@@ -1111,7 +1111,7 @@ final class WorkspaceTests: SourceKitLSPTestCase {
   }
 
   func testDidChangeActiveEditorDocument() async throws {
-    let didChangeBaseLib = AtomicBool(initialValue: false)
+    let didChangeBaseLib = ThreadSafeBox<Bool>(initialValue: false)
     let didPrepareLibBAfterChangingBaseLib = self.expectation(description: "Did prepare LibB after changing base lib")
     let project = try await SwiftPMTestProject(
       files: [
@@ -1225,7 +1225,7 @@ final class WorkspaceTests: SourceKitLSPTestCase {
   }
 
   func testSourceKitOptionsTriggersPrepare() async throws {
-    let didChangeBaseLib = AtomicBool(initialValue: false)
+    let didChangeBaseLib = ThreadSafeBox<Bool>(initialValue: false)
     let didPrepareAfterChangingBaseLib = self.expectation(description: "Did prepare after changing base lib")
 
     let project = try await SwiftPMTestProject(

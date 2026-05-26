@@ -110,7 +110,7 @@ final class WorkspaceTestDiscoveryTests: SourceKitLSPTestCase {
   func testSyntacticOrIndexBasedXCTestsBasedOnWhetherFileIsIndexed() async throws {
     try SkipUnless.longTestsEnabled()
 
-    let initialIndexingFinished = AtomicBool(initialValue: false)
+    let initialIndexingFinished = ThreadSafeBox<Bool>(initialValue: false)
     let syntacticWorkspaceRequestSent = WrappedSemaphore(name: "Syntactic workspace request sent")
 
     let project = try await SwiftPMTestProject(
