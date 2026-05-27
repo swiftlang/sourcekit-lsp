@@ -331,8 +331,17 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
       location.scratchDirectory = absProjectRoot.appending(components: ".build", "index-build")
     }
 
+    let enabledTraits: Set<String>? =
+      if let traits = options.swiftPMOrDefault.traits {
+        Set(traits)
+      } else {
+        nil
+      }
+    self.traitConfiguration = TraitConfiguration(enabledTraits: enabledTraits)
+
     var configuration = WorkspaceConfiguration.default
     configuration.skipDependenciesUpdates = !options.backgroundIndexingOrDefault
+    configuration.traitConfiguration = self.traitConfiguration
 
     self.swiftPMWorkspace = try Workspace(
       fileSystem: localFileSystem,
@@ -393,14 +402,6 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
       workDirectory: location.pluginWorkingDirectory,
       disableSandbox: options.swiftPMOrDefault.disableSandbox ?? false
     )
-
-    let enabledTraits: Set<String>? =
-      if let traits = options.swiftPMOrDefault.traits {
-        Set(traits)
-      } else {
-        nil
-      }
-    self.traitConfiguration = TraitConfiguration(enabledTraits: enabledTraits)
 
     packageLoadingQueue.async {
       await orLog("Initial package loading") {
@@ -499,7 +500,7 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
     }
 
     let modulesGraph = try await self.swiftPMWorkspace.loadPackageGraph(
-      rootInput: PackageGraphRootInput(packages: [AbsolutePath(validating: projectRoot.filePath)]),
+      rootInput: PackageGraphRootInput(packages: [AbsolutePath(validating: projectRoot.filePath)], traitConfiguration: self.traitConfiguration),
       forceResolvedVersions: options.swiftPMOrDefault.forceResolvedVersions ?? !isForIndexBuild,
       observabilityScope: observabilitySystem.topScope.makeChildScope(description: "Load package graph")
     )

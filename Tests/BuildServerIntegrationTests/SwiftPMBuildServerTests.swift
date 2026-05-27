@@ -1643,6 +1643,42 @@ struct SwiftPMBuildServerTests {
       }
     }
   }
+
+  @Test
+  func testPackagePlugin() async throws {
+    let testProject = try await SwiftPMTestProject(
+      files: [
+        "Test.swift": """
+        #if NonDefaultTrait
+        #warning("Trait enabled")
+        #endif
+        """
+      ],
+      manifest: """
+        // swift-tools-version: 6.2
+
+        import PackageDescription
+
+        let package = Package(
+          name: "MyLibrary",
+          traits: [
+            .default(enabledTraits: []),
+            "NonDefaultTrait",
+          ],
+          targets: [.target(name: "MyLibrary")]
+        )
+        """,
+      options: SourceKitLSPOptions(swiftPM: .init(traits: ["NonDefaultTrait"])),
+      enableBackgroundIndexing: true
+    )
+
+    let (uri, _) = try testProject.openDocument("Test.swift")
+    let diagnostics = try await testProject.testClient.send(
+      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+    )
+
+    #expect(diagnostics.fullReport?.items.map(\.message) == ["Trait enabled"])
+  }
 }
 
 private func expectArgumentsDoNotContain(
