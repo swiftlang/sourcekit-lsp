@@ -261,7 +261,7 @@ final class TaskSchedulerTests: SourceKitLSPTestCase {
         return
       }
 
-      taskExecutedBefore.value = true
+      taskExecutedBefore.withLock { $0 = true }
 
       taskStartedExecuting.fulfill()
 

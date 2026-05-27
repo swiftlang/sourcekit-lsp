@@ -1334,11 +1334,11 @@ struct SwiftPMBuildServerTests {
         in: tempDir,
         reloadPackageDidStart: {
           if packageInitialized.value {
-            unexpectedReloadStarted.value = true
+            unexpectedReloadStarted.withLock { $0 = true }
           }
         }
       )
-      packageInitialized.value = true
+      packageInitialized.withLock { $0 = true }
 
       // SwiftPM extracts the artifact bundle to:
       //   <scratch>/artifacts/<package-identity>/<target-name>/<artifact-name>/
@@ -1388,11 +1388,11 @@ struct SwiftPMBuildServerTests {
         options: SourceKitLSPOptions(swiftPM: .init(scratchPath: try customScratch.filePath)),
         reloadPackageDidStart: {
           if packageInitialized.value {
-            unexpectedReloadStarted.value = true
+            unexpectedReloadStarted.withLock { $0 = true }
           }
         }
       )
-      packageInitialized.value = true
+      packageInitialized.withLock { $0 = true }
 
       // With a custom scratch path, SwiftPM extracts to <custom-scratch>/artifacts/.
       // Simulate the delete-and-re-expand cycle for those paths.

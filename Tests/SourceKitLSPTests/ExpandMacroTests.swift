@@ -91,7 +91,7 @@ final class ExpandMacroTests: SourceKitLSPTestCase {
         let peekDocumentsRequestURIs = ThreadSafeBox<[DocumentURI]?>(initialValue: nil)
 
         project.testClient.handleSingleRequest { (req: PeekDocumentsRequest) in
-          peekDocumentsRequestURIs.value = req.locations
+          peekDocumentsRequestURIs.withLock { $0 = req.locations }
           expectation.fulfill()
           return PeekDocumentsResponse(success: true)
         }
@@ -130,7 +130,7 @@ final class ExpandMacroTests: SourceKitLSPTestCase {
         let showDocumentRequestURI = ThreadSafeBox<DocumentURI?>(initialValue: nil)
 
         project.testClient.handleSingleRequest { (req: ShowDocumentRequest) in
-          showDocumentRequestURI.value = req.uri
+          showDocumentRequestURI.withLock { $0 = req.uri }
           expectation.fulfill()
           return ShowDocumentResponse(success: true)
         }
@@ -244,7 +244,7 @@ final class ExpandMacroTests: SourceKitLSPTestCase {
         let peekDocumentsRequestURIs = ThreadSafeBox<[DocumentURI]?>(initialValue: nil)
 
         project.testClient.handleSingleRequest { (req: PeekDocumentsRequest) in
-          peekDocumentsRequestURIs.value = req.locations
+          peekDocumentsRequestURIs.withLock { $0 = req.locations }
           expectation.fulfill()
           return PeekDocumentsResponse(success: true)
         }
@@ -291,7 +291,7 @@ final class ExpandMacroTests: SourceKitLSPTestCase {
         let showDocumentRequestURI = ThreadSafeBox<DocumentURI?>(initialValue: nil)
 
         project.testClient.handleSingleRequest { (req: ShowDocumentRequest) in
-          showDocumentRequestURI.value = req.uri
+          showDocumentRequestURI.withLock { $0 = req.uri }
           expectation.fulfill()
           return ShowDocumentResponse(success: true)
         }
@@ -388,7 +388,7 @@ final class ExpandMacroTests: SourceKitLSPTestCase {
     let outerPeekDocumentsRequestURIs = ThreadSafeBox<[DocumentURI]?>(initialValue: nil)
 
     project.testClient.handleSingleRequest { (req: PeekDocumentsRequest) in
-      outerPeekDocumentsRequestURIs.value = req.locations
+      outerPeekDocumentsRequestURIs.withLock { $0 = req.locations }
       outerPeekDocumentRequestReceived.fulfill()
       return PeekDocumentsResponse(success: true)
     }
@@ -423,7 +423,7 @@ final class ExpandMacroTests: SourceKitLSPTestCase {
     let intermediatePeekDocumentsRequestURIs = ThreadSafeBox<[DocumentURI]?>(initialValue: nil)
 
     project.testClient.handleSingleRequest { (req: PeekDocumentsRequest) in
-      intermediatePeekDocumentsRequestURIs.value = req.locations
+      intermediatePeekDocumentsRequestURIs.withLock { $0 = req.locations }
       intermediatePeekDocumentRequestReceived.fulfill()
       return PeekDocumentsResponse(success: true)
     }
@@ -460,7 +460,7 @@ final class ExpandMacroTests: SourceKitLSPTestCase {
     let innerPeekDocumentsRequestURIs = ThreadSafeBox<[DocumentURI]?>(initialValue: nil)
 
     project.testClient.handleSingleRequest { (req: PeekDocumentsRequest) in
-      innerPeekDocumentsRequestURIs.value = req.locations
+      innerPeekDocumentsRequestURIs.withLock { $0 = req.locations }
       innerPeekDocumentRequestReceived.fulfill()
       return PeekDocumentsResponse(success: true)
     }

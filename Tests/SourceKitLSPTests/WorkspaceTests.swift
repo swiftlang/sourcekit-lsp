@@ -1161,7 +1161,7 @@ final class WorkspaceTests: SourceKitLSPTestCase {
     project.testClient.send(DidChangeWatchedFilesNotification(changes: [FileEvent(uri: baseLibUri, type: .changed)]))
     // Ensure that we handle the `DidChangeWatchedFilesNotification`.
     try await project.testClient.send(SynchronizeRequest())
-    didChangeBaseLib.value = true
+    didChangeBaseLib.withLock { $0 = true }
 
     project.testClient.send(
       DidChangeActiveDocumentNotification(textDocument: TextDocumentIdentifier(libBUri))
@@ -1280,7 +1280,7 @@ final class WorkspaceTests: SourceKitLSPTestCase {
     project.testClient.send(DidChangeWatchedFilesNotification(changes: [FileEvent(uri: baseLibUri, type: .changed)]))
     // Ensure that we handle the `DidChangeWatchedFilesNotification`.
     try await project.testClient.send(SynchronizeRequest())
-    didChangeBaseLib.value = true
+    didChangeBaseLib.withLock { $0 = true }
 
     let triggerPrepare = try await project.testClient.send(
       SourceKitOptionsRequest(

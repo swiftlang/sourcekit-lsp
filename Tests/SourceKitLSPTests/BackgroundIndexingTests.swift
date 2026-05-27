@@ -1392,7 +1392,7 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
       hooks: testHooks,
       enableBackgroundIndexing: true
     )
-    packageInitialized.value = true
+    packageInitialized.withLock { $0 = true }
     project.testClient.send(
       DidChangeWatchedFilesNotification(changes: [
         FileEvent(uri: DocumentURI(project.scratchDirectory.appending(component: "random.swift")), type: .created)
@@ -2186,7 +2186,7 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
         return data.title == "Indexing"
       }
     )
-    receivedReportProgressNotification.value = true
+    receivedReportProgressNotification.withLock { $0 = true }
 
     // Check that we receive an `end` notification
     _ = try await project.testClient.nextNotification(
@@ -2255,7 +2255,7 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
 
     // Ensure that changing `/private/tmp/.../test.c` only causes `/tmp/.../test.c` to be indexed, not
     // `/private/tmp/.../test.c`.
-    indexedFiles.value = []
+    indexedFiles.withLock { $0 = [] }
     let testFileURL = try XCTUnwrap(project.uri(for: "test.c").fileURL?.realpath)
     try await "void y() {}".writeWithRetry(to: testFileURL)
     project.testClient.send(
@@ -2603,7 +2603,7 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
     let symbolsBeforeUpdate = try await project.testClient.send(WorkspaceSymbolsRequest(query: "myTestFu"))
     XCTAssertEqual(symbolsBeforeUpdate, [])
 
-    testSetupComplete.value = true
+    testSetupComplete.withLock { $0 = true }
     try await project.changeFileOnDisk(
       "Test.swift",
       newMarkedContents: """

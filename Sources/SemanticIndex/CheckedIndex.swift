@@ -356,7 +356,7 @@ package final actor UncheckedIndex: Sendable {
   package func close() {
     // IndexStoreDB writes the index to disk when the retain count of the `IndexStoreDB` object hits zero. We hope that
     // nobody else still has a reference to `IndexStoreDB` here.
-    _underlyingIndexStoreDB.value = nil
+    _underlyingIndexStoreDB.withLock { $0 = nil }
   }
 
   /// Update the set of output paths that should be considered visible in the project. For example, if a source file is

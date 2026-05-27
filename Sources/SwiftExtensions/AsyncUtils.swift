@@ -99,7 +99,7 @@ package func withTimeoutResult<T: Sendable>(
   let stream = AsyncThrowingStream<WithTimeoutResult<T>, any Error> { continuation in
     Task {
       try await Task.sleep(for: timeout)
-      didHitTimeout.value = true
+      didHitTimeout.withLock { $0 = true }
       continuation.yield(.timedOut)
     }
 

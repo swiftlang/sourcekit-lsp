@@ -48,7 +48,7 @@ final class SourcekitdCoreInjectorTests: SourceKitLSPTestCase {
     let testClient = try await TestSourceKitLSPClient(
       hooks: Hooks(sourcekitdCoreInjector: { toolchainURL in
         injectorCallCount.withLock { $0 += 1 }
-        capturedToolchainURL.value = toolchainURL
+        capturedToolchainURL.withLock { $0 = toolchainURL }
         return injectedCore
       })
     )

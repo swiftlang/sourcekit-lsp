@@ -261,7 +261,7 @@ package struct DiagnoseCommand: AsyncParsableCommand {
     )
     try process.launch()
     try await process.waitUntilExit()
-    processExited.value = true
+    processExited.withLock { $0 = true }
     #endif
   }
 

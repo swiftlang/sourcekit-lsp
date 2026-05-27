@@ -80,7 +80,7 @@ package final class DLHandle: Sendable {
 
   /// The handle must not be used anymore after calling `leak`.
   package func leak() {
-    rawValue.value = nil
+    rawValue.withLock { $0 = nil }
   }
 }
 

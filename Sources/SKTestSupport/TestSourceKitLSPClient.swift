@@ -407,7 +407,7 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
     // Register a one-shot handler that records when the request arrives.
     let received = ThreadSafeBox<Bool>(initialValue: false)
     self.handleSingleRequest { (_: R) in
-      received.value = true
+      received.withLock { $0 = true }
       return VoidResponse()
     }
 

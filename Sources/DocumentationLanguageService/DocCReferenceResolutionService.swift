@@ -34,7 +34,7 @@ final class DocCReferenceResolutionService: DocumentationService, Sendable {
   init() {}
 
   func addContext(_ context: DocCReferenceResolutionContext, withKey key: String) {
-    contextMap.value[key] = context
+    contextMap.withLock { $0[key] = context }
   }
 
   @discardableResult func removeContext(forKey key: String) -> DocCReferenceResolutionContext? {
