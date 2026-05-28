@@ -22,6 +22,8 @@ extension SwiftLanguageService {
     let snapshot = try documentManager.latestSnapshot(req.textDocument.uri)
 
     let completionPos = await adjustPositionToStartOfIdentifier(req.position, in: snapshot)
+    let tree = await syntaxTreeManager.syntaxTree(for: snapshot)
+    let requestContext = CompletionRequestContext(req: req, snapshot: snapshot, tree: tree)
     let filterText = String(snapshot.text[snapshot.index(of: completionPos)..<snapshot.index(of: req.position)])
 
     let compileCommand = await compileCommand(for: snapshot.uri, fallbackAfterTimeout: false)
@@ -34,7 +36,7 @@ extension SwiftLanguageService {
       options: options,
       indentationWidth: inferredIndentationWidth,
       completionPosition: completionPos,
-      cursorPosition: req.position,
+      requestContext: requestContext,
       compileCommand: compileCommand,
       clientCapabilities: capabilityRegistry.clientCapabilities,
       filterText: filterText

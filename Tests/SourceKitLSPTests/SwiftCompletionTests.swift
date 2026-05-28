@@ -29,6 +29,14 @@ final class SwiftCompletionTests: SourceKitLSPTestCase {
     )
   )
 
+  private var insertReplaceEditCapabilities = ClientCapabilities(
+    textDocument: TextDocumentClientCapabilities(
+      completion: TextDocumentClientCapabilities.Completion(
+        completionItem: TextDocumentClientCapabilities.Completion.CompletionItem(insertReplaceSupport: true)
+      )
+    )
+  )
+
   // MARK: - Tests
 
   func testCompletionBasic() async throws {
@@ -188,6 +196,90 @@ final class SwiftCompletionTests: SourceKitLSPTestCase {
       XCTAssertEqual(test.insertText, "test(${1:Int})")
       XCTAssertEqual(test.insertTextFormat, .snippet)
     }
+  }
+
+  func testCompletionInsertReplaceEditSupport() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
+
+    let testClient = try await TestSourceKitLSPClient(capabilities: insertReplaceEditCapabilities)
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
+      """
+      struct S {
+        var abc: Int
+        var def: S
+
+        func test() {
+          self.1️⃣ab2️⃣c3️⃣
+          self.4️⃣ab5️⃣c6️⃣+1
+          self.7️⃣ab8️⃣c9️⃣()
+          self.🔟ab0️⃣cℹ️.def
+        }
+      }
+      """,
+      uri: uri
+    )
+
+    func assertABCInsertReplace(_ start: String, _ cursor: String, _ end: String) async throws {
+      let completions = try await testClient.send(
+        CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions[cursor])
+      )
+
+      guard let abc = completions.items.first(where: { $0.label == "abc" }) else {
+        XCTFail("No completion item with label 'abc'")
+        return
+      }
+
+      XCTAssertEqual(
+        abc.textEdit,
+        .insertReplaceEdit(
+          InsertReplaceEdit(
+            newText: "abc",
+            insert: positions[start]..<positions[cursor],
+            replace: positions[start]..<positions[end]
+          )
+        )
+      )
+    }
+
+    // Replacement should stop before whitespace.
+    try await assertABCInsertReplace("1️⃣", "2️⃣", "3️⃣")
+    // Replacement should stop before an operator token.
+    try await assertABCInsertReplace("4️⃣", "5️⃣", "6️⃣")
+    // Replacement should stop before punctuation like '('.
+    try await assertABCInsertReplace("7️⃣", "8️⃣", "9️⃣")
+    // Replacement should stop before member access '.'.
+    try await assertABCInsertReplace("🔟", "0️⃣", "ℹ️")
+  }
+
+  func testCompletionNoInsertReplaceEditAtEndOfIdentifier() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
+
+    let testClient = try await TestSourceKitLSPClient(capabilities: insertReplaceEditCapabilities)
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
+      """
+      struct S {
+        var foobar: Int
+
+        func test() {
+          self.1️⃣foo2️⃣
+        }
+      }
+      """,
+      uri: uri
+    )
+
+    let completions = try await testClient.send(
+      CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
+    )
+
+    guard let abc = completions.items.first(where: { $0.label == "foobar" }) else {
+      XCTFail("No completion item with label 'foobar'")
+      return
+    }
+
+    XCTAssertEqual(abc.textEdit, .textEdit(TextEdit(range: positions["1️⃣"]..<positions["2️⃣"], newText: "foobar")))
   }
 
   func testCompletionNoSnippetSupport() async throws {
