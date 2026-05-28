@@ -18,6 +18,7 @@ import IndexStoreDB
 import SemanticIndex
 @_spi(Linkcompletion) @preconcurrency import SwiftDocC
 import SwiftExtensions
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 final class DocCReferenceResolutionService: DocumentationService, Sendable {
   /// The message type that this service accepts.
@@ -33,11 +34,11 @@ final class DocCReferenceResolutionService: DocumentationService, Sendable {
   init() {}
 
   func addContext(_ context: DocCReferenceResolutionContext, withKey key: String) {
-    contextMap.value[key] = context
+    contextMap.withLock { $0[key] = context }
   }
 
   @discardableResult func removeContext(forKey key: String) -> DocCReferenceResolutionContext? {
-    contextMap.value.removeValue(forKey: key)
+    contextMap.withLock { $0.removeValue(forKey: key) }
   }
 
   func context(forKey key: String) -> DocCReferenceResolutionContext? {

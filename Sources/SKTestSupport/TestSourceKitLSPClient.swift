@@ -70,12 +70,12 @@ final class PendingNotifications: Sendable {
   private let values = ThreadSafeBox<[any NotificationType]>(initialValue: [])
 
   nonisolated func add(_ value: any NotificationType) {
-    values.value.insert(value, at: 0)
+    values.withLock { $0.insert(value, at: 0) }
   }
 
   func next(timeout: Duration, pollingInterval: Duration = .milliseconds(10)) async throws -> any NotificationType {
     for _ in 0..<Int(timeout.seconds / pollingInterval.seconds) {
-      if let value = values.value.popLast() {
+      if let value = values.withLock({ $0.popLast() }) {
         return value
       }
       try await Task.sleep(for: pollingInterval)
@@ -387,12 +387,12 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
   /// The request handler will only handle a single request. If the request is called again, the request handler won't
   /// call again
   package func handleSingleRequest<R: RequestType>(_ requestHandler: @escaping RequestHandler<R>) {
-    requestHandlers.value.append((requestHandler: requestHandler, isOneShot: true))
+    requestHandlers.withLock { $0.append((requestHandler: requestHandler, isOneShot: true)) }
   }
 
   /// Handle all requests of the given type that are sent to the client.
   package func handleMultipleRequests<R: RequestType>(_ requestHandler: @escaping RequestHandler<R>) {
-    requestHandlers.value.append((requestHandler: requestHandler, isOneShot: false))
+    requestHandlers.withLock { $0.append((requestHandler: requestHandler, isOneShot: false)) }
   }
 
   /// Executes `operation` and waits until a request of the specified type is received from the server.
@@ -407,7 +407,7 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
     // Register a one-shot handler that records when the request arrives.
     let received = ThreadSafeBox<Bool>(initialValue: false)
     self.handleSingleRequest { (_: R) in
-      received.value = true
+      received.withLock { $0 = true }
       return VoidResponse()
     }
 

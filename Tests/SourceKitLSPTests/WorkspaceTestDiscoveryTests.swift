@@ -136,7 +136,7 @@ final class WorkspaceTestDiscoveryTests: SourceKitLSPTestCase {
       enableBackgroundIndexing: true
     )
 
-    initialIndexingFinished.value = true
+    initialIndexingFinished.withLock { $0 = true }
 
     let myTestsUri = try project.uri(for: "MyTests.swift")
 

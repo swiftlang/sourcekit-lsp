@@ -21,6 +21,7 @@ import SKTestSupport
 import SwiftExtensions
 import TSCBasic
 import ToolchainRegistry
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
 
 fileprivate actor TestBuildServer: CustomBuildServer {
@@ -63,7 +64,7 @@ private func createBuildServerManager(
     kind: .injected({ projectRoot, connectionToSourceKitLSP in
       assert(testBuildServer.value == nil, "Build server injector hook can only create a single TestBuildServer")
       let buildServer = TestBuildServer(projectRoot: projectRoot, connectionToSourceKitLSP: connectionToSourceKitLSP)
-      testBuildServer.value = buildServer
+      testBuildServer.withLock { $0 = buildServer }
       return LocalConnection(receiverName: "TestBuildServer", handler: buildServer)
     }),
     projectRoot: dummyPath,

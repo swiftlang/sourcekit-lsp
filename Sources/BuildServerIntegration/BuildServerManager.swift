@@ -181,9 +181,10 @@ private enum BuildServerAdapter {
           if Task.isCancelled {
             return continuation.resume(throwing: CancellationError())
           }
-          requestID.value = messageHandler.send(request) { response in
+          let id = messageHandler.send(request) { response in
             continuation.resume(with: response)
           }
+          requestID.withLock { $0 = id }
           if Task.isCancelled {
             // The task might have been cancelled after we checked `Task.isCancelled` above but before `requestID.value`
             // is set, we won't send a `CancelRequestNotification` from the `onCancel` handler. Send it from here.

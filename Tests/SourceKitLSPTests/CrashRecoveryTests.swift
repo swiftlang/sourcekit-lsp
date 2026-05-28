@@ -19,6 +19,7 @@ import SourceKitD
 import SourceKitLSP
 import SwiftExtensions
 @_spi(Testing) import SwiftLanguageService
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
 
 fileprivate extension HoverResponse {

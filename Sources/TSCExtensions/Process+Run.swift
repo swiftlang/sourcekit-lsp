@@ -35,7 +35,7 @@ extension Process {
     let hasExited = ThreadSafeBox<Bool>(initialValue: false)
     return try await withTaskCancellationHandler {
       defer {
-        hasExited.value = true
+        hasExited.withLock { $0 = true }
       }
       return try await waitUntilExit()
     } onCancel: {

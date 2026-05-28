@@ -100,9 +100,10 @@ public final class InProcessSourceKitLSPClient: Sendable {
           // possible.
           return continuation.resume(throwing: CancellationError())
         }
-        requestId.value = self.send(request) {
+        let id = self.send(request) {
           continuation.resume(with: $0)
         }
+        requestId.withLock { $0 = id }
         if Task.isCancelled, let requestId = requestId.takeValue() {
           // The task might have been cancelled after the above cancellation check but before `requestId` was assigned
           // a value. To cover that case, check for cancellation here again. Note that we won't cancel twice from here

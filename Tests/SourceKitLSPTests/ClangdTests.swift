@@ -162,7 +162,7 @@ final class ClangdTests: SourceKitLSPTestCase {
     let clangdServer = try await unwrap(testClient.primaryLanguageService(for: uri))
     await clangdServer.addStateChangeHandler { oldState, newState in
       if oldState == .connectionInterrupted, newState == .connected {
-        clangdRestarted.value = true
+        clangdRestarted.withLock { $0 = true }
         clangdRestartedExpectation.fulfill()
       }
     }

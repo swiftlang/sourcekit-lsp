@@ -12,6 +12,7 @@
 
 @_spi(SourceKitLSP) import SKLogging
 import SwiftExtensions
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 #if os(Windows)
 import CRT
@@ -79,7 +80,7 @@ package final class DLHandle: Sendable {
 
   /// The handle must not be used anymore after calling `leak`.
   package func leak() {
-    rawValue.value = nil
+    rawValue.withLock { $0 = nil }
   }
 }
 
