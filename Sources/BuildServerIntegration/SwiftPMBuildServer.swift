@@ -500,7 +500,10 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
     }
 
     let modulesGraph = try await self.swiftPMWorkspace.loadPackageGraph(
-      rootInput: PackageGraphRootInput(packages: [AbsolutePath(validating: projectRoot.filePath)], traitConfiguration: self.traitConfiguration),
+      rootInput: PackageGraphRootInput(
+        packages: [AbsolutePath(validating: projectRoot.filePath)],
+        traitConfiguration: self.traitConfiguration
+      ),
       forceResolvedVersions: options.swiftPMOrDefault.forceResolvedVersions ?? !isForIndexBuild,
       observabilityScope: observabilitySystem.topScope.makeChildScope(description: "Load package graph")
     )
