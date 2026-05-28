@@ -22,7 +22,6 @@ import SourceKitD
 package import SourceKitLSP
 import SwiftExtensions
 package import SwiftSyntax
-import Synchronization
 package import ToolchainRegistry
 @_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
@@ -94,7 +93,7 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
   package typealias RequestHandler<Request: RequestType> = @Sendable (Request) -> Request.Response
 
   /// The ID that should be assigned to the next request sent to the `server`.
-  private let nextRequestID = Atomic<UInt32>(0)
+  private let nextRequestID = AtomicUInt32(initialValue: 0)
 
   /// The server that handles the requests.
   package let server: SourceKitLSPServer
@@ -243,10 +242,7 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
     // It's really unfortunate that there are no async deinits. If we had async
     // deinits, we could await the sending of a ShutdownRequest.
     let shutdownSemaphore = WrappedSemaphore(name: "Shutdown")
-    server.handle(
-      ShutdownRequest(),
-      id: .number(Int(nextRequestID.wrappingAdd(1, ordering: .relaxed).oldValue))
-    ) { result in
+    server.handle(ShutdownRequest(), id: .number(Int(nextRequestID.fetchAndIncrement()))) { result in
       shutdownSemaphore.signal()
     }
     shutdownSemaphore.waitOrXCTFail()
@@ -293,7 +289,7 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
     _ request: R,
     completionHandler: @Sendable @escaping (LSPResult<R.Response>) -> Void
   ) -> RequestID {
-    let requestID = RequestID.number(Int(nextRequestID.wrappingAdd(1, ordering: .relaxed).oldValue))
+    let requestID = RequestID.number(Int(nextRequestID.fetchAndIncrement()))
     let replyOutstanding = ThreadSafeBox<Bool?>(initialValue: true)
     let timeoutTask = Task {
       try await Task.sleep(for: defaultTimeoutDuration)
@@ -405,7 +401,7 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
     line: UInt = #line
   ) async throws -> Value where R.Response == VoidResponse {
     // Register a one-shot handler that records when the request arrives.
-    let received = ThreadSafeBox<Bool>(initialValue: false)
+    let received = AtomicBool(initialValue: false)
     self.handleSingleRequest { (_: R) in
       received.withLock { $0 = true }
       return VoidResponse()
