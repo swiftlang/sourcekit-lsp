@@ -11,7 +11,7 @@ target_compile_options(SwiftSourceKitClientPlugin PRIVATE
   >)
 target_link_libraries(SwiftSourceKitClientPlugin PRIVATE
   Csourcekitd
-  SourceKitD
+  SourceKitDForPlugin
   SwiftExtensions
   SwiftToolsProtocols::_SKLoggingForPlugin
   SwiftSourceKitPluginCommon
