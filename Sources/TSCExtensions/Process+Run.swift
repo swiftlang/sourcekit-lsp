@@ -37,7 +37,9 @@ extension Process {
       defer {
         hasExited.withLock { $0 = true }
       }
-      return try await waitUntilExit()
+      let result = try await waitUntilExit()
+      logger.debug("Process exited: \(self.arguments)")
+      return result
     } onCancel: {
       logger.debug("Terminating process using SIGINT because task was cancelled: \(self.arguments)")
       signal(SIGINT)

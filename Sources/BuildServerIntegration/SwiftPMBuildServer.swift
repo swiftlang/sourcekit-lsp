@@ -873,6 +873,7 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
         stderr: { @Sendable bytes in stderrHandler.handleDataFromPipe(Data(bytes)) }
       )
     )
+    logger.debug("'swift build' for target \(target.forLogging) returned")
     let exitStatus = result.exitStatus.exhaustivelySwitchable
     self.connectionToSourceKitLSP.send(
       BuildServerProtocol.OnBuildLogMessageNotification(

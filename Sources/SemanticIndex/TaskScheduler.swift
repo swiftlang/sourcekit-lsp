@@ -461,7 +461,15 @@ package actor TaskScheduler<TaskDescription: TaskDescriptionProtocol> {
     self.isShutDown = true
     await self.currentlyExecutingTasks.concurrentForEach { task in
       task.cancel()
-      await task.waitToFinish()
+      do {
+        try await withTimeout(.seconds(10)) {
+          await task.waitToFinish()
+        }
+      } catch {
+        logger.error(
+          "Timed out waiting for task \(task.description.forLogging) to finish during shutdown"
+        )
+      }
     }
   }
 
