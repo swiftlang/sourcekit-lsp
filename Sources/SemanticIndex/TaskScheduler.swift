@@ -459,7 +459,8 @@ package actor TaskScheduler<TaskDescription: TaskDescriptionProtocol> {
   /// After `shutDown` has been called, no more tasks will be executed on this `TaskScheduler`.
   package func shutDown() async {
     self.isShutDown = true
-    await self.currentlyExecutingTasks.concurrentForEach { task in
+    let allTasks = self.currentlyExecutingTasks + self.pendingTasks
+    await allTasks.concurrentForEach { task in
       task.cancel()
       do {
         try await withTimeout(.seconds(10)) {
