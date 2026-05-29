@@ -480,21 +480,10 @@ class CodeCompletionSession {
         insertText = multilineFormatted
       }
 
-      let text = rewriteSourceKitPlaceholders(in: insertText, clientSupportsSnippets: clientSupportsSnippets)
-      let isInsertTextSnippet = clientSupportsSnippets && text != insertText
-
       let kind: sourcekitd_api_uid_t? = value[sourcekitd.keys.kind]
       let completionKind = kind?.asCompletionItemKind(sourcekitd.values) ?? .value
 
-      // Check if this is a keyword that should be converted to a snippet. If so, prefer the snippet text
-      // as the completion insert text and only compute the `TextEdit` once below.
-      var isKeywordSnippet = false
-      if completionKind == .keyword, let snippetText = keywordSnippet(for: name) {
-        insertText = snippetText
-        isKeywordSnippet = true
-      } else {
-        insertText = text
-      }
+      var insertTextFormat: InsertTextFormat = .plain
 
       let editRangeStart = computeCompletionTextEditStart(
         completionPos: completionPos,
@@ -503,6 +492,7 @@ class CodeCompletionSession {
         snapshot: snapshot
       )
       var insertEnd = requestContext.cursorPosition
+      var replaceEnd = requestContext.identifierEndPosition
 
       if completionKind == .method || completionKind == .function, name.first == "(", name.last == ")" {
         // sourcekitd makes an assumption that the editor inserts a matching `)` when the user types a `(` to start
@@ -524,6 +514,53 @@ class CodeCompletionSession {
           // request was run, leaving the user without the closing `)`.
           insertEnd = snapshot.position(of: nextIndex)
         }
+      }
+
+      let followingCallContext = requestContext.followingCallContext
+      // .value is for macros that are completed with their call pattern, e.g. `#myMacro(x: , y: )`.
+      if [.method, .function, .constructor, .enumMember, .value].contains(completionKind),
+        // This is check is only a heuristic to avoid processing completions of kind .value other than macros
+        insertText.contains("(") || insertText.contains("{")
+      {
+        // If the completion is a call and the call is followed by either non-empty parentheses or a trailing closure,
+        // trim the argument list from the completion insert text to prevent duplicated argument lists in the editor.
+        // For example, if the completion item is `foo(x: , y: )` and the user invoked completion on `fo|(x: 5, y: 3)`,
+        // then we want to trim the `(x: , y: )` from the completion insert text since those parentheses are already
+        // present in the code and the user likely wants to keep them instead of ending up with
+        // `foo(x: , y: )(x: 5, y: 3)`.
+        // Note, that this currently does not look at the actual contents between the parentheses or braces to determine
+        // whether the labels match
+        switch followingCallContext {
+        case .nonEmptyParens, .trailingClosure:
+          insertText = trimCallPatternIfPresent(in: insertText, context: followingCallContext)
+        case let .emptyParens(positionAfterClosingParen):
+          // When autocompleting a function call and empty parentheses are already present after the cursor, make sure to
+          // overwrite those parentheses with the completion's insert text, which also contains parentheses. This is
+          // needed to prevent the user from ending up with duplicated parentheses when accepting a completion item that
+          // contains a call pattern, e.g. `foo(x: 5)()`.
+          if replaceEnd != nil {
+            // The completion was started from the middle of an existing identifier, e.g. `fo|o()`.
+            replaceEnd = positionAfterClosingParen
+          } else {
+            // The completion was started from a position where there is no existing identifier, e.g. `fo|()`.
+            insertEnd = positionAfterClosingParen
+          }
+        default:
+          break
+        }
+      }
+
+      // Check if this is a keyword that should be converted to a snippet. If so, prefer the snippet text
+      // as the completion insert text and only compute the `TextEdit` once below.
+      if completionKind == .keyword, let snippetText = keywordSnippet(for: name) {
+        insertText = snippetText
+        insertTextFormat = .snippet
+      } else {
+        let text = rewriteSourceKitPlaceholders(in: insertText, clientSupportsSnippets: clientSupportsSnippets)
+        if clientSupportsSnippets && text != insertText {
+          insertTextFormat = .snippet
+        }
+        insertText = text
       }
 
       if utf8CodeUnitsToErase != 0, filterName != nil {
@@ -581,12 +618,12 @@ class CodeCompletionSession {
         sortText: sortText,
         filterText: filterName,
         insertText: insertText,
-        insertTextFormat: (isInsertTextSnippet || isKeywordSnippet) ? .snippet : .plain,
+        insertTextFormat: insertTextFormat,
         textEdit: createCompletionItemEdit(
           newText: insertText,
           start: editRangeStart,
           insertEnd: insertEnd,
-          replaceEnd: requestContext.identifierEndPosition
+          replaceEnd: replaceEnd
         ),
         data: data.encodeToLSPAny()
       )
@@ -662,6 +699,29 @@ class CodeCompletionSession {
       )
     }
     return .textEdit(TextEdit(range: start..<insertEnd, newText: newText))
+  }
+
+  private func trimCallPatternIfPresent(
+    in insertText: String,
+    context: FollowingCallContext
+  ) -> String {
+    if case .nonEmptyParens = context, let openParenIndex = insertText.firstIndex(of: "(") {
+      return String(insertText[..<openParenIndex])
+    }
+
+    if case .trailingClosure = context, let braceIndex = insertText.firstIndex(of: "{") {
+      // For a function declaration like `func foo(x: () -> Void)`, there are two different completion patterns that
+      // SourceKit can return, they require different handling as in either case we only want to keep the `foo` part
+      if let openParenIndex = insertText.firstIndex(of: "(") {
+        // SourceKit returned `foo(x: <#{ <#T##code##Void#> }#>)`
+        return String(insertText[..<openParenIndex].trimmingCharacters(in: .whitespaces))
+      } else {
+        // SourceKit returned `foo { <#code#> }`
+        return String(insertText[..<braceIndex].trimmingCharacters(in: .whitespaces))
+      }
+    }
+
+    return insertText
   }
 
   private func computeCompletionTextEditStart(

@@ -37,6 +37,17 @@ final class SwiftCompletionTests: SourceKitLSPTestCase {
     )
   )
 
+  private var insertReplaceEditAndSnippetCapabilities = ClientCapabilities(
+    textDocument: TextDocumentClientCapabilities(
+      completion: TextDocumentClientCapabilities.Completion(
+        completionItem: TextDocumentClientCapabilities.Completion.CompletionItem(
+          snippetSupport: true,
+          insertReplaceSupport: true
+        )
+      )
+    )
+  )
+
   // MARK: - Tests
 
   func testCompletionBasic() async throws {
@@ -1105,6 +1116,32 @@ final class SwiftCompletionTests: SourceKitLSPTestCase {
     )
   }
 
+  func testCompletionWithExistingTrailingClosureDoesNotTrimAtSnippetBrace() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
+
+    let testClient = try await TestSourceKitLSPClient(capabilities: snippetCapabilities)
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
+      """
+      struct MyArray {
+          func myMap(_ body: (Int) -> Bool) {}
+      }
+      func test(x: MyArray) {
+          x.1️⃣myM2️⃣ { _ in true }
+      }
+      """,
+      uri: uri
+    )
+    let completions = try await testClient.send(
+      CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
+    )
+    let completion = try XCTUnwrap(completions.items.first { $0.label.contains("myMap") })
+    XCTAssertEqual(
+      completion.textEdit,
+      .textEdit(TextEdit(range: positions["1️⃣"]..<positions["2️⃣"], newText: "myMap"))
+    )
+  }
+
   func testExpandClosurePlaceholderOnOptional() async throws {
     try await SkipUnless.sourcekitdSupportsPlugin()
 
@@ -1616,6 +1653,654 @@ final class SwiftCompletionTests: SourceKitLSPTestCase {
     )
     let completion = try XCTUnwrap(completions.items.only)
     XCTAssertEqual(completion.textEdit, .textEdit(TextEdit(range: positions["1️⃣"]..<positions["2️⃣"], newText: ")")))
+  }
+
+  func testFunctionCompletionDoesNotInsertArgumentsIfTheyAlreadyExist() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
+      """
+      func foobar(x: Int, y: Int) {}
+
+      func test() {
+        1️⃣fooba2️⃣(x: 5, y: 3)
+      }
+      """,
+      uri: uri
+    )
+
+    let completions = try await testClient.send(
+      CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
+    )
+    let completion = try XCTUnwrap(completions.items.first { $0.label.contains("foobar") })
+    guard case let .textEdit(textEdit)? = completion.textEdit else {
+      XCTFail("Expected text edit")
+      return
+    }
+    XCTAssertEqual(textEdit.range, positions["1️⃣"]..<positions["2️⃣"])
+    XCTAssertEqual(textEdit.newText, "foobar")
+  }
+
+  func testFunctionCompletionDoesNotInsertArgumentsIfTheyAlreadyExistWithSnippets() async throws {
+    let testClient = try await TestSourceKitLSPClient(capabilities: snippetCapabilities)
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
+      """
+      func foobar(x: Int, y: Int) {}
+
+      func test() {
+        1️⃣fooba2️⃣(x: 5, y: 3)
+      }
+      """,
+      uri: uri
+    )
+
+    let completions = try await testClient.send(
+      CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
+    )
+    let completion = try XCTUnwrap(completions.items.first { $0.label.contains("foobar") })
+    guard case let .textEdit(textEdit)? = completion.textEdit else {
+      XCTFail("Expected text edit")
+      return
+    }
+    XCTAssertEqual(textEdit.range, positions["1️⃣"]..<positions["2️⃣"])
+    XCTAssertEqual(textEdit.newText, "foobar")
+    XCTAssertEqual(completion.insertTextFormat, .plain)
+  }
+
+  func testFunctionCompletionTreatsExistingParensAfterWhitespaceAsExistingCall() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
+      """
+      func foobar(x: Int, y: Int) {}
+
+      func test() {
+        1️⃣fooba2️⃣   (x: 5, y: 3)
+      }
+      """,
+      uri: uri
+    )
+
+    let completions = try await testClient.send(
+      CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
+    )
+    let completion = try XCTUnwrap(completions.items.first { $0.label.contains("foobar") })
+    guard case let .textEdit(textEdit)? = completion.textEdit else {
+      XCTFail("Expected text edit")
+      return
+    }
+    XCTAssertEqual(textEdit.range, positions["1️⃣"]..<positions["2️⃣"])
+    XCTAssertEqual(textEdit.newText, "foobar")
+  }
+
+  func testFunctionCompletionTreatsExistingMultilineCallAsExistingCall() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
+      """
+      func foobar(x: Int, y: Int) {}
+
+      func test() {
+        1️⃣fooba2️⃣(
+          x: 5,
+          y: 3
+        )
+      }
+      """,
+      uri: uri
+    )
+
+    let completions = try await testClient.send(
+      CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
+    )
+    let completion = try XCTUnwrap(completions.items.first { $0.label.contains("foobar") })
+    guard case let .textEdit(textEdit)? = completion.textEdit else {
+      XCTFail("Expected text edit")
+      return
+    }
+    XCTAssertEqual(textEdit.range, positions["1️⃣"]..<positions["2️⃣"])
+    XCTAssertEqual(textEdit.newText, "foobar")
+  }
+
+  func testFunctionCompletionDoesNotTreatNextLineParensAsExistingCall() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
+      """
+      func foobar(x: Int, y: Int) {}
+
+      func test() {
+        1️⃣fooba2️⃣
+        (x: 5, y: 3)
+      }
+      """,
+      uri: uri
+    )
+
+    let completions = try await testClient.send(
+      CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
+    )
+    let completion = try XCTUnwrap(completions.items.first { $0.label.contains("foobar") })
+    guard case let .textEdit(textEdit)? = completion.textEdit else {
+      XCTFail("Expected text edit")
+      return
+    }
+    XCTAssertEqual(textEdit.range, positions["1️⃣"]..<positions["2️⃣"])
+    XCTAssertEqual(textEdit.newText, "foobar(x: , y: )")
+  }
+
+  func testFunctionCompletionReplacesExistingEmptyParens() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
+      """
+      func foobar(x: Int, y: Int) {}
+
+      func test() {
+        1️⃣fooba2️⃣()3️⃣
+      }
+      """,
+      uri: uri
+    )
+
+    let completions = try await testClient.send(
+      CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
+    )
+    let completion = try XCTUnwrap(completions.items.first { $0.label.contains("foobar") })
+    guard case let .textEdit(textEdit)? = completion.textEdit else {
+      XCTFail("Expected text edit")
+      return
+    }
+    XCTAssertEqual(textEdit.range, positions["1️⃣"]..<positions["3️⃣"])
+    XCTAssertEqual(textEdit.newText, "foobar(x: , y: )")
+  }
+
+  func testFunctionCompletionReplacesExistingEmptyParensWithSnippets() async throws {
+    let testClient = try await TestSourceKitLSPClient(capabilities: snippetCapabilities)
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
+      """
+      func foobar(x: Int, y: Int) {}
+
+      func test() {
+        1️⃣fooba2️⃣()3️⃣
+      }
+      """,
+      uri: uri
+    )
+
+    let completions = try await testClient.send(
+      CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
+    )
+    let completion = try XCTUnwrap(completions.items.first { $0.label.contains("foobar") })
+    guard case let .textEdit(textEdit)? = completion.textEdit else {
+      XCTFail("Expected text edit")
+      return
+    }
+    XCTAssertEqual(textEdit.range, positions["1️⃣"]..<positions["3️⃣"])
+    XCTAssertEqual(textEdit.newText, "foobar(x: ${1:Int}, y: ${2:Int})")
+    XCTAssertEqual(completion.insertTextFormat, .snippet)
+  }
+
+  func testFunctionCompletionWithEmptyParensAndExistingTrailingClosure() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
+      """
+      func foobar(x: Int, y: () -> Void) {}
+
+      func test() {
+        1️⃣foo2️⃣() {
+          doSomethingInTrailingClosure()
+        }
+      }
+      """,
+      uri: uri
+    )
+
+    let completions = try await testClient.send(
+      CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
+    )
+    let completion = try XCTUnwrap(completions.items.first { $0.label.contains("foobar") })
+    guard case let .textEdit(textEdit)? = completion.textEdit else {
+      XCTFail("Expected text edit")
+      return
+    }
+    XCTAssertEqual(textEdit.range, positions["1️⃣"]..<positions["2️⃣"])
+    XCTAssertEqual(textEdit.newText, "foobar")
+  }
+
+  func testFunctionCompletionReplacesWhitespaceOnlyExistingParens() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
+      """
+      func foobar(x: Int, y: Int) {}
+
+      func test() {
+        1️⃣fooba2️⃣(                 )3️⃣
+      }
+      """,
+      uri: uri
+    )
+
+    let completions = try await testClient.send(
+      CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
+    )
+    let completion = try XCTUnwrap(completions.items.first { $0.label.contains("foobar") })
+    guard case let .textEdit(textEdit)? = completion.textEdit else {
+      XCTFail("Expected text edit")
+      return
+    }
+    XCTAssertEqual(textEdit.range, positions["1️⃣"]..<positions["3️⃣"])
+    XCTAssertEqual(textEdit.newText, "foobar(x: , y: )")
+  }
+
+  func testFunctionCompletionDoesNotOverwriteMultilineParens() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
+      """
+      func foobar(x: Int, y: Int) {}
+
+      func test() {
+        1️⃣fooba2️⃣(
+
+        )
+      }
+      """,
+      uri: uri
+    )
+
+    let completions = try await testClient.send(
+      CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
+    )
+    let completion = try XCTUnwrap(completions.items.first { $0.label.contains("foobar") })
+    guard case let .textEdit(textEdit)? = completion.textEdit else {
+      XCTFail("Expected text edit")
+      return
+    }
+    XCTAssertEqual(textEdit.range, positions["1️⃣"]..<positions["2️⃣"])
+    XCTAssertEqual(textEdit.newText, "foobar")
+  }
+
+  func testFunctionCompletionWithExistingTrailingClosure() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
+      """
+      func foobar(body: () -> Void) {}
+
+      func test() {
+        1️⃣foobar2️⃣ {}
+      }
+      """,
+      uri: uri
+    )
+
+    let completions = try await testClient.send(
+      CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
+    )
+    let completion = try XCTUnwrap(completions.items.first { !$0.label.contains("(") })
+
+    guard case let .textEdit(textEdit)? = completion.textEdit else {
+      XCTFail("Expected text edit")
+      return
+    }
+    XCTAssertEqual(textEdit.range, positions["1️⃣"]..<positions["2️⃣"])
+    XCTAssertEqual(textEdit.newText, "foobar")
+  }
+
+  func testFunctionCompletionWithExistingBraceButFunctionDoesNotTakeClosure() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
+      """
+      func foobar(x: Int) {}
+
+      func test() {
+        1️⃣foobar2️⃣ {}
+      }
+      """,
+      uri: uri
+    )
+
+    let completions = try await testClient.send(
+      CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
+    )
+    let completion = try XCTUnwrap(completions.items.only)
+
+    guard case let .textEdit(textEdit)? = completion.textEdit else {
+      XCTFail("Expected text edit")
+      return
+    }
+    XCTAssertEqual(textEdit.range, positions["1️⃣"]..<positions["2️⃣"])
+    XCTAssertEqual(textEdit.newText, "foobar(x: )")
+  }
+
+  func testFunctionCompletionDoesNotTreatCommentOnlyParensAsEmpty() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
+      """
+      func foobar(x: Int, y: Int) {}
+
+      func test() {
+        1️⃣fooba2️⃣(/*keep me*/)
+      }
+      """,
+      uri: uri
+    )
+
+    let completions = try await testClient.send(
+      CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
+    )
+    let completion = try XCTUnwrap(completions.items.first { $0.label.contains("foobar") })
+    guard case let .textEdit(textEdit)? = completion.textEdit else {
+      XCTFail("Expected text edit")
+      return
+    }
+    XCTAssertEqual(textEdit.range, positions["1️⃣"]..<positions["2️⃣"])
+    XCTAssertEqual(textEdit.newText, "foobar")
+  }
+
+  func testFunctionCompletionWithExistingOpeningParen() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
+      """
+      func foobar(x: Int, y: Int) {}
+
+      func test() {
+        1️⃣fooba2️⃣(
+      }
+      """,
+      uri: uri
+    )
+
+    let completions = try await testClient.send(
+      CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
+    )
+    let completion = try XCTUnwrap(completions.items.first { $0.label.contains("foobar") })
+    guard case let .textEdit(textEdit)? = completion.textEdit else {
+      XCTFail("Expected text edit")
+      return
+    }
+    XCTAssertEqual(textEdit.range, positions["1️⃣"]..<positions["2️⃣"])
+    XCTAssertEqual(textEdit.newText, "foobar")
+  }
+
+  func testFunctionCompletionWithInsertReplaceEditAndExistingParens() async throws {
+    let testClient = try await TestSourceKitLSPClient(capabilities: insertReplaceEditCapabilities)
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
+      """
+      func foobar(x: Int, y: Int) {}
+      func foobaz(x: Int, y: Int) {}
+
+      func test() {
+        1️⃣foob2️⃣ar()3️⃣
+        4️⃣foob5️⃣ar6️⃣(x: 5, y: 3)
+      }
+      """,
+      uri: uri
+    )
+
+    try await assertInsertReplaceCompletion(
+      testClient: testClient,
+      uri: uri,
+      positions: positions,
+      start: "1️⃣",
+      cursor: "2️⃣",
+      insertEnd: "2️⃣",
+      replaceEnd: "3️⃣",
+      matching: { $0.label.contains("foobaz") },
+      expectedNewText: "foobaz(x: , y: )"
+    )
+    try await assertInsertReplaceCompletion(
+      testClient: testClient,
+      uri: uri,
+      positions: positions,
+      start: "4️⃣",
+      cursor: "5️⃣",
+      insertEnd: "5️⃣",
+      replaceEnd: "6️⃣",
+      matching: { $0.label.contains("foobaz") },
+      expectedNewText: "foobaz"
+    )
+  }
+
+  func testEnumCaseCompletionDoesNotInsertArgumentsIfTheyAlreadyExist() async throws {
+    let testClient = try await TestSourceKitLSPClient(capabilities: insertReplaceEditCapabilities)
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
+      """
+      enum MyEnum {
+        case foobar(x: Int, y: Int)
+      }
+
+      func test(value: MyEnum) {
+        switch value {
+        case .1️⃣foo2️⃣baz3️⃣(x: 5, y: 3):
+          break
+        case .4️⃣fooba5️⃣z()6️⃣:
+          break
+        }
+      }
+      """,
+      uri: uri
+    )
+
+    try await assertInsertReplaceCompletion(
+      testClient: testClient,
+      uri: uri,
+      positions: positions,
+      start: "1️⃣",
+      cursor: "2️⃣",
+      insertEnd: "2️⃣",
+      replaceEnd: "3️⃣",
+      matching: { $0.label.contains("foobar") },
+      expectedNewText: "foobar"
+    )
+    try await assertInsertReplaceCompletion(
+      testClient: testClient,
+      uri: uri,
+      positions: positions,
+      start: "4️⃣",
+      cursor: "5️⃣",
+      insertEnd: "5️⃣",
+      replaceEnd: "6️⃣",
+      matching: { $0.label.contains("foobar") },
+      expectedNewText: "foobar(x: , y: )"
+    )
+  }
+
+  func testInitializerCompletionWithExistingArguments() async throws {
+    let testClient = try await TestSourceKitLSPClient(capabilities: insertReplaceEditCapabilities)
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
+      """
+      struct Box {
+        init(x: Int, y: Int) {}
+      }
+
+      func test() {
+        let b = 1️⃣Bo2️⃣x3️⃣(x: 5, y: 3)
+        let c = 4️⃣Bo5️⃣x6️⃣()7️⃣
+      }
+      """,
+      uri: uri
+    )
+
+    try await assertInsertReplaceCompletion(
+      testClient: testClient,
+      uri: uri,
+      positions: positions,
+      start: "1️⃣",
+      cursor: "2️⃣",
+      insertEnd: "2️⃣",
+      replaceEnd: "3️⃣",
+      matching: { $0.kind == .constructor || $0.label.contains("Box") },
+      expectedNewText: "Box"
+    )
+    try await assertInsertReplaceCompletion(
+      testClient: testClient,
+      uri: uri,
+      positions: positions,
+      start: "4️⃣",
+      cursor: "5️⃣",
+      insertEnd: "5️⃣",
+      replaceEnd: "6️⃣",
+      matching: { $0.kind == .constructor || $0.label.contains("Box") },
+      expectedNewText: "Box"
+    )
+  }
+
+  func testStaticFactoryCompletionWithExistingAndEmptyParens() async throws {
+    let testClient = try await TestSourceKitLSPClient(capabilities: insertReplaceEditCapabilities)
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
+      """
+      struct Maker {
+        static func build(x: Int, y: Int) -> Maker { Maker() }
+      }
+
+      func test() {
+        _ = Maker.1️⃣buil2️⃣d3️⃣(x: 5, y: 3)
+        _ = Maker.4️⃣buil5️⃣d6️⃣()7️⃣
+      }
+      """,
+      uri: uri
+    )
+
+    try await assertInsertReplaceCompletion(
+      testClient: testClient,
+      uri: uri,
+      positions: positions,
+      start: "1️⃣",
+      cursor: "2️⃣",
+      insertEnd: "2️⃣",
+      replaceEnd: "3️⃣",
+      matching: { $0.label.contains("build") },
+      expectedNewText: "build"
+    )
+    try await assertInsertReplaceCompletion(
+      testClient: testClient,
+      uri: uri,
+      positions: positions,
+      start: "4️⃣",
+      cursor: "5️⃣",
+      insertEnd: "5️⃣",
+      replaceEnd: "7️⃣",
+      matching: { $0.label.contains("build") },
+      expectedNewText: "build(x: , y: )"
+    )
+  }
+
+  func testMacroCompletionWithExistingAndEmptyParens() async throws {
+    let testClient = try await TestSourceKitLSPClient(
+      capabilities: insertReplaceEditAndSnippetCapabilities
+    )
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
+      """
+      @freestanding(expression)
+      macro myMacro(fn: (Int) -> String) = #externalMacro(module: "", type: "")
+
+      func test() {
+        _ = #1️⃣myMac2️⃣ro3️⃣(fn: { _ in "x" })
+        _ = #4️⃣myMac5️⃣ro()6️⃣
+      }
+      """,
+      uri: uri
+    )
+
+    try await assertInsertReplaceCompletion(
+      testClient: testClient,
+      uri: uri,
+      positions: positions,
+      start: "1️⃣",
+      cursor: "2️⃣",
+      insertEnd: "2️⃣",
+      replaceEnd: "3️⃣",
+      matching: { $0.label.contains("myMacro") },
+      expectedNewTextContains: "myMacro"
+    )
+    try await assertInsertReplaceCompletion(
+      testClient: testClient,
+      uri: uri,
+      positions: positions,
+      start: "4️⃣",
+      cursor: "5️⃣",
+      insertEnd: "5️⃣",
+      replaceEnd: "6️⃣",
+      matching: { $0.label.contains("myMacro") },
+      expectedNewTextContains: "myMacro"
+    )
+  }
+
+  private func assertInsertReplaceCompletion(
+    testClient: TestSourceKitLSPClient,
+    uri: DocumentURI,
+    positions: DocumentPositions,
+    start: String,
+    cursor: String,
+    insertEnd: String,
+    replaceEnd: String,
+    matching isMatchingCompletion: (CompletionItem) -> Bool,
+    expectedNewText: String? = nil,
+    expectedNewTextContains: String? = nil,
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) async throws {
+    let completions = try await testClient.send(
+      CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions[cursor])
+    )
+    let completion = try XCTUnwrap(
+      completions.items.first(where: isMatchingCompletion),
+      "No matching completion item",
+      file: file,
+      line: line
+    )
+    guard case let .insertReplaceEdit(edit)? = completion.textEdit else {
+      XCTFail("Expected insert-replace edit", file: file, line: line)
+      return
+    }
+    XCTAssertEqual(edit.insert, positions[start]..<positions[insertEnd], file: file, line: line)
+    XCTAssertEqual(edit.replace, positions[start]..<positions[replaceEnd], file: file, line: line)
+    if let expectedNewText {
+      XCTAssertEqual(edit.newText, expectedNewText, file: file, line: line)
+    }
+    if let expectedNewTextContains {
+      XCTAssertTrue(edit.newText.contains(expectedNewTextContains), file: file, line: line)
+    }
+  }
+
+  func testCompletionWithExistingArgumentsAndKeywordAsIdentifier() async throws {
+    let testClient = try await TestSourceKitLSPClient(capabilities: insertReplaceEditCapabilities)
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
+      """
+      func selfTest(x: Int, y: Int) {}
+
+      func test() {
+        1️⃣self2️⃣(x: 5, y: 3)
+      }
+      """,
+      uri: uri
+    )
+
+    let completions = try await testClient.send(
+      CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
+    )
+    let completion = try XCTUnwrap(completions.items.first { $0.label.contains("selfTest") })
+    guard case let .textEdit(textEdit)? = completion.textEdit else {
+      XCTFail("Expected text edit")
+      return
+    }
+    XCTAssertEqual(textEdit.range, positions["1️⃣"]..<positions["2️⃣"])
+    XCTAssertEqual(textEdit.newText, "selfTest")
   }
 }
 
