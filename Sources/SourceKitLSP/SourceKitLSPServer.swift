@@ -2248,7 +2248,8 @@ extension SourceKitLSPServer {
     guard let index = await workspaceForDocument(uri: req.textDocument.uri)?.index(checkedFor: .deletedFiles) else {
       return []
     }
-    let locations = try symbols.flatMap { (symbol) -> [Location] in
+
+    var locations = try symbols.flatMap { (symbol) -> [Location] in
       guard let usr = symbol.usr else { return [] }
       logger.info("Finding references for USR \(usr)")
       var roles: SymbolRole = [.reference]
@@ -2257,6 +2258,15 @@ extension SourceKitLSPServer {
       }
       return try index.occurrences(ofUSR: usr, roles: roles).compactMap { $0.location.lspLocation }
     }
+
+    if locations.isEmpty {
+      locations = (try? await languageService.localReferences(
+        at: req.position,
+        in: req.textDocument.uri,
+        includeDeclaration: req.context.includeDeclaration
+      )) ?? []
+    }
+
     let copiedFileMap = await workspace.buildServerManager.cachedCopiedFileMap
     let remappedLocations = locations.adjusted(for: copiedFileMap)
     return remappedLocations.unique.sorted()

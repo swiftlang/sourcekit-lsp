@@ -1420,3 +1420,31 @@ extension SwiftLanguageService {
     return false
   }
 }
+
+extension SwiftLanguageService {
+  package func localReferences(
+    at position: Position,
+    in uri: DocumentURI,
+    includeDeclaration: Bool
+  ) async throws -> [Location] {
+    guard let snapshot = try? await latestSnapshot(for: uri) else {
+      return []
+    }
+
+    let response = try await self.relatedIdentifiers(
+      at: position,
+      in: snapshot,
+      includeNonEditableBaseNames: false
+    )
+
+    var identifiers = response.relatedIdentifiers
+
+    if !includeDeclaration {
+      identifiers = Array(identifiers.dropFirst())
+    }
+
+    return identifiers.map {
+      Location(uri: uri, range: $0.range)
+    }
+  }
+}

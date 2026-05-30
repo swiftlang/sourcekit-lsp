@@ -336,6 +336,8 @@ package protocol LanguageService: AnyObject, Sendable {
 
   /// Crash the language server. Should be used for crash recovery testing only.
   func crash() async
+
+  func localReferences(at position: Position, in uri: DocumentURI, includeDeclaration: Bool) async throws -> [Location]
 }
 
 /// Default implementations for methods that satisfy the following criteria:
@@ -548,5 +550,15 @@ package extension LanguageService {
 
   func crash() async {
     logger.error("\(Self.self) cannot be crashed")
+  }
+}
+
+extension LanguageService {
+  package func localReferences(
+    at position: Position,
+    in uri: DocumentURI,
+    includeDeclaration: Bool
+  ) async throws -> [Location] {
+    return []
   }
 }
