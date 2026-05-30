@@ -2260,11 +2260,12 @@ extension SourceKitLSPServer {
     }
 
     if locations.isEmpty {
-      locations = (try? await languageService.localReferences(
-        at: req.position,
-        in: req.textDocument.uri,
-        includeDeclaration: req.context.includeDeclaration
-      )) ?? []
+      locations =
+        (try? await languageService.localReferences(
+          at: req.position,
+          in: req.textDocument.uri,
+          includeDeclaration: req.context.includeDeclaration
+        )) ?? []
     }
 
     let copiedFileMap = await workspace.buildServerManager.cachedCopiedFileMap
