@@ -17,6 +17,7 @@ import IndexStoreDB
 @_spi(SourceKitLSP) import SKLogging
 import SemanticIndex
 import SwiftExtensions
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 extension UncheckedIndex: BuildServerIntegration.MainFilesProvider {
   /// - Important: This may return realpaths when the build server might not be using realpaths. Use

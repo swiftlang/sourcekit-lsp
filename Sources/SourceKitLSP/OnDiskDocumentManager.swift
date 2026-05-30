@@ -16,6 +16,7 @@ import Foundation
 @_spi(SourceKitLSP) import SKLogging
 import SKUtilities
 import SwiftExtensions
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 package actor OnDiskDocumentManager {
   private let sourceKitLSPServer: SourceKitLSPServer

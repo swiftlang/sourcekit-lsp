@@ -20,6 +20,7 @@ import SKOptions
 import SwiftExtensions
 import TSCExtensions
 import ToolchainRegistry
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 import func TSCBasic.getEnvSearchPaths
 import var TSCBasic.localFileSystem

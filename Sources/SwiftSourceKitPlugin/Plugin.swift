@@ -17,6 +17,7 @@ import SourceKitD
 import SwiftExtensions
 import SwiftSourceKitPluginCommon
 import ToolsProtocolsSwiftExtensions
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 private func useNewAPI(for dict: SKDRequestDictionaryReader) -> Bool {
   guard let opts: SKDRequestDictionaryReader = dict[dict.sourcekitd.keys.codeCompleteOptions],

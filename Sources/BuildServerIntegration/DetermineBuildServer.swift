@@ -17,6 +17,7 @@ package import SKOptions
 import SwiftExtensions
 import TSCExtensions
 import ToolchainRegistry
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 import struct TSCBasic.AbsolutePath
 import struct TSCBasic.RelativePath

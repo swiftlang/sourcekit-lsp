@@ -18,6 +18,7 @@ import SourceKitD
 import SwiftExtensions
 import SwiftSyntax
 import ToolchainRegistry
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
 
 import struct TSCBasic.AbsolutePath

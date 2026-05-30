@@ -13,6 +13,7 @@
 import Foundation
 package import SKOptions
 import SwiftExtensions
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
 
 private let sdkArgs =

@@ -13,6 +13,7 @@
 package import Foundation
 import RegexBuilder
 import SwiftExtensions
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 /// All the information necessary to replay a sourcektid request.
 package struct RequestInfo: Sendable {
