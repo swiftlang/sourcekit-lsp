@@ -698,6 +698,9 @@ package final actor SemanticIndexManager {
       }
       self.indexProgressStatusDidChange()
     }
+    logger.debug(
+      "Scheduled \(preparationTask.description.forLogging) at priority \(preparationTask.priority.rawValue, privacy: .public) (caller priority \(Task.currentPriority.rawValue, privacy: .public))"
+    )
     for target in targetsToPrepare {
       // If we are preparing the same target for indexing and editor functionality, pick editor functionality as the
       // purpose because it is more significant.
@@ -795,6 +798,9 @@ package final actor SemanticIndexManager {
       }
       self.indexProgressStatusDidChange()
     }
+    logger.debug(
+      "Scheduled \(updateIndexTask.description.forLogging) at priority \(updateIndexTask.priority.rawValue, privacy: .public) (caller priority \(Task.currentPriority.rawValue, privacy: .public))"
+    )
     for fileAndOutputPath in fileAndOutputPaths {
       let fileAndTarget = FileIndexInfo(
         file: fileAndOutputPath.file,
@@ -989,6 +995,9 @@ package final actor SemanticIndexManager {
           let batches = await UpdateIndexStoreTaskDescription.batches(
             toIndex: fileInfos,
             buildServerManager: buildServerManager
+          )
+          logger.debug(
+            "indexTask: preparation finished, scheduling \(batches.count, privacy: .public) update-indexstore batches at priority \(Task.currentPriority.rawValue, privacy: .public)"
           )
           for (target, language, fileBatch) in batches {
             taskGroup.addTask {

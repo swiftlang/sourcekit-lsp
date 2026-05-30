@@ -202,6 +202,11 @@ package actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
     self.resultTask = Task.detached(priority: priority) {
       await withTaskCancellationHandler {
         await withTaskPriorityChangedHandler(initialPriority: priority) {
+          withLoggingSubsystemAndScope(subsystem: taskSchedulerSubsystem, scope: nil) {
+            logger.debug(
+              "resultTask started for \(self.description.forLogging) (stored priority \(self.priority.rawValue), runtime priority \(Task.currentPriority.rawValue))"
+            )
+          }
           for await task in executionTaskCreatedStream {
             switch await task.valuePropagatingCancellation {
             case .cancelledToBeRescheduled:
@@ -550,6 +555,11 @@ package actor TaskScheduler<TaskDescription: TaskDescriptionProtocol> {
         // When the next task finishes, it calls `poke` again.
         // If a low priority task's priority gets elevated that task's priority will get elevated, which will call
         // `poke`.
+        withLoggingSubsystemAndScope(subsystem: taskSchedulerSubsystem, scope: nil) {
+          logger.debug(
+            "Cannot schedule \(task.description.forLogging) at priority \(task.priority.rawValue) (executing: \(self.currentlyExecutingTasks.count), pending: \(self.pendingTasks.count))"
+          )
+        }
         return
       }
       let dependencies = task.description.dependencies(to: currentlyExecutingTasks.map(\.description))
