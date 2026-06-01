@@ -1440,7 +1440,8 @@ extension SwiftLanguageService {
     var identifiers = response.relatedIdentifiers
 
     if !includeDeclaration {
-      identifiers = Array(identifiers.dropFirst())
+      // Remove declaration occurrences when `includeDeclaration` is false.
+      identifiers = identifiers.filter { $0.usage != .definition }
     }
 
     return identifiers.map {
