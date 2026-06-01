@@ -200,7 +200,7 @@ package actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
 
     self.resultTask = Task.detached(priority: priority) {
       await withTaskCancellationHandler {
-        await withTaskPriorityChangedHandler(initialPriority: self.priority) {
+        await withTaskPriorityChangedHandler(initialPriority: priority) {
           for await task in executionTaskCreatedStream {
             switch await task.valuePropagatingCancellation {
             case .cancelledToBeRescheduled:
