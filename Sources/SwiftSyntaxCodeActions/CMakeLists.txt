@@ -6,6 +6,7 @@ add_library(SwiftSyntaxCodeActions STATIC
   ConvertIntegerLiteral.swift
   ConvertJSONToCodableStruct.swift
   ConvertStringConcatenationToStringInterpolation.swift
+  GenerateEnumCaseAccessors.swift
   IndentationRemover.swift
   PackageManifestEdits.swift
   SyntaxCodeActionProvider.swift
