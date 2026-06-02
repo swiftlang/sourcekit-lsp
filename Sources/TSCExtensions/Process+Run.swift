@@ -165,8 +165,8 @@ extension Process {
     return try await withTaskPriorityChangedHandler(initialPriority: Task.currentPriority) { @Sendable in
       setProcessPriority(pid: process.processID, newPriority: Task.currentPriority)
       return try await process.waitUntilExitStoppingProcessOnTaskCancellation()
-    } taskPriorityChanged: {
-      setProcessPriority(pid: process.processID, newPriority: Task.currentPriority)
+    } taskPriorityChanged: { newPriority in
+      setProcessPriority(pid: process.processID, newPriority: newPriority)
     }
   }
 }
