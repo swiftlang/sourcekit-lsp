@@ -2245,12 +2245,11 @@ extension SourceKitLSPServer {
         position: req.position
       )
     )
-    guard let index = await workspaceForDocument(uri: req.textDocument.uri)?.index(checkedFor: .deletedFiles) else {
-      return []
-    }
-
-    var locations = try symbols.flatMap { (symbol) -> [Location] in
-      guard let usr = symbol.usr else { return [] }
+    let index = await workspaceForDocument(uri: req.textDocument.uri)?.index(
+      checkedFor: .inMemoryModifiedFiles(documentManager)
+    )
+    let indexLocations = try symbols.flatMap { symbol -> [Location] in
+      guard let usr = symbol.usr, let index else { return [] }
       logger.info("Finding references for USR \(usr)")
       var roles: SymbolRole = [.reference]
       if req.context.includeDeclaration {
@@ -2259,12 +2258,17 @@ extension SourceKitLSPServer {
       return try index.occurrences(ofUSR: usr, roles: roles).compactMap { $0.location.lspLocation }
     }
 
-    if locations.isEmpty {
-      locations = try await languageService.localReferences(
-        at: req.position,
-        in: req.textDocument.uri,
-        includeDeclaration: req.context.includeDeclaration
-      )
+    let localLocations = try await languageService.localReferences(
+      at: req.position,
+      in: req.textDocument.uri,
+      includeDeclaration: req.context.includeDeclaration
+    )
+
+    var locations = indexLocations
+    var knownLocationStarts = Set(indexLocations.map(ReferenceLocationStart.init))
+    for localLocation in localLocations where knownLocationStarts.insert(ReferenceLocationStart(localLocation)).inserted
+    {
+      locations.append(localLocation)
     }
 
     let copiedFileMap = await workspace.buildServerManager.cachedCopiedFileMap
@@ -2894,6 +2898,16 @@ fileprivate extension Sequence where Element: Hashable {
   var unique: [Element] {
     var set = Set<Element>()
     return self.filter { set.insert($0).inserted }
+  }
+}
+
+private struct ReferenceLocationStart: Hashable {
+  var uri: DocumentURI
+  var position: Position
+
+  init(_ location: Location) {
+    self.uri = location.uri
+    self.position = location.range.lowerBound
   }
 }
 

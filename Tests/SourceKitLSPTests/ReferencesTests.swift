@@ -241,4 +241,46 @@ final class ReferencesTests: SourceKitLSPTestCase {
       ]
     )
   }
+
+  func testReferencesWithInMemoryEdits() async throws {
+    let project = try await IndexedSingleSwiftFileTestProject(
+      """
+      func 1️⃣foo() {}
+      func bar() {
+        2️⃣foo()
+      }
+      """
+    )
+
+    project.testClient.send(
+      DidChangeTextDocumentNotification(
+        textDocument: VersionedTextDocumentIdentifier(project.fileURI, version: 2),
+        contentChanges: [
+          TextDocumentContentChangeEvent(
+            range: Range(Position(line: 0, utf16index: 0)),
+            text: "\n"
+          )
+        ]
+      )
+    )
+
+    let originalDefPos = project.positions["1️⃣"]
+    let originalCallPos = project.positions["2️⃣"]
+
+    let shiftedDefPos = Position(line: originalDefPos.line + 1, utf16index: originalDefPos.utf16index)
+    let shiftedCallPos = Position(line: originalCallPos.line + 1, utf16index: originalCallPos.utf16index)
+
+    let response = try await project.testClient.send(
+      ReferencesRequest(
+        textDocument: TextDocumentIdentifier(project.fileURI),
+        position: shiftedDefPos,
+        context: ReferencesContext(includeDeclaration: true)
+      )
+    )
+
+    XCTAssertEqual(
+      Set(response.map(\.range.lowerBound)),
+      Set([shiftedDefPos, shiftedCallPos])
+    )
+  }
 }
