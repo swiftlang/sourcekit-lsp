@@ -564,14 +564,8 @@ package extension LanguageService {
   func crash() async {
     logger.error("\(Self.self) cannot be crashed")
   }
-}
 
-extension LanguageService {
-  package func localReferences(
-    at position: Position,
-    in uri: DocumentURI,
-    includeDeclaration: Bool
-  ) async throws -> [Location] {
+  func localReferences(at position: Position, in uri: DocumentURI, includeDeclaration: Bool) async throws -> [Location] {
     return []
   }
 }
