@@ -344,7 +344,7 @@ package final actor UncheckedIndex: Sendable {
   /// The set of unit output paths that are currently registered in the underlying `IndexStoreDB`.
   private var unitOutputPaths: Set<String> = []
 
-  package init?(_ index: IndexStoreDB?, usesExplicitOutputPaths: Bool) {
+  package init?(_ index: sending IndexStoreDB?, usesExplicitOutputPaths: Bool) {
     guard let index else {
       return nil
     }
