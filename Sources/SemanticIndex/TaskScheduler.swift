@@ -212,14 +212,14 @@ package actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
               return
             }
           }
-        } taskPriorityChanged: {
+        } taskPriorityChanged: { newPriority in
           withLoggingSubsystemAndScope(subsystem: taskSchedulerSubsystem, scope: nil) {
             logger.debug(
-              "Updating priority of \(self.description.forLogging) from \(self.priority.rawValue) to \(Task.currentPriority.rawValue)"
+              "Updating priority of \(self.description.forLogging) from \(self.priority.rawValue) to \(newPriority.rawValue)"
             )
           }
-          self.priority = Task.currentPriority
-          taskPriorityChangedCallback(self.priority)
+          self.priority = newPriority
+          taskPriorityChangedCallback(newPriority)
         }
       } onCancel: {
         self.resultTaskCancelled.store(true, ordering: .relaxed)
@@ -677,27 +677,5 @@ fileprivate extension Collection {
       result += transform(element)
     }
     return result
-  }
-}
-
-/// Version of the `withTaskPriorityChangedHandler` where the body doesn't throw.
-private func withTaskPriorityChangedHandler(
-  initialPriority: TaskPriority = Task.currentPriority,
-  pollingInterval: Duration = .seconds(0.1),
-  @_inheritActorContext operation: @escaping @Sendable () async -> Void,
-  taskPriorityChanged: @escaping @Sendable () -> Void
-) async {
-  do {
-    try await withTaskPriorityChangedHandler(
-      initialPriority: initialPriority,
-      pollingInterval: pollingInterval,
-      operation: operation as @Sendable () async throws -> Void,
-      taskPriorityChanged: taskPriorityChanged
-    )
-  } catch is CancellationError {
-  } catch {
-    // Since `operation` does not throw, the only error we expect `withTaskPriorityChangedHandler` to throw is a
-    // `CancellationError`, in which case we can just return.
-    logger.fault("Unexpected error thrown from withTaskPriorityChangedHandler: \(error.forLogging)")
   }
 }
