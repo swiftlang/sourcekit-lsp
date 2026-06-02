@@ -337,11 +337,13 @@ package protocol LanguageService: AnyObject, Sendable {
   /// Crash the language server. Should be used for crash recovery testing only.
   func crash() async
 
-  /// Returns references for local symbols that are not available through the index.
+  /// Returns references for symbols within the current document using
+  /// language-specific semantic analysis.
   ///
-  /// This is used as a fallback for `textDocument/references` when indexed lookup
-  /// returns no results. Implementations may use language-specific semantic analysis
-  /// to resolve references within the current document.
+  /// This is used by `textDocument/references` to provide up-to-date
+  /// references for the current document, including local symbols that
+  /// are not available through the index and references in documents
+  /// with in-memory edits.
   ///
   /// - Parameters:
   ///   - position: The position of the queried symbol.

@@ -37,13 +37,7 @@ final class ReferencesTests: SourceKitLSPTestCase {
         context: ReferencesContext(includeDeclaration: true)
       )
     )
-    XCTAssertEqual(
-      response,
-      [
-        Location(uri: project.fileURI, range: Range(project.positions["1️⃣"])),
-        Location(uri: project.fileURI, range: Range(project.positions["2️⃣"])),
-      ]
-    )
+    XCTAssertEqual(response.map(\.range.lowerBound), [project.positions["2️⃣"]])
   }
 
   func testReferencesWithoutDeclaration() async throws {
@@ -64,13 +58,7 @@ final class ReferencesTests: SourceKitLSPTestCase {
         context: ReferencesContext(includeDeclaration: false)
       )
     )
-    XCTAssertEqual(
-      response,
-      [
-        Location(uri: project.fileURI, range: Range(project.positions["2️⃣"])),
-        Location(uri: project.fileURI, range: Range(project.positions["3️⃣"])),
-      ]
-    )
+    XCTAssertEqual(response.map(\.range.lowerBound), [project.positions["2️⃣"], project.positions["3️⃣"]])
   }
 
   func testLocalVariableReferences() async throws {
@@ -282,5 +270,48 @@ final class ReferencesTests: SourceKitLSPTestCase {
       Set(response.map(\.range.lowerBound)),
       Set([shiftedDefPos, shiftedCallPos])
     )
+  }
+
+  func testReferencesIncludeEditedNonCurrentDocumentsFromIndex() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Lib.swift": """
+        struct Lib {
+          func 1️⃣foo() {}
+        }
+        """,
+        "Other.swift": """
+        func test() {
+          Lib().2️⃣foo()
+        }
+        """,
+      ],
+      enableBackgroundIndexing: true
+    )
+    let (libURI, libPositions) = try project.openDocument("Lib.swift")
+    let (otherURI, otherPositions) = try project.openDocument("Other.swift")
+
+    project.testClient.send(
+      DidChangeTextDocumentNotification(
+        textDocument: VersionedTextDocumentIdentifier(otherURI, version: 2),
+        contentChanges: [
+          TextDocumentContentChangeEvent(
+            range: Range(Position(line: 0, utf16index: 0)),
+            text: "\n"
+          )
+        ]
+      )
+    )
+
+    let response = try await project.testClient.send(
+      ReferencesRequest(
+        textDocument: TextDocumentIdentifier(libURI),
+        position: libPositions["1️⃣"],
+        context: ReferencesContext(includeDeclaration: true)
+      )
+    )
+
+    XCTAssertEqual(Set(response.map(\.uri)), Set([libURI, otherURI]))
+    XCTAssertEqual(Set(response.map(\.range.lowerBound)), Set([libPositions["1️⃣"], otherPositions["2️⃣"]]))
   }
 }

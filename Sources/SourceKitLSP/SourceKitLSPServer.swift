@@ -2245,9 +2245,7 @@ extension SourceKitLSPServer {
         position: req.position
       )
     )
-    let index = await workspaceForDocument(uri: req.textDocument.uri)?.index(
-      checkedFor: .inMemoryModifiedFiles(documentManager)
-    )
+    let index = await workspaceForDocument(uri: req.textDocument.uri)?.index(checkedFor: .deletedFiles)
     let indexLocations = try symbols.flatMap { symbol -> [Location] in
       guard let usr = symbol.usr, let index else { return [] }
       logger.info("Finding references for USR \(usr)")
@@ -2264,12 +2262,7 @@ extension SourceKitLSPServer {
       includeDeclaration: req.context.includeDeclaration
     )
 
-    var locations = indexLocations
-    var knownLocationStarts = Set(indexLocations.map(ReferenceLocationStart.init))
-    for localLocation in localLocations where knownLocationStarts.insert(ReferenceLocationStart(localLocation)).inserted
-    {
-      locations.append(localLocation)
-    }
+    let locations = indexLocations.filter { $0.uri != req.textDocument.uri } + localLocations
 
     let copiedFileMap = await workspace.buildServerManager.cachedCopiedFileMap
     let remappedLocations = locations.adjusted(for: copiedFileMap)
@@ -2898,16 +2891,6 @@ fileprivate extension Sequence where Element: Hashable {
   var unique: [Element] {
     var set = Set<Element>()
     return self.filter { set.insert($0).inserted }
-  }
-}
-
-private struct ReferenceLocationStart: Hashable {
-  var uri: DocumentURI
-  var position: Position
-
-  init(_ location: Location) {
-    self.uri = location.uri
-    self.position = location.range.lowerBound
   }
 }
 
