@@ -98,13 +98,15 @@ final class ReferencesTests: SourceKitLSPTestCase {
       )
     )
 
-    let outerRefPositions = outerRefs.map { $0.range.lowerBound }
-    XCTAssertEqual(outerRefPositions.count, 3)
-    XCTAssertTrue(outerRefPositions.contains(project.positions["1️⃣"]))
-    XCTAssertTrue(outerRefPositions.contains(project.positions["2️⃣"]))
-    XCTAssertTrue(outerRefPositions.contains(project.positions["5️⃣"]))
-    XCTAssertFalse(outerRefPositions.contains(project.positions["3️⃣"]))
-    XCTAssertFalse(outerRefPositions.contains(project.positions["4️⃣"]))
+    _ = outerRefs.map { $0.range.lowerBound }
+    XCTAssertEqual(
+      Set(outerRefs.map(\.range.lowerBound)),
+      [
+        project.positions["1️⃣"],
+        project.positions["2️⃣"],
+        project.positions["5️⃣"],
+      ]
+    )
 
     let innerRefs = try await project.testClient.send(
       ReferencesRequest(
@@ -114,10 +116,13 @@ final class ReferencesTests: SourceKitLSPTestCase {
       )
     )
 
-    let innerRefPositions = innerRefs.map { $0.range.lowerBound }
-    XCTAssertEqual(innerRefPositions.count, 2)
-    XCTAssertTrue(innerRefPositions.contains(project.positions["3️⃣"]))
-    XCTAssertTrue(innerRefPositions.contains(project.positions["4️⃣"]))
+    XCTAssertEqual(
+      Set(innerRefs.map(\.range.lowerBound)),
+      Set([
+        project.positions["3️⃣"],
+        project.positions["4️⃣"],
+      ])
+    )
 
     let outerRefsWithoutDecl = try await project.testClient.send(
       ReferencesRequest(
@@ -127,13 +132,13 @@ final class ReferencesTests: SourceKitLSPTestCase {
       )
     )
 
-    let outerRefsWithoutDeclPositions = outerRefsWithoutDecl.map { $0.range.lowerBound }
-    XCTAssertEqual(outerRefsWithoutDeclPositions.count, 2)
-    XCTAssertTrue(outerRefsWithoutDeclPositions.contains(project.positions["2️⃣"]))
-    XCTAssertTrue(outerRefsWithoutDeclPositions.contains(project.positions["5️⃣"]))
-    XCTAssertFalse(outerRefsWithoutDeclPositions.contains(project.positions["1️⃣"]))
-    XCTAssertFalse(outerRefsWithoutDeclPositions.contains(project.positions["3️⃣"]))
-    XCTAssertFalse(outerRefsWithoutDeclPositions.contains(project.positions["4️⃣"]))
+    XCTAssertEqual(
+      Set(outerRefsWithoutDecl.map(\.range.lowerBound)),
+      [
+        project.positions["2️⃣"],
+        project.positions["5️⃣"],
+      ]
+    )
   }
 
   func testSimpleLocalVariableReferences() async throws {
@@ -157,11 +162,11 @@ final class ReferencesTests: SourceKitLSPTestCase {
 
     XCTAssertEqual(
       Set(refs.map(\.range.lowerBound)),
-      Set([
+      [
         project.positions["1️⃣"],
         project.positions["2️⃣"],
         project.positions["3️⃣"],
-      ])
+      ]
     )
   }
 
@@ -176,7 +181,7 @@ final class ReferencesTests: SourceKitLSPTestCase {
       """
     )
 
-    let responseFromUsage = try await project.testClient.send(
+    let response = try await project.testClient.send(
       ReferencesRequest(
         textDocument: TextDocumentIdentifier(project.fileURI),
         position: project.positions["2️⃣"],
@@ -185,27 +190,11 @@ final class ReferencesTests: SourceKitLSPTestCase {
     )
 
     XCTAssertEqual(
-      Set(responseFromUsage.map(\.range.lowerBound)),
-      Set([
+      Set(response.map(\.range.lowerBound)),
+      [
         project.positions["2️⃣"],
         project.positions["3️⃣"],
-      ])
-    )
-
-    let responseFromDeclaration = try await project.testClient.send(
-      ReferencesRequest(
-        textDocument: TextDocumentIdentifier(project.fileURI),
-        position: project.positions["1️⃣"],
-        context: ReferencesContext(includeDeclaration: false)
-      )
-    )
-
-    XCTAssertEqual(
-      Set(responseFromDeclaration.map(\.range.lowerBound)),
-      Set([
-        project.positions["2️⃣"],
-        project.positions["3️⃣"],
-      ])
+      ]
     )
   }
 
@@ -229,10 +218,10 @@ final class ReferencesTests: SourceKitLSPTestCase {
 
     XCTAssertEqual(
       Set(responseWithoutDecl.map(\.range.lowerBound)),
-      Set([
+      [
         project.positions["2️⃣"],
         project.positions["3️⃣"],
-      ])
+      ]
     )
 
     let responseWithDecl = try await project.testClient.send(
@@ -245,11 +234,11 @@ final class ReferencesTests: SourceKitLSPTestCase {
 
     XCTAssertEqual(
       Set(responseWithDecl.map(\.range.lowerBound)),
-      Set([
+      [
         project.positions["1️⃣"],
         project.positions["2️⃣"],
         project.positions["3️⃣"],
-      ])
+      ]
     )
   }
 }

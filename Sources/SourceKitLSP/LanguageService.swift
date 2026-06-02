@@ -337,6 +337,17 @@ package protocol LanguageService: AnyObject, Sendable {
   /// Crash the language server. Should be used for crash recovery testing only.
   func crash() async
 
+  /// Returns references for local symbols that are not available through the index.
+  ///
+  /// This is used as a fallback for `textDocument/references` when indexed lookup
+  /// returns no results. Implementations may use language-specific semantic analysis
+  /// to resolve references within the current document.
+  ///
+  /// - Parameters:
+  ///   - position: The position of the queried symbol.
+  ///   - uri: The document containing the symbol.
+  ///   - includeDeclaration: Whether the declaration occurrence should be included.
+  /// - Returns: The locations of matching references in the current document.
   func localReferences(at position: Position, in uri: DocumentURI, includeDeclaration: Bool) async throws -> [Location]
 }
 
