@@ -262,13 +262,13 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
           hooks: hooks.indexHooks,
           indexTaskScheduler: indexTaskScheduler,
           preparationBatchingStrategy: options.preparationBatchingStrategy,
-          logMessageToIndexLog: {
+          logMessageToIndexLog: { [weak sourceKitLSPServer] in
             sourceKitLSPServer?.logMessageToIndexLog(message: $0, type: $1, structure: $2)
           },
-          indexTasksWereScheduled: {
+          indexTasksWereScheduled: { [weak sourceKitLSPServer] in
             sourceKitLSPServer?.indexProgressManager.indexTasksWereScheduled(count: $0)
           },
-          indexProgressStatusDidChange: {
+          indexProgressStatusDidChange: { [weak sourceKitLSPServer] in
             sourceKitLSPServer?.indexProgressManager.indexProgressStatusDidChange()
           }
         )
@@ -399,7 +399,7 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
         [weak sourceKitLSPServer] (initializationData, mainFilesChangedCallback) -> (any MainFilesProvider)? in
         await createIndex(
           initializationData: initializationData,
-          indexChangedCallback: {
+          indexChangedCallback: { [weak sourceKitLSPServer] in
             // Notify that main files may have changed.
             await mainFilesChangedCallback()
 
