@@ -1955,6 +1955,14 @@ fileprivate extension TextDocumentSourceKitOptionsResponse {
       "-Xfrontend", "-empty-abi-descriptor",
     ]
 
+    result.append(contentsOf: [
+      "-Xfrontend", "-emit-symbol-graph",
+      "-Xfrontend", "-emit-symbol-graph-dir",
+      "-Xfrontend", ".build/symbol-graphs",
+      "-Xfrontend", "-symbol-graph-minimum-access-level",
+      "-Xfrontend", "private"
+    ])
+
     result += supplementalClangIndexingArgs.flatMap { ["-Xcc", $0] }
 
     if let outputPathIndex = compilerArguments.lastIndex(where: { outputPathOption.matches(argument: $0) != nil }),
