@@ -340,10 +340,9 @@ package protocol LanguageService: AnyObject, Sendable {
   /// Returns references for symbols within the current document using
   /// language-specific semantic analysis.
   ///
-  /// This is used by `textDocument/references` to provide up-to-date
-  /// references for the current document, including local symbols that
-  /// are not available through the index and references in documents
-  /// with in-memory edits.
+  /// This is used by `textDocument/references` as a fallback to provide
+  /// references for local symbols (like local variables and parameters)
+  /// that are not available through the global index.
   ///
   /// - Parameters:
   ///   - position: The position of the queried symbol.
