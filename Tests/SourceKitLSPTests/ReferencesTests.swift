@@ -98,7 +98,6 @@ final class ReferencesTests: SourceKitLSPTestCase {
       )
     )
 
-    _ = outerRefs.map { $0.range.lowerBound }
     XCTAssertEqual(
       Set(outerRefs.map(\.range.lowerBound)),
       [
@@ -118,10 +117,10 @@ final class ReferencesTests: SourceKitLSPTestCase {
 
     XCTAssertEqual(
       Set(innerRefs.map(\.range.lowerBound)),
-      Set([
+      [
         project.positions["3️⃣"],
         project.positions["4️⃣"],
-      ])
+      ]
     )
 
     let outerRefsWithoutDecl = try await project.testClient.send(
@@ -287,7 +286,7 @@ final class ReferencesTests: SourceKitLSPTestCase {
 
     XCTAssertEqual(
       Set(response.map(\.range.lowerBound)),
-      Set([shiftedDefPos, shiftedCallPos])
+      [shiftedDefPos, shiftedCallPos]
     )
   }
 
@@ -330,7 +329,7 @@ final class ReferencesTests: SourceKitLSPTestCase {
       )
     )
 
-    XCTAssertEqual(Set(response.map(\.uri)), Set([libURI, otherURI]))
-    XCTAssertEqual(Set(response.map(\.range.lowerBound)), Set([libPositions["1️⃣"], otherPositions["2️⃣"]]))
+    XCTAssertEqual(Set(response.map(\.uri)), [libURI, otherURI])
+    XCTAssertEqual(Set(response.map(\.range.lowerBound)), [libPositions["1️⃣"], otherPositions["2️⃣"]])
   }
 }
