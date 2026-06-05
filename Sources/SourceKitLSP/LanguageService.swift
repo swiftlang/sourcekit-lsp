@@ -567,6 +567,6 @@ package extension LanguageService {
 
   func localReferences(at position: Position, in uri: DocumentURI, includeDeclaration: Bool) async throws -> [Location]
   {
-    return []
+    throw ResponseError.internalError("\(#function) not implemented in \(Self.self)")
   }
 }

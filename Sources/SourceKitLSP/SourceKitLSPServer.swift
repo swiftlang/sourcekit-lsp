@@ -2256,13 +2256,24 @@ extension SourceKitLSPServer {
       return try index.occurrences(ofUSR: usr, roles: roles).compactMap { $0.location.lspLocation }
     }
 
-    let localLocations = try await languageService.localReferences(
-      at: req.position,
-      in: req.textDocument.uri,
-      includeDeclaration: req.context.includeDeclaration
-    )
+    var locations = indexLocations
 
-    let locations = indexLocations.filter { $0.uri != req.textDocument.uri } + localLocations
+    let hasCurrentFileIndexResults = indexLocations.contains { $0.uri == req.textDocument.uri }
+
+    if !hasCurrentFileIndexResults {
+      do {
+        let localLocations = try await languageService.localReferences(
+          at: req.position,
+          in: req.textDocument.uri,
+          includeDeclaration: req.context.includeDeclaration
+        )
+        locations += localLocations
+      } catch let error as ResponseError {
+        logger.debug("localReferences not supported for this language service: \(error)")
+      } catch {
+        logger.error("Unexpected error computing local references: \(error)")
+      }
+    }
 
     let copiedFileMap = await workspace.buildServerManager.cachedCopiedFileMap
     let remappedLocations = locations.adjusted(for: copiedFileMap)
