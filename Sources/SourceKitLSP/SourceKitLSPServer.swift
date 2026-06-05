@@ -2269,9 +2269,9 @@ extension SourceKitLSPServer {
         )
         locations += localLocations
       } catch let error as ResponseError {
-        logger.debug("localReferences not supported for this language service: \(error)")
+        logger.debug("localReferences not supported for this language service")
       } catch {
-        logger.error("Unexpected error computing local references: \(error)")
+        logger.error("Unexpected error computing local references: \(String(describing: error))")
       }
     }
 
