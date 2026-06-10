@@ -19,6 +19,7 @@ add_library(SourceKitLSP STATIC
   MessageMetadata.swift
   OnDiskDocumentManager.swift
   PlaygroundDiscovery.swift
+  QualifiedWorkspaceSymbolQuery.swift
   ReferenceDocumentURL.swift
   Rename.swift
   SemanticTokensLegend+SourceKitLSPLegend.swift
