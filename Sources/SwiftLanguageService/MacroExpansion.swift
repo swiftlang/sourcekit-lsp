@@ -20,6 +20,7 @@ import SKUtilities
 import SourceKitD
 import SourceKitLSP
 import SwiftExtensions
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 /// Caches the contents of macro expansions that were recently requested by the user.
 actor MacroExpansionManager {

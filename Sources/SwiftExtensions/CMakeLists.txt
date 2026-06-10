@@ -4,13 +4,9 @@ set(sources
   Cache.swift
   CartesianProduct.swift
   Collection+DropLast.swift
-  Collection+Only.swift
   Collection+PartitionIntoBatches.swift
   DisableSigpipe.swift
-  Duration+Seconds.swift
-  FileManagerExtensions.swift
   LazyValue.swift
-  PipeAsStringHandler.swift
   Platform.swift
   Process+terminate.swift
   ResultExtensions.swift
@@ -18,7 +14,6 @@ set(sources
   Sequence+AsyncMap.swift
   Sequence+ContainsAnyIn.swift
   TransitiveClosure.swift
-  URLExtensions.swift
 )
 
 add_library(SwiftExtensions STATIC ${sources})

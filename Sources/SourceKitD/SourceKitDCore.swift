@@ -14,6 +14,7 @@ package import Csourcekitd
 package import Foundation
 @_spi(SourceKitLSP) import SKLogging
 import SwiftExtensions
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 /// A loaded sourcekitd dylib connection.
 ///

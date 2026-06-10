@@ -17,6 +17,7 @@ import SwiftExtensions
 @_spi(FixItApplier) import SwiftIDEUtils
 import SwiftParser
 import SwiftSyntax
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 // MARK: - Entry point
 

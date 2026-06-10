@@ -16,6 +16,7 @@ import BuildServerIntegration
 @_spi(Testing) @_spi(SourceKitLSP) import SKLogging
 import SKTestSupport
 import SwiftExtensions
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
 
 class DefinitionTests: SourceKitLSPTestCase {

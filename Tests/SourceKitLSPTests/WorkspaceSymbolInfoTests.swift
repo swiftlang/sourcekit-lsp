@@ -17,6 +17,7 @@ import SKUtilities
 import SwiftExtensions
 import TSCBasic
 import ToolchainRegistry
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
 
 final class WorkspaceSymbolInfoTests: XCTestCase {
