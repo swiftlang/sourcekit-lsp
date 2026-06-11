@@ -712,10 +712,10 @@ struct SwiftPMBuildServerTests {
         files: [
           "pkg/Sources/lib/a.swift": "",
           "pkg/Package.swift": """
-          // swift-tools-version:5.0
+          // swift-tools-version:5.7
           import PackageDescription
           let package = Package(name: "a",
-            platforms: [.macOS(.v10_13)],
+            platforms: [.macOS(.v13)],
             targets: [.target(name: "lib")]
           )
           """,
@@ -747,7 +747,7 @@ struct SwiftPMBuildServerTests {
       #if os(macOS)
       try await expectArgumentsContain(
         "-target",
-        hostTriple.tripleString(forPlatformVersion: "10.13"),
+        hostTriple.tripleString(forPlatformVersion: "13.0"),
         arguments: arguments
       )
       #else
