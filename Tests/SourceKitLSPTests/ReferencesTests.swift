@@ -280,13 +280,9 @@ final class ReferencesTests: SourceKitLSPTestCase {
     // Since we prioritize the index to preserve macro references, we currently
     // expect indexed symbols to return stale locations during in-memory edits.
     // This failure is expected until sourcekitd gains macro support in relatedIdents.
-    XCTExpectFailure(
-      "Known limitation: indexed symbols return stale locations during in-memory edits to preserve macro references"
-    )
-
     XCTAssertEqual(
       Set(response.map(\.range.lowerBound)),
-      [shiftedDefPos, shiftedCallPos]
+      [originalDefPos, originalCallPos]
     )
   }
 
