@@ -336,6 +336,20 @@ package protocol LanguageService: AnyObject, Sendable {
 
   /// Crash the language server. Should be used for crash recovery testing only.
   func crash() async
+
+  /// Returns references for symbols within the current document using
+  /// language-specific semantic analysis.
+  ///
+  /// This is used by `textDocument/references` as a fallback to provide
+  /// references for local symbols (like local variables and parameters)
+  /// that are not available through the global index.
+  ///
+  /// - Parameters:
+  ///   - position: The position of the queried symbol.
+  ///   - uri: The document containing the symbol.
+  ///   - includeDeclaration: Whether the declaration occurrence should be included.
+  /// - Returns: The locations of matching references in the current document.
+  func localReferences(at position: Position, in uri: DocumentURI, includeDeclaration: Bool) async throws -> [Location]
 }
 
 /// Default implementations for methods that satisfy the following criteria:
@@ -548,5 +562,10 @@ package extension LanguageService {
 
   func crash() async {
     logger.error("\(Self.self) cannot be crashed")
+  }
+
+  func localReferences(at position: Position, in uri: DocumentURI, includeDeclaration: Bool) async throws -> [Location]
+  {
+    throw ResponseError.internalError("\(#function) not implemented in \(Self.self)")
   }
 }
