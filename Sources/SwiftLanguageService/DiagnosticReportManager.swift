@@ -78,7 +78,12 @@ actor DiagnosticReportManager {
       }
     }
     let reportTask: ReportTask
-    if let buildSettings, !buildSettings.isFallback {
+    // If we don't have build settings or we only have fallback build settings, sourcekitd won't be able to give us
+    // accurate semantic diagnostics.
+    // Fall back to providing syntactic diagnostics from the built-in swift-syntax. That's the best we can do for now.
+    // The only exception is if the file starts with a shebang. In that case we know that the file can be executed on
+    // its own without additional compiler arguments.
+    if let buildSettings, !buildSettings.isFallback || snapshot.text.starts(with: "#!") {
       reportTask = ReportTask {
         return try await self.requestReport(with: snapshot, compilerArgs: buildSettings.compilerArgs)
       }
@@ -86,10 +91,6 @@ actor DiagnosticReportManager {
       logger.log(
         "Producing syntactic diagnostics from the built-in swift-syntax because we \(buildSettings != nil ? "have fallback build settings" : "don't have build settings", privacy: .public))"
       )
-      // If we don't have build settings or we only have fallback build settings,
-      // sourcekitd won't be able to give us accurate semantic diagnostics.
-      // Fall back to providing syntactic diagnostics from the built-in
-      // swift-syntax. That's the best we can do for now.
       reportTask = ReportTask {
         return try await self.requestFallbackReport(with: snapshot)
       }
