@@ -794,3 +794,117 @@ final class InlayHintTests: SourceKitLSPTestCase {
     }
   }
 }
+
+//  // MARK: - Inferred isolation hints
+//
+//  import SKOptions
+//
+//  FIXME: figure out how to get this to run successfully against a dev toolchain
+//
+//  /// Sends an inlay-hint request against \p markedText with the
+//  /// `inferred-isolation-inlay-hints` experimental feature enabled, and
+//  /// returns the inferred-isolation hints (i.e. those that aren't the standard
+//  /// inferred-type hints).
+//  private func performInferredIsolationHintRequest(
+//    markedText: String
+//  ) async throws -> (DocumentPositions, [InlayHint]) {
+//    let options = try await SourceKitLSPOptions.testDefault(
+//      experimentalFeatures: [.inferredClosureIsolationInlayHints, .synchronizeCopyFileMap]
+//    )
+//    let testClient = try await TestSourceKitLSPClient(options: options)
+//    let uri = DocumentURI(for: .swift)
+//
+//    let (positions, text) = DocumentPositions.extract(from: markedText)
+//    testClient.openDocument(text, uri: uri)
+//
+//    let request = InlayHintRequest(textDocument: TextDocumentIdentifier(uri), range: nil)
+//    let hints = try await testClient.send(request)
+//    // The inlay-hint endpoint also returns inferred-type hints; filter those
+//    // out so the per-test expectations don't have to track them.
+//    let isolationHints = hints.filter {
+//      if case .string(let label) = $0.label {
+//        return label.contains("@") || label.contains("nonisolated") || label.contains("actor-isolated")
+//      }
+//      return false
+//    }
+//    return (positions, isolationHints)
+//  }
+//
+//  func testInferredIsolation_basicClosures() async throws {
+//    let (_, hints) = try await performInferredIsolationHintRequest(
+//      markedText: """
+//        @MainActor
+//        final class C {
+//          var n = 0
+//          func work() async {
+//            let inheritedMain = {
+//              self.n += 1
+//            }
+//            inheritedMain()
+//
+//            Task.detached {
+//              print("detached")
+//            }
+//          }
+//        }
+//        """
+//    )
+//
+//    XCTAssertEqual(hints.count, 2)
+//    XCTAssertEqual(hints.first?.label, .string("@MainActor"))
+//    XCTAssertEqual(hints.first?.kind, .type)
+//    XCTAssertEqual(hints.last?.label, .string("nonisolated"))
+//    XCTAssertEqual(hints.last?.kind, .type)
+//  }
+//
+//  func testInferredIsolation_explicitClosureIsolationSuppressed() async throws {
+//    let (_, hints) = try await performInferredIsolationHintRequest(
+//      markedText: """
+//        @globalActor
+//        actor MyActor {
+//          static let shared = MyActor()
+//        }
+//
+//        func explicitMain() {
+//          let _ = { @MainActor in 2 }
+//        }
+//
+//        func explicitCustom() {
+//          let _ = { @MyActor in 3 }
+//        }
+//        """
+//    )
+//
+//    // Both closures have isolation written explicitly in source -- no hints.
+//    XCTAssertEqual(hints, [])
+//  }
+//
+//  func testInferredIsolation_disabledByDefault() async throws {
+//    // Without the experimental feature flag, the inferred-isolation hints
+//    // should not be produced even though the closure inherits @MainActor.
+//    let testClient = try await TestSourceKitLSPClient()
+//    let uri = DocumentURI(for: .swift)
+//    testClient.openDocument(
+//      """
+//      @MainActor
+//      final class C {
+//        var n = 0
+//        func work() async {
+//          let _ = { self.n += 1 }
+//        }
+//      }
+//      """,
+//      uri: uri
+//    )
+//
+//    let request = InlayHintRequest(textDocument: TextDocumentIdentifier(uri), range: nil)
+//    let hints = try await testClient.send(request)
+//    let isolationHints = hints.filter {
+//      if case .string(let label) = $0.label {
+//        return label.contains("@MainActor") || label.contains("nonisolated")
+//      }
+//      return false
+//    }
+//    XCTAssertEqual(isolationHints, [])
+//  }
+
