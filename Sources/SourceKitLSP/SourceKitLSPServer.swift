@@ -1733,10 +1733,21 @@ extension SourceKitLSPServer {
       }()
     )
     for workspace in workspaces {
-      let mainFile = await workspace.buildServerManager
+      var candidateMainFiles = await workspace.buildServerManager
         .mainFiles(containing: moduleFileURI)
         .sorted(by: { $0.arbitrarySchemeURL.absoluteString < $1.arbitrarySchemeURL.absoluteString })
-        .first
+      if candidateMainFiles.isEmpty {
+        // SDK module files don't necessarily have a recorded main-file relationship in the index. We only need a Swift
+        // source file from the workspace to provide compiler arguments for generating the interface.
+        candidateMainFiles =
+          await orLog("Getting Swift source files for workspaceSymbol/resolve generated interface") {
+            try await workspace.buildServerManager.projectSourceFiles()
+              .keys
+              .filter { $0.fileURL?.pathExtension == "swift" }
+              .sorted(by: { $0.arbitrarySchemeURL.absoluteString < $1.arbitrarySchemeURL.absoluteString })
+          } ?? []
+      }
+      let mainFile = candidateMainFiles.first
       guard let mainFile else {
         continue
       }
