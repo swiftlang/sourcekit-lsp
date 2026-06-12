@@ -2333,6 +2333,396 @@ final class CodeActionTests: SourceKitLSPTestCase {
     }
   }
 
+  func testGenerateEnumCaseAsAccessors() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣enum Value {
+          case text(String)
+          case number(Int)
+          case unknown2️⃣
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Generate 'as' accessors for enum cases",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["2️⃣"]..<positions["2️⃣"],
+                  newText: """
+
+
+                        var asText: String? {
+                            if case let .text(value) = self { return value }
+                            return nil
+                        }
+
+                        var asNumber: Int? {
+                            if case let .number(value) = self { return value }
+                            return nil
+                        }
+                    """
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testGenerateEnumCaseIsAccessors() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣enum Value {
+          case text(String)
+          case number(Int)
+          case unknown2️⃣
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Generate 'is' accessors for enum cases",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["2️⃣"]..<positions["2️⃣"],
+                  newText: """
+
+
+                        var isText: Bool {
+                            if case .text = self { return true }
+                            return false
+                        }
+
+                        var isNumber: Bool {
+                            if case .number = self { return true }
+                            return false
+                        }
+
+                        var isUnknown: Bool {
+                            if case .unknown = self { return true }
+                            return false
+                        }
+                    """
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testGenerateEnumCaseAsAccessorsForMultipleAssociatedValues() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣enum Value {
+          case pair(Int, String)2️⃣
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Generate 'as' accessors for enum cases",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["2️⃣"]..<positions["2️⃣"],
+                  newText: """
+
+
+                        var asPair: (Int, String)? {
+                            if case let .pair(value1, value2) = self { return (value1, value2) }
+                            return nil
+                        }
+                    """
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testGenerateEnumCaseAsAccessorsForLabeledValues() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣enum Value {
+          case point(x: Int, y: Int)
+          case single(Int)2️⃣
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Generate 'as' accessors for enum cases",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["2️⃣"]..<positions["2️⃣"],
+                  newText: """
+
+
+                        var asPoint: (x: Int, y: Int)? {
+                            if case let .point(x, y) = self { return (x, y) }
+                            return nil
+                        }
+
+                        var asSingle: Int? {
+                            if case let .single(value) = self { return value }
+                            return nil
+                        }
+                    """
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testGenerateEnumCaseIsAccessorsGeneratesDuplicateOfExistingMember() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣enum Value {
+          case text(String)
+          case number(Int)
+
+          var isText: Bool { false }2️⃣
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Generate 'is' accessors for enum cases",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["2️⃣"]..<positions["2️⃣"],
+                  newText: """
+
+
+                        var isText: Bool {
+                            if case .text = self { return true }
+                            return false
+                        }
+
+                        var isNumber: Bool {
+                            if case .number = self { return true }
+                            return false
+                        }
+                    """
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testGenerateEnumCaseAsAccessorsForFunctionTypedValue() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣enum Value {
+          case handler((Int) -> Void)2️⃣
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Generate 'as' accessors for enum cases",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["2️⃣"]..<positions["2️⃣"],
+                  newText: """
+
+
+                        var asHandler: ((Int) -> Void)? {
+                            if case let .handler(value) = self { return value }
+                            return nil
+                        }
+                    """
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testGenerateEnumCaseAsAccessorsInfersIndentation() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣enum Value {
+        case text(String)
+        case number(Int)
+        case other(Bool)2️⃣
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Generate 'as' accessors for enum cases",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["2️⃣"]..<positions["2️⃣"],
+                  newText: """
+
+
+                      var asText: String? {
+                        if case let .text(value) = self { return value }
+                        return nil
+                      }
+
+                      var asNumber: Int? {
+                        if case let .number(value) = self { return value }
+                        return nil
+                      }
+
+                      var asOther: Bool? {
+                        if case let .other(value) = self { return value }
+                        return nil
+                      }
+                    """
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testGenerateEnumCaseIsAccessorsGeneratesDuplicateNames() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣enum Value {
+          case foo
+          case Foo2️⃣
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Generate 'is' accessors for enum cases",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["2️⃣"]..<positions["2️⃣"],
+                  newText: """
+
+
+                        var isFoo: Bool {
+                            if case .foo = self { return true }
+                            return false
+                        }
+
+                        var isFoo: Bool {
+                            if case .Foo = self { return true }
+                            return false
+                        }
+                    """
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testGenerateEnumCaseAsAccessorsForOverloadedCaseNames() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣enum Foo {
+          case value(int: Int)
+          case value(string: String)2️⃣
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Generate 'as' accessors for enum cases",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["2️⃣"]..<positions["2️⃣"],
+                  newText: """
+
+
+                        var asValue: Int? {
+                            if case let .value(int) = self { return int }
+                            return nil
+                        }
+
+                        var asValue: String? {
+                            if case let .value(string) = self { return string }
+                            return nil
+                        }
+                    """
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
   /// Retrieves the code action at a set of markers and asserts that it matches a list of expected code actions.
   ///
   /// - Parameters:
