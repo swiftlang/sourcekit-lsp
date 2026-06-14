@@ -469,14 +469,6 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
       ]
     args = try await addOrReplaceIndexStorePath(in: args, for: partition.files.map(\.mainFile))
 
-    args += [
-      "-Xfrontend", "-emit-symbol-graph",
-      "-Xfrontend", "-emit-symbol-graph-dir",
-      "-Xfrontend", ".build/symbol-graphs",
-      "-Xfrontend", "-symbol-graph-minimum-access-level",
-      "-Xfrontend", "private",
-    ]
-
     switch partition {
     case .multipleFiles(let filesAndOutputPaths, let buildSettings):
       struct OutputFileMapEntry: Encodable {

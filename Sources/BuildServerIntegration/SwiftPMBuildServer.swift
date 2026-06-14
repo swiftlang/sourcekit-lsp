@@ -827,8 +827,6 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
       "-Xswiftc", "-Xfrontend", "-Xswiftc", "-emit-symbol-graph",
       "-Xswiftc", "-Xfrontend", "-Xswiftc", "-emit-symbol-graph-dir",
       "-Xswiftc", "-Xfrontend", "-Xswiftc", symbolGraphPath,
-      "-Xswiftc", "-Xfrontend", "-Xswiftc", "-symbol-graph-minimum-access-level",
-      "-Xswiftc", "-Xfrontend", "-Xswiftc", "private",
     ]
 
     arguments += options.swiftPMOrDefault.cCompilerFlags?.flatMap { ["-Xcc", $0] } ?? []
