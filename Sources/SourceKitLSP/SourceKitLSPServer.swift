@@ -2245,11 +2245,9 @@ extension SourceKitLSPServer {
         position: req.position
       )
     )
-    guard let index = await workspaceForDocument(uri: req.textDocument.uri)?.index(checkedFor: .deletedFiles) else {
-      return []
-    }
-    let locations = try symbols.flatMap { (symbol) -> [Location] in
-      guard let usr = symbol.usr else { return [] }
+    let index = await workspaceForDocument(uri: req.textDocument.uri)?.index(checkedFor: .deletedFiles)
+    let indexLocations = try symbols.flatMap { symbol -> [Location] in
+      guard let usr = symbol.usr, let index else { return [] }
       logger.info("Finding references for USR \(usr)")
       var roles: SymbolRole = [.reference]
       if req.context.includeDeclaration {
@@ -2257,6 +2255,26 @@ extension SourceKitLSPServer {
       }
       return try index.occurrences(ofUSR: usr, roles: roles).compactMap { $0.location.lspLocation }
     }
+
+    var locations = indexLocations
+
+    let hasCurrentFileIndexResults = indexLocations.contains { $0.uri == req.textDocument.uri }
+
+    if !hasCurrentFileIndexResults {
+      do {
+        let localLocations = try await languageService.localReferences(
+          at: req.position,
+          in: req.textDocument.uri,
+          includeDeclaration: req.context.includeDeclaration
+        )
+        locations += localLocations
+      } catch let error as ResponseError {
+        logger.debug("localReferences not supported for this language service")
+      } catch {
+        logger.error("Unexpected error computing local references: \(String(describing: error))")
+      }
+    }
+
     let copiedFileMap = await workspace.buildServerManager.cachedCopiedFileMap
     let remappedLocations = locations.adjusted(for: copiedFileMap)
     return remappedLocations.unique.sorted()
