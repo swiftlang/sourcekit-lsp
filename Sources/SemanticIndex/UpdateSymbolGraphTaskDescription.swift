@@ -152,6 +152,8 @@ package struct UpdateSymbolGraphTaskDescription: IndexTaskDescription {
 
       var baseArgs: [String] = ["-I", customModulesDir.pathString]
 
+      baseArgs += ["-module-name", moduleName]
+
       var i = 0
       while i < rawArgs.count {
         let arg = rawArgs[i]
@@ -209,67 +211,70 @@ package struct UpdateSymbolGraphTaskDescription: IndexTaskDescription {
         .begin(StructuredLogBegin(title: "Symbol Graph Run", taskID: taskId))
       )
 
-      // emit module
-      let moduleArgs =
+      // emit module and symbol graph
+      let args =
         [swiftc.path] + baseArgs + [
           "-emit-module",
           "-emit-module-path", moduleOutputPath,
-        ]
-
-      do {
-        let moduleProcess = Process(
-          arguments: moduleArgs,
-          environment: cleanEnvironment,
-          workingDirectory: baseDir,
-          outputRedirection: .none
-        )
-        try moduleProcess.launch()
-        let result = try await moduleProcess.waitUntilExit()
-        let exitStatus = result.exitStatus.exhaustivelySwitchable
-        if !exitStatus.isSuccess {
-          logger.error("Symbol graph module emit failed for \(moduleName): \(exitStatus.description)")
-        }
-      } catch {
-        logger.error("Symbol graph module emit launch error: \(error.localizedDescription)")
-      }
-
-      // emit symbol graph from pre-built module
-      let symbolGraphArgs =
-        [swiftc.path] + baseArgs.filter { $0 != "-wmo" && $0 != "-whole-module-optimization" }
-        + [
-          "-typecheck",
           "-Xfrontend", "-emit-symbol-graph",
           "-Xfrontend", "-emit-symbol-graph-dir", "-Xfrontend", symbolGraphDir.pathString,
           "-Xfrontend", "-experimental-skip-all-function-bodies",
         ]
+      let commandString = args.joined(separator: " ")
       do {
-        let symbolGraphProcess = Process(
-          arguments: symbolGraphArgs,
+        let process = Process(
+          arguments: args,
           environment: cleanEnvironment,
           workingDirectory: baseDir,
-          outputRedirection: .collect
+          outputRedirection: .none
         )
-        try symbolGraphProcess.launch()
-        let result = try await symbolGraphProcess.waitUntilExit()
+
+        try process.launch()
+
+        let result = try await process.waitUntilExit()
         let exitStatus = result.exitStatus.exhaustivelySwitchable
 
-        if !exitStatus.isSuccess {
-          let stderrOutput = (try? result.utf8stderrOutput()) ?? "no stderr"
-          let stdoutOutput = (try? result.utf8Output()) ?? "no stdout"
+        if exitStatus.isSuccess {
           logMessageToIndexLog(
-            "Call 2 failed:\nSTDERR: \(stderrOutput)\nSTDOUT: \(stdoutOutput)",
-            .error,
+            """
+            Symbol graph generation completed successfully.
+            Module path: \(moduleOutputPath)
+            Symbol graph directory: \(symbolGraphDir.pathString)
+            Exit status: \(exitStatus.description),
+            Args: \(commandString)
+            """,
+            .info,
             .end(StructuredLogEnd(taskID: taskId))
           )
         } else {
+          let stderrOutput = (try? result.utf8stderrOutput()) ?? "No stderr output"
+          let stdoutOutput = (try? result.utf8Output()) ?? "No stdout output"
+
           logMessageToIndexLog(
-            "Symbol graph extraction completed: \(exitStatus.description)",
-            .info,
+            """
+            Symbol graph generation failed.
+            Exit status: \(exitStatus.description)
+
+            STDERR:
+            \(stderrOutput)
+
+            STDOUT:
+            \(stdoutOutput)
+            """,
+            .error,
             .end(StructuredLogEnd(taskID: taskId))
           )
         }
       } catch {
-        logger.error("Symbol graph call 2 launch error: \(error.localizedDescription)")
+        logMessageToIndexLog(
+          """
+          Failed to launch symbol graph extraction process.
+          Error: \(error.localizedDescription)
+          Working directory: \(baseDir.pathString)
+          """,
+          .error,
+          .end(StructuredLogEnd(taskID: taskId))
+        )
       }
     }
   }
