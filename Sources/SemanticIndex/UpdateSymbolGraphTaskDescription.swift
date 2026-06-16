@@ -217,8 +217,7 @@ package struct UpdateSymbolGraphTaskDescription: IndexTaskDescription {
           "-emit-module",
           "-emit-module-path", moduleOutputPath,
           "-Xfrontend", "-emit-symbol-graph",
-          "-Xfrontend", "-emit-symbol-graph-dir", "-Xfrontend", symbolGraphDir.pathString,
-          "-Xfrontend", "-experimental-skip-all-function-bodies",
+          "-Xfrontend", "-emit-symbol-graph-dir", "-Xfrontend", symbolGraphDir.pathString
         ]
       let commandString = args.joined(separator: " ")
       do {
@@ -254,6 +253,7 @@ package struct UpdateSymbolGraphTaskDescription: IndexTaskDescription {
             """
             Symbol graph generation failed.
             Exit status: \(exitStatus.description)
+            Args: \(commandString)
 
             STDERR:
             \(stderrOutput)
