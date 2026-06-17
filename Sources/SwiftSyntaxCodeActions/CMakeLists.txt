@@ -1,14 +1,26 @@
 add_library(SwiftSyntaxCodeActions STATIC
   AddDocumentation.swift
   AddExplicitEnumRawValues.swift
+  AddSeparatorsToIntegerLiteral.swift
   ApplyDeMorganLaw.swift
   ConvertCommentToDocComment.swift
+  ConvertComputedPropertyToStored.swift
+  ConvertComputedPropertyToZeroParameterFunction.swift
   ConvertIfLetToGuard.swift
   ConvertIntegerLiteral.swift
   ConvertJSONToCodableStruct.swift
+  ConvertStoredPropertyToComputed.swift
   ConvertStringConcatenationToStringInterpolation.swift
+  ConvertZeroParameterFunctionToComputedProperty.swift
+  DeclModifierRemover.swift
+  FormatRawStringLiteral.swift
   IndentationRemover.swift
+  IntegerLiteralUtilities.swift
+  MigrateToNewIfLetSyntax.swift
+  OpaqueParameterToGeneric.swift
   PackageManifestEdits.swift
+  RemoveRedundantParentheses.swift
+  RemoveSeparatorsFromIntegerLiteral.swift
   SyntaxCodeActionProvider.swift
   SyntaxCodeActions.swift
   SyntaxRefactoringCodeActionProvider.swift
