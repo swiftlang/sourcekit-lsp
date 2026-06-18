@@ -23,6 +23,7 @@ package import SKOptions
 import SemanticIndex
 import SourceKitD
 import SwiftExtensions
+import Synchronization
 package import ToolchainRegistry
 @_spi(SourceKitLSP) package import ToolsProtocolsSwiftExtensions
 
@@ -61,9 +62,9 @@ package actor SourceKitLSPServer {
   /// Initialization can be awaited using `waitUntilInitialized`.
   private var initialized: Bool = false
 
-  private let _options: ThreadSafeBox<SourceKitLSPOptions>
+  private let _options: Mutex<SourceKitLSPOptions>
   nonisolated package var options: SourceKitLSPOptions {
-    _options.value
+    _options.withLock { $0 }
   }
 
   package let hooks: Hooks
@@ -173,7 +174,7 @@ package actor SourceKitLSPServer {
   ) {
     self.toolchainRegistry = toolchainRegistry
     self.languageServiceRegistry = languageServerRegistry
-    self._options = ThreadSafeBox(initialValue: options)
+    self._options = Mutex(options)
     self.hooks = hooks
     self.onExit = onExit
 

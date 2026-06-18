@@ -67,7 +67,7 @@ private struct NotificationTimeoutError: Error, CustomStringConvertible {
 /// `AsyncStream.Iterator.next` is cancelled and we want to be able to wait for new notifications even if waiting for a
 /// a previous notification timed out.
 final class PendingNotifications: Sendable {
-  private let values = ThreadSafeBox<[any NotificationType]>(initialValue: [])
+  private let values: Mutex<[any NotificationType]> = Mutex([])
 
   nonisolated func add(_ value: any NotificationType) {
     values.withLock { $0.insert(value, at: 0) }
@@ -124,8 +124,7 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
   ///
   /// `isOneShort` if the request handler should only serve a single request and should be removed from
   /// `requestHandlers` after it has been called.
-  private let requestHandlers: ThreadSafeBox<[(requestHandler: any Sendable, isOneShot: Bool)]> =
-    ThreadSafeBox(initialValue: [])
+  private let requestHandlers: Mutex<[(requestHandler: any Sendable, isOneShot: Bool)]> = Mutex([])
 
   /// A closure that is called when the `TestSourceKitLSPClient` is destructed.
   ///
