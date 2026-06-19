@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2024 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2026 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -10,21 +10,73 @@
 //
 //===----------------------------------------------------------------------===//
 
-@_spi(SourceKitLSP) import LanguageServerProtocol
-import SourceKitLSP
+internal import LanguageServerProtocol
+internal import SourceKitLSP
+import SwiftBasicFormat
+import SwiftExtensions
 import SwiftOperators
+import SwiftRefactor
 import SwiftSyntax
 
-struct SwapBinaryOperands: SyntaxCodeActionProvider {
-  package static func codeActions(in scope: SyntaxCodeActionScope) -> [CodeAction] {
+struct SwapBinaryOperands: SyntaxRefactoringCodeActionProvider {
+  package static let title: String = "Swap operands"
+
+  package static func nodeToRefactor(in scope: SyntaxCodeActionScope) -> ExprSyntax? {
     guard let node = scope.innermostNodeContainingRange else {
+      return nil
+    }
+
+    guard
+      let opExpr = node.findParentOfSelf(
+        ofType: ExprSyntax.self,
+        stoppingIf: { $0.is(CodeBlockItemSyntax.self) },
+        matching: { $0.is(BinaryOperatorExprSyntax.self) }
+      )?.as(BinaryOperatorExprSyntax.self)
+    else {
+      return nil
+    }
+
+    // Only offer the refactoring when the operator participates in a
+    // binary expression that can be folded into an InfixOperatorExprSyntax.
+    guard
+      opExpr.findParentOfSelf(
+        ofType: ExprSyntax.self,
+        stoppingIf: { $0.is(CodeBlockItemSyntax.self) },
+        matching: { $0.is(SequenceExprSyntax.self) || $0.is(InfixOperatorExprSyntax.self) }
+      ) != nil
+    else {
+      return nil
+    }
+
+    let token = opExpr.operator
+    let tokenStart = token.positionAfterSkippingLeadingTrivia
+    let tokenEnd = token.endPositionBeforeTrailingTrivia
+
+    let startPos = scope.snapshot.absolutePosition(of: scope.request.range.lowerBound)
+    let endPos = scope.snapshot.absolutePosition(of: scope.request.range.upperBound)
+
+    // Restrict the action to selections that fall within the operator token
+    // itself. This prevents offering the action when the cursor is placed on
+    // either operand or in surrounding trivia.
+    guard startPos >= tokenStart else { return nil }
+    if startPos == endPos {
+      guard startPos < tokenEnd else { return nil }
+    } else {
+      guard endPos <= tokenEnd else { return nil }
+    }
+
+    return ExprSyntax(opExpr)
+  }
+
+  package static func textRefactor(syntax opExpr: ExprSyntax, in context: Void) throws -> [SourceEdit] {
+    guard let binOp = opExpr.as(BinaryOperatorExprSyntax.self) else {
       return []
     }
 
     // Locate the smallest expression that may contain the operator under the cursor.
     // SequenceExprSyntax needs to be folded before precedence-aware rewriting can occur.
     guard
-      let exprToFold = node.findParentOfSelf(
+      let exprToFold = binOp.findParentOfSelf(
         ofType: ExprSyntax.self,
         stoppingIf: { $0.is(CodeBlockItemSyntax.self) },
         matching: { $0.is(SequenceExprSyntax.self) || $0.is(InfixOperatorExprSyntax.self) }
@@ -48,33 +100,26 @@ struct SwapBinaryOperands: SyntaxCodeActionProvider {
       foldedExpr = exprToFold.detached
     }
 
-    // Track both absolute and expression-relative cursor positions.
-    // The folded tree produced by SwiftOperators is detached from the
-    // original source tree, so operator locations may be relative to
-    // the folded expression instead of the source file.
-    let absoluteRange = OffsetRange(
-      lowerBound: scope.snapshot.absolutePosition(of: scope.request.range.lowerBound).utf8Offset,
-      upperBound: scope.snapshot.absolutePosition(of: scope.request.range.upperBound).utf8Offset
-    )
-    let relativeRange = absoluteRange.offset(by: -exprToFold.position.utf8Offset)
+    let currentOperatorText = binOp.operator.text
 
-    // Find the specific infix operator whose token range contains
-    // the cursor. The code action should only be offered when the
-    // cursor is positioned on the operator itself.
-    let finder = CursorInfixFinder(cursorRanges: [absoluteRange, relativeRange])
+    // Calculate the relative UTF-8 offset.
+    let targetRelativeOffset =
+      binOp.operator.positionAfterSkippingLeadingTrivia.utf8Offset - exprToFold.position.utf8Offset
+
+    let finder = OperatorMatchFinder(
+      targetText: currentOperatorText,
+      targetRelativeOffset: targetRelativeOffset,
+      rootPosition: foldedExpr.position
+    )
     finder.walk(foldedExpr)
 
     guard let infixExpr = finder.found else {
       return []
     }
 
-    let opExpr = infixExpr.operator
-    let currentOperatorText: String
-    if let declRef = opExpr.as(DeclReferenceExprSyntax.self) {
-      currentOperatorText = declRef.baseName.text
-    } else if let binOp = opExpr.as(BinaryOperatorExprSyntax.self) {
-      currentOperatorText = binOp.operator.text
-    } else {
+    // Avoid offering the refactoring for malformed expressions such as
+    // `a +` or `+ b` while the user is still typing.
+    guard !infixExpr.hasError else {
       return []
     }
 
@@ -96,11 +141,6 @@ struct SwapBinaryOperands: SyntaxCodeActionProvider {
     let leftOperand = infixExpr.leftOperand
     let rightOperand = infixExpr.rightOperand
 
-    // Ignore incomplete expressions produced while the user is typing.
-    guard !leftOperand.is(MissingExprSyntax.self), !rightOperand.is(MissingExprSyntax.self) else {
-      return []
-    }
-
     // Preserve operand trivia so whitespace and comments remain attached
     // to the same side of the expression after swapping.
     var newLeft = rightOperand
@@ -111,16 +151,11 @@ struct SwapBinaryOperands: SyntaxCodeActionProvider {
     newRight.leadingTrivia = rightOperand.leadingTrivia
     newRight.trailingTrivia = rightOperand.trailingTrivia
 
-    let newOperatorExpr: ExprSyntax
-    if let declRef = opExpr.as(DeclReferenceExprSyntax.self) {
-      let newToken = declRef.baseName.with(\.tokenKind, .binaryOperator(newOperatorText))
-      newOperatorExpr = ExprSyntax(declRef.with(\.baseName, newToken))
-    } else if let binOp = opExpr.as(BinaryOperatorExprSyntax.self) {
-      let newToken = binOp.operator.with(\.tokenKind, .binaryOperator(newOperatorText))
-      newOperatorExpr = ExprSyntax(binOp.with(\.operator, newToken))
-    } else {
+    guard let targetBinOp = infixExpr.operator.as(BinaryOperatorExprSyntax.self) else {
       return []
     }
+    let newToken = targetBinOp.operator.with(\.tokenKind, .binaryOperator(newOperatorText))
+    let newOperatorExpr = ExprSyntax(targetBinOp.with(\.operator, newToken))
 
     let newInfix =
       infixExpr
@@ -133,90 +168,39 @@ struct SwapBinaryOperands: SyntaxCodeActionProvider {
     let finalExpr = SwapRewriter(targetId: infixExpr.id, replacement: newInfix).visit(foldedExpr)
 
     return [
-      CodeAction(
-        title: "Swap operands",
-        kind: .refactorInline,
-        edit: WorkspaceEdit(
-          changes: [
-            scope.snapshot.uri: [
-              TextEdit(
-                range: scope.snapshot.range(of: exprToFold),
-                newText: finalExpr.description
-              )
-            ]
-          ]
-        )
+      SourceEdit(
+        range: exprToFold.position..<exprToFold.endPosition,
+        replacement: finalExpr.description
       )
     ]
   }
 }
 
-/// UTF-8 offset range used for comparing cursor positions against
-/// operator token ranges without relying on source locations.
-private struct OffsetRange {
-  let lowerBound: Int
-  let upperBound: Int
-
-  init(_ range: Range<AbsolutePosition>) {
-    self.lowerBound = range.lowerBound.utf8Offset
-    self.upperBound = range.upperBound.utf8Offset
-  }
-
-  init(lowerBound: Int, upperBound: Int) {
-    self.lowerBound = lowerBound
-    self.upperBound = upperBound
-  }
-
-  func offset(by amount: Int) -> OffsetRange {
-    OffsetRange(lowerBound: lowerBound + amount, upperBound: upperBound + amount)
-  }
-
-  func contains(_ other: OffsetRange) -> Bool {
-    if other.lowerBound == other.upperBound {
-      return lowerBound <= other.lowerBound && other.lowerBound < upperBound
-    }
-    return lowerBound <= other.lowerBound && other.upperBound <= upperBound
-  }
-}
-
-private extension TokenSyntax {
-  var tokenTextOffsetRange: OffsetRange {
-    OffsetRange(
-      lowerBound: positionAfterSkippingLeadingTrivia.utf8Offset,
-      upperBound: endPositionBeforeTrailingTrivia.utf8Offset
-    )
-  }
-}
-
-private extension ExprSyntax {
-  var operatorTokenTextOffsetRange: OffsetRange? {
-    if let declRef = self.as(DeclReferenceExprSyntax.self) {
-      return declRef.baseName.tokenTextOffsetRange
-    }
-    if let binOp = self.as(BinaryOperatorExprSyntax.self) {
-      return binOp.operator.tokenTextOffsetRange
-    }
-    return nil
-  }
-}
-
-/// Finds the innermost infix operator whose token range contains
-/// the cursor position.
-private final class CursorInfixFinder: SyntaxVisitor {
+/// Finds the InfixOperatorExprSyntax in the folded tree that corresponds
+/// to the operator selected in the original source expression.
+private final class OperatorMatchFinder: SyntaxVisitor {
   var found: InfixOperatorExprSyntax?
-  let cursorRanges: [OffsetRange]
+  let targetText: String
+  let targetRelativeOffset: Int
+  let rootPosition: AbsolutePosition
 
-  init(cursorRanges: [OffsetRange]) {
-    self.cursorRanges = cursorRanges
+  init(targetText: String, targetRelativeOffset: Int, rootPosition: AbsolutePosition) {
+    self.targetText = targetText
+    self.targetRelativeOffset = targetRelativeOffset
+    self.rootPosition = rootPosition
     super.init(viewMode: .sourceAccurate)
   }
 
   override func visit(_ node: InfixOperatorExprSyntax) -> SyntaxVisitorContinueKind {
-    guard let operatorRange = node.operator.operatorTokenTextOffsetRange else {
+    guard let binOp = node.operator.as(BinaryOperatorExprSyntax.self) else {
       return .visitChildren
     }
 
-    if cursorRanges.contains(where: { operatorRange.contains($0) }) {
+    let currentText = binOp.operator.text
+    let currentPosition = binOp.operator.positionAfterSkippingLeadingTrivia
+
+    let relativeOffset = currentPosition.utf8Offset - rootPosition.utf8Offset
+    if currentText == targetText && relativeOffset == targetRelativeOffset {
       self.found = node
       return .skipChildren
     }

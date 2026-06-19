@@ -2703,6 +2703,54 @@ final class CodeActionTests: SourceKitLSPTestCase {
     }
   }
 
+  func testSwapBinaryOperandsNotOfferedForIncompleteExpressionRightMissing() async throws {
+    try await assertNoCodeAction(
+      titled: "Swap operands",
+      in: """
+        let x = a 1️⃣+
+        """,
+      atMarker: "1️⃣"
+    )
+  }
+
+  func testSwapBinaryOperandsNotOfferedForIncompleteExpressionLeftMissing() async throws {
+    try await assertNoCodeAction(
+      titled: "Swap operands",
+      in: """
+        let x = 1️⃣+ b
+        """,
+      atMarker: "1️⃣"
+    )
+  }
+
+  func testSwapBinaryOperandsMultipleOperators() async throws {
+    try await assertCodeActions(
+      """
+      let x = 0️⃣1 1️⃣+2️⃣ 2 - 33️⃣
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Swap operands",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["0️⃣"]..<positions["3️⃣"],
+                  newText: "2 + 1 - 3"
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
   /// Retrieves the code action at a set of markers and asserts that it matches a list of expected code actions.
   ///
   /// - Parameters:
