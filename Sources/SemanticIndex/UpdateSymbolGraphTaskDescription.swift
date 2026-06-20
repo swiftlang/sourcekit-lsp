@@ -217,9 +217,9 @@ package struct UpdateSymbolGraphTaskDescription: IndexTaskDescription {
           "-emit-module",
           "-emit-module-path", moduleOutputPath,
           "-Xfrontend", "-emit-symbol-graph",
-          "-Xfrontend", "-emit-symbol-graph-dir", "-Xfrontend", symbolGraphDir.pathString
+          "-Xfrontend", "-emit-symbol-graph-dir", "-Xfrontend", symbolGraphDir.pathString,
+          "-Xfrontend", "-experimental-skip-all-function-bodies",
         ]
-      let commandString = args.joined(separator: " ")
       do {
         let process = Process(
           arguments: args,
@@ -239,27 +239,16 @@ package struct UpdateSymbolGraphTaskDescription: IndexTaskDescription {
             Symbol graph generation completed successfully.
             Module path: \(moduleOutputPath)
             Symbol graph directory: \(symbolGraphDir.pathString)
-            Exit status: \(exitStatus.description),
-            Args: \(commandString)
+            Exit status: \(exitStatus.description)
             """,
             .info,
             .end(StructuredLogEnd(taskID: taskId))
           )
         } else {
-          let stderrOutput = (try? result.utf8stderrOutput()) ?? "No stderr output"
-          let stdoutOutput = (try? result.utf8Output()) ?? "No stdout output"
-
           logMessageToIndexLog(
             """
             Symbol graph generation failed.
             Exit status: \(exitStatus.description)
-            Args: \(commandString)
-
-            STDERR:
-            \(stderrOutput)
-
-            STDOUT:
-            \(stdoutOutput)
             """,
             .error,
             .end(StructuredLogEnd(taskID: taskId))
