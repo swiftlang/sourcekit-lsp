@@ -17,7 +17,7 @@ package import SKUtilities
 import SemanticIndex
 import SwiftExtensions
 package import SwiftSyntax
-@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
+import Synchronization
 
 /// An immutable snapshot of a document at a given time.
 ///
@@ -93,8 +93,8 @@ package final class DocumentManager: InMemoryDocumentManager, Sendable {
     case missingDocument(DocumentURI)
   }
 
-  // Documents storage, protected by a `ThreadSafeBox` to ensure thread safety without making APIs async.
-  private let documents: ThreadSafeBox<[DocumentURI: Document]> = ThreadSafeBox(initialValue: [:])
+  // Documents storage, protected by a `Mutex` to ensure thread safety without making APIs async.
+  private let documents: Mutex<[DocumentURI: Document]> = Mutex([:])
 
   package init() {}
 

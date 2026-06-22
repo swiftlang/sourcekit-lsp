@@ -14,17 +14,20 @@ package import Csourcekitd
 package import Foundation
 @_spi(SourceKitLSP) import SKLogging
 import SwiftExtensions
+import Synchronization
 @_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 extension sourcekitd_api_keys: @unchecked Sendable {}
 extension sourcekitd_api_requests: @unchecked Sendable {}
 extension sourcekitd_api_values: @unchecked Sendable {}
 
-fileprivate extension ThreadSafeBox {
+fileprivate extension Mutex {
   /// If the wrapped value is `nil`, run `compute` and store the computed value. If it is not `nil`, return the stored
   /// value.
-  func computeIfNil<WrappedValue: Sendable>(compute: () -> WrappedValue) -> WrappedValue where Value == WrappedValue? {
-    return withLock { (value: inout WrappedValue?) -> WrappedValue in
+  borrowing func computeIfNil<WrappedValue: Sendable>(
+    compute: () -> WrappedValue
+  ) -> WrappedValue where Value == WrappedValue? {
+    return withLock { value in
       if let value {
         return value
       }
@@ -140,7 +143,7 @@ package actor SourceKitD {
   ///
   /// These need to be computed dynamically so that a client has the chance to register a UID handler between the
   /// initialization of the SourceKit plugin and the first request being handled by it.
-  private let _keys: ThreadSafeBox<sourcekitd_api_keys?> = ThreadSafeBox(initialValue: nil)
+  private let _keys: Mutex<sourcekitd_api_keys?> = Mutex(nil)
   package nonisolated var keys: sourcekitd_api_keys {
     _keys.computeIfNil { sourcekitd_api_keys(api: self.api) }
   }
@@ -149,7 +152,7 @@ package actor SourceKitD {
   ///
   /// These need to be computed dynamically so that a client has the chance to register a UID handler between the
   /// initialization of the SourceKit plugin and the first request being handled by it.
-  private let _requests: ThreadSafeBox<sourcekitd_api_requests?> = ThreadSafeBox(initialValue: nil)
+  private let _requests: Mutex<sourcekitd_api_requests?> = Mutex(nil)
   package nonisolated var requests: sourcekitd_api_requests {
     _requests.computeIfNil { sourcekitd_api_requests(api: self.api) }
   }
@@ -158,7 +161,7 @@ package actor SourceKitD {
   ///
   /// These need to be computed dynamically so that a client has the chance to register a UID handler between the
   /// initialization of the SourceKit plugin and the first request being handled by it.
-  private let _values: ThreadSafeBox<sourcekitd_api_values?> = ThreadSafeBox(initialValue: nil)
+  private let _values: Mutex<sourcekitd_api_values?> = Mutex(nil)
   package nonisolated var values: sourcekitd_api_values {
     _values.computeIfNil { sourcekitd_api_values(api: self.api) }
   }
