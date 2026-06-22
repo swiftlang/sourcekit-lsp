@@ -465,6 +465,13 @@ package actor TaskScheduler<TaskDescription: TaskDescriptionProtocol> {
   package func shutDown() async {
     self.isShutDown = true
     let allTasks = self.currentlyExecutingTasks + self.pendingTasks
+    // Drop `QueuedTask` references from the scheduler's storage now (the local `allTasks`
+    // continues to hold them while we await cancellation), so the `TaskDescription`s they hold —
+    // and anything those descriptions transitively retain (`BuildServerManager`,
+    // `SemanticIndexManager`, `ToolchainRegistry`) — can be deallocated even if a `waitToFinish`
+    // below times out, and so the actor's storage is free of stale entries before we yield.
+    self.currentlyExecutingTasks.removeAll()
+    self.pendingTasks.removeAll()
     await allTasks.concurrentForEach { task in
       task.cancel()
       do {
