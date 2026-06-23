@@ -698,6 +698,10 @@ package final actor SemanticIndexManager {
       }
       self.indexProgressStatusDidChange()
     }
+    guard let preparationTask else {
+      // The task scheduler has been shut down.
+      return nil
+    }
     logger.debug(
       "Scheduled \(preparationTask.description.forLogging) at priority \(preparationTask.priority.rawValue, privacy: .public) (caller priority \(Task.currentPriority.rawValue, privacy: .public))"
     )
@@ -797,6 +801,10 @@ package final actor SemanticIndexManager {
         }
       }
       self.indexProgressStatusDidChange()
+    }
+    guard let updateIndexTask else {
+      // The task scheduler has been shut down.
+      return
     }
     logger.debug(
       "Scheduled \(updateIndexTask.description.forLogging) at priority \(updateIndexTask.priority.rawValue, privacy: .public) (caller priority \(Task.currentPriority.rawValue, privacy: .public))"
