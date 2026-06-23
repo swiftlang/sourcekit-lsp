@@ -15,12 +15,11 @@ import Foundation
 import IndexStoreDB
 @_spi(SourceKitLSP) package import LanguageServerProtocol
 import Markdown
-@_spi(SourceKitLSP) import SKLogging
 package import SKOptions
 package import SourceKitLSP
 import SwiftExtensions
+import SwiftParser
 package import SwiftSyntax
-import SymbolKit
 package import ToolchainRegistry
 
 package actor DocumentationLanguageService: LanguageService, Sendable {
@@ -116,21 +115,25 @@ package actor DocumentationLanguageService: LanguageService, Sendable {
   package func definition(_ req: DefinitionRequest) async throws -> LocationsOrLocationLinksResponse? {
 
     let snapshot = try self.documentManager.latestSnapshot(req.textDocument.uri)
-    let text = snapshot.text
+    let clickedSymbol: String?
+    if snapshot.language == .swift {
+      clickedSymbol = extractSymbolFromDocComment(snapshot: snapshot, at: req.position)
+    } else {
+      clickedSymbol = extractSymbolFromText(snapshot.text, at: req.position)
+    }
 
-    guard let clickedSymbol = extractSymbolFromText(text, at: req.position) else {
+    guard let clickedSymbol else {
       return nil
     }
 
     guard
       let targetLocation = await findLocationInSymbolGraphs(
         for: clickedSymbol,
-        currentDocumentURI: req.textDocument.uri,
+        currentDocumentURI: req.textDocument.uri
       )
     else {
       return nil
     }
-
     return .locations([targetLocation])
   }
 
@@ -185,30 +188,84 @@ package actor DocumentationLanguageService: LanguageService, Sendable {
     return symbol
   }
 
+  private func extractSymbolFromDocComment(snapshot: DocumentSnapshot, at position: Position) -> String? {
+    let sourceFile = SwiftParser.Parser.parse(source: snapshot.text)
+    let absolutePosition = snapshot.absolutePosition(of: position)
+
+    guard let token = sourceFile.token(at: absolutePosition) else {
+      return nil
+    }
+
+    let converter = SourceLocationConverter(fileName: "", tree: sourceFile)
+    let cursorLine = converter.location(for: absolutePosition).line
+    let cursorColumn = converter.location(for: absolutePosition).column
+
+    var triviaOffset = token.position.utf8Offset
+
+    for piece in token.leadingTrivia.pieces {
+      defer { triviaOffset += piece.sourceLength.utf8Length }
+
+      switch piece {
+      case .docLineComment(let commentText):
+        let pieceStartLine = converter.location(
+          for: AbsolutePosition(utf8Offset: triviaOffset)
+        ).line
+
+        // Only process the piece that's on the same line as the cursor
+        guard pieceStartLine == cursorLine else {
+          continue
+        }
+
+        let triviaStartColumn = converter.location(
+          for: AbsolutePosition(utf8Offset: triviaOffset)
+        ).column
+
+        let relativeColumn = cursorColumn - triviaStartColumn + 1
+
+        let target = Markdown.SourceLocation(
+          line: 1,
+          column: relativeColumn,
+          source: nil
+        )
+        let document = Markdown.Document(parsing: commentText, options: [.parseSymbolLinks])
+        var locator = SymbolLocator(target: target)
+        locator.visit(document)
+
+        if let found = locator.found {
+          return found
+        }
+
+      case .docBlockComment:
+        // Symbol link navigation within /** */ blocks is not yet supported.
+        continue
+
+      default:
+        continue
+      }
+    }
+    return nil
+  }
+
   private func findLocationInSymbolGraphs(
     for symbolPath: String,
     currentDocumentURI: DocumentURI
   ) async -> Location? {
-    //Extract the base symbol name from a path (e.g., "MyModule/Sloth" -> "Sloth")
+    // Split the full path into components e.g. "Sloth/energy" -> ["Sloth", "energy"]
+    let pathComponents = symbolPath.components(separatedBy: "/")
+    let symbolName = pathComponents.last ?? symbolPath
 
-    let symbolName = symbolPath.components(separatedBy: "/").last ?? symbolPath
-
-    //Identify which specific module owns this active documentation file
-    // This lets us target exactly one file instead of scanning everything
     guard let targetID = await self.workspace.buildServerManager.targets(for: currentDocumentURI).first,
       let moduleName = await self.workspace.buildServerManager.moduleName(for: targetID)
     else {
       return nil
     }
 
-    //Directly target only that module's symbol graph JSON file on disk
     let workspaceRoot = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
     let targetGraphURL =
       workspaceRoot
       .appendingPathComponent(".build/symbol-graphs")
       .appendingPathComponent("\(moduleName).symbols.json")
 
-    //Decode the single targeted file directly
     guard let data = try? Data(contentsOf: targetGraphURL),
       let jsonObject = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
       let symbolsArray = jsonObject["symbols"] as? [[String: Any]]
@@ -216,29 +273,39 @@ package actor DocumentationLanguageService: LanguageService, Sendable {
       return nil
     }
 
-    //Look for the matching symbol name inside symbolArray
     for symbol in symbolsArray {
-      if let namesDict = symbol["names"] as? [String: Any],
+      guard let namesDict = symbol["names"] as? [String: Any],
         let title = namesDict["title"] as? String,
         title == symbolName
-      {
-        //Read the "location" block
-        guard let locationDict = symbol["location"] as? [String: Any],
-          let uriString = locationDict["uri"] as? String,
-          let positionDict = locationDict["position"] as? [String: Any],
-          let line = positionDict["line"] as? Int,
-          let character = positionDict["character"] as? Int
-        else {
-          return nil
-        }
+      else {
+        continue
+      }
 
-        //Convert to an LSP Location object
-        if let targetURI = try? DocumentURI(string: uriString) {
-          let destinationPosition = Position(line: line, utf16index: character)
-          let destinationRange = Range(uncheckedBounds: (lower: destinationPosition, upper: destinationPosition))
-
-          return Location(uri: targetURI, range: destinationRange)
+      // Validate the full path using pathComponents from the symbol graph
+      if pathComponents.count > 1 {
+        guard let symbolPathComponents = symbol["pathComponents"] as? [String] else {
+          continue
         }
+        // The reference path must match the tail of the symbol's pathComponents
+        let tail = symbolPathComponents.suffix(pathComponents.count)
+        guard Array(tail) == pathComponents else {
+          continue
+        }
+      }
+
+      guard let locationDict = symbol["location"] as? [String: Any],
+        let uriString = locationDict["uri"] as? String,
+        let positionDict = locationDict["position"] as? [String: Any],
+        let line = positionDict["line"] as? Int,
+        let character = positionDict["character"] as? Int
+      else {
+        return nil
+      }
+
+      if let targetURI = try? DocumentURI(string: uriString) {
+        let destinationPosition = Position(line: line, utf16index: character)
+        let destinationRange = Range(uncheckedBounds: (lower: destinationPosition, upper: destinationPosition))
+        return Location(uri: targetURI, range: destinationRange)
       }
     }
     return nil
