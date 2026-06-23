@@ -191,7 +191,7 @@ actor ExternalBuildServerAdapter {
   var messagesToSourceKitLSPHandler: any MessageHandler
 
   /// The JSON-RPC connection between SourceKit-LSP and the BSP server.
-  private(set) var connectionToBuildServer: JSONRPCConnection?
+  private(set) var connectionToBuildServer: LegacyNameFallbackConnection?
 
   /// After a `build/initialize` request has been sent to the BSP server, that request, so we can replay it in case the
   /// server crashes.
@@ -224,7 +224,10 @@ actor ExternalBuildServerAdapter {
     self.projectRoot = projectRoot
     self.serverConfig = config
     self.messagesToSourceKitLSPHandler = messagesToSourceKitLSPHandler
-    self.connectionToBuildServer = try await self.createConnectionToBspServer()
+    self.connectionToBuildServer = LegacyNameFallbackConnection(
+      try await self.createConnectionToBspServer(),
+      legacyNames: MessageRegistry.bspLegacyNames
+    )
   }
 
   init(
@@ -401,7 +404,10 @@ actor ExternalBuildServerAdapter {
     // crash recovery and doesn't need to gain it because it is deprecated).
     _ = try await restartedConnection.send(initializeRequest)
     restartedConnection.send(OnBuildInitializedNotification())
-    self.connectionToBuildServer = restartedConnection
+    self.connectionToBuildServer = LegacyNameFallbackConnection(
+      restartedConnection,
+      legacyNames: MessageRegistry.bspLegacyNames
+    )
 
     // The build targets might have changed after the restart. Send a `buildTarget/didChange` notification to
     // SourceKit-LSP to discard cached information.
