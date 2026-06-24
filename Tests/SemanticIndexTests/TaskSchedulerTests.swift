@@ -515,7 +515,10 @@ fileprivate extension TaskScheduler<ClosureTaskDescription> {
     )
     // Make sure that we call `schedule` outside of the `Task` because the execution order of `Task`s is not guaranteed
     // and if we called `schedule` inside `Task`, Swift concurrency can re-order the order that we schedule tasks in.
-    let queuedTask = await self.schedule(priority: priority, taskDescription)
+    // The scheduler is never shut down before this call within these tests, so `schedule` always returns a value.
+    guard let queuedTask = await self.schedule(priority: priority, taskDescription) else {
+      preconditionFailure("Scheduler was unexpectedly shut down")
+    }
     return Task(priority: priority) {
       await queuedTask.waitToFinishPropagatingCancellation()
     }
