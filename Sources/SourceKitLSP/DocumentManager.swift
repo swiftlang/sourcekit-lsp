@@ -26,6 +26,20 @@ import Synchronization
 /// ``Document``. The purpose of a ``DocumentSnapshot`` is to be able to work
 /// with one version of a document without having to think about it changing.
 package struct DocumentSnapshot: Identifiable, Sendable {
+  /// How a `DocumentSnapshot` was produced. Determines whether the `version` is a real LSP
+  /// version supplied by the client (in which case it tracks content changes monotonically) or a
+  /// placeholder for content that is not tracked by the LSP lifecycle.
+  package enum Origin: Sendable {
+    /// Tracked by `DocumentManager` for an open document. `version` is the LSP version supplied
+    /// by the client.
+    case openDocument
+    /// Read from disk (or another file-system source). `version` is a placeholder and does not
+    /// track content changes.
+    case fromDisk
+    /// Synthesized content (macro expansion, generated interface, …). `version` is a placeholder.
+    case generated
+  }
+
   /// An ID that uniquely identifies the version of the document stored in this
   /// snapshot.
   package struct ID: Hashable, Comparable, Sendable {
@@ -45,6 +59,7 @@ package struct DocumentSnapshot: Identifiable, Sendable {
   package let id: ID
   package let language: Language
   package let lineTable: LineTable
+  package let origin: Origin
 
   package var uri: DocumentURI { id.uri }
   package var version: Int { id.version }
@@ -54,11 +69,13 @@ package struct DocumentSnapshot: Identifiable, Sendable {
     uri: DocumentURI,
     language: Language,
     version: Int,
-    lineTable: LineTable
+    lineTable: LineTable,
+    origin: Origin
   ) {
     self.id = ID(uri: uri, version: version)
     self.language = language
     self.lineTable = lineTable
+    self.origin = origin
   }
 }
 
@@ -81,7 +98,8 @@ package final class Document {
       uri: self.uri,
       language: self.language,
       version: latestVersion,
-      lineTable: latestLineTable
+      lineTable: latestLineTable,
+      origin: .openDocument
     )
   }
 }

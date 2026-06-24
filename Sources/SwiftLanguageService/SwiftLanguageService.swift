@@ -318,7 +318,7 @@ package actor SwiftLanguageService: LanguageService, Sendable {
     switch try? ReferenceDocumentURL(from: uri) {
     case .macroExpansion(let data):
       let content = try await self.macroExpansionManager.macroExpansion(for: data)
-      return DocumentSnapshot(uri: uri, language: .swift, version: 0, lineTable: LineTable(content))
+      return DocumentSnapshot(uri: uri, language: .swift, version: 0, lineTable: LineTable(content), origin: .generated)
     case .generatedInterface(let data):
       return try await self.generatedInterfaceManager.snapshot(of: data)
     case nil:
