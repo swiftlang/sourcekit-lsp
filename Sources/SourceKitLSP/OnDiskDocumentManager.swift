@@ -48,7 +48,8 @@ package actor OnDiskDocumentManager {
       uri: try DocumentURI(filePath: "\(UUID().uuidString)/\(fileURL.filePath)", isDirectory: false),
       language: language,
       version: 0,
-      lineTable: LineTable(try String(contentsOf: fileURL, encoding: .utf8))
+      lineTable: LineTable(try String(contentsOf: fileURL, encoding: .utf8)),
+      origin: .fromDisk
     )
     let languageService = try await workspace.primaryLanguageService(for: uri, language)
 

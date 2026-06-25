@@ -74,7 +74,8 @@ final class SemanticTokensTests: SourceKitLSPTestCase {
 
         }
         """
-      )
+      ),
+      origin: .openDocument
     )
 
     let empty = Position(line: 0, utf16index: 1)..<Position(line: 0, utf16index: 1)
