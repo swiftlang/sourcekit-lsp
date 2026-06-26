@@ -672,9 +672,11 @@ package actor TaskScheduler<TaskDescription: TaskDescriptionProtocol> {
     finishStatus: QueuedTask<TaskDescription>.ExecutionTaskFinishStatus
   ) async {
     currentlyExecutingTasks.removeAll(where: { $0.description.id == task.description.id })
-    switch finishStatus {
-    case .terminated: break
-    case .cancelledToBeRescheduled: pendingTasks.append(task)
+    // Don't re-queue a `cancelledToBeRescheduled` task once shutdown has begun - the entry would
+    // sit in `pendingTasks` forever (since `poke` is a no-op on `isShutDown`) and keep the task
+    // (and the SemanticIndexManager its callback captures) alive past teardown.
+    if !isShutDown, case .cancelledToBeRescheduled = finishStatus {
+      pendingTasks.append(task)
     }
     self.poke()
   }
