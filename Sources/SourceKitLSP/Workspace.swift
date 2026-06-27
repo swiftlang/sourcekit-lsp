@@ -642,8 +642,9 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
     logger.info("Shutting down workspace \(self.rootUri.forLogging)")
     async let languageServiceShutdown = shutdownAllLanguageServices()
     async let buildServerShutdown = buildServerManager.shutdown()
+    async let semanticIndexShutdown = semanticIndexManager?.shutDown()
     async let indexClose = uncheckedIndex?.close()
-    _ = await (languageServiceShutdown, buildServerShutdown, indexClose)
+    _ = await (languageServiceShutdown, buildServerShutdown, semanticIndexShutdown, indexClose)
   }
 
   /// Shut down all language service instances owned by this workspace.
