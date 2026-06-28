@@ -83,4 +83,3 @@ target_link_libraries(SwiftLanguageService PRIVATE
   SwiftSyntax::SwiftSyntaxBuilder
   $<$<NOT:$<PLATFORM_ID:Darwin>>:FoundationXML>
 )
-
