@@ -14,6 +14,7 @@
 import SKLogging
 import SKTestSupport
 import SwiftExtensions
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
 
 final class IndexTests: SourceKitLSPTestCase {

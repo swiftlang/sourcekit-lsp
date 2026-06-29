@@ -151,7 +151,8 @@ actor GeneratedInterfaceManager {
         uri: try document.uri,
         language: .swift,
         version: 0,
-        lineTable: LineTable(contents)
+        lineTable: LineTable(contents),
+        origin: .generated
       ),
       refCount: incrementingRefCount ? 1 : 0
     )

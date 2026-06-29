@@ -19,7 +19,7 @@ package import Foundation
 package import SKOptions
 import SwiftExtensions
 import ToolchainRegistry
-import ToolsProtocolsSwiftExtensions
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 /// The details necessary to create a `BuildServerAdapter`.
 package struct BuildServerSpec {

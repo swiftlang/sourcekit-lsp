@@ -23,6 +23,7 @@ package import SKOptions
 import SemanticIndex
 import SourceKitD
 import SwiftExtensions
+import Synchronization
 package import ToolchainRegistry
 @_spi(SourceKitLSP) package import ToolsProtocolsSwiftExtensions
 
@@ -54,16 +55,16 @@ package actor SourceKitLSPServer {
   private let workspaceQueue = AsyncQueue<Serial>()
 
   /// The connection to the editor.
-  package nonisolated let client: any Connection
+  nonisolated let client: LegacyNameFallbackConnection
 
   /// Set to `true` after the `SourceKitLSPServer` has send the reply to the `InitializeRequest`.
   ///
   /// Initialization can be awaited using `waitUntilInitialized`.
   private var initialized: Bool = false
 
-  private let _options: ThreadSafeBox<SourceKitLSPOptions>
+  private let _options: Mutex<SourceKitLSPOptions>
   nonisolated package var options: SourceKitLSPOptions {
-    _options.value
+    _options.withLock { $0 }
   }
 
   package let hooks: Hooks
@@ -173,11 +174,11 @@ package actor SourceKitLSPServer {
   ) {
     self.toolchainRegistry = toolchainRegistry
     self.languageServiceRegistry = languageServerRegistry
-    self._options = ThreadSafeBox(initialValue: options)
+    self._options = Mutex(options)
     self.hooks = hooks
     self.onExit = onExit
 
-    self.client = client
+    self.client = LegacyNameFallbackConnection(client, legacyNames: MessageRegistry.lspLegacyNames)
     self.indexTaskScheduler = TaskScheduler(
       maxConcurrentTasksByPriority: Self.maxConcurrentIndexingTasksByPriority(isIndexingPaused: false, options: options)
     )
@@ -933,12 +934,12 @@ extension SourceKitLSPServer {
       let onWorkspaceTestsChanged =
         capabilityRegistry!.clientHasWorkspaceTestsRefreshSupport
         ? { @Sendable [weak self] in
-          _ = Task { try await self?.client.send(WorkspaceTestsRefreshRequest()) }
+          _ = Task { try await self?.sendRequestToClient(WorkspaceTestsRefreshRequest()) }
         } : nil
       let onWorkspacePlaygroundsChanged =
         capabilityRegistry!.clientHasWorkspacePlaygroundsRefreshSupport
         ? { @Sendable [weak self] in
-          _ = Task { try await self?.client.send(WorkspacePlaygroundsRefreshRequest()) }
+          _ = Task { try await self?.sendRequestToClient(WorkspacePlaygroundsRefreshRequest()) }
         } : nil
       await entryPointManager.setCallbacks(
         onWorkspaceTestsChanged: onWorkspaceTestsChanged,
@@ -1008,19 +1009,25 @@ extension SourceKitLSPServer {
       ? nil
       : ExecuteCommandOptions(commands: languageServiceRegistry.languageServices.flatMap { $0.type.builtInCommands })
 
-    var experimentalCapabilities: [String: LSPAny] = [
-      WorkspaceTestsRequest.method: ["version": 2],
-      WorkspaceTestsRefreshRequest.method: ["version": 1],
-      DocumentTestsRequest.method: ["version": 2],
-      TriggerReindexRequest.method: ["version": 1],
-      GetReferenceDocumentRequest.method: ["version": 1],
-      DidChangeActiveDocumentNotification.method: ["version": 1],
-      WorkspacePlaygroundsRefreshRequest.method: ["version": 1],
-      WorkspaceSymbolNamesRequest.method: ["version": 1],
-      WorkspaceSymbolInfoRequest.method: ["version": 1],
-    ]
+    var experimentalCapabilities: [String: LSPAny] = [:]
+    // Add both the current and legacy method names so old clients still discover the capability.
+    func addCapabilities(_ method: String, _ value: LSPAny) {
+      experimentalCapabilities[method] = value
+      if let legacy = MessageRegistry.lspLegacyNames[method] { experimentalCapabilities[legacy] = value }
+    }
+    addCapabilities(WorkspaceTestsRequest.method, ["version": 2])
+    addCapabilities(WorkspaceTestsRefreshRequest.method, ["version": 1])
+    addCapabilities(DocumentTestsRequest.method, ["version": 2])
+    addCapabilities(DoccDocumentationRequest.method, ["version": 1])
+    addCapabilities(TriggerReindexRequest.method, ["version": 1])
+    addCapabilities(GetReferenceDocumentRequest.method, ["version": 1])
+    addCapabilities(DidChangeActiveDocumentNotification.method, ["version": 1])
+    addCapabilities(SynchronizeRequest.method, ["version": 1])
+    addCapabilities(WorkspaceSymbolNamesRequest.method, ["version": 1])
+    addCapabilities(WorkspaceSymbolInfoRequest.method, ["version": 1])
     if let toolchain = await toolchainRegistry.preferredToolchain(containing: [\.swiftc]), toolchain.swiftPlay != nil {
-      experimentalCapabilities[WorkspacePlaygroundsRequest.method] = ["version": 1]
+      addCapabilities(WorkspacePlaygroundsRefreshRequest.method, ["version": 1])
+      addCapabilities(WorkspacePlaygroundsRequest.method, ["version": 1])
     }
     for (key, value) in languageServiceRegistry.languageServices.flatMap({ $0.type.experimentalCapabilities }) {
       if let existingValue = experimentalCapabilities[key] {
@@ -2245,11 +2252,9 @@ extension SourceKitLSPServer {
         position: req.position
       )
     )
-    guard let index = await workspaceForDocument(uri: req.textDocument.uri)?.index(checkedFor: .deletedFiles) else {
-      return []
-    }
-    let locations = try symbols.flatMap { (symbol) -> [Location] in
-      guard let usr = symbol.usr else { return [] }
+    let index = await workspaceForDocument(uri: req.textDocument.uri)?.index(checkedFor: .deletedFiles)
+    let indexLocations = try symbols.flatMap { symbol -> [Location] in
+      guard let usr = symbol.usr, let index else { return [] }
       logger.info("Finding references for USR \(usr)")
       var roles: SymbolRole = [.reference]
       if req.context.includeDeclaration {
@@ -2257,6 +2262,26 @@ extension SourceKitLSPServer {
       }
       return try index.occurrences(ofUSR: usr, roles: roles).compactMap { $0.location.lspLocation }
     }
+
+    var locations = indexLocations
+
+    let hasCurrentFileIndexResults = indexLocations.contains { $0.uri == req.textDocument.uri }
+
+    if !hasCurrentFileIndexResults {
+      do {
+        let localLocations = try await languageService.localReferences(
+          at: req.position,
+          in: req.textDocument.uri,
+          includeDeclaration: req.context.includeDeclaration
+        )
+        locations += localLocations
+      } catch let error as ResponseError {
+        logger.debug("localReferences not supported for this language service")
+      } catch {
+        logger.error("Unexpected error computing local references: \(String(describing: error))")
+      }
+    }
+
     let copiedFileMap = await workspace.buildServerManager.cachedCopiedFileMap
     let remappedLocations = locations.adjusted(for: copiedFileMap)
     return remappedLocations.unique.sorted()

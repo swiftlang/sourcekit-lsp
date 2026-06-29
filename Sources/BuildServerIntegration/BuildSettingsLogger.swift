@@ -13,6 +13,7 @@
 @_spi(SourceKitLSP) package import LanguageServerProtocol
 @_spi(SourceKitLSP) package import SKLogging
 import SwiftExtensions
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 // MARK: - Build settings logger
 

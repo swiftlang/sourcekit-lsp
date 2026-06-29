@@ -201,7 +201,12 @@ package actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
 
     self.resultTask = Task.detached(priority: priority) {
       await withTaskCancellationHandler {
-        await withTaskPriorityChangedHandler(initialPriority: self.priority) {
+        await withTaskPriorityChangedHandler(initialPriority: priority) {
+          withLoggingSubsystemAndScope(subsystem: taskSchedulerSubsystem, scope: nil) {
+            logger.debug(
+              "resultTask started for \(self.description.forLogging) (stored priority \(self.priority.rawValue), runtime priority \(Task.currentPriority.rawValue))"
+            )
+          }
           for await task in executionTaskCreatedStream {
             switch await task.valuePropagatingCancellation {
             case .cancelledToBeRescheduled:
@@ -212,14 +217,14 @@ package actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
               return
             }
           }
-        } taskPriorityChanged: {
+        } taskPriorityChanged: { newPriority in
           withLoggingSubsystemAndScope(subsystem: taskSchedulerSubsystem, scope: nil) {
             logger.debug(
-              "Updating priority of \(self.description.forLogging) from \(self.priority.rawValue) to \(Task.currentPriority.rawValue)"
+              "Updating priority of \(self.description.forLogging) from \(self.priority.rawValue) to \(newPriority.rawValue)"
             )
           }
-          self.priority = Task.currentPriority
-          taskPriorityChangedCallback(self.priority)
+          self.priority = newPriority
+          taskPriorityChangedCallback(newPriority)
         }
       } onCancel: {
         self.resultTaskCancelled.store(true, ordering: .relaxed)
@@ -420,6 +425,9 @@ package actor TaskScheduler<TaskDescription: TaskDescriptionProtocol> {
 
   /// Enqueue a new task to be executed.
   ///
+  /// Returns `nil` if the scheduler has already been shut down via `shutDown()`; the task is
+  /// not queued in that case.
+  ///
   /// - Important: A task that is scheduled by `TaskScheduler` must never be awaited from a task that runs on
   ///   `TaskScheduler`. Otherwise we might end up in deadlocks, eg. if the inner task cannot be scheduled because the
   ///   outer task is claiming all execution slots in the `TaskScheduler`.
@@ -430,7 +438,12 @@ package actor TaskScheduler<TaskDescription: TaskDescriptionProtocol> {
     @_inheritActorContext executionStateChangedCallback: (
       @Sendable (QueuedTask<TaskDescription>, TaskExecutionState) async -> Void
     )? = nil
-  ) async -> QueuedTask<TaskDescription> {
+  ) async -> QueuedTask<TaskDescription>? {
+    if isShutDown {
+      // The scheduler has been shut down — refuse new work. `poke` no longer drains
+      // `pendingTasks` once `isShutDown == true`, so there is no point in queueing.
+      return nil
+    }
     let queuedTask = await QueuedTask(
       priority: priority ?? Task.currentPriority,
       description: taskDescription,
@@ -459,7 +472,15 @@ package actor TaskScheduler<TaskDescription: TaskDescriptionProtocol> {
   /// After `shutDown` has been called, no more tasks will be executed on this `TaskScheduler`.
   package func shutDown() async {
     self.isShutDown = true
-    await self.currentlyExecutingTasks.concurrentForEach { task in
+    let allTasks = self.currentlyExecutingTasks + self.pendingTasks
+    // Drop `QueuedTask` references from the scheduler's storage now (the local `allTasks`
+    // continues to hold them while we await cancellation), so the `TaskDescription`s they hold —
+    // and anything those descriptions transitively retain (`BuildServerManager`,
+    // `SemanticIndexManager`, `ToolchainRegistry`) — can be deallocated even if a `waitToFinish`
+    // below times out, and so the actor's storage is free of stale entries before we yield.
+    self.currentlyExecutingTasks.removeAll()
+    self.pendingTasks.removeAll()
+    await allTasks.concurrentForEach { task in
       task.cancel()
       do {
         try await withTimeout(.seconds(10)) {
@@ -549,6 +570,11 @@ package actor TaskScheduler<TaskDescription: TaskDescriptionProtocol> {
         // When the next task finishes, it calls `poke` again.
         // If a low priority task's priority gets elevated that task's priority will get elevated, which will call
         // `poke`.
+        withLoggingSubsystemAndScope(subsystem: taskSchedulerSubsystem, scope: nil) {
+          logger.debug(
+            "Cannot schedule \(task.description.forLogging) at priority \(task.priority.rawValue) (executing: \(self.currentlyExecutingTasks.count), pending: \(self.pendingTasks.count))"
+          )
+        }
         return
       }
       let dependencies = task.description.dependencies(to: currentlyExecutingTasks.map(\.description))
@@ -646,9 +672,11 @@ package actor TaskScheduler<TaskDescription: TaskDescriptionProtocol> {
     finishStatus: QueuedTask<TaskDescription>.ExecutionTaskFinishStatus
   ) async {
     currentlyExecutingTasks.removeAll(where: { $0.description.id == task.description.id })
-    switch finishStatus {
-    case .terminated: break
-    case .cancelledToBeRescheduled: pendingTasks.append(task)
+    // Don't re-queue a `cancelledToBeRescheduled` task once shutdown has begun - the entry would
+    // sit in `pendingTasks` forever (since `poke` is a no-op on `isShutDown`) and keep the task
+    // (and the SemanticIndexManager its callback captures) alive past teardown.
+    if !isShutDown, case .cancelledToBeRescheduled = finishStatus {
+      pendingTasks.append(task)
     }
     self.poke()
   }
@@ -676,27 +704,5 @@ fileprivate extension Collection {
       result += transform(element)
     }
     return result
-  }
-}
-
-/// Version of the `withTaskPriorityChangedHandler` where the body doesn't throw.
-private func withTaskPriorityChangedHandler(
-  initialPriority: TaskPriority = Task.currentPriority,
-  pollingInterval: Duration = .seconds(0.1),
-  @_inheritActorContext operation: @escaping @Sendable () async -> Void,
-  taskPriorityChanged: @escaping @Sendable () -> Void
-) async {
-  do {
-    try await withTaskPriorityChangedHandler(
-      initialPriority: initialPriority,
-      pollingInterval: pollingInterval,
-      operation: operation as @Sendable () async throws -> Void,
-      taskPriorityChanged: taskPriorityChanged
-    )
-  } catch is CancellationError {
-  } catch {
-    // Since `operation` does not throw, the only error we expect `withTaskPriorityChangedHandler` to throw is a
-    // `CancellationError`, in which case we can just return.
-    logger.fault("Unexpected error thrown from withTaskPriorityChangedHandler: \(error.forLogging)")
   }
 }

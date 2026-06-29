@@ -295,6 +295,14 @@
           "markdownDescription" : "Extra arguments passed to the linker. Equivalent to SwiftPM's `-Xlinker` option.",
           "type" : "array"
         },
+        "pkgConfigPaths" : {
+          "description" : "Equivalent to SwiftPM's `--pkg-config-path` option.",
+          "items" : {
+            "type" : "string"
+          },
+          "markdownDescription" : "Equivalent to SwiftPM's `--pkg-config-path` option.",
+          "type" : "array"
+        },
         "scratchPath" : {
           "description" : "Build artifacts directory path. If nil, the build system may choose a default value. This path can be specified as a relative path, which will be interpreted relative to the project root. Equivalent to SwiftPM's `--scratch-path` option.",
           "markdownDescription" : "Build artifacts directory path. If nil, the build system may choose a default value. This path can be specified as a relative path, which will be interpreted relative to the project root. Equivalent to SwiftPM's `--scratch-path` option.",

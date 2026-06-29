@@ -13,6 +13,7 @@
 package import Foundation
 import SwiftExtensions
 import ToolchainRegistry
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
 
 import class TSCBasic.Process

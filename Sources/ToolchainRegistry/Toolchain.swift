@@ -14,6 +14,7 @@ package import Foundation
 import RegexBuilder
 @_spi(SourceKitLSP) import SKLogging
 import SwiftExtensions
+import Synchronization
 import TSCExtensions
 @_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
@@ -108,7 +109,7 @@ public final class Toolchain: Sendable {
   /// The path to the indexstore library if available.
   package let libIndexStore: URL?
 
-  private let swiftVersionTask = ThreadSafeBox<Task<SwiftVersion, any Error>?>(initialValue: nil)
+  private let swiftVersionTask: Mutex<Task<SwiftVersion, any Error>?> = Mutex(nil)
 
   /// The Swift version installed in the toolchain. Throws an error if the version could not be parsed or if no Swift
   /// compiler is installed in the toolchain.

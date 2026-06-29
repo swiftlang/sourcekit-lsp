@@ -165,8 +165,8 @@ extension Process {
     return try await withTaskPriorityChangedHandler(initialPriority: Task.currentPriority) { @Sendable in
       setProcessPriority(pid: process.processID, newPriority: Task.currentPriority)
       return try await process.waitUntilExitStoppingProcessOnTaskCancellation()
-    } taskPriorityChanged: {
-      setProcessPriority(pid: process.processID, newPriority: Task.currentPriority)
+    } taskPriorityChanged: { newPriority in
+      setProcessPriority(pid: process.processID, newPriority: newPriority)
     }
   }
 }
@@ -201,12 +201,12 @@ fileprivate extension TaskPriority {
   var windowsProcessPriority: Int32 {
     if self >= .high {
       // SourceKit-LSP’s request handling runs at `TaskPriority.high`, which corresponds to the normal priority class.
-      return NORMAL_PRIORITY_CLASS
+      return Int32(NORMAL_PRIORITY_CLASS)
     }
     if self >= .medium {
-      return BELOW_NORMAL_PRIORITY_CLASS
+      return Int32(BELOW_NORMAL_PRIORITY_CLASS)
     }
-    return IDLE_PRIORITY_CLASS
+    return Int32(IDLE_PRIORITY_CLASS)
   }
   #else
   var posixProcessPriority: Int32 {

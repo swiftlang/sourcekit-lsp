@@ -17,6 +17,7 @@ package import SKOptions
 package import SourceKitLSP
 import SwiftExtensions
 package import ToolchainRegistry
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 /// The location of a test file within test workspace.
 package struct RelativeFileLocation: Hashable, ExpressibleByStringLiteral {

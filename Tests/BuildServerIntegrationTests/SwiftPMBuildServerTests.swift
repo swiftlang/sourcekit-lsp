@@ -713,10 +713,10 @@ struct SwiftPMBuildServerTests {
         files: [
           "pkg/Sources/lib/a.swift": "",
           "pkg/Package.swift": """
-          // swift-tools-version:5.0
+          // swift-tools-version:5.7
           import PackageDescription
           let package = Package(name: "a",
-            platforms: [.macOS(.v10_13)],
+            platforms: [.macOS(.v13)],
             targets: [.target(name: "lib")]
           )
           """,
@@ -748,7 +748,7 @@ struct SwiftPMBuildServerTests {
       #if os(macOS)
       try await expectArgumentsContain(
         "-target",
-        hostTriple.tripleString(forPlatformVersion: "10.13"),
+        hostTriple.tripleString(forPlatformVersion: "13.0"),
         arguments: arguments
       )
       #else
@@ -1245,6 +1245,51 @@ struct SwiftPMBuildServerTests {
     #expect(diagnostics.isEmpty)
   }
 
+  @Test func testPkgConfigDirectories() async throws {
+    var options = try await SourceKitLSPOptions.testDefault(experimentalFeatures: [.sourceKitOptionsRequest])
+    options.swiftPMOrDefault.pkgConfigPaths = ["pcfiles"]
+    let project = try await SwiftPMTestProject(
+      files: [
+        "MyExecutable/main.swift": """
+        import MyClib
+        """,
+        "MyClib/module.modulemap": """
+        module MyClib [system] {
+          header "shim.h"
+          link "myclib"
+          export *
+        }
+        """,
+        "MyClib/shim.h": "",
+        "/pcfiles/myclib.pc": """
+        Name: myclib
+        Cflags: -I/sourcekit-lsp-test-pkg-config-include
+        """,
+      ],
+      manifest: """
+        let package = Package(
+          name: "MyPkg",
+          targets: [
+            .executableTarget(name: "MyExecutable", dependencies: ["MyClib"]),
+            .systemLibrary(name: "MyClib", pkgConfig: "myclib"),
+          ]
+        )
+        """,
+      options: options
+    )
+
+    let uri = try project.openDocument("main.swift").uri
+
+    let buildSettings = try await project.testClient.send(
+      SourceKitOptionsRequest(
+        textDocument: TextDocumentIdentifier(uri),
+        prepareTarget: false,
+        allowFallbackSettings: false
+      )
+    )
+    #expect(buildSettings.compilerArguments.contains("-I/sourcekit-lsp-test-pkg-config-include"))
+  }
+
   // MARK: - Package reload filtering
 
   /// Creates a minimal package containing a zip-based binary target and returns the server ready
@@ -1642,6 +1687,42 @@ struct SwiftPMBuildServerTests {
         Issue.record("Expected swiftPM build server kind")
       }
     }
+  }
+
+  @Test
+  func testPackagePlugin() async throws {
+    let testProject = try await SwiftPMTestProject(
+      files: [
+        "Test.swift": """
+        #if NonDefaultTrait
+        #warning("Trait enabled")
+        #endif
+        """
+      ],
+      manifest: """
+        // swift-tools-version: 6.2
+
+        import PackageDescription
+
+        let package = Package(
+          name: "MyLibrary",
+          traits: [
+            .default(enabledTraits: []),
+            "NonDefaultTrait",
+          ],
+          targets: [.target(name: "MyLibrary")]
+        )
+        """,
+      options: SourceKitLSPOptions(swiftPM: .init(traits: ["NonDefaultTrait"])),
+      enableBackgroundIndexing: true
+    )
+
+    let (uri, _) = try testProject.openDocument("Test.swift")
+    let diagnostics = try await testProject.testClient.send(
+      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+    )
+
+    #expect(diagnostics.fullReport?.items.map(\.message) == ["Trait enabled"])
   }
 }
 

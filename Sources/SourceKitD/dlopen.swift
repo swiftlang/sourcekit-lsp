@@ -12,7 +12,7 @@
 
 @_spi(SourceKitLSP) import SKLogging
 import SwiftExtensions
-@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
+import Synchronization
 
 #if os(Windows)
 import CRT
@@ -48,14 +48,14 @@ package final class DLHandle: Sendable {
   }
   #endif
 
-  fileprivate let rawValue: ThreadSafeBox<Handle?>
+  fileprivate let rawValue: Mutex<Handle?>
 
   fileprivate init(rawValue: Handle) {
-    self.rawValue = .init(initialValue: rawValue)
+    self.rawValue = Mutex(rawValue)
   }
 
   deinit {
-    if rawValue.value != nil {
+    if rawValue.withLock({ $0 != nil }) {
       logger.fault("DLHandle must be closed or explicitly leaked before destroying")
     }
   }
@@ -129,11 +129,11 @@ package func dlopen(_ path: String?, mode: DLOpenFlags) throws -> DLHandle {
 
 package func dlsym<T>(_ handle: DLHandle, symbol: String) -> T? {
   #if os(Windows)
-  guard let ptr = GetProcAddress(handle.rawValue.value!.handle, symbol) else {
+  guard let ptr = handle.rawValue.withLock({ GetProcAddress($0!.handle, symbol) }) else {
     return nil
   }
   #else
-  guard let ptr = dlsym(handle.rawValue.value!.handle, symbol) else {
+  guard let ptr = handle.rawValue.withLock({ dlsym($0!.handle, symbol) }) else {
     return nil
   }
   #endif

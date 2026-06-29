@@ -20,6 +20,7 @@ import SourceKitD
 package import SourceKitLSP
 import SwiftExtensions
 import SwiftSyntax
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 // MARK: - Helper types
 

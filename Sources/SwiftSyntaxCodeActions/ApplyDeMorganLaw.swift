@@ -15,6 +15,7 @@ import SourceKitLSP
 import SwiftExtensions
 import SwiftOperators
 package import SwiftSyntax
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 /// A code action to convert between complement expressions by applying De Morgan's law.
 ///

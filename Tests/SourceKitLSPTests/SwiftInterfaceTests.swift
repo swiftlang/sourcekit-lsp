@@ -18,6 +18,7 @@ import SKTestSupport
 import SKUtilities
 import SourceKitLSP
 import SwiftExtensions
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
 
 final class SwiftInterfaceTests: SourceKitLSPTestCase {
