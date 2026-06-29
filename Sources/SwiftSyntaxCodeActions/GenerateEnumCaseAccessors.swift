@@ -29,7 +29,7 @@ struct GenerateEnumCaseAsAccessors: SyntaxRefactoringCodeActionProvider {
 
   static func textRefactor(syntax: EnumDeclSyntax, in context: Void) throws -> [SourceEdit] {
     let indentation = accessorIndentation(for: syntax)
-    let existingNames = existingMemberNames(of: syntax)
+    let existingNames = existingVariableNames(of: syntax)
 
     var accessors: [String] = []
     for element in enumCaseElements(of: syntax) {
@@ -105,7 +105,7 @@ struct GenerateEnumCaseIsAccessors: SyntaxRefactoringCodeActionProvider {
 
   static func textRefactor(syntax: EnumDeclSyntax, in context: Void) throws -> [SourceEdit] {
     let indentation = accessorIndentation(for: syntax)
-    let existingNames = existingMemberNames(of: syntax)
+    let existingNames = existingVariableNames(of: syntax)
 
     let accessors = enumCaseElements(of: syntax).compactMap { element -> String? in
       let name = "is\(capitalizedCaseName(of: element))"
@@ -148,7 +148,7 @@ private func enumCaseElements(of enumDecl: EnumDeclSyntax) -> [EnumCaseElementSy
 }
 
 /// The names of the enum's existing properties, so an accessor whose name is already taken isn't generated again.
-private func existingMemberNames(of enumDecl: EnumDeclSyntax) -> Set<String> {
+private func existingVariableNames(of enumDecl: EnumDeclSyntax) -> Set<String> {
   var names: Set<String> = []
   for member in enumDecl.memberBlock.members {
     guard let variable = member.decl.as(VariableDeclSyntax.self) else { continue }

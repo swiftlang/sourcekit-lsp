@@ -81,6 +81,8 @@ The specific refactorings available depend on what code is selected or where the
 | **Move To Extension** | Select one or more member declarations inside a type which aren't stored properties |
 | **Convert To Computed Property** | Select a variable declaration with an initializer |
 | **Expand 'some' parameters to generic parameters** | Cursor on a function declaration using `some` opaque parameter types |
+| **Generate 'as' accessors for enum cases** | Cursor inside an enum that has a case with associated values |
+| **Generate 'is' accessors for enum cases** | Cursor inside an enum that has a case |
 
 ### Source Organization
 
