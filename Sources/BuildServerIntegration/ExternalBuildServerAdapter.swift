@@ -102,25 +102,50 @@ struct BuildServerConfig: Codable {
     // The build server requires use of the Swift Build backend.
     args.append(contentsOf: ["--build-system", "swiftbuild"])
 
+    let swiftVersion = try? await toolchain?.swiftVersion
+    if let swiftVersion, swiftVersion >= SwiftVersion(6, 4) {
+      // Skip acquiring the workspace lock.
+      args.append("--experimental-skip-acquiring-lock")
+    } else if !options.backgroundIndexingOrDefault {
+      // Without background indexing we always need to be able to coexist with user-initiated builds,
+      // which older toolchains can't do because they can't skip acquiring the workspace lock.
+      throw SwiftPMBuildServerConfigError.unsupportedToolchainForSwiftPMBuildServerWithoutBackgroundIndexing
+    }
+    if let swiftVersion, swiftVersion >= SwiftVersion(6, 5) {
+      // Preserve symlinks in the package and source file paths so that the paths reported by the
+      // build server match the path SourceKit-LSP opened the package with.
+      args.append("--experimental-skip-resolving-package-paths")
+    }
     if !options.backgroundIndexingOrDefault {
-      if let swiftVersion = try? await toolchain?.swiftVersion, swiftVersion >= SwiftVersion(6, 4) {
-        // If we're not background indexing, do not acquire the workspace lock, or else user-initiated builds will be blocked.
-        args.append(contentsOf: ["--experimental-skip-acquiring-lock", "--force-resolved-versions"])
-      } else {
-        throw SwiftPMBuildServerConfigError.unsupportedToolchainForSwiftPMBuildServerWithoutBackgroundIndexing
-      }
+      // When not background indexing we don't want to modify the user's `Package.resolved`, so force
+      // the use of the already-resolved versions. We can't do this while background indexing because
+      // the package may not have been resolved yet, in which case the native build server can still
+      // enumerate targets from the manifest alone.
+      args.append("--force-resolved-versions")
     }
     // Explicitly specify the package path.
     try args.append(contentsOf: ["--package-path", projectRoot.filePath])
     // Map LSP SwiftPM options to build server flags
+
+    func resolvedRelativeToProjectRoot(_ path: String) throws -> String {
+      try URL(fileURLWithPath: path, relativeTo: projectRoot.ensuringCorrectTrailingSlash).filePath
+    }
+
     if let configuration = options.swiftPMOrDefault.configuration {
       args.append(contentsOf: ["--configuration", configuration.rawValue])
     }
     if let scratchPath = options.swiftPMOrDefault.scratchPath {
-      args.append(contentsOf: ["--scratch-path", scratchPath])
+      args.append(contentsOf: ["--scratch-path", try resolvedRelativeToProjectRoot(scratchPath)])
+    } else if options.backgroundIndexingOrDefault {
+      // When background indexing without an explicit scratch path, build into `.build/index-build`
+      // so that the index build is independent of the user's regular `.build` directory and doesn't
+      // contend with user-initiated builds.
+      try args.append(contentsOf: [
+        "--scratch-path", projectRoot.appending(components: ".build", "index-build").filePath,
+      ])
     }
     if let swiftSDKsDirectory = options.swiftPMOrDefault.swiftSDKsDirectory {
-      args.append(contentsOf: ["--swift-sdks-path", swiftSDKsDirectory])
+      args.append(contentsOf: ["--swift-sdks-path", try resolvedRelativeToProjectRoot(swiftSDKsDirectory)])
     }
     if let swiftSDK = options.swiftPMOrDefault.swiftSDK {
       args.append(contentsOf: ["--swift-sdk", swiftSDK])
@@ -130,11 +155,11 @@ struct BuildServerConfig: Codable {
     }
     if let toolsets = options.swiftPMOrDefault.toolsets {
       for toolset in toolsets {
-        args.append(contentsOf: ["--toolset", toolset])
+        args.append(contentsOf: ["--toolset", try resolvedRelativeToProjectRoot(toolset)])
       }
     }
     if let sdk = options.swiftPMOrDefault.sdk {
-      args.append(contentsOf: ["--sdk", sdk])
+      args.append(contentsOf: ["--sdk", try resolvedRelativeToProjectRoot(sdk)])
     }
     if let traits = options.swiftPMOrDefault.traits {
       args.append(contentsOf: ["--traits", traits.joined(separator: ",")])
