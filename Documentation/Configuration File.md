@@ -24,6 +24,7 @@ The structure of the file is currently not guaranteed to be stable. Options may 
   - `triple: string`: Equivalent to SwiftPM's `--triple` option.
   - `sdk: string`: Equivalent to SwiftPM's `--sdk` option.
   - `toolsets: string[]`: Equivalent to SwiftPM's `--toolset` option.
+  - `pkgConfigPaths: string[]`: Equivalent to SwiftPM's `--pkg-config-path` option.
   - `traits: string[]`: Traits to enable for the package. Equivalent to SwiftPM's `--traits` option.
   - `cCompilerFlags: string[]`: Extra arguments passed to the compiler for C files. Equivalent to SwiftPM's `-Xcc` option.
   - `cxxCompilerFlags: string[]`: Extra arguments passed to the compiler for C++ files. Equivalent to SwiftPM's `-Xcxx` option.

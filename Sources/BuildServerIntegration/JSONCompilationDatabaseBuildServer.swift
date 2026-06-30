@@ -16,6 +16,7 @@ package import Foundation
 @_spi(SourceKitLSP) import SKLogging
 import SwiftExtensions
 package import ToolchainRegistry
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 fileprivate extension CompilationDatabaseCompileCommand {
   /// The first entry in the command line identifies the compiler that should be used to compile the file and can thus

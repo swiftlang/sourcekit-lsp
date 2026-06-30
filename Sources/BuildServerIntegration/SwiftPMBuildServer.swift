@@ -131,6 +131,10 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
   /// root.
   private let toolsets: [AbsolutePath]
 
+  /// Paths to any pkg-config directories provided in `SourceKitLSPOptions`, with any relative paths resolved based on
+  /// the project root.
+  private let pkgConfigDirectories: [AbsolutePath]
+
   /// A `ObservabilitySystem` from `SwiftPM` that logs.
   private let observabilitySystem: ObservabilitySystem
 
@@ -279,6 +283,10 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
       try options.swiftPMOrDefault.toolsets?.map {
         try AbsolutePath(validating: $0, relativeTo: absProjectRoot)
       } ?? []
+    self.pkgConfigDirectories =
+      try options.swiftPMOrDefault.pkgConfigPaths?.map {
+        try AbsolutePath(validating: $0, relativeTo: absProjectRoot)
+      } ?? []
 
     let hostSDK = try SwiftSDK.hostSwiftSDK(AbsolutePath(validating: destinationToolchainBinDir.filePath))
     let hostSwiftPMToolchain = try UserToolchain(swiftSDK: hostSDK)
@@ -375,6 +383,7 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
       toolchain: hostSwiftPMToolchain,
       flags: buildFlags,
       buildSystemKind: .native,
+      pkgConfigDirectories: pkgConfigDirectories,
     )
 
     self.destinationBuildParameters = try BuildParameters(
@@ -387,6 +396,7 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
       triple: destinationSDK.targetTriple,
       flags: buildFlags,
       buildSystemKind: .native,
+      pkgConfigDirectories: pkgConfigDirectories,
       prepareForIndexing: options.backgroundPreparationModeOrDefault.toSwiftPMPreparation
     )
 

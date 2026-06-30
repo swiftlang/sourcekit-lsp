@@ -15,6 +15,7 @@ import SKLogging
 import SKTestSupport
 import SwiftExtensions
 import TSCBasic
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
 
 final class CallHierarchyTests: SourceKitLSPTestCase {

@@ -16,10 +16,12 @@ import Foundation
 import IndexStoreDB
 @_spi(SourceKitLSP) package import LanguageServerProtocol
 @_spi(SourceKitLSP) import LanguageServerProtocolExtensions
+import LanguageServerProtocolTransport
 @_spi(SourceKitLSP) import SKLogging
 import SKOptions
 package import SemanticIndex
 import SwiftExtensions
+import Synchronization
 import TSCExtensions
 import ToolchainRegistry
 @_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
@@ -176,8 +178,7 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
   let languageServiceRegistry: LanguageServiceRegistry
 
   /// Language service instances owned by this workspace, keyed by service type.
-  private let languageServiceInstances: ThreadSafeBox<[LanguageServiceType: [any LanguageService]]> =
-    ThreadSafeBox(initialValue: [:])
+  private let languageServiceInstances: Mutex<[LanguageServiceType: [any LanguageService]]> = Mutex([:])
 
   /// The source code index, if available.
   ///
@@ -199,12 +200,11 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
   }
 
   /// Language service for an open document, if available.
-  private let languageServicesForOpenDocument: ThreadSafeBox<[DocumentURI: [any LanguageService]]> =
-    ThreadSafeBox(initialValue: [:])
+  private let languageServicesForOpenDocument: Mutex<[DocumentURI: [any LanguageService]]> = Mutex([:])
 
   /// All language services that are registered with this workspace.
   var allLanguageServices: [any LanguageService] {
-    return languageServiceInstances.value.values.flatMap { $0 }
+    return languageServiceInstances.withLock { $0.values.flatMap { $0 } }
   }
 
   /// The task that constructs the `SemanticIndexManager`, which keeps track of whose file's index is up-to-date in the
@@ -351,6 +351,7 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
 
       func send<Request: RequestType>(
         _ request: Request,
+        method: String,
         id: RequestID,
         reply: @escaping @Sendable (LSPResult<Request.Response>) -> Void
       ) {
@@ -360,7 +361,7 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
           reply(.failure(ResponseError.unknown("Connection to the editor closed")))
           return
         }
-        sourceKitLSPServer.client.send(request, id: id, reply: reply)
+        sourceKitLSPServer.client.send(request, method: method, id: id, reply: reply)
       }
 
       /// Whether the client can handle `WorkDoneProgress` requests.
@@ -477,8 +478,10 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
     _ serviceType: any LanguageService.Type,
     toolchain: Toolchain
   ) -> (any LanguageService)? {
-    languageServiceInstances.value[LanguageServiceType(serviceType)]?.first {
-      $0.canHandle(toolchain: toolchain)
+    languageServiceInstances.withLock { instances in
+      instances[LanguageServiceType(serviceType)]?.first {
+        $0.canHandle(toolchain: toolchain)
+      }
     }
   }
 
@@ -543,7 +546,7 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
     for uri: DocumentURI,
     _ language: Language
   ) async -> [any LanguageService] {
-    if let cached = languageServicesForOpenDocument.value[uri.buildSettingsFile] {
+    if let cached = languageServicesForOpenDocument.withLock({ $0[uri.buildSettingsFile] }) {
       return cached
     }
 
@@ -595,7 +598,7 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
   /// Callers should try to merge the results from the different language services or prefer results
   /// from language services that occur earlier in this array, whichever is more suitable.
   package func languageServices(forOpenDocument uri: DocumentURI) -> [any LanguageService] {
-    return languageServicesForOpenDocument.value[uri.buildSettingsFile] ?? []
+    return languageServicesForOpenDocument.withLock { $0[uri.buildSettingsFile] } ?? []
   }
 
   /// The primary language service for an open document.
@@ -639,8 +642,9 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
     logger.info("Shutting down workspace \(self.rootUri.forLogging)")
     async let languageServiceShutdown = shutdownAllLanguageServices()
     async let buildServerShutdown = buildServerManager.shutdown()
+    async let semanticIndexShutdown = semanticIndexManager?.shutDown()
     async let indexClose = uncheckedIndex?.close()
-    _ = await (languageServiceShutdown, buildServerShutdown, indexClose)
+    _ = await (languageServiceShutdown, buildServerShutdown, semanticIndexShutdown, indexClose)
   }
 
   /// Shut down all language service instances owned by this workspace.

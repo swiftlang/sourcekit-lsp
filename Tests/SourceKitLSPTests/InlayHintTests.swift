@@ -15,6 +15,7 @@ import SKLogging
 import SKTestSupport
 import SourceKitLSP
 import SwiftExtensions
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
 
 final class InlayHintTests: SourceKitLSPTestCase {

@@ -425,6 +425,9 @@ package actor TaskScheduler<TaskDescription: TaskDescriptionProtocol> {
 
   /// Enqueue a new task to be executed.
   ///
+  /// Returns `nil` if the scheduler has already been shut down via `shutDown()`; the task is
+  /// not queued in that case.
+  ///
   /// - Important: A task that is scheduled by `TaskScheduler` must never be awaited from a task that runs on
   ///   `TaskScheduler`. Otherwise we might end up in deadlocks, eg. if the inner task cannot be scheduled because the
   ///   outer task is claiming all execution slots in the `TaskScheduler`.
@@ -435,7 +438,12 @@ package actor TaskScheduler<TaskDescription: TaskDescriptionProtocol> {
     @_inheritActorContext executionStateChangedCallback: (
       @Sendable (QueuedTask<TaskDescription>, TaskExecutionState) async -> Void
     )? = nil
-  ) async -> QueuedTask<TaskDescription> {
+  ) async -> QueuedTask<TaskDescription>? {
+    if isShutDown {
+      // The scheduler has been shut down — refuse new work. `poke` no longer drains
+      // `pendingTasks` once `isShutDown == true`, so there is no point in queueing.
+      return nil
+    }
     let queuedTask = await QueuedTask(
       priority: priority ?? Task.currentPriority,
       description: taskDescription,
@@ -465,6 +473,13 @@ package actor TaskScheduler<TaskDescription: TaskDescriptionProtocol> {
   package func shutDown() async {
     self.isShutDown = true
     let allTasks = self.currentlyExecutingTasks + self.pendingTasks
+    // Drop `QueuedTask` references from the scheduler's storage now (the local `allTasks`
+    // continues to hold them while we await cancellation), so the `TaskDescription`s they hold —
+    // and anything those descriptions transitively retain (`BuildServerManager`,
+    // `SemanticIndexManager`, `ToolchainRegistry`) — can be deallocated even if a `waitToFinish`
+    // below times out, and so the actor's storage is free of stale entries before we yield.
+    self.currentlyExecutingTasks.removeAll()
+    self.pendingTasks.removeAll()
     await allTasks.concurrentForEach { task in
       task.cancel()
       do {
@@ -657,9 +672,11 @@ package actor TaskScheduler<TaskDescription: TaskDescriptionProtocol> {
     finishStatus: QueuedTask<TaskDescription>.ExecutionTaskFinishStatus
   ) async {
     currentlyExecutingTasks.removeAll(where: { $0.description.id == task.description.id })
-    switch finishStatus {
-    case .terminated: break
-    case .cancelledToBeRescheduled: pendingTasks.append(task)
+    // Don't re-queue a `cancelledToBeRescheduled` task once shutdown has begun - the entry would
+    // sit in `pendingTasks` forever (since `poke` is a no-op on `isShutDown`) and keep the task
+    // (and the SemanticIndexManager its callback captures) alive past teardown.
+    if !isShutDown, case .cancelledToBeRescheduled = finishStatus {
+      pendingTasks.append(task)
     }
     self.poke()
   }

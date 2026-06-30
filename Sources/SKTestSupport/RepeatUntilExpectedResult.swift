@@ -12,6 +12,7 @@
 
 @_spi(SourceKitLSP) import SKLogging
 import SwiftExtensions
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
 
 /// Runs the body repeatedly once per second until it returns `true`, giving up after `timeout`.

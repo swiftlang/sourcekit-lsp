@@ -295,6 +295,37 @@ package final actor SemanticIndexManager {
     self.indexProgressStatusDidChange = indexProgressStatusDidChange
   }
 
+  /// Cancels any in-progress preparation/index Tasks and drops references to them so that
+  /// `SemanticIndexManager` (and the `TaskScheduler` it transitively retains) can be deallocated
+  /// once the workspace tears down.
+  ///
+  /// The `Task<Void, Never>` values stored in `inProgressIndexTasks` /
+  /// `fileOrBuildTargetChangedTasks` capture `self`, forming a self-cycle through these
+  /// dictionaries. The cycle is normally broken by the scheduler's per-task `.finished` callback
+  /// clearing the entry — but that callback is only invoked from `QueuedTask.execute` /
+  /// `finalizeExecution`, so a task that was paused in `pendingTasks` and cancelled by
+  /// `TaskScheduler.shutDown` without ever executing leaves its entry behind.
+  package func shutDown() {
+    for inProgress in inProgressIndexTasks.values {
+      switch inProgress.state {
+      case .creatingIndexTask:
+        break
+      case .waitingForPreparation(_, let indexTask),
+        .preparing(_, let indexTask),
+        .updatingIndexStore(_, let indexTask):
+        indexTask.cancel()
+      }
+    }
+    inProgressIndexTasks = [:]
+    inProgressPreparationTasks = [:]
+    inProgressPrepareForEditorTask?.task.cancel()
+    inProgressPrepareForEditorTask = nil
+    for task in fileOrBuildTargetChangedTasks.values {
+      task.cancel()
+    }
+    fileOrBuildTargetChangedTasks = [:]
+  }
+
   /// Regenerate the build graph (also resolving package dependencies) and then index all the source files known to the
   /// build server that don't currently have a unit with a timestamp that matches the mtime of the file.
   ///
@@ -698,6 +729,10 @@ package final actor SemanticIndexManager {
       }
       self.indexProgressStatusDidChange()
     }
+    guard let preparationTask else {
+      // The task scheduler has been shut down.
+      return nil
+    }
     logger.debug(
       "Scheduled \(preparationTask.description.forLogging) at priority \(preparationTask.priority.rawValue, privacy: .public) (caller priority \(Task.currentPriority.rawValue, privacy: .public))"
     )
@@ -808,6 +843,10 @@ package final actor SemanticIndexManager {
         }
       }
       self.indexProgressStatusDidChange()
+    }
+    guard let updateIndexTask else {
+      // The task scheduler has been shut down.
+      return
     }
     logger.debug(
       "Scheduled \(updateIndexTask.description.forLogging) at priority \(updateIndexTask.priority.rawValue, privacy: .public) (caller priority \(Task.currentPriority.rawValue, privacy: .public))"
