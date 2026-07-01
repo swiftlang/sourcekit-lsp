@@ -806,6 +806,17 @@ package final actor SemanticIndexManager {
       )
     )
 
+    let symbolGraphTaskDescription = AnyIndexTaskDescription(
+      UpdateSymbolGraphTaskDescription(
+        filesToIndex: fileAndOutputPaths,
+        target: target,
+        language: language,
+        buildServerManager: self.buildServerManager,
+        logMessageToIndexLog: logMessageToIndexLog,
+        timeout: updateIndexStoreTimeout
+      )
+    )
+
     let updateIndexTask = await indexTaskScheduler.schedule(priority: priority, taskDescription) { task, newState in
       guard case .finished = newState else {
         self.indexProgressStatusDidChange()
@@ -856,7 +867,13 @@ package final actor SemanticIndexManager {
       default: break
       }
     }
-    return await updateIndexTask.waitToFinishPropagatingCancellation()
+    await updateIndexTask.waitToFinishPropagatingCancellation()
+
+    let updateSymbolGraphTask = await indexTaskScheduler.schedule(priority: priority, symbolGraphTaskDescription) {
+      _,
+      _ in
+    }
+    await updateSymbolGraphTask.waitToFinishPropagatingCancellation()
   }
 
   /// Index the given set of files at the given priority, preparing their targets beforehand, if needed. Files that are

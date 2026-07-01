@@ -2204,11 +2204,18 @@ extension SourceKitLSPServer {
     // `SwiftLanguageService` will always respond with `unsupported method`. Thus, only log such a failure instead of
     // returning it to the client.
     if indexBasedResponse.isEmpty {
-      return await orLog("Fallback definition request", level: .info) {
+      do {
         let result = try await languageService.definition(req)
         return result?.adjusted(for: copiedFileMap)
+      } catch let error as ResponseError where error.code == .requestNotImplemented {
+        // Signal to handleRequest's loop to try the next language service
+        throw error
+      } catch {
+        logger.info("Fallback definition request failed: \(error.forLogging)")
+        return nil
       }
     }
+
     let remappedLocations = indexBasedResponse.adjusted(for: copiedFileMap)
     return .locations(remappedLocations)
   }

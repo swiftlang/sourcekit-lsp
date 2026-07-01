@@ -792,7 +792,6 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
       // Nothing to prepare for package manifests.
       return
     }
-
     guard let swift = toolchain.swift else {
       logger.error(
         "Not preparing because toolchain at \(self.toolchain.identifier) does not contain a Swift compiler"
@@ -830,7 +829,16 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
       arguments += ["--traits", traits.joined(separator: ",")]
     }
     arguments += toolsets.flatMap { ["--toolset", $0.pathString] }
-    arguments += pkgConfigDirectories.flatMap { ["--pkg-config-path", $0.pathString] }
+
+    let symbolGraphPath = self.swiftPMWorkspace.location.scratchDirectory.parentDirectory.appending(
+      component: "symbol-graphs"
+    ).pathString
+    arguments += [
+      "-Xswiftc", "-Xfrontend", "-Xswiftc", "-emit-symbol-graph",
+      "-Xswiftc", "-Xfrontend", "-Xswiftc", "-emit-symbol-graph-dir",
+      "-Xswiftc", "-Xfrontend", "-Xswiftc", symbolGraphPath,
+    ]
+
     arguments += options.swiftPMOrDefault.cCompilerFlags?.flatMap { ["-Xcc", $0] } ?? []
     arguments += options.swiftPMOrDefault.cxxCompilerFlags?.flatMap { ["-Xcxx", $0] } ?? []
     arguments += options.swiftPMOrDefault.swiftCompilerFlags?.flatMap { ["-Xswiftc", $0] } ?? []
