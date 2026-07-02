@@ -13,7 +13,6 @@
 @_spi(SourceKitLSP) import LanguageServerProtocol
 import SourceKitLSP
 import SwiftSyntax
-import SwiftSyntaxCodeActions
 
 private class StartOfIdentifierFinder: SyntaxAnyVisitor {
   let requestedPosition: AbsolutePosition
@@ -35,7 +34,7 @@ private class StartOfIdentifierFinder: SyntaxAnyVisitor {
     if token.tokenKind.isPunctuation || token.tokenKind == .endOfFile {
       return .skipChildren
     }
-    if token.containsContent(at: requestedPosition) {
+    if (token.positionAfterSkippingLeadingTrivia...token.endPositionBeforeTrailingTrivia).contains(requestedPosition) {
       self.resolvedPosition = token.positionAfterSkippingLeadingTrivia
     }
     return .skipChildren

@@ -40,7 +40,7 @@ struct SwapBinaryOperands: SyntaxRefactoringCodeActionProvider {
     // binary expression that can be folded into an InfixOperatorExprSyntax.
     guard
       opExpr.parent?.is(InfixOperatorExprSyntax.self) == true
-        || opExpr.parent?.parent?.is(SequenceExprSyntax.self) == true
+        || opExpr.parent?.as(ExprListSyntax.self)?.parent?.is(SequenceExprSyntax.self) == true
     else {
       return nil
     }
@@ -53,8 +53,7 @@ struct SwapBinaryOperands: SyntaxRefactoringCodeActionProvider {
     // operator token. This prevents offering the action when the cursor is placed on
     // either operand or in surrounding trivia.
     let tokenRange = opExpr.operator.trimmedRange
-    guard selectionRange.isEmpty ? opExpr.operator.containsContent(at: startPos) : selectionRange.overlaps(tokenRange)
-    else {
+    guard selectionRange.overlapsOrTouches(tokenRange) else {
       return nil
     }
 
@@ -71,7 +70,7 @@ struct SwapBinaryOperands: SyntaxRefactoringCodeActionProvider {
     let exprToFold: ExprSyntax
     if let infixExpr = binOp.parent?.as(InfixOperatorExprSyntax.self) {
       exprToFold = ExprSyntax(infixExpr)
-    } else if let seqExpr = binOp.parent?.parent?.as(SequenceExprSyntax.self) {
+    } else if let seqExpr = binOp.parent?.as(ExprListSyntax.self)?.parent?.as(SequenceExprSyntax.self) {
       exprToFold = ExprSyntax(seqExpr)
     } else {
       throw RefactoringNotApplicableError("Could not find an infix or sequence expression to fold")
