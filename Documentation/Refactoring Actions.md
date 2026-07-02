@@ -82,6 +82,8 @@ The specific refactorings available depend on what code is selected or where the
 | **Convert To Computed Property** | Select a variable declaration with an initializer |
 | **Expand 'some' parameters to generic parameters** | Cursor on a function declaration using `some` opaque parameter types |
 | **Add Explicit Raw Values** | Cursor on an enum with an integer or `String` raw value type where some cases lack explicit raw values |
+| **Generate 'as' accessors for enum cases** | Cursor inside an enum that has a case with associated values |
+| **Generate 'is' accessors for enum cases** | Cursor inside an enum that has a case |
 
 ### Source Organization
 

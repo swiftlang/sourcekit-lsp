@@ -28,6 +28,8 @@ package let allSyntaxCodeActions: [any SyntaxCodeActionProvider.Type] = {
     ConvertStringConcatenationToStringInterpolation.self,
     ConvertZeroParameterFunctionToComputedProperty.self,
     FormatRawStringLiteral.self,
+    GenerateEnumCaseAsAccessors.self,
+    GenerateEnumCaseIsAccessors.self,
     MigrateToNewIfLetSyntax.self,
     OpaqueParameterToGeneric.self,
     RemoveRedundantParentheses.self,
