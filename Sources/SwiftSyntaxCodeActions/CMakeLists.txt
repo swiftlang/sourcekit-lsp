@@ -9,6 +9,7 @@ add_library(SwiftSyntaxCodeActions STATIC
   ConvertStringConcatenationToStringInterpolation.swift
   IndentationRemover.swift
   PackageManifestEdits.swift
+  SwapBinaryOperands.swift
   SyntaxCodeActionProvider.swift
   SyntaxCodeActions.swift
   SyntaxRefactoringCodeActionProvider.swift

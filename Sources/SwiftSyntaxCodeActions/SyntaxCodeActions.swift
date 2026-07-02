@@ -33,6 +33,7 @@ package let allSyntaxCodeActions: [any SyntaxCodeActionProvider.Type] = {
     RemoveRedundantParentheses.self,
     RemoveSeparatorsFromIntegerLiteral.self,
     ConvertCommentToDocComment.self,
+    SwapBinaryOperands.self,
   ]
   #if !NO_SWIFTPM_DEPENDENCY
   result.append(PackageManifestEdits.self)
