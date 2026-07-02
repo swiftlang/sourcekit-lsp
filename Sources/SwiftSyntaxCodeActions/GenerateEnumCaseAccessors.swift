@@ -14,6 +14,7 @@ import SwiftBasicFormat
 import SwiftExtensions
 import SwiftRefactor
 import SwiftSyntax
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 /// Syntactic code action that adds an `as<Case>` computed property for every
 /// enum case with associated values, returning the value(s) as an optional.
