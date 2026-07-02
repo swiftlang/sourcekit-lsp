@@ -89,6 +89,7 @@ The specific refactorings available depend on what code is selected or where the
 |--------|---------|
 | **Remove Unused Imports** | Cursor on an import declaration (only available when file has no errors) |
 | **Remove Redundant Parentheses** | Cursor on a parenthesized expression that contains a redundant outer set of parentheses |
+| **Swap operands** | Cursor or selection on a supported binary operator in an infix expression |
 
 ### Package.swift Manifest Editing
 

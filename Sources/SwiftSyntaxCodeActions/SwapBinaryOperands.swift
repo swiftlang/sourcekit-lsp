@@ -39,30 +39,23 @@ struct SwapBinaryOperands: SyntaxRefactoringCodeActionProvider {
     // Only offer the refactoring when the operator participates in a
     // binary expression that can be folded into an InfixOperatorExprSyntax.
     guard
-      opExpr.findParentOfSelf(
-        ofType: ExprSyntax.self,
-        stoppingIf: { $0.is(CodeBlockItemSyntax.self) },
-        matching: { $0.is(SequenceExprSyntax.self) || $0.is(InfixOperatorExprSyntax.self) }
-      ) != nil
+      opExpr.parent?.is(InfixOperatorExprSyntax.self) == true
+        || opExpr.parent?.parent?.is(SequenceExprSyntax.self) == true
     else {
       return nil
     }
 
-    let token = opExpr.operator
-    let tokenStart = token.positionAfterSkippingLeadingTrivia
-    let tokenEnd = token.endPositionBeforeTrailingTrivia
-
     let startPos = scope.snapshot.absolutePosition(of: scope.request.range.lowerBound)
     let endPos = scope.snapshot.absolutePosition(of: scope.request.range.upperBound)
+    let selectionRange = startPos..<endPos
 
-    // Restrict the action to selections that fall within the operator token
-    // itself. This prevents offering the action when the cursor is placed on
+    // Only offer the refactoring when the cursor or selection targets the
+    // operator token. This prevents offering the action when the cursor is placed on
     // either operand or in surrounding trivia.
-    guard startPos >= tokenStart else { return nil }
-    if startPos == endPos {
-      guard startPos < tokenEnd else { return nil }
-    } else {
-      guard endPos <= tokenEnd else { return nil }
+    let tokenRange = opExpr.operator.trimmedRange
+    guard selectionRange.isEmpty ? opExpr.operator.containsContent(at: startPos) : selectionRange.overlaps(tokenRange)
+    else {
+      return nil
     }
 
     return ExprSyntax(opExpr)
@@ -70,19 +63,18 @@ struct SwapBinaryOperands: SyntaxRefactoringCodeActionProvider {
 
   package static func textRefactor(syntax opExpr: ExprSyntax, in context: Void) throws -> [SourceEdit] {
     guard let binOp = opExpr.as(BinaryOperatorExprSyntax.self) else {
-      return []
+      throw RefactoringNotApplicableError("Selected expression is not a binary operator")
     }
 
     // Locate the smallest expression that may contain the operator under the cursor.
     // SequenceExprSyntax needs to be folded before precedence-aware rewriting can occur.
-    guard
-      let exprToFold = binOp.findParentOfSelf(
-        ofType: ExprSyntax.self,
-        stoppingIf: { $0.is(CodeBlockItemSyntax.self) },
-        matching: { $0.is(SequenceExprSyntax.self) || $0.is(InfixOperatorExprSyntax.self) }
-      )
-    else {
-      return []
+    let exprToFold: ExprSyntax
+    if let infixExpr = binOp.parent?.as(InfixOperatorExprSyntax.self) {
+      exprToFold = ExprSyntax(infixExpr)
+    } else if let seqExpr = binOp.parent?.parent?.as(SequenceExprSyntax.self) {
+      exprToFold = ExprSyntax(seqExpr)
+    } else {
+      throw RefactoringNotApplicableError("Could not find an infix or sequence expression to fold")
     }
 
     let foldedExpr: ExprSyntax
@@ -93,7 +85,7 @@ struct SwapBinaryOperands: SyntaxRefactoringCodeActionProvider {
     if exprToFold.is(SequenceExprSyntax.self) {
       guard let folded = OperatorTable.standardOperators.foldAll(exprToFold, errorHandler: { _ in }).as(ExprSyntax.self)
       else {
-        return []
+        throw RefactoringNotApplicableError("Failed to fold operator sequence")
       }
       foldedExpr = folded
     } else {
@@ -105,22 +97,19 @@ struct SwapBinaryOperands: SyntaxRefactoringCodeActionProvider {
     // Calculate the relative UTF-8 offset.
     let targetRelativeOffset =
       binOp.operator.positionAfterSkippingLeadingTrivia.utf8Offset - exprToFold.position.utf8Offset
+    let targetPosition = AbsolutePosition(utf8Offset: foldedExpr.position.utf8Offset + targetRelativeOffset)
 
-    let finder = OperatorMatchFinder(
-      targetText: currentOperatorText,
-      targetRelativeOffset: targetRelativeOffset,
-      rootPosition: foldedExpr.position
-    )
-    finder.walk(foldedExpr)
-
-    guard let infixExpr = finder.found else {
-      return []
+    guard
+      let token = foldedExpr.token(at: targetPosition),
+      let infixExpr = token.parent?.as(BinaryOperatorExprSyntax.self)?.parent?.as(InfixOperatorExprSyntax.self)
+    else {
+      throw RefactoringNotApplicableError("Could not locate the target operator in the folded tree")
     }
 
     // Avoid offering the refactoring for malformed expressions such as
     // `a +` or `+ b` while the user is still typing.
     guard !infixExpr.hasError else {
-      return []
+      throw RefactoringNotApplicableError("Expression is malformed or incomplete")
     }
 
     let newOperatorText: String
@@ -135,7 +124,7 @@ struct SwapBinaryOperands: SyntaxRefactoringCodeActionProvider {
     case "+", "*", "==", "!=", "===", "!==", "&&", "||", "&", "|", "^":
       newOperatorText = currentOperatorText
     default:
-      return []
+      throw RefactoringNotApplicableError("Operator '\(currentOperatorText)' cannot be swapped")
     }
 
     let leftOperand = infixExpr.leftOperand
@@ -152,7 +141,7 @@ struct SwapBinaryOperands: SyntaxRefactoringCodeActionProvider {
     newRight.trailingTrivia = rightOperand.trailingTrivia
 
     guard let targetBinOp = infixExpr.operator.as(BinaryOperatorExprSyntax.self) else {
-      return []
+      throw RefactoringNotApplicableError("Failed to cast operator to BinaryOperatorExprSyntax")
     }
     let newToken = targetBinOp.operator.with(\.tokenKind, .binaryOperator(newOperatorText))
     let newOperatorExpr = ExprSyntax(targetBinOp.with(\.operator, newToken))
@@ -163,65 +152,21 @@ struct SwapBinaryOperands: SyntaxRefactoringCodeActionProvider {
       .with(\.operator, newOperatorExpr)
       .with(\.rightOperand, newRight)
 
-    // Replace only the selected infix expression while leaving the
-    // surrounding folded expression tree unchanged.
-    let finalExpr = SwapRewriter(targetId: infixExpr.id, replacement: newInfix).visit(foldedExpr)
+    // Calculate the absolute range of the targeted expression in the original source
+    // by applying its relative offset from the detached folded tree.
+    let rootOffset = exprToFold.position.utf8Offset
+    let foldedRootOffset = foldedExpr.position.utf8Offset
+
+    let startOffset = rootOffset + (infixExpr.position.utf8Offset - foldedRootOffset)
+    let endOffset = rootOffset + (infixExpr.endPosition.utf8Offset - foldedRootOffset)
+
+    let editRange = AbsolutePosition(utf8Offset: startOffset)..<AbsolutePosition(utf8Offset: endOffset)
 
     return [
       SourceEdit(
-        range: exprToFold.position..<exprToFold.endPosition,
-        replacement: finalExpr.description
+        range: editRange,
+        replacement: newInfix.description
       )
     ]
-  }
-}
-
-/// Finds the InfixOperatorExprSyntax in the folded tree that corresponds
-/// to the operator selected in the original source expression.
-private final class OperatorMatchFinder: SyntaxVisitor {
-  var found: InfixOperatorExprSyntax?
-  let targetText: String
-  let targetRelativeOffset: Int
-  let rootPosition: AbsolutePosition
-
-  init(targetText: String, targetRelativeOffset: Int, rootPosition: AbsolutePosition) {
-    self.targetText = targetText
-    self.targetRelativeOffset = targetRelativeOffset
-    self.rootPosition = rootPosition
-    super.init(viewMode: .sourceAccurate)
-  }
-
-  override func visit(_ node: InfixOperatorExprSyntax) -> SyntaxVisitorContinueKind {
-    guard let binOp = node.operator.as(BinaryOperatorExprSyntax.self) else {
-      return .visitChildren
-    }
-
-    let currentText = binOp.operator.text
-    let currentPosition = binOp.operator.positionAfterSkippingLeadingTrivia
-
-    let relativeOffset = currentPosition.utf8Offset - rootPosition.utf8Offset
-    if currentText == targetText && relativeOffset == targetRelativeOffset {
-      self.found = node
-      return .skipChildren
-    }
-    return .visitChildren
-  }
-}
-
-/// Replaces a single infix expression identified by SyntaxIdentifier.
-private class SwapRewriter: SyntaxRewriter {
-  let targetId: SyntaxIdentifier
-  let newInfix: InfixOperatorExprSyntax
-
-  init(targetId: SyntaxIdentifier, replacement: InfixOperatorExprSyntax) {
-    self.targetId = targetId
-    self.newInfix = replacement
-  }
-
-  override func visit(_ node: InfixOperatorExprSyntax) -> ExprSyntax {
-    if node.id == targetId {
-      return ExprSyntax(newInfix)
-    }
-    return super.visit(node)
   }
 }

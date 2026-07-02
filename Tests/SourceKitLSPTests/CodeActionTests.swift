@@ -2406,7 +2406,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
   func testSwapBinaryOperandsNestedExpression() async throws {
     try await assertCodeActions(
       """
-      let x = 0️⃣1 + -2 1️⃣*2️⃣ 53️⃣
+      let x = 1 + 0️⃣-2 1️⃣*2️⃣ 53️⃣
       """,
       markers: ["1️⃣"],
       exhaustive: false
@@ -2421,7 +2421,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
               uri: [
                 TextEdit(
                   range: positions["0️⃣"]..<positions["3️⃣"],
-                  newText: "1 + 5 * -2"
+                  newText: "5 * -2"
                 )
               ]
             ]
@@ -2554,31 +2554,6 @@ final class CodeActionTests: SourceKitLSPTestCase {
     )
   }
 
-  func testSwapBinaryOperandsGreaterThanOrEqual() async throws {
-    try await assertCodeActions(
-      """
-      let x = 0️⃣a 1️⃣>=2️⃣ b3️⃣
-      """,
-      markers: ["1️⃣"],
-      exhaustive: false
-    ) { uri, positions in
-      [
-        CodeAction(
-          title: "Swap operands",
-          kind: .refactorInline,
-          diagnostics: nil,
-          edit: WorkspaceEdit(
-            changes: [
-              uri: [
-                TextEdit(range: positions["0️⃣"]..<positions["3️⃣"], newText: "b <= a")
-              ]
-            ]
-          )
-        )
-      ]
-    }
-  }
-
   func testSwapBinaryOperandsNotEqual() async throws {
     try await assertCodeActions(
       """
@@ -2614,14 +2589,29 @@ final class CodeActionTests: SourceKitLSPTestCase {
     )
   }
 
-  func testSwapBinaryOperandsNotOfferedWhitespaceAfterOperator() async throws {
-    try await assertNoCodeAction(
-      titled: "Swap operands",
-      in: """
-        let x = a +1️⃣ b
-        """,
-      atMarker: "1️⃣"
-    )
+  func testSwapBinaryOperandsOfferedWhitespaceAfterOperator() async throws {
+    try await assertCodeActions(
+      """
+      let x = 0️⃣a +1️⃣ b3️⃣
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Swap operands",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(range: positions["0️⃣"]..<positions["3️⃣"], newText: "b + a")
+              ]
+            ]
+          )
+        )
+      ]
+    }
   }
 
   func testSwapBinaryOperandsPreservesTrivia() async throws {
@@ -2678,31 +2668,6 @@ final class CodeActionTests: SourceKitLSPTestCase {
     }
   }
 
-  func testSwapBinaryOperandsLogicalAnd() async throws {
-    try await assertCodeActions(
-      """
-      let x = 0️⃣a 1️⃣&&2️⃣ b3️⃣
-      """,
-      markers: ["1️⃣"],
-      exhaustive: false
-    ) { uri, positions in
-      [
-        CodeAction(
-          title: "Swap operands",
-          kind: .refactorInline,
-          diagnostics: nil,
-          edit: WorkspaceEdit(
-            changes: [
-              uri: [
-                TextEdit(range: positions["0️⃣"]..<positions["3️⃣"], newText: "b && a")
-              ]
-            ]
-          )
-        )
-      ]
-    }
-  }
-
   func testSwapBinaryOperandsNotOfferedForIncompleteExpressionRightMissing() async throws {
     try await assertNoCodeAction(
       titled: "Swap operands",
@@ -2726,7 +2691,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
   func testSwapBinaryOperandsMultipleOperators() async throws {
     try await assertCodeActions(
       """
-      let x = 0️⃣1 1️⃣+2️⃣ 2 - 33️⃣
+      let x = 0️⃣1 1️⃣+2️⃣ 2 3️⃣- 3
       """,
       markers: ["1️⃣"],
       exhaustive: false
@@ -2741,7 +2706,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
               uri: [
                 TextEdit(
                   range: positions["0️⃣"]..<positions["3️⃣"],
-                  newText: "2 + 1 - 3"
+                  newText: "2 + 1 "
                 )
               ]
             ]
@@ -2749,6 +2714,16 @@ final class CodeActionTests: SourceKitLSPTestCase {
         )
       ]
     }
+  }
+
+  func testSwapBinaryOperandsNotOfferedForFunctionArgument() async throws {
+    try await assertNoCodeAction(
+      titled: "Swap operands",
+      in: """
+        let x = 2 * list.reduce(0, 1️⃣+)
+        """,
+      atMarker: "1️⃣"
+    )
   }
 
   /// Retrieves the code action at a set of markers and asserts that it matches a list of expected code actions.

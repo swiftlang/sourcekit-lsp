@@ -88,3 +88,11 @@ private func tokenForRefactoring(
   }
   return token
 }
+
+extension TokenSyntax {
+  /// Returns whether the given position is within the token's text content,
+  /// inclusive of the start and end boundaries, ignoring leading and trailing trivia.
+  package func containsContent(at position: AbsolutePosition) -> Bool {
+    return (positionAfterSkippingLeadingTrivia...endPositionBeforeTrailingTrivia).contains(position)
+  }
+}
