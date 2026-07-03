@@ -32,8 +32,8 @@ package let allSyntaxCodeActions: [any SyntaxCodeActionProvider.Type] = {
     OpaqueParameterToGeneric.self,
     RemoveRedundantParentheses.self,
     RemoveSeparatorsFromIntegerLiteral.self,
-    ConvertCommentToDocComment.s
-    GenerateEnumAssociatedValueAccessors.self,elf,
+    ConvertCommentToDocComment.self,
+    GenerateEnumAssociatedValueAccessors.self,
   ]
   #if !NO_SWIFTPM_DEPENDENCY
   result.append(PackageManifestEdits.self)
