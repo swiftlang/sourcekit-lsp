@@ -248,6 +248,17 @@ extension ConvertZeroParameterFunctionToComputedProperty: SyntaxRefactoringCodeA
   }
 }
 
+extension FlipOperands: SyntaxRefactoringCodeActionProvider {
+  package static var title: String { "Flip operands" }
+
+  static func nodeToRefactor(in scope: SyntaxCodeActionScope) -> SequenceExprSyntax? {
+    return scope.innermostNodeContainingRange?.findParentOfSelf(
+      ofType: SequenceExprSyntax.self,
+      stoppingIf: { $0.is(CodeBlockSyntax.self) || $0.is(MemberBlockSyntax.self) }
+    )
+  }
+}
+
 //==========================================================================//
 // IMPORTANT: If you are tempted to add a new refactoring action here       //
 // please insert it in alphabetical order above                             //
