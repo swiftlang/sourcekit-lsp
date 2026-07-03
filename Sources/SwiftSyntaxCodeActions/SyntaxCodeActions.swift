@@ -27,6 +27,7 @@ package let allSyntaxCodeActions: [any SyntaxCodeActionProvider.Type] = {
     ConvertJSONToCodableStruct.self,
     ConvertStringConcatenationToStringInterpolation.self,
     ConvertZeroParameterFunctionToComputedProperty.self,
+    FlipOperands.self,
     FormatRawStringLiteral.self,
     MigrateToNewIfLetSyntax.self,
     OpaqueParameterToGeneric.self,
