@@ -1,0 +1,108 @@
+//===----------------------------------------------------------------------===//
+//
+// This source file is part of the Swift.org open source project
+//
+// Copyright (c) 2014 - 2026 Apple Inc. and the Swift project authors
+// Licensed under Apache License v2.0 with Runtime Library Exception
+//
+// See https://swift.org/LICENSE.txt for license information
+// See https://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
+//
+//===----------------------------------------------------------------------===//
+
+import SwiftRefactor
+package import SwiftSyntax
+
+/// Swaps the operands of a binary expression, flipping comparison operators to preserve semantics.
+///
+/// For comparison operators, the operator direction is also flipped:
+///
+/// ## Before
+///
+/// ```swift
+/// if 5 < count {
+///     process()
+/// }
+/// ```
+///
+/// ## After
+///
+/// ```swift
+/// if count > 5 {
+///     process()
+/// }
+/// ```
+///
+/// For commutative operators, only the operands are swapped:
+///
+/// ## Before
+///
+/// ```swift
+/// let sum = 1 + value
+/// ```
+///
+/// ## After
+///
+/// ```swift
+/// let sum = value + 1
+/// ```
+package struct FlipOperands: SyntaxRefactoringProvider {
+  /// Maps comparison operators to their direction-flipped equivalents.
+  static let comparisonFlipMap: [String: String] = [
+    "<": ">",
+    ">": "<",
+    "<=": ">=",
+    ">=": "<=",
+  ]
+
+  /// Commutative binary operators for which swapping operands preserves semantics.
+  static let commutativeOperators: Set<String> = [
+    "+", "*", "==", "!=", "===", "!==", "&&", "||", "&", "|", "^",
+  ]
+
+  package static func refactor(
+    syntax: SequenceExprSyntax,
+    in context: Void
+  ) throws -> SequenceExprSyntax {
+    guard !syntax.hasError else {
+      throw RefactoringNotApplicableError("syntax has errors")
+    }
+
+    let elements = Array(syntax.elements)
+
+    // Only handle simple binary expressions: [left, binaryOp, right]
+    guard elements.count == 3,
+      let binOp = elements[1].as(BinaryOperatorExprSyntax.self)
+    else {
+      throw RefactoringNotApplicableError("not a simple binary expression")
+    }
+
+    let opText = binOp.operator.text
+
+    let newOpText: String
+    if let flipped = comparisonFlipMap[opText] {
+      newOpText = flipped
+    } else if commutativeOperators.contains(opText) {
+      newOpText = opText
+    } else {
+      throw RefactoringNotApplicableError("'\(opText)' cannot be flipped without changing semantics")
+    }
+
+    let left = elements[0]
+    let right = elements[2]
+
+    // Swap the operands, preserving the original leading/trailing trivia positions.
+    let newLeft = right
+      .with(\.leadingTrivia, left.leadingTrivia)
+      .with(\.trailingTrivia, left.trailingTrivia)
+    let newRight = left
+      .with(\.leadingTrivia, right.leadingTrivia)
+      .with(\.trailingTrivia, right.trailingTrivia)
+    let newOp = binOp.with(\.operator.tokenKind, .binaryOperator(newOpText))
+
+    return syntax.with(
+      \.elements,
+      ExprListSyntax([newLeft, ExprSyntax(newOp), newRight])
+    )
+  }
+}
