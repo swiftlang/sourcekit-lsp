@@ -109,7 +109,7 @@ extension [SourceEdit] {
 
 // MARK: - Helper Extensions
 
-private extension TypeSyntax {
+extension TypeSyntax {
   var isVoid: Bool {
     switch self.as(TypeSyntaxEnum.self) {
     case .identifierType(let identifierType) where identifierType.name.text == "Void":
@@ -119,6 +119,22 @@ private extension TypeSyntax {
     default:
       return false
     }
+  }
+}
+
+extension TokenSyntax {
+  var trivia: Trivia {
+    return leadingTrivia + trailingTrivia
+  }
+}
+
+extension Trivia {
+  var droppingLeadingWhitespace: Trivia {
+    return Trivia(pieces: self.drop(while: \.isWhitespace))
+  }
+
+  var droppingTrailingWhitespace: Trivia {
+    return Trivia(pieces: self.reversed().drop(while: \.isWhitespace).reversed())
   }
 }
 

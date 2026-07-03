@@ -50,6 +50,10 @@ private var hostTriple: Triple {
 }
 
 fileprivate extension SourceKitLSPOptions {
+  static var forTestingNativeSwiftPMBuildServer: Self {
+    SourceKitLSPOptions(swiftPM: SwiftPMOptions(buildSystem: .native))
+  }
+
   static var forTestingExperimentalSwiftPMBuildServer: Self {
     SourceKitLSPOptions(swiftPM: SwiftPMOptions(buildSystem: .swiftbuild))
   }
@@ -92,6 +96,11 @@ let swiftPMHasExperimentalBuildServer: Bool = {
   try! sema.waitOrThrow()
   return try! result.get()
 }()
+
+private let buildServerOptionsToTest: [SourceKitLSPOptions] =
+  swiftPMHasExperimentalBuildServer
+  ? [.forTestingNativeSwiftPMBuildServer, .forTestingExperimentalSwiftPMBuildServer]
+  : [.forTestingNativeSwiftPMBuildServer]
 
 @Suite(.serialized, .configureLogging)
 struct SwiftPMBuildServerTests {
@@ -178,10 +187,7 @@ struct SwiftPMBuildServerTests {
     }
   }
 
-  @Test(
-    arguments: swiftPMHasExperimentalBuildServer
-      ? [SourceKitLSPOptions(), .forTestingExperimentalSwiftPMBuildServer] : [SourceKitLSPOptions()]
-  )
+  @Test(arguments: buildServerOptionsToTest)
   func testBasicSwiftArgs(options: SourceKitLSPOptions) async throws {
     try await withTestScratchDir { tempDir in
       try FileManager.default.createFiles(
@@ -327,8 +333,8 @@ struct SwiftPMBuildServerTests {
     }
   }
 
-  @Test
-  func testBuildSetup() async throws {
+  @Test(arguments: buildServerOptionsToTest)
+  func testBuildSetup(options: SourceKitLSPOptions) async throws {
     try await withTestScratchDir { tempDir in
       try FileManager.default.createFiles(
         root: tempDir,
@@ -346,17 +352,18 @@ struct SwiftPMBuildServerTests {
       )
       let packageRoot = tempDir.appending(component: "pkg")
 
-      let options = SourceKitLSPOptions.SwiftPMOptions(
+      let swiftPMOptions = SourceKitLSPOptions.SwiftPMOptions(
         configuration: .release,
         scratchPath: try packageRoot.appending(component: "non_default_build_path").filePath,
         cCompilerFlags: ["-m32"],
-        swiftCompilerFlags: ["-typecheck"]
+        swiftCompilerFlags: ["-typecheck"],
+        buildSystem: options.swiftPMOrDefault.buildSystem
       )
 
       let buildServerManager = await BuildServerManager(
         buildServerSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
-        options: SourceKitLSPOptions(swiftPM: options),
+        options: SourceKitLSPOptions(swiftPM: swiftPMOptions),
         connectionToClient: DummyBuildServerManagerConnectionToClient(),
         buildServerHooks: BuildServerHooks(),
         createMainFilesProvider: { _, _ in nil }
@@ -423,8 +430,8 @@ struct SwiftPMBuildServerTests {
     }
   }
 
-  @Test
-  func testMultiFileSwift() async throws {
+  @Test(arguments: buildServerOptionsToTest)
+  func testMultiFileSwift(options: SourceKitLSPOptions) async throws {
     try await withTestScratchDir { tempDir in
       try FileManager.default.createFiles(
         root: tempDir,
@@ -444,7 +451,7 @@ struct SwiftPMBuildServerTests {
       let buildServerManager = await BuildServerManager(
         buildServerSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
-        options: SourceKitLSPOptions(),
+        options: options,
         connectionToClient: DummyBuildServerManagerConnectionToClient(),
         buildServerHooks: BuildServerHooks(),
         createMainFilesProvider: { _, _ in nil }
@@ -479,8 +486,8 @@ struct SwiftPMBuildServerTests {
     }
   }
 
-  @Test
-  func testMultiTargetSwift() async throws {
+  @Test(arguments: buildServerOptionsToTest)
+  func testMultiTargetSwift(options: SourceKitLSPOptions) async throws {
     try await withTestScratchDir { tempDir in
       try FileManager.default.createFiles(
         root: tempDir,
@@ -507,7 +514,7 @@ struct SwiftPMBuildServerTests {
       let buildServerManager = await BuildServerManager(
         buildServerSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
-        options: SourceKitLSPOptions(),
+        options: options,
         connectionToClient: DummyBuildServerManagerConnectionToClient(),
         buildServerHooks: BuildServerHooks(),
         createMainFilesProvider: { _, _ in nil }
@@ -529,15 +536,12 @@ struct SwiftPMBuildServerTests {
       ).compilerArguments
       expectArgumentsContain(try aswift.filePath, arguments: arguments)
       expectArgumentsDoNotContain(try bswift.filePath, arguments: arguments)
-      expectArgumentsContain(
-        "-Xcc",
-        "-I",
-        "-Xcc",
-        try packageRoot
-          .appending(components: "Sources", "libC", "include")
-          .filePath,
-        arguments: arguments
-      )
+      let libCInclude = try packageRoot.appending(components: "Sources", "libC", "include").filePath
+      if options.swiftPMOrDefault.buildSystem == .swiftbuild {
+        expectArgumentsContain("-I\(libCInclude)", arguments: arguments)
+      } else {
+        expectArgumentsContain("-Xcc", "-I", "-Xcc", libCInclude, arguments: arguments)
+      }
 
       let argumentsB = try #require(
         await buildServerManager.buildSettingsInferredFromMainFile(
@@ -548,18 +552,14 @@ struct SwiftPMBuildServerTests {
       ).compilerArguments
       expectArgumentsContain(try bswift.filePath, arguments: argumentsB)
       expectArgumentsDoNotContain(try aswift.filePath, arguments: argumentsB)
-      expectArgumentsDoNotContain(
-        "-I",
-        try packageRoot
-          .appending(components: "Sources", "libC", "include")
-          .filePath,
-        arguments: argumentsB
+      #expect(
+        !argumentsB.contains { $0.contains(libCInclude) },
       )
     }
   }
 
-  @Test
-  func testUnknownFile() async throws {
+  @Test(arguments: buildServerOptionsToTest)
+  func testUnknownFile(options: SourceKitLSPOptions) async throws {
     try await withTestScratchDir { tempDir in
       try FileManager.default.createFiles(
         root: tempDir,
@@ -580,7 +580,7 @@ struct SwiftPMBuildServerTests {
       let buildServerManager = await BuildServerManager(
         buildServerSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
-        options: SourceKitLSPOptions(),
+        options: options,
         connectionToClient: DummyBuildServerManagerConnectionToClient(),
         buildServerHooks: BuildServerHooks(),
         createMainFilesProvider: { _, _ in nil }
@@ -617,8 +617,8 @@ struct SwiftPMBuildServerTests {
     }
   }
 
-  @Test
-  func testBasicCXXArgs() async throws {
+  @Test(arguments: buildServerOptionsToTest)
+  func testBasicCXXArgs(options: SourceKitLSPOptions) async throws {
     try await withTestScratchDir { tempDir in
       try FileManager.default.createFiles(
         root: tempDir,
@@ -641,7 +641,7 @@ struct SwiftPMBuildServerTests {
       let buildServerManager = await BuildServerManager(
         buildServerSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
-        options: SourceKitLSPOptions(),
+        options: options,
         connectionToClient: DummyBuildServerManagerConnectionToClient(),
         buildServerHooks: BuildServerHooks(),
         createMainFilesProvider: { _, _ in nil }
@@ -676,37 +676,61 @@ struct SwiftPMBuildServerTests {
         expectArgumentsContain("-target", arguments: args)  // Only one!
         #if os(macOS)
         let versionString = PackageModel.Platform.macOS.oldestSupportedVersion.versionString
-        expectArgumentsContain(
-          "-target",
-          try await hostTriple.tripleString(forPlatformVersion: versionString),
-          arguments: args
-        )
+        if options.swiftPMOrDefault.buildSystem == .swiftbuild {
+          expectArgumentsContain(
+            "-target",
+            // Account for differences in macOS naming canonicalization
+            try await hostTriple.tripleString(forPlatformVersion: versionString).replacing("macosx", with: "macos"),
+            arguments: args
+          )
+        } else {
+          expectArgumentsContain(
+            "-target",
+            try await hostTriple.tripleString(forPlatformVersion: versionString),
+            arguments: args
+          )
+        }
         expectArgumentsContain("-isysroot", arguments: args)
-        expectArgumentsContain("-F", arguments: args, allowMultiple: true)
+        if options.swiftPMOrDefault.buildSystem == .swiftbuild {
+          // Swift Build passes framework search paths as combined `-F<path>` arguments.
+          #expect(args.contains { $0.hasPrefix("-F") })
+        } else {
+          expectArgumentsContain("-F", arguments: args, allowMultiple: true)
+        }
         #else
         expectArgumentsContain("-target", try await hostTriple.tripleString, arguments: args)
         #endif
 
-        expectArgumentsContain(
-          "-I",
+        let includePath =
           try packageRoot
-            .appending(components: "Sources", "lib", "include")
-            .filePath,
-          arguments: args
-        )
+          .appending(components: "Sources", "lib", "include")
+          .filePath
+        if options.swiftPMOrDefault.buildSystem == .swiftbuild {
+          // Swift Build passes the include path as a single combined `-I<path>` argument.
+          expectArgumentsContain("-I\(includePath)", arguments: args)
+        } else {
+          expectArgumentsContain("-I", includePath, arguments: args)
+        }
         expectArgumentsDoNotContain("-I", try build.filePath, arguments: args)
         expectArgumentsDoNotContain(try bcxx.filePath, arguments: args)
 
-        URL(fileURLWithPath: try build.appending(components: "lib.build", "a.cpp.o").filePath)
-          .withUnsafeFileSystemRepresentation {
-            expectArgumentsContain("-o", String(cString: $0!), arguments: args)
-          }
+        if options.swiftPMOrDefault.buildSystem == .swiftbuild {
+          #expect(
+            args.contains("-o") && args.contains { $0.hasSuffix(".o") },
+            "Expected an object-file output in \(args)"
+          )
+        } else {
+          URL(fileURLWithPath: try build.appending(components: "lib.build", "a.cpp.o").filePath)
+            .withUnsafeFileSystemRepresentation {
+              expectArgumentsContain("-o", String(cString: $0!), arguments: args)
+            }
+        }
       }
     }
   }
 
-  @Test
-  func testDeploymentTargetSwift() async throws {
+  @Test(arguments: buildServerOptionsToTest)
+  func testDeploymentTargetSwift(options: SourceKitLSPOptions) async throws {
     try await withTestScratchDir { tempDir in
       try FileManager.default.createFiles(
         root: tempDir,
@@ -726,7 +750,7 @@ struct SwiftPMBuildServerTests {
       let buildServerManager = await BuildServerManager(
         buildServerSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
-        options: SourceKitLSPOptions(),
+        options: options,
         connectionToClient: DummyBuildServerManagerConnectionToClient(),
         buildServerHooks: BuildServerHooks(),
         createMainFilesProvider: { _, _ in nil }
@@ -746,19 +770,28 @@ struct SwiftPMBuildServerTests {
       expectArgumentsContain("-target", arguments: arguments)  // Only one!
 
       #if os(macOS)
-      try await expectArgumentsContain(
-        "-target",
-        hostTriple.tripleString(forPlatformVersion: "13.0"),
-        arguments: arguments
-      )
+      if options.swiftPMOrDefault.buildSystem == .swiftbuild {
+        try await expectArgumentsContain(
+          "-target",
+          // Account for differences in macOS naming canonicalization
+          hostTriple.tripleString(forPlatformVersion: "13.0").replacing("macosx", with: "macos"),
+          arguments: arguments
+        )
+      } else {
+        try await expectArgumentsContain(
+          "-target",
+          hostTriple.tripleString(forPlatformVersion: "13.0"),
+          arguments: arguments
+        )
+      }
       #else
       expectArgumentsContain("-target", try await hostTriple.tripleString, arguments: arguments)
       #endif
     }
   }
 
-  @Test
-  func testSymlinkInWorkspaceSwift() async throws {
+  @Test(arguments: buildServerOptionsToTest)
+  func testSymlinkInWorkspaceSwift(options: SourceKitLSPOptions) async throws {
     try await withTestScratchDir { tempDir in
       try FileManager.default.createFiles(
         root: tempDir,
@@ -787,7 +820,7 @@ struct SwiftPMBuildServerTests {
       let buildServerManager = await BuildServerManager(
         buildServerSpec: buildServerSpec,
         toolchainRegistry: .forTesting,
-        options: SourceKitLSPOptions(),
+        options: options,
         connectionToClient: DummyBuildServerManagerConnectionToClient(),
         buildServerHooks: BuildServerHooks(),
         createMainFilesProvider: { _, _ in nil }
@@ -835,8 +868,8 @@ struct SwiftPMBuildServerTests {
     }
   }
 
-  @Test
-  func testSymlinkInWorkspaceCXX() async throws {
+  @Test(arguments: buildServerOptionsToTest)
+  func testSymlinkInWorkspaceCXX(options: SourceKitLSPOptions) async throws {
     try await withTestScratchDir { tempDir in
       try FileManager.default.createFiles(
         root: tempDir,
@@ -873,7 +906,7 @@ struct SwiftPMBuildServerTests {
       let buildServerManager = await BuildServerManager(
         buildServerSpec: buildServerSpec,
         toolchainRegistry: .forTesting,
-        options: SourceKitLSPOptions(),
+        options: options,
         connectionToClient: DummyBuildServerManagerConnectionToClient(),
         buildServerHooks: BuildServerHooks(),
         createMainFilesProvider: { _, _ in nil }
@@ -895,8 +928,8 @@ struct SwiftPMBuildServerTests {
     }
   }
 
-  @Test
-  func testSwiftDerivedSources() async throws {
+  @Test(arguments: buildServerOptionsToTest)
+  func testSwiftDerivedSources(options: SourceKitLSPOptions) async throws {
     try await withTestScratchDir { tempDir in
       try FileManager.default.createFiles(
         root: tempDir,
@@ -917,7 +950,7 @@ struct SwiftPMBuildServerTests {
       let buildServerManager = await BuildServerManager(
         buildServerSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
-        options: SourceKitLSPOptions(),
+        options: options,
         connectionToClient: DummyBuildServerManagerConnectionToClient(),
         buildServerHooks: BuildServerHooks(),
         createMainFilesProvider: { _, _ in nil }

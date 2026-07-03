@@ -3,6 +3,7 @@ add_library(SwiftLanguageService STATIC
   AdjustPositionToStartOfIdentifier.swift
   ClosureCompletionFormat.swift
   CodeCompletion.swift
+  CodeCompletionContext.swift
   CodeCompletionSession.swift
   CommentXML.swift
   CursorInfo.swift

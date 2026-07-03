@@ -540,6 +540,19 @@ var targets: [Target] = [
     exclude: ["CMakeLists.txt"],
   ),
 
+  .testTarget(
+    name: "SwiftSyntaxCodeActionsTests",
+    dependencies: [
+      "SwiftSyntaxCodeActions"
+    ]
+      + swiftSyntaxDependencies([
+        "SwiftParser",
+        "SwiftRefactor",
+        "SwiftSyntax",
+        "SwiftSyntaxBuilder",
+      ]),
+  ),
+
   // MARK: SwiftSourceKitClientPlugin
 
   .target(

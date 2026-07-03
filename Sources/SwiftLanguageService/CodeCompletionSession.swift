@@ -140,7 +140,7 @@ class CodeCompletionSession {
     options: SourceKitLSPOptions,
     indentationWidth: Trivia?,
     completionPosition: Position,
-    cursorPosition: Position,
+    requestContext: CompletionRequestContext,
     compileCommand: SwiftCompileCommand?,
     clientCapabilities: ClientCapabilities,
     filterText: String
@@ -155,7 +155,7 @@ class CodeCompletionSession {
         if isCompatible {
           return try await session.update(
             filterText: filterText,
-            position: cursorPosition,
+            requestContext: requestContext,
             in: snapshot
           )
         }
@@ -174,7 +174,7 @@ class CodeCompletionSession {
         clientCapabilities: clientCapabilities
       )
       completionSessions[ObjectIdentifier(sourcekitd)] = session
-      return try await session.open(filterText: filterText, position: cursorPosition, in: snapshot)
+      return try await session.open(filterText: filterText, requestContext: requestContext, in: snapshot)
     }
 
     return try await task.valuePropagatingCancellation
@@ -226,6 +226,7 @@ class CodeCompletionSession {
   private let position: Position
   private let compileCommand: SwiftCompileCommand?
   private let clientSupportsSnippets: Bool
+  private let clientSupportsInsertReplaceEdits: Bool
   private let clientSupportsDocumentationResolve: Bool
   private var state: State = .closed
 
@@ -254,6 +255,8 @@ class CodeCompletionSession {
     self.position = position
     self.compileCommand = compileCommand
     self.clientSupportsSnippets = clientCapabilities.textDocument?.completion?.completionItem?.snippetSupport ?? false
+    self.clientSupportsInsertReplaceEdits =
+      clientCapabilities.textDocument?.completion?.completionItem?.insertReplaceSupport ?? false
     self.clientSupportsDocumentationResolve =
       clientCapabilities.textDocument?.completion?.completionItem?.resolveSupport?.properties.contains("documentation")
       ?? false
@@ -261,7 +264,7 @@ class CodeCompletionSession {
 
   private func open(
     filterText: String,
-    position cursorPosition: Position,
+    requestContext: CompletionRequestContext,
     in snapshot: DocumentSnapshot
   ) async throws -> CompletionList {
     logger.info("Opening code completion session: \(self.description) filter=\(filterText)")
@@ -292,14 +295,14 @@ class CodeCompletionSession {
       completions,
       in: snapshot,
       completionPos: self.position,
-      requestPosition: cursorPosition,
+      requestContext: requestContext,
       isIncomplete: true
     )
   }
 
   private func update(
     filterText: String,
-    position: Position,
+    requestContext: CompletionRequestContext,
     in snapshot: DocumentSnapshot
   ) async throws -> CompletionList {
     logger.info("Updating code completion session: \(self.description) filter=\(filterText)")
@@ -321,7 +324,7 @@ class CodeCompletionSession {
       completions,
       in: snapshot,
       completionPos: self.position,
-      requestPosition: position,
+      requestContext: requestContext,
       isIncomplete: true
     )
   }
@@ -454,7 +457,7 @@ class CodeCompletionSession {
     _ completions: SKDResponseArray,
     in snapshot: DocumentSnapshot,
     completionPos: Position,
-    requestPosition: Position,
+    requestContext: CompletionRequestContext,
     isIncomplete: Bool
   ) async -> CompletionList {
     let sourcekitd = self.sourcekitd
@@ -477,38 +480,28 @@ class CodeCompletionSession {
         insertText = multilineFormatted
       }
 
-      let text = rewriteSourceKitPlaceholders(in: insertText, clientSupportsSnippets: clientSupportsSnippets)
-      let isInsertTextSnippet = clientSupportsSnippets && text != insertText
-
       let kind: sourcekitd_api_uid_t? = value[sourcekitd.keys.kind]
       let completionKind = kind?.asCompletionItemKind(sourcekitd.values) ?? .value
 
-      // Check if this is a keyword that should be converted to a snippet. If so, prefer the snippet text
-      // as the completion insert text and only compute the `TextEdit` once below.
-      var isKeywordSnippet = false
-      if completionKind == .keyword, let snippetText = keywordSnippet(for: name) {
-        insertText = snippetText
-        isKeywordSnippet = true
-      } else {
-        insertText = text
-      }
+      var insertTextFormat: InsertTextFormat = .plain
 
-      var textEdit = self.computeCompletionTextEdit(
+      let editRangeStart = computeCompletionTextEditStart(
         completionPos: completionPos,
-        requestPosition: requestPosition,
+        requestPosition: requestContext.cursorPosition,
         utf8CodeUnitsToErase: utf8CodeUnitsToErase,
-        newText: insertText,
         snapshot: snapshot
       )
+      var insertEnd = requestContext.cursorPosition
+      var replaceEnd = requestContext.identifierEndPosition
 
       if completionKind == .method || completionKind == .function, name.first == "(", name.last == ")" {
         // sourcekitd makes an assumption that the editor inserts a matching `)` when the user types a `(` to start
         // argument completions and thus does not contain the closing parentheses in the insert text. Since we can't
         // make that assumption of any editor using SourceKit-LSP, add the closing parenthesis when we are completing
         // function arguments, indicated by the completion kind and the completion's name being wrapped in parentheses.
-        textEdit.newText += ")"
+        insertText += ")"
 
-        let requestIndex = snapshot.index(of: requestPosition)
+        let requestIndex = snapshot.index(of: requestContext.cursorPosition)
         if snapshot.text[requestIndex] == ")",
           let nextIndex = snapshot.text.index(requestIndex, offsetBy: 1, limitedBy: snapshot.text.endIndex)
         {
@@ -519,8 +512,55 @@ class CodeCompletionSession {
           // parenthesis but no new completion request is sent since no character has been inserted (only the implicitly
           // inserted `)` has been overwritten). VS Code will now delete anything from the position that the completion
           // request was run, leaving the user without the closing `)`.
-          textEdit.range = textEdit.range.lowerBound..<snapshot.position(of: nextIndex)
+          insertEnd = snapshot.position(of: nextIndex)
         }
+      }
+
+      let followingCallContext = requestContext.followingCallContext
+      // .value is for macros that are completed with their call pattern, e.g. `#myMacro(x: , y: )`.
+      if [.method, .function, .constructor, .enumMember, .value].contains(completionKind),
+        // This is check is only a heuristic to avoid processing completions of kind .value other than macros
+        insertText.contains("(") || insertText.contains("{")
+      {
+        // If the completion is a call and the call is followed by either non-empty parentheses or a trailing closure,
+        // trim the argument list from the completion insert text to prevent duplicated argument lists in the editor.
+        // For example, if the completion item is `foo(x: , y: )` and the user invoked completion on `fo|(x: 5, y: 3)`,
+        // then we want to trim the `(x: , y: )` from the completion insert text since those parentheses are already
+        // present in the code and the user likely wants to keep them instead of ending up with
+        // `foo(x: , y: )(x: 5, y: 3)`.
+        // Note, that this currently does not look at the actual contents between the parentheses or braces to determine
+        // whether the labels match
+        switch followingCallContext {
+        case .nonEmptyParens, .trailingClosure:
+          insertText = trimCallPatternIfPresent(in: insertText, context: followingCallContext)
+        case let .emptyParens(positionAfterClosingParen):
+          // When autocompleting a function call and empty parentheses are already present after the cursor, make sure to
+          // overwrite those parentheses with the completion's insert text, which also contains parentheses. This is
+          // needed to prevent the user from ending up with duplicated parentheses when accepting a completion item that
+          // contains a call pattern, e.g. `foo(x: 5)()`.
+          if replaceEnd != nil {
+            // The completion was started from the middle of an existing identifier, e.g. `fo|o()`.
+            replaceEnd = positionAfterClosingParen
+          } else {
+            // The completion was started from a position where there is no existing identifier, e.g. `fo|()`.
+            insertEnd = positionAfterClosingParen
+          }
+        default:
+          break
+        }
+      }
+
+      // Check if this is a keyword that should be converted to a snippet. If so, prefer the snippet text
+      // as the completion insert text and only compute the `TextEdit` once below.
+      if completionKind == .keyword, let snippetText = keywordSnippet(for: name) {
+        insertText = snippetText
+        insertTextFormat = .snippet
+      } else {
+        let text = rewriteSourceKitPlaceholders(in: insertText, clientSupportsSnippets: clientSupportsSnippets)
+        if clientSupportsSnippets && text != insertText {
+          insertTextFormat = .snippet
+        }
+        insertText = text
       }
 
       if utf8CodeUnitsToErase != 0, filterName != nil {
@@ -528,7 +568,7 @@ class CodeCompletionSession {
         // we need to prepend the deleted text to filterText.
         // This also works around a behaviour in VS Code that causes completions to not show up
         // if a '.' is being replaced for Optional completion.
-        let filterPrefix = snapshot.text[snapshot.indexRange(of: textEdit.range.lowerBound..<completionPos)]
+        let filterPrefix = snapshot.text[snapshot.indexRange(of: editRangeStart..<completionPos)]
         filterName = filterPrefix + filterName!
       }
 
@@ -578,8 +618,13 @@ class CodeCompletionSession {
         sortText: sortText,
         filterText: filterName,
         insertText: insertText,
-        insertTextFormat: (isInsertTextSnippet || isKeywordSnippet) ? .snippet : .plain,
-        textEdit: CompletionItemEdit.textEdit(textEdit),
+        insertTextFormat: insertTextFormat,
+        textEdit: createCompletionItemEdit(
+          newText: insertText,
+          start: editRangeStart,
+          insertEnd: insertEnd,
+          replaceEnd: replaceEnd
+        ),
         data: data.encodeToLSPAny()
       )
     }
@@ -638,20 +683,45 @@ class CodeCompletionSession {
     return response[sourcekitd.keys.docBrief]
   }
 
-  private func computeCompletionTextEdit(
-    completionPos: Position,
-    requestPosition: Position,
-    utf8CodeUnitsToErase: Int,
+  private func createCompletionItemEdit(
     newText: String,
-    snapshot: DocumentSnapshot
-  ) -> TextEdit {
-    let textEditRangeStart = computeCompletionTextEditStart(
-      completionPos: completionPos,
-      requestPosition: requestPosition,
-      utf8CodeUnitsToErase: utf8CodeUnitsToErase,
-      snapshot: snapshot
-    )
-    return TextEdit(range: textEditRangeStart..<requestPosition, newText: newText)
+    start: Position,
+    insertEnd: Position,
+    replaceEnd: Position?
+  ) -> CompletionItemEdit {
+    if clientSupportsInsertReplaceEdits, let replaceEnd {
+      return .insertReplaceEdit(
+        InsertReplaceEdit(
+          newText: newText,
+          insert: start..<insertEnd,
+          replace: start..<replaceEnd
+        )
+      )
+    }
+    return .textEdit(TextEdit(range: start..<insertEnd, newText: newText))
+  }
+
+  private func trimCallPatternIfPresent(
+    in insertText: String,
+    context: FollowingCallContext
+  ) -> String {
+    if case .nonEmptyParens = context, let openParenIndex = insertText.firstIndex(of: "(") {
+      return String(insertText[..<openParenIndex])
+    }
+
+    if case .trailingClosure = context, let braceIndex = insertText.firstIndex(of: "{") {
+      // For a function declaration like `func foo(x: () -> Void)`, there are two different completion patterns that
+      // SourceKit can return, they require different handling as in either case we only want to keep the `foo` part
+      if let openParenIndex = insertText.firstIndex(of: "(") {
+        // SourceKit returned `foo(x: <#{ <#T##code##Void#> }#>)`
+        return String(insertText[..<openParenIndex].trimmingCharacters(in: .whitespaces))
+      } else {
+        // SourceKit returned `foo { <#code#> }`
+        return String(insertText[..<braceIndex].trimmingCharacters(in: .whitespaces))
+      }
+    }
+
+    return insertText
   }
 
   private func computeCompletionTextEditStart(
