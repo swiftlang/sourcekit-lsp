@@ -64,8 +64,7 @@ package func definitionLocations(
   languageService: any LanguageService,
   buildServerManager: BuildServerManager?
 ) async throws -> DefinitionLocationsResult {
-  // If this symbol is a module then generate a textual interface, unless the build graph says that the module is part
-  // of the root project. SourceKit-LSP has no file/range location for a module target itself in that case.
+  // If this symbol is a module then generate a textual interface
   if symbol.kind == .module {
     if let bestLocalDeclaration = symbol.bestLocalDeclaration {
       return DefinitionLocationsResult(locations: [bestLocalDeclaration])
