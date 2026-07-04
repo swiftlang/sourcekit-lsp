@@ -20,6 +20,7 @@ add_library(SwiftSyntaxCodeActions STATIC
   MigrateToNewIfLetSyntax.swift
   OpaqueParameterToGeneric.swift
   PackageManifestEdits.swift
+  SwapBinaryOperands.swift
   RemoveRedundantParentheses.swift
   RemoveSeparatorsFromIntegerLiteral.swift
   SyntaxCodeActionProvider.swift
