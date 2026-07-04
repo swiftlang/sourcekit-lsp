@@ -2100,7 +2100,8 @@ extension SourceKitLSPServer {
           for: symbol,
           originatorUri: req.textDocument.uri,
           index: index,
-          languageService: languageService
+          languageService: languageService,
+          buildServerManager: workspace.buildServerManager
         )
         locations = definitionResult.locations
         // For dynamic symbols, also include overridden definitions

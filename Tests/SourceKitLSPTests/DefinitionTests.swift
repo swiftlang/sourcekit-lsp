@@ -627,6 +627,58 @@ class DefinitionTests: SourceKitLSPTestCase {
     XCTAssertTrue(definitions?.locations?.first?.uri.pseudoPath.hasSuffix("Lib.swiftinterface") ?? false)
   }
 
+  func testDefinitionOnRootPackageModuleDoesNotOpenGeneratedInterface() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Sources/MyLibrary/Lib.swift": """
+        public func libraryFunction() {}
+        """,
+        "Tests/MyLibraryTests/ImportMyLibraryTests.swift": """
+        @testable import 1️⃣MyLibrary
+        """,
+      ],
+      manifest: """
+        let package = Package(
+          name: "MyLibrary",
+          products: [.library(name: "MyLibrary", targets: ["MyLibrary"])],
+          targets: [
+            .target(name: "MyLibrary"),
+            .testTarget(name: "MyLibraryTests", dependencies: ["MyLibrary"]),
+          ]
+        )
+        """
+    )
+
+    let (uri, positions) = try project.openDocument("ImportMyLibraryTests.swift")
+    let definitions = try await project.testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+
+    XCTAssertNil(definitions?.locations)
+  }
+
+  func testDefinitionOnSystemModuleOpensGeneratedInterface() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+
+    let positions = testClient.openDocument(
+      """
+      import 1️⃣Foundation
+      """,
+      uri: uri
+    )
+
+    let definitions = try await testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+
+    let location = try XCTUnwrap(definitions?.locations?.first)
+    XCTAssertTrue(
+      location.uri.pseudoPath.hasSuffix(".swiftinterface"),
+      "System modules should continue to generate and open .swiftinterface files"
+    )
+  }
+
   func testDefinitionOnLiteralsShouldReturnEmpty() async throws {
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)

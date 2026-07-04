@@ -10,6 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+package import BuildServerIntegration
+@_spi(SourceKitLSP) import BuildServerProtocol
 package import IndexStoreDB
 @_spi(SourceKitLSP) package import LanguageServerProtocol
 @_spi(SourceKitLSP) import SKLogging
@@ -28,15 +30,57 @@ package struct DefinitionLocationsResult {
   }
 }
 
+/// Returns whether the build server knows `moduleName` as a root-project module.
+private func moduleIsPartOfRootProject(
+  moduleName: String,
+  buildServerManager: BuildServerManager?
+) async -> Bool? {
+  guard let buildServerManager else {
+    return nil
+  }
+  return await orLog("Determining whether module belongs to root project") {
+    let sourceFiles = try await buildServerManager.sourceFiles(includeNonBuildableFiles: false)
+    var foundDependencyModule = false
+    for (uri, sourceFileInfo) in sourceFiles.sorted(by: { $0.key.stringValue < $1.key.stringValue }) {
+      for target in sourceFileInfo.targets.sorted(by: { $0.uri.stringValue < $1.uri.stringValue }) {
+        guard await buildServerManager.moduleName(for: uri, in: target) == moduleName else {
+          continue
+        }
+        if sourceFileInfo.isPartOfRootProject {
+          return true
+        }
+        foundDependencyModule = true
+      }
+    }
+    return foundDependencyModule ? false : nil
+  }
+}
+
 /// Return the locations for jump to definition from the given `SymbolDetails`.
 package func definitionLocations(
   for symbol: SymbolDetails,
   originatorUri: DocumentURI,
   index: CheckedIndex?,
-  languageService: any LanguageService
+  languageService: any LanguageService,
+  buildServerManager: BuildServerManager?
 ) async throws -> DefinitionLocationsResult {
-  // If this symbol is a module then generate a textual interface
+  // If this symbol is a module then generate a textual interface, unless the build graph says that the module is part
+  // of the root project. SourceKit-LSP has no file/range location for a module target itself in that case.
   if symbol.kind == .module {
+    if let bestLocalDeclaration = symbol.bestLocalDeclaration {
+      return DefinitionLocationsResult(locations: [bestLocalDeclaration])
+    }
+    if let index, let usr = symbol.usr {
+      logger.info("Performing indexed jump-to-definition with USR \(usr)")
+      let occurrences = try index.definitionOrDeclarationOccurrences(ofUSR: usr)
+      if !occurrences.isEmpty {
+        return DefinitionLocationsResult(
+          locations: occurrences.compactMap { $0.location.lspLocation }.sorted(),
+          indexOccurrences: occurrences
+        )
+      }
+    }
+
     // For module symbols, prefer using systemModule information if available
     let moduleName: String
     let groupName: String?
@@ -48,6 +92,10 @@ package func definitionLocations(
       moduleName = name
       groupName = nil
     } else {
+      return DefinitionLocationsResult(locations: [])
+    }
+
+    if await moduleIsPartOfRootProject(moduleName: moduleName, buildServerManager: buildServerManager) == true {
       return DefinitionLocationsResult(locations: [])
     }
 

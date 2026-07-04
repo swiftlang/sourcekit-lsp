@@ -60,12 +60,14 @@ extension SwiftLanguageService {
       symbol = typeSymbol
     }
 
-    let index = await sourceKitLSPServer?.workspaceForDocument(uri: uri)?.index(checkedFor: .deletedFiles)
+    let workspace = await sourceKitLSPServer?.workspaceForDocument(uri: uri)
+    let index = await workspace?.index(checkedFor: .deletedFiles)
     let locations = try await SourceKitLSP.definitionLocations(
       for: symbol,
       originatorUri: uri,
       index: index,
-      languageService: self
+      languageService: self,
+      buildServerManager: workspace?.buildServerManager
     ).locations
 
     if locations.isEmpty {

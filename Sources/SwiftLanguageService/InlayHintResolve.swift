@@ -89,12 +89,14 @@ extension SwiftLanguageService {
       return nil
     }
 
-    let index = await sourceKitLSPServer?.workspaceForDocument(uri: snapshot.uri)?.index(checkedFor: .deletedFiles)
+    let workspace = await sourceKitLSPServer?.workspaceForDocument(uri: snapshot.uri)
+    let index = await workspace?.index(checkedFor: .deletedFiles)
     let locations = try await SourceKitLSP.definitionLocations(
       for: typeInfo.symbolInfo,
       originatorUri: snapshot.uri,
       index: index,
-      languageService: self
+      languageService: self,
+      buildServerManager: workspace?.buildServerManager
     ).locations
 
     return locations.only
