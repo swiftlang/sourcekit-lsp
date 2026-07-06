@@ -33,8 +33,8 @@ package struct DefinitionLocationsResult {
 
 /// Returns a source-backed definition location for `moduleName` if it is a module in the root SwiftPM package.
 ///
-/// Swift does not have a source declaration for a module. For a SwiftPM root target, the closest existing source-backed
-/// representation is the package manifest, which is the build server configuration file for SwiftPM workspaces.
+/// Swift does not have a source declaration for a module. For SwiftPM root targets,
+/// use the package manifest as the source-backed definition location.
 private func definitionLocationInWorkspacePackage(
   moduleName: String,
   buildServerManager: BuildServerManager?
