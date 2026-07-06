@@ -627,7 +627,7 @@ class DefinitionTests: SourceKitLSPTestCase {
     XCTAssertTrue(definitions?.locations?.first?.uri.pseudoPath.hasSuffix("Lib.swiftinterface") ?? false)
   }
 
-  func testDefinitionOnRootPackageModuleDoesNotOpenGeneratedInterface() async throws {
+  func testDefinitionOnRootPackageModuleJumpsToPackageManifest() async throws {
     let project = try await SwiftPMTestProject(
       files: [
         "Sources/MyLibrary/Lib.swift": """
@@ -656,7 +656,10 @@ class DefinitionTests: SourceKitLSPTestCase {
       DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
     )
 
-    XCTAssertNil(definitions?.locations)
+    XCTAssertEqual(
+      definitions,
+      .locations([Location(uri: try project.uri(for: "Package.swift"), range: Range(Position(line: 0, utf16index: 0)))])
+    )
   }
 
   func testDefinitionOnSystemModuleOpensGeneratedInterface() async throws {

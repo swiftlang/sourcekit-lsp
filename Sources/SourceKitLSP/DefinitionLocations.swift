@@ -12,6 +12,7 @@
 
 package import BuildServerIntegration
 @_spi(SourceKitLSP) import BuildServerProtocol
+import Foundation
 package import IndexStoreDB
 @_spi(SourceKitLSP) package import LanguageServerProtocol
 @_spi(SourceKitLSP) import SKLogging
@@ -30,29 +31,36 @@ package struct DefinitionLocationsResult {
   }
 }
 
-/// Returns whether the build server knows `moduleName` as a root-project module.
-private func moduleIsPartOfRootProject(
+/// Returns a source-backed definition location for `moduleName` if it is a module in the root SwiftPM package.
+///
+/// Swift does not have a source declaration for a module. For a SwiftPM root target, the closest existing source-backed
+/// representation is the package manifest, which is the build server configuration file for SwiftPM workspaces.
+private func definitionLocationInWorkspacePackage(
   moduleName: String,
   buildServerManager: BuildServerManager?
-) async -> Bool? {
+) async -> Location? {
   guard let buildServerManager else {
     return nil
   }
-  return await orLog("Determining whether module belongs to root project") {
+  return await orLog("Determining source location for workspace module") {
     let sourceFiles = try await buildServerManager.sourceFiles(includeNonBuildableFiles: false)
-    var foundDependencyModule = false
     for (uri, sourceFileInfo) in sourceFiles.sorted(by: { $0.key.stringValue < $1.key.stringValue }) {
+      guard sourceFileInfo.isPartOfRootProject else {
+        continue
+      }
       for target in sourceFileInfo.targets.sorted(by: { $0.uri.stringValue < $1.uri.stringValue }) {
         guard await buildServerManager.moduleName(for: uri, in: target) == moduleName else {
           continue
         }
-        if sourceFileInfo.isPartOfRootProject {
-          return true
+        guard let packageManifest = await buildServerManager.configPath,
+          packageManifest.lastPathComponent == "Package.swift"
+        else {
+          return nil
         }
-        foundDependencyModule = true
+        return Location(uri: DocumentURI(packageManifest), range: Range(Position(line: 0, utf16index: 0)))
       }
     }
-    return foundDependencyModule ? false : nil
+    return nil
   }
 }
 
@@ -94,8 +102,11 @@ package func definitionLocations(
       return DefinitionLocationsResult(locations: [])
     }
 
-    if await moduleIsPartOfRootProject(moduleName: moduleName, buildServerManager: buildServerManager) == true {
-      return DefinitionLocationsResult(locations: [])
+    if let workspacePackageLocation = await definitionLocationInWorkspacePackage(
+      moduleName: moduleName,
+      buildServerManager: buildServerManager
+    ) {
+      return DefinitionLocationsResult(locations: [workspacePackageLocation])
     }
 
     let location = try await definitionInInterface(
