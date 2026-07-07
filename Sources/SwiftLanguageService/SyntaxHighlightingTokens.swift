@@ -56,16 +56,35 @@ package struct SyntaxHighlightingTokens: Sendable {
   }
 
   /// Merges the tokens in this array into a new token array,
-  /// preferring the given array's tokens if duplicate ranges are
+  /// preferring the given array's tokens if overlapping ranges are
   /// found.
   package func mergingTokens(with other: SyntaxHighlightingTokens) -> SyntaxHighlightingTokens {
-    let otherRanges = Set(other.tokens.map(\.range))
-    return SyntaxHighlightingTokens(tokens: tokens.filter { !otherRanges.contains($0.range) } + other.tokens)
+    return self.mergingTokens(with: other.tokens)
   }
 
   package func mergingTokens(with other: [SyntaxHighlightingToken]) -> SyntaxHighlightingTokens {
-    let otherRanges = Set(other.map(\.range))
-    return SyntaxHighlightingTokens(tokens: tokens.filter { !otherRanges.contains($0.range) } + other)
+    let otherRanges = other.map(\.range).sorted { $0.lowerBound < $1.lowerBound }
+
+    let filteredTokens = tokens.filter { token in
+      var low = 0
+      var high = otherRanges.count - 1
+
+      while low <= high {
+        let mid = low + (high - low) / 2
+        let otherRange = otherRanges[mid]
+
+        if token.range.clamped(to: otherRange) == otherRange || otherRange.clamped(to: token.range) == token.range {
+          return false
+        } else if otherRange.lowerBound >= token.range.upperBound {
+          high = mid - 1
+        } else {
+          low = mid + 1
+        }
+      }
+      return true
+    }
+
+    return SyntaxHighlightingTokens(tokens: filteredTokens + other)
   }
 
   /// Sorts the tokens in this array by their start position.

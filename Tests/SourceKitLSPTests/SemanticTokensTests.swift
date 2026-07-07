@@ -1048,6 +1048,25 @@ final class SemanticTokensTests: SourceKitLSPTestCase {
     )
     try await fulfillmentOfOrThrow(receivedSemanticTokensResponse)
   }
+
+  func testAttachedMacroSemanticTokens() async throws {
+    try await assertSemanticTokens(
+      markedContents: """
+        @attached(accessor) @attached(peer, names: prefixed(`$`))
+        public macro TaskLocal() = #externalMacro(module: "SwiftMacros", type: "TaskLocal")
+
+        class C {
+            1️⃣@2️⃣TaskLocal3️⃣
+            static var taskLocalLogger: 4️⃣String = ""
+        }
+        """,
+      range: ("1️⃣", "3️⃣"),
+      expected: [
+        TokenSpec(marker: "2️⃣", length: 9, kind: .macro, isSourceKit: true),
+        TokenSpec(marker: "4️⃣", length: 6, kind: .struct, modifiers: .defaultLibrary, isSourceKit: true),
+      ]
+    )
+  }
 }
 
 private struct TokenSpec {
