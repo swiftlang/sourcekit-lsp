@@ -63,25 +63,43 @@ package struct SyntaxHighlightingTokens: Sendable {
   }
 
   package func mergingTokens(with other: [SyntaxHighlightingToken]) -> SyntaxHighlightingTokens {
-    let otherRanges = other.map(\.range).sorted { $0.lowerBound < $1.lowerBound }
+    var filteredTokens: [SyntaxHighlightingToken] = []
+    filteredTokens.reserveCapacity(tokens.count)
 
-    let filteredTokens = tokens.filter { token in
-      var low = 0
-      var high = otherRanges.count - 1
+    var selfIndex = 0
+    var otherIndex = 0
 
-      while low <= high {
-        let mid = low + (high - low) / 2
-        let otherRange = otherRanges[mid]
+    while selfIndex < tokens.count && otherIndex < other.count {
+      let token = tokens[selfIndex]
+      let otherToken = other[otherIndex]
 
-        if token.range.clamped(to: otherRange) == otherRange || otherRange.clamped(to: token.range) == token.range {
-          return false
-        } else if otherRange.lowerBound >= token.range.upperBound {
-          high = mid - 1
+      if otherToken.range.upperBound <= token.range.lowerBound {
+        otherIndex += 1
+      } else if token.range.upperBound <= otherToken.range.lowerBound {
+        filteredTokens.append(token)
+        selfIndex += 1
+      } else {
+        let tokenRange = token.range
+        let otherRange = otherToken.range
+
+        let syntacticEnclosesSemantic = tokenRange.lowerBound <= otherRange.lowerBound && tokenRange.upperBound >= otherRange.upperBound
+        let semanticEnclosesSyntactic = otherRange.lowerBound <= tokenRange.lowerBound && otherRange.upperBound >= tokenRange.upperBound
+
+        if syntacticEnclosesSemantic || semanticEnclosesSyntactic {
+          selfIndex += 1
         } else {
-          low = mid + 1
+          if tokenRange.upperBound <= otherRange.upperBound {
+            filteredTokens.append(token)
+            selfIndex += 1
+          } else {
+            otherIndex += 1
+          }
         }
       }
-      return true
+    }
+
+    if selfIndex < tokens.count {
+      filteredTokens.append(contentsOf: tokens[selfIndex...])
     }
 
     return SyntaxHighlightingTokens(tokens: filteredTokens + other)
