@@ -938,4 +938,60 @@ final class CallHierarchyTests: SourceKitLSPTestCase {
       ]
     )
   }
+
+  func testPrepareCallHierarchyForSymbolInDocumentThatIsNotOpen() async throws {
+    // Neither file is opened. Preparing the call hierarchy on the declaration of `foo` should resolve
+    // the item from the index instead of requiring a language service for the document, and expanding
+    // its incoming calls (which is index-only) should find the caller in the other file. `Lib.swift`
+    // also defines `bar` so that the test verifies the requested position is honored — we must get
+    // `foo`, not `bar` and not every symbol recorded for the file.
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Lib.swift": """
+        func 1️⃣foo() {}
+        func 2️⃣bar() {}
+        """,
+        "Other.swift": """
+        func 3️⃣caller() {
+          4️⃣foo()
+          5️⃣bar()
+        }
+        """,
+      ],
+      enableBackgroundIndexing: true
+    )
+
+    let prepare = try await project.testClient.send(
+      CallHierarchyPrepareRequest(
+        textDocument: TextDocumentIdentifier(try project.uri(for: "Lib.swift")),
+        position: try project.position(of: "1️⃣", in: "Lib.swift")
+      )
+    )
+    let item = try XCTUnwrap(prepare?.only)
+    XCTAssertEqual(item.name, "foo()")
+    XCTAssertEqual(item.uri, try project.uri(for: "Lib.swift"))
+    XCTAssertEqual(item.selectionRange, Range(try project.position(of: "1️⃣", in: "Lib.swift")))
+
+    let calls = try await project.testClient.send(CallHierarchyIncomingCallsRequest(item: item))
+    XCTAssertEqual(
+      calls,
+      [
+        CallHierarchyIncomingCall(
+          from: CallHierarchyItem(
+            name: "caller()",
+            kind: .function,
+            tags: nil,
+            uri: try project.uri(for: "Other.swift"),
+            range: Range(try project.position(of: "3️⃣", in: "Other.swift")),
+            selectionRange: Range(try project.position(of: "3️⃣", in: "Other.swift")),
+            data: [
+              "usr": "s:9MyLibrary6calleryyF",
+              "uri": .string(try project.uri(for: "Other.swift").stringValue),
+            ]
+          ),
+          fromRanges: [Range(try project.position(of: "4️⃣", in: "Other.swift"))]
+        )
+      ]
+    )
+  }
 }
