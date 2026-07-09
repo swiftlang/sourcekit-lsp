@@ -70,7 +70,7 @@ extension SwiftLanguageService {
       } else {
         await semanticTokens
       }
-    return tokens.sorted({ $0.start < $1.start })
+    return tokens
   }
 
   private func syntacticTokens(

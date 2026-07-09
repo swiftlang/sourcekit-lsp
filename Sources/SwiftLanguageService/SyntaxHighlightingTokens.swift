@@ -20,6 +20,10 @@ package struct SyntaxHighlightingTokens: Sendable {
   package var tokens: [SyntaxHighlightingToken]
 
   package init(tokens: [SyntaxHighlightingToken]) {
+    assert(
+      zip(tokens, tokens.dropFirst()).allSatisfy { $0.start <= $1.start },
+      "Tokens must always be sorted by their start position"
+    )
     self.tokens = tokens
   }
 
@@ -59,8 +63,8 @@ package struct SyntaxHighlightingTokens: Sendable {
   /// preferring the given array's tokens if overlapping ranges are
   /// found.
   package func mergingTokens(with other: SyntaxHighlightingTokens) -> SyntaxHighlightingTokens {
-    var filteredTokens: [SyntaxHighlightingToken] = []
-    filteredTokens.reserveCapacity(tokens.count)
+    var merged: [SyntaxHighlightingToken] = []
+    merged.reserveCapacity(tokens.count + other.tokens.count)
 
     var selfIterator = tokens.makeIterator()
     var otherIterator = other.tokens.makeIterator()
@@ -71,27 +75,26 @@ package struct SyntaxHighlightingTokens: Sendable {
     while let token = currentToken, let otherToken = currentOtherToken {
       if token.range.overlaps(otherToken.range) {
         currentToken = selfIterator.next()
-      } else if otherToken.range.upperBound <= token.range.lowerBound {
-        currentOtherToken = otherIterator.next()
-      } else {
-        filteredTokens.append(token)
+      } else if token.start < otherToken.start {
+        merged.append(token)
         currentToken = selfIterator.next()
+      } else {
+        merged.append(otherToken)
+        currentOtherToken = otherIterator.next()
       }
     }
 
     while let token = currentToken {
-        filteredTokens.append(token)
-        currentToken = selfIterator.next()
+      merged.append(token)
+      currentToken = selfIterator.next()
     }
 
-    return SyntaxHighlightingTokens(tokens: filteredTokens + other.tokens)
-  }
+    while let otherToken = currentOtherToken {
+      merged.append(otherToken)
+      currentOtherToken = otherIterator.next()
+    }
 
-  /// Sorts the tokens in this array by their start position.
-  package func sorted(
-    _ areInIncreasingOrder: (SyntaxHighlightingToken, SyntaxHighlightingToken) -> Bool
-  ) -> SyntaxHighlightingTokens {
-    SyntaxHighlightingTokens(tokens: tokens.sorted(by: areInIncreasingOrder))
+    return SyntaxHighlightingTokens(tokens: merged)
   }
 }
 
