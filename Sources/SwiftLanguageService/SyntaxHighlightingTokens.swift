@@ -59,50 +59,32 @@ package struct SyntaxHighlightingTokens: Sendable {
   /// preferring the given array's tokens if overlapping ranges are
   /// found.
   package func mergingTokens(with other: SyntaxHighlightingTokens) -> SyntaxHighlightingTokens {
-    return self.mergingTokens(with: other.tokens)
-  }
-
-  package func mergingTokens(with other: [SyntaxHighlightingToken]) -> SyntaxHighlightingTokens {
     var filteredTokens: [SyntaxHighlightingToken] = []
     filteredTokens.reserveCapacity(tokens.count)
 
-    var selfIndex = 0
-    var otherIndex = 0
+    var selfIterator = tokens.makeIterator()
+    var otherIterator = other.tokens.makeIterator()
 
-    while selfIndex < tokens.count && otherIndex < other.count {
-      let token = tokens[selfIndex]
-      let otherToken = other[otherIndex]
+    var currentToken = selfIterator.next()
+    var currentOtherToken = otherIterator.next()
 
-      if otherToken.range.upperBound <= token.range.lowerBound {
-        otherIndex += 1
-      } else if token.range.upperBound <= otherToken.range.lowerBound {
-        filteredTokens.append(token)
-        selfIndex += 1
+    while let token = currentToken, let otherToken = currentOtherToken {
+      if token.range.overlaps(otherToken.range) {
+        currentToken = selfIterator.next()
+      } else if otherToken.range.upperBound <= token.range.lowerBound {
+        currentOtherToken = otherIterator.next()
       } else {
-        let tokenRange = token.range
-        let otherRange = otherToken.range
-
-        let syntacticEnclosesSemantic = tokenRange.lowerBound <= otherRange.lowerBound && tokenRange.upperBound >= otherRange.upperBound
-        let semanticEnclosesSyntactic = otherRange.lowerBound <= tokenRange.lowerBound && otherRange.upperBound >= tokenRange.upperBound
-
-        if syntacticEnclosesSemantic || semanticEnclosesSyntactic {
-          selfIndex += 1
-        } else {
-          if tokenRange.upperBound <= otherRange.upperBound {
-            filteredTokens.append(token)
-            selfIndex += 1
-          } else {
-            otherIndex += 1
-          }
-        }
+        filteredTokens.append(token)
+        currentToken = selfIterator.next()
       }
     }
 
-    if selfIndex < tokens.count {
-      filteredTokens.append(contentsOf: tokens[selfIndex...])
+    while let token = currentToken {
+        filteredTokens.append(token)
+        currentToken = selfIterator.next()
     }
 
-    return SyntaxHighlightingTokens(tokens: filteredTokens + other)
+    return SyntaxHighlightingTokens(tokens: filteredTokens + other.tokens)
   }
 
   /// Sorts the tokens in this array by their start position.
