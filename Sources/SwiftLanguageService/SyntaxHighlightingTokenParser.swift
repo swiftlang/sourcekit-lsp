@@ -82,7 +82,7 @@ struct SyntaxHighlightingTokenParser {
   func parseTokens(_ response: SKDResponseArray, in snapshot: DocumentSnapshot) -> SyntaxHighlightingTokens {
     var tokens: [SyntaxHighlightingToken] = []
     parseTokens(response, in: snapshot, into: &tokens)
-    return SyntaxHighlightingTokens(sortedTokens: tokens)
+    return SyntaxHighlightingTokens(tokens: tokens)
   }
 
   private func parseKindAndModifiers(

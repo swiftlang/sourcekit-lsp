@@ -88,11 +88,11 @@ extension SwiftLanguageService {
         tree.range
       }
 
-    let tokens = tree
-      .classifications(in: range)
-      .flatMap { $0.highlightingTokens(in: snapshot).tokens }
-
-    return SyntaxHighlightingTokens(sortedTokens: tokens)
+    return SyntaxHighlightingTokens(
+      sortedTokens: tree
+        .classifications(in: range)
+        .flatMap { $0.highlightingTokens(in: snapshot).tokens }
+    )
   }
 
   package func documentSemanticTokens(
