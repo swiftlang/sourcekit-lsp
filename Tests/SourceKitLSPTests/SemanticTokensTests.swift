@@ -24,7 +24,7 @@ private typealias Token = SyntaxHighlightingToken
 
 final class SemanticTokensTests: SourceKitLSPTestCase {
   func testIntArrayCoding() async throws {
-    let tokens = SyntaxHighlightingTokens(tokens: [
+    let tokens = SyntaxHighlightingTokens(sortedTokens: [
       Token(
         start: Position(line: 2, utf16index: 3),
         utf16length: 5,

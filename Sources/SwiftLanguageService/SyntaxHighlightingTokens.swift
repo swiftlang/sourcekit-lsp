@@ -17,14 +17,15 @@ import SourceKitLSP
 
 /// A wrapper around an array of syntax highlighting tokens.
 package struct SyntaxHighlightingTokens: Sendable {
-  package var tokens: [SyntaxHighlightingToken]
 
-  package init(tokens: [SyntaxHighlightingToken]) {
-    assert(
-      zip(tokens, tokens.dropFirst()).allSatisfy { $0.start <= $1.start },
-      "Tokens must always be sorted by their start position"
-    )
-    self.tokens = tokens
+  /// Syntax highlighting tokens sorted by their start position.
+  package let tokens: [SyntaxHighlightingToken]
+
+  /// Creates a syntax highlighting token collection.
+  ///
+  /// - Parameter sortedTokens: Syntax highlighting tokens sorted by their start position.
+  package init(sortedTokens: [SyntaxHighlightingToken]) {
+    self.tokens = sortedTokens.sorted { $0.start < $1.start }
   }
 
   /// The LSP representation of syntax highlighting tokens. Note that this
@@ -94,16 +95,17 @@ package struct SyntaxHighlightingTokens: Sendable {
       currentOtherToken = otherIterator.next()
     }
 
-    return SyntaxHighlightingTokens(tokens: merged)
+    return SyntaxHighlightingTokens(sortedTokens: merged)
   }
 }
 
 extension SyntaxHighlightingTokens {
   /// Decodes the LSP representation of syntax highlighting tokens
   package init(lspEncodedTokens rawTokens: [UInt32]) {
-    self.init(tokens: [])
+    self.init(sortedTokens: [])
     assert(rawTokens.count.isMultiple(of: 5))
-    self.tokens.reserveCapacity(rawTokens.count / 5)
+    var tokens: [SyntaxHighlightingToken] = []
+    tokens.reserveCapacity(rawTokens.count / 5)
 
     var current = Position(line: 0, utf16index: 0)
 
@@ -125,7 +127,7 @@ extension SyntaxHighlightingTokens {
       let kind = SemanticTokenTypes.all[Int(rawKind)]
       let modifiers = SemanticTokenModifiers(rawValue: rawModifiers)
 
-      self.tokens.append(
+      tokens.append(
         SyntaxHighlightingToken(
           start: current,
           utf16length: length,
@@ -133,6 +135,7 @@ extension SyntaxHighlightingTokens {
           modifiers: modifiers
         )
       )
+      self.init(sortedTokens: tokens)
     }
   }
 }
