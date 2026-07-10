@@ -61,8 +61,8 @@ extension SwiftLanguageService {
     try Task.checkCancellation()
 
     async let semanticTokens =
-          await orLog("Loading semantic tokens") { try await semanticHighlightingTokens(for: snapshot) }
-          ?? SyntaxHighlightingTokens(sortedTokens: [])
+        await orLog("Loading semantic tokens") { try await semanticHighlightingTokens(for: snapshot) }
+        ?? SyntaxHighlightingTokens(sortedTokens: [])
 
     let tokens =
       if self.options.reportSyntacticHighlightInSemanticTokensOrDefault {
