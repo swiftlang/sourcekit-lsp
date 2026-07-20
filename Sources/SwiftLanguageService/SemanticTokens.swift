@@ -89,7 +89,8 @@ extension SwiftLanguageService {
       }
 
     return SyntaxHighlightingTokens(
-      sortedTokens: tree
+      sortedTokens:
+        tree
         .classifications(in: range)
         .flatMap { $0.highlightingTokens(in: snapshot).tokens }
     )
