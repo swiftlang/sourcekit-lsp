@@ -81,6 +81,11 @@ package struct SourceFileInfo: Sendable {
   /// to.
   package var copyDestinations: Set<DocumentURI>
 
+  /// For a file that belongs to multiple targets, a per-target preference for which target should be treated as the
+  /// canonical one (lower is preferred). Populated from `SourceKitSourceItemData.canonicalTargetPreference`; targets
+  /// without an entry are ranked after those with one.
+  package var canonicalTargetPreferences: [BuildTargetIdentifier: Int] = [:]
+
   fileprivate func merging(_ other: SourceFileInfo?) -> SourceFileInfo {
     guard let other else {
       return self
@@ -106,7 +111,11 @@ package struct SourceFileInfo: Sendable {
       isPartOfRootProject: other.isPartOfRootProject || isPartOfRootProject,
       mayContainTests: other.mayContainTests || mayContainTests,
       isBuildable: other.isBuildable || isBuildable,
-      copyDestinations: copyDestinations.union(other.copyDestinations)
+      copyDestinations: copyDestinations.union(other.copyDestinations),
+      canonicalTargetPreferences: canonicalTargetPreferences.merging(
+        other.canonicalTargetPreferences,
+        uniquingKeysWith: min
+      )
     )
   }
 }
@@ -1081,11 +1090,25 @@ package actor BuildServerManager: QueueBasedMessageHandler {
 
   /// Returns the `BuildTargetIdentifier` that should be used for semantic functionality of the given document.
   package func canonicalTarget(for document: DocumentURI) async -> BuildTargetIdentifier? {
-    // Sort the targets to deterministically pick the same `BuildTargetIdentifier` every time.
-    // We could allow the user to specify a preference of one target over another.
-    return await targets(for: document)
-      .sorted { $0.uri.stringValue < $1.uri.stringValue }
-      .first
+    guard let info = await sourceFileInfo(for: document) else {
+      return nil
+    }
+    // Prefer the target the build server marked with the lowest `canonicalTargetPreference` (eg. the
+    // one built for the active run destination). Targets without a preference rank after those with
+    // one, and ties fall back to a deterministic ordering by URI so the same target is picked every
+    // time.
+    return info.targets.sorted { lhs, rhs in
+      switch (info.canonicalTargetPreferences[lhs], info.canonicalTargetPreferences[rhs]) {
+      case let (lhsPreference?, rhsPreference?) where lhsPreference != rhsPreference:
+        return lhsPreference < rhsPreference
+      case (.some, .none):
+        return true
+      case (.none, .some):
+        return false
+      default:
+        return lhs.uri.stringValue < rhs.uri.stringValue
+      }
+    }.first
   }
 
   /// Returns the target's module name as parsed from the `BuildTargetIdentifier`'s compiler arguments.
@@ -1705,7 +1728,9 @@ package actor BuildServerManager: QueueBasedMessageHandler {
             mayContainTests: mayContainTests,
             isBuildable: !(target?.tags.contains(.notBuildable) ?? false)
               && (sourceKitData?.kind ?? .source) == .source,
-            copyDestinations: Set(sourceKitData?.copyDestinations ?? [])
+            copyDestinations: Set(sourceKitData?.copyDestinations ?? []),
+            canonicalTargetPreferences: sourceKitData?.canonicalTargetPreference
+              .map { [sourcesItem.target: $0] } ?? [:]
           )
           switch sourceItem.kind {
           case .file:
