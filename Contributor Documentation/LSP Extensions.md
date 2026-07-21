@@ -406,7 +406,7 @@ Unlike the standard `workspace/symbol` request (which accepts a fuzzy query stri
 
 For each name the response contains zero or more `WorkspaceSymbolItem` values:
 - Source-file symbols carry a `SymbolInformation` with a `file://` URI and the exact position.
-- SDK/stdlib symbols carry a `WorkspaceSymbol` with `location: .uri(...)` pointing at the `file://` URI of the `.swiftinterface` or `.swiftmodule` file, with the fully-qualified module name as a `?module=` query parameter. The symbol's USR is stored in `data["usr"]`. Call `workspaceSymbol/resolve` to obtain the exact `Location` within the generated interface. The client must advertise `workspace.symbol.resolveSupport`; without it, the raw `file://` URI is returned as `SymbolInformation` instead.
+- SDK/stdlib symbols carry a `WorkspaceSymbol` with `location: .uri(...)` pointing at a `sourcekit-lsp://generated-swift-interface` reference-document URL (no range). Its `data` is a `SourceKitWorkspaceSymbolData` (see below). Call `workspaceSymbol/resolve` to fill in the exact `Location` range within the generated interface and `sourcekit/workspace/getReferenceDocument` to retrieve the interface's contents. The client must advertise both `workspace.symbol.resolveSupport` and the `sourcekit/workspace/getReferenceDocument` capability; without them, the raw `file://` URI of the `.swiftinterface`/`.swiftmodule` file is returned as `SymbolInformation` instead.
 
 Every requested name is present in the response as a flat array; items carry their name in the `name` field of the `SymbolInformation` or `WorkspaceSymbol`.
 
@@ -430,6 +430,23 @@ export interface WorkspaceSymbolInfoResult {
    * Each item carries the symbol name in its `name` field.
    */
   results: WorkspaceSymbolItem[];
+}
+
+/**
+ * For SDK/stdlib symbols, `WorkspaceSymbol.data` contains the following data.
+ */
+export interface SourceKitWorkspaceSymbolData {
+  /**
+   * The USR of the symbol, used by `workspaceSymbol/resolve` to find the symbol's position within the generated
+   * interface.
+   */
+  usr: string;
+
+  /** The `.swiftinterface`/`.swiftmodule` file the symbol is declared in. */
+  interfaceURI?: DocumentURI;
+
+  /** The fully-qualified module name recorded in the index (e.g. `Swift.String`). */
+  moduleName?: string;
 }
 ```
 
