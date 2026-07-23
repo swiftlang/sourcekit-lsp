@@ -97,13 +97,13 @@ package struct SwiftCompileCommand: Sendable, Equatable, Hashable {
     self.isFallback = settings.isFallback
   }
 
-  /// Extract the `Parser.ExperimentalFeatures` from the compiler arguments.
+  /// Extract the `Parser.LanguageFeatures` from the compiler arguments.
   ///
   /// This scans the compiler arguments for `-enable-experimental-feature <name>` flags and maps them
-  /// to `Parser.ExperimentalFeatures` values so that the SwiftParser can parse the file correctly
+  /// to `Parser.LanguageFeatures` values so that the SwiftParser can parse the file correctly
   /// with the same experimental features that the compiler would use.
-  package var experimentalFeatures: Parser.ExperimentalFeatures {
-    var features: Parser.ExperimentalFeatures = []
+  package var experimentalFeatures: Parser.LanguageFeatures {
+    var features: Parser.LanguageFeatures = []
     var iterator = compilerArgs.makeIterator()
     while let arg = iterator.next() {
       if arg == "-enable-experimental-feature", let featureName = iterator.next() {
@@ -111,7 +111,7 @@ package struct SwiftCompileCommand: Sendable, Equatable, Hashable {
         // availability suffix (e.g. "FeatureName:adoption"). Strip it before
         // looking up the parser feature.
         let baseName = featureName.firstIndex(of: ":").map { String(featureName[..<$0]) } ?? featureName
-        if let feature = Parser.ExperimentalFeatures(name: baseName) {
+        if let feature = Parser.LanguageFeatures(name: baseName) {
           features.insert(feature)
         }
       }
