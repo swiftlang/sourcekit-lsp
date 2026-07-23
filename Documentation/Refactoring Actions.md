@@ -60,6 +60,7 @@ The specific refactorings available depend on what code is selected or where the
 | **Convert to zero parameter function** | Cursor on a read-only computed property |
 | **Add documentation** | Cursor on a function, type, property, or macro declaration |
 | **Convert comment to doc comment** | Cursor on a regular comment preceding a declaration |
+| **Toggle Test Enabled/Disabled** | Cursor on a Swift Testing @Test function or an XCTest test method |
 
 ### Async/Await
 

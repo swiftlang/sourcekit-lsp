@@ -26,6 +26,7 @@ add_library(SwiftSyntaxCodeActions STATIC
   SyntaxCodeActionProvider.swift
   SyntaxCodeActions.swift
   SyntaxRefactoringCodeActionProvider.swift
+  ToggleTestCodeAction.swift
 )
 set_target_properties(SwiftSyntaxCodeActions PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Swift_MODULE_DIRECTORY})
