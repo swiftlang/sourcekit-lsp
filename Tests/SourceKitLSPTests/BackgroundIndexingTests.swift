@@ -1090,6 +1090,9 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
       manifest: """
         let package = Package(
           name: "MyLibrary",
+          products: [
+            .executable(name: "MyExec", targets: ["MyExec"])
+          ],
           targets: [
            .target(name: "Lib"),
            .executableTarget(name: "MyExec", dependencies: ["Lib"]),
