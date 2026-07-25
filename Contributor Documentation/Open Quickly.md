@@ -44,13 +44,14 @@ The shape of each result item depends on the symbol's origin:
   }
 ```
 
-**SDK/stdlib symbols** — returned as `WorkspaceSymbol` with `location: .uri(file:// URL)` (no range) pointing to the
-`.swiftinterface` or `.swiftmodule` file from the index record, when the client advertises
-`workspace.symbol.resolveSupport.properties` containing `"location"` or both `"location.uri"` and `"location.range"`.
-The fully-qualified module name (e.g. `Swift.String`) is appended as a `?module=` query parameter on the location URL
-so clients can derive a display path without inspecting the `data` dictionary. The symbol's USR is stored in the
-`data` dictionary. The client must call `workspaceSymbol/resolve` to obtain the exact location within the generated
-interface.
+**SDK/stdlib symbols** — returned as `WorkspaceSymbol` with `location: .uri(sourcekit-lsp:// URL)` (no range) and a
+`data` payload. The `data` is a `SourceKitWorkspaceSymbolData` that clients decode via `WorkspaceSymbol.sourceKitData`,
+carrying the symbol's USR, the `.swiftinterface`/`.swiftmodule` path (`interfaceURI`), and the fully-qualified module
+name (`moduleName`, e.g. `Swift.String`) that clients can use to render the candidate. The URI is a
+fully-parameterized `sourcekit-lsp://generated-swift-interface/` reference-document URL: `workspaceSymbol/resolve`
+fills in its range and `workspace/getReferenceDocument` returns its content. This form is emitted when the client
+advertises **both** generated-interface reference documents (`GetReferenceDocumentRequest`) and
+`workspaceSymbol/resolve` support (see [Client Capabilities](#client-capabilities)).
 
 ```
 → WorkspaceSymbolInfoRequest { names: ["String"] }
@@ -59,37 +60,39 @@ interface.
       WorkspaceSymbol {
         name: "String",
         kind: .struct,
-        location: { uri: "file:///path/to/Swift.swiftmodule/arm64-apple-macosx.swiftinterface?module=Swift.String" },
-        data: { "usr": "s:SS" }
+        location: { uri: "sourcekit-lsp://generated-swift-interface/Swift.String.swiftinterface?moduleName=Swift&groupName=String&sourcekitdDocument=Swift.String.12345678&buildSettingsFrom=file:///path/to/Sources/main.swift" },
+        data: {
+          "usr": "s:SS",
+          "interfaceURI": "file:///path/to/Swift.swiftmodule/arm64-apple-macosx.swiftinterface",
+          "moduleName": "Swift.String"
+        }
       }
     ]
   }
 ```
 
-Without that capability, the raw `file://` URI of the `.swiftinterface` or `.swiftmodule` file from the index record
-is returned as `SymbolInformation` instead.
+Without those capabilities, the raw `file://` URI of the `.swiftinterface` or `.swiftmodule` file from the index
+record is returned as `SymbolInformation` instead.
+
+> [!NOTE]
+> The `data` payload is a typed SourceKit-LSP API (`SourceKitWorkspaceSymbolData`): clients should decode it via
+> `WorkspaceSymbol.sourceKitData` rather than reading raw JSON keys.
 
 The response is a flat array of `WorkspaceSymbolItem` values. Each item carries the symbol name in its `name` field.
 
-### `workspaceSymbol/resolve` — Location Resolution
+### `workspaceSymbol/resolve` — Range Resolution
 
-Resolves the lazy location of a `WorkspaceSymbol` returned by `sourcekit/workspace/symbolInfo`. The server parses
-`moduleName` and `groupName` from the `?module=` query parameter of the location URL, reads `usr` from the `data`
-dictionary, opens the generated Swift interface for the symbol's module, finds the symbol's position using the USR,
-and returns the same symbol with `location` replaced by a full `Location` (URI + range).
-
-> [!NOTE]
-> The LSP 3.17 spec defines `workspaceSymbol/resolve` as filling in a missing `range` for a URI-only location — it
-> does not anticipate replacing `location.uri` itself. SourceKit-LSP goes beyond the spec here: it substitutes the
-> `file://` module-file URL with a `sourcekit-lsp://` URI that the client can pass to `workspace/getReferenceDocument`
-> to retrieve the generated interface content.
+Fills in the range of a `WorkspaceSymbol` returned by `sourcekit/workspace/symbolInfo`. The server parses
+`moduleName`, `groupName`, and `buildSettingsFrom` from the location URI, reads `usr` from `sourceKitData`,
+opens the generated Swift interface for the symbol's module, finds the symbol's position using the USR, and returns
+the same symbol with `location` upgraded from a URI-only location to a full `Location` (URI + range).
 
 ```
 → WorkspaceSymbolResolveRequest {
     workspaceSymbol: WorkspaceSymbol {
       name: "String",
       kind: .struct,
-      location: { uri: "file:///path/to/Swift.swiftmodule/arm64-apple-macosx.swiftinterface?module=Swift.String" },
+      location: { uri: "sourcekit-lsp://generated-swift-interface/Swift.String.swiftinterface?moduleName=Swift&groupName=String&sourcekitdDocument=Swift.String.12345678&buildSettingsFrom=file:///path/to/Sources/main.swift" },
       data: { "usr": "s:SS" }
     }
   }
@@ -103,14 +106,10 @@ and returns the same symbol with `location` replaced by a full `Location` (URI +
   }
 ```
 
-The resolved URI is a fully-parameterized `sourcekit-lsp://generated-swift-interface/` URL containing
-`sourcekitdDocument` and `buildSettingsFrom` derived from a real source file in the workspace via
-`mainFiles(containing:)`.
-
-The client must treat the resolved `sourcekit-lsp://` URI as **opaque** — it should not parse or extract information
-from the query parameters. The path component (e.g. `Swift.String.swiftinterface`) may be used as the editor tab
-title. The URI is otherwise only valid as an input to `workspace/getReferenceDocument`; its query parameter structure
-is an implementation detail subject to change.
+The client must treat the `sourcekit-lsp://` URI as **opaque** — it should not parse or extract information from the
+query parameters. The path component (e.g. `Swift.String.swiftinterface`) may be used as the editor tab title. The URI
+is otherwise only valid as an input to `workspace/getReferenceDocument`; its query parameter structure is an
+implementation detail subject to change.
 
 ### `workspace/getReferenceDocument` — Content Retrieval
 
@@ -124,8 +123,8 @@ provider — it returns the document text and nothing else.
   }
 ```
 
-The URI passed here must be a fully resolved URI (with `sourcekitdDocument` set), as returned by
-`workspaceSymbol/resolve`.
+The URI passed here is the same one carried by the `WorkspaceSymbol` from `sourcekit/workspace/symbolInfo`; the client
+does not need to have resolved the range first.
 
 ## Workflow
 
@@ -140,13 +139,13 @@ Client                                            Server
   │── sourcekit/workspace/symbolInfo                 │
   │     {["String", "Stride", ...]} ────────────────▶│
   │◀─ [WorkspaceSymbol] ─────────────────────────────│
-  │     (location: "file://...?module=Swift.String") │
+  │     (location: "sourcekit-lsp://...")            │
   │                                                  │
   │  [user selects "String"]                         │
   │                                                  │
   │── workspaceSymbol/resolve ──────────────────────▶│
   │◀─ WorkspaceSymbol                                │
-  │     (url: "sourcekit-lsp://...", range: ...) ────│
+  │     (location: uri + range) ─────────────────────│
   │                                                  │
   │── workspace/getReferenceDocument ───────────────▶│
   │◀─ { content: "..." } ────────────────────────────│
@@ -158,90 +157,19 @@ Client                                            Server
 2. **Resolution** — send matching name(s) to populate the search result list; server returns symbol details (kind,
    container name, location) for display.
    - Source symbols: `SymbolInformation` with a `file://` URI and exact position. No further steps required.
-   - SDK/stdlib symbols: `WorkspaceSymbol` with `location: .uri(file:// URL?module=...)` pointing to the module file
-     and the USR in `data["usr"]`, when the client advertises `workspace.symbol.resolveSupport.properties` containing
-     `"location"` or both `"location.uri"` and `"location.range"`. Otherwise falls back to `SymbolInformation` with
-     the raw `file://` URI.
-3. **Location resolution** — call `workspaceSymbol/resolve` with the selected `WorkspaceSymbol` to open the generated
-   interface and resolve the symbol position. The server synthesizes the final `sourcekit-lsp://` URI and fills in
-   `location.range`.
+   - SDK/stdlib symbols: `WorkspaceSymbol` with a `location: .uri(sourcekit-lsp:// URL)` (no range) and a
+     `SourceKitWorkspaceSymbolData` payload in `data`, when the client advertises the required capabilities. Otherwise
+     falls back to `SymbolInformation` with the raw `file://` interface URI.
+3. **Range resolution** — call `workspaceSymbol/resolve` with the selected `WorkspaceSymbol` to open the generated
+   interface and resolve the symbol position. The server fills in `location.range`.
 4. **Content retrieval** — fetch the generated interface text. The editor scrolls to `location.range.start` from the
    resolve step.
 
-## Pre-resolve Location Design for SDK/stdlib Symbols
+## `sourcekit-lsp://` URI for SDK/stdlib Symbols
 
-When `sourcekit/workspace/symbolInfo` returns a `WorkspaceSymbol` for an SDK or stdlib symbol, the location is a
-`file://` URL pointing to the `.swiftinterface` or `.swiftmodule` file recorded in the index, with the
-fully-qualified module name appended as a `?module=` query parameter. The `data` field carries only the USR. There is
-no special URI scheme to parse.
-
-> [!NOTE]
-> The `file://path/to/module.{swiftinterface,swiftmodule}?module=<moduleName>` URL format is intended to become a
-> general-purpose format used throughout sourcekit-lsp wherever a module file location with associated module name
-> needs to be represented. It is currently only produced by `sourcekit/workspace/symbolInfo`.
->
-> In the future, `sourcekit/workspace/symbolInfo` may return other URL schemes. Clients should treat the location URI
-> as opaque and pass it back to the server via `workspaceSymbol/resolve` without attempting to parse or interpret it.
-
-`DocumentURI` equality and hashing use the filesystem path (via `withUnsafeFileSystemRepresentation`), which strips
-query parameters, so the URL with `?module=` compares equal to the clean path for all index and build-system lookups.
-
-### `WorkspaceSymbol` fields
-
-| Field | Value |
-|---|---|
-| `location` | `.uri(LocationURI)` — a `file://` URL to the `.swiftinterface` or `.swiftmodule` file, with `?module=<fullyQualifiedModuleName>` appended (e.g. `?module=Swift.String`) |
-| `data["usr"]` | Unified Symbol Reference string (e.g. `"s:SS"`) — used by `workspaceSymbol/resolve` to pinpoint the symbol's line/column within the generated interface |
-
-### `?module=` query parameter
-
-The `?module=` value is the fully-qualified dotted module name recorded in the index (e.g. `Swift.String`,
-`Foundation`). The server appends it when constructing the location URL:
-
-```swift
-var urlComponents = URLComponents(string: moduleFileURI.stringValue)!
-urlComponents.queryItems = [URLQueryItem(name: "module", value: fullModuleName)]
-```
-
-`workspaceSymbol/resolve` splits the value on the first `.` to derive `moduleName` and `groupName` for sourcekitd:
-
-```swift
-// fullModuleName = "Swift.String"
-moduleName = "Swift"    // passed to openGeneratedInterface
-groupName  = "String"   // passed to openGeneratedInterface
-```
-
-If there is no dot (e.g. `Foundation`), `groupName` is absent.
-
-### Example pre-resolve `WorkspaceSymbol`
-
-**`Swift.String`** (USR `s:SS`)
-
-```
-WorkspaceSymbol {
-  name: "String",
-  kind: .struct,
-  location: .uri("file:///path/to/Swift.swiftmodule/arm64-apple-macosx.swiftinterface?module=Swift.String"),
-  data: { "usr": "s:SS" }
-}
-```
-
-### `workspaceSymbol/resolve` transformation
-
-The resolve step parses the location URL, extracts the clean file path (query excluded via `urlComponents.path`) for
-`mainFiles(containing:)`, then opens the generated interface via sourcekitd:
-
-1. Parse `?module=Swift.String` from `uriOnly.uri.arbitrarySchemeURL`; split at first `.` → `moduleName`, `groupName`
-2. Read `usr` from `data["usr"]`
-3. Look up a real source file via `mainFiles(containing: moduleFileURI)`, sorted by URL string for determinism; pick
-   `.first`
-4. Call `openGeneratedInterface(document: primaryFile, moduleName:, groupName:, symbolUSR:)`
-5. Return the symbol with `location` replaced by a full `Location` (resolved `sourcekit-lsp://` URI + range)
-
-## `sourcekit-lsp://` URI for Resolved Locations
-
-After `workspaceSymbol/resolve`, the location URI is a fully-parameterized `sourcekit-lsp://generated-swift-interface/`
-URL.
+The location URI for an SDK/stdlib `WorkspaceSymbol` is a fully-parameterized
+`sourcekit-lsp://generated-swift-interface/` URL, built at `sourcekit/workspace/symbolInfo` time. The `data` field
+carries the USR and, for display, the interface path and module name.
 
 ### URL Structure
 
@@ -255,8 +183,11 @@ sourcekit-lsp://<document-type>/<display-name>?<parameters>
 | `display-name` | Human-readable filename shown in the editor tab/breadcrumb (e.g. `Swift.String.swiftinterface`). **Not used when parsing the URI** — all functional data is in the query parameters. |
 | `moduleName` | Top-level module name (e.g. `Swift`) |
 | `groupName` | Sub-module / group within the module, if any (e.g. `String`) |
-| `sourcekitdDocument` | Passed as `keys.name` to sourcekitd's `editor.open.interface` request — the buffer handle by which sourcekitd tracks the open interface. Synthesized by `workspaceSymbol/resolve` as `<moduleName>.<groupName>.<buildSettingsHash>` (e.g. `Swift.String.12345678`) to make the buffer name unique per build-settings context. |
+| `sourcekitdDocument` | Passed as `keys.name` to sourcekitd's `editor.open.interface` request — the buffer handle by which sourcekitd tracks the open interface. Derived as `<moduleName>.<groupName>.<buildSettingsHash>` (e.g. `Swift.String.12345678`) to make the buffer name unique per build-settings context. It is derived identically at the `symbolInfo` emission site and the open site so both refer to the same sourcekitd document. |
 | `buildSettingsFrom` | URI of a real source file in the workspace, obtained via `mainFiles(containing:)`. Used to derive build settings for the generated interface. |
+
+The index module name (e.g. `Swift.String`) is split on the first `.` to derive `moduleName` and `groupName`; if there
+is no dot (e.g. `Foundation`), `groupName` is absent.
 
 ### `display-name` derivation
 
@@ -268,9 +199,9 @@ sourcekit-lsp://<document-type>/<display-name>?<parameters>
 
 If `groupName` contains `/` (possible for nested groups), the slashes are replaced with `.` in the display name.
 
-### Example resolved URI
+### Example URI
 
-**`Swift.String`** after `workspaceSymbol/resolve`:
+**`Swift.String`** (USR `s:SS`):
 
 ```
 sourcekit-lsp://generated-swift-interface/Swift.String.swiftinterface
@@ -279,6 +210,19 @@ sourcekit-lsp://generated-swift-interface/Swift.String.swiftinterface
   &sourcekitdDocument=Swift.String.12345678
   &buildSettingsFrom=file:///path/to/MyProject/Sources/main.swift
 ```
+
+## Client Capabilities
+
+The `WorkspaceSymbol`/`.uri` path in `sourcekit/workspace/symbolInfo` is gated on the client advertising **both** of
+the following. When either is missing, `sourcekit/workspace/symbolInfo` falls back to `SymbolInformation` with the raw
+`file://` URI from the index record.
+
+- `GetReferenceDocumentRequest` support (an experimental client capability) — signals that the client can open the
+  `sourcekit-lsp://` reference document via `workspace/getReferenceDocument`.
+- `ClientCapabilities.workspace.symbol.resolveSupport.properties` containing `"location"` or `"location.range"` (LSP
+  3.17) — signals that the client can call `workspaceSymbol/resolve` to obtain a range-bearing location.
+
+The server advertises its side of the contract by reporting `workspaceSymbolProvider` with `resolveProvider: true`.
 
 ## Notes
 
@@ -292,14 +236,8 @@ sourcekit-lsp://generated-swift-interface/Swift.String.swiftinterface
   - *Non-resilient* system modules and the stdlib: indexed directly from the binary; symbol locations in the index
     point to the `.swiftmodule` file.
 - Both `.swiftinterface` and `.swiftmodule` location paths are handled identically in `workspaceSymbolItem` — both
-  produce a `WorkspaceSymbol` with a `file://` location URI (carrying `?module=`) and a `data` dictionary with the
-  USR, when the client has the required capabilities. sourcekitd can synthesize a textual interface from either form.
-- One client capability gates the `WorkspaceSymbol`/`.uri` path in `sourcekit/workspace/symbolInfo`:
-  - `ClientCapabilities.workspace.symbol.resolveSupport.properties` containing `"location"` or both `"location.uri"`
-    and `"location.range"` (LSP 3.17) — signals that the client can call `workspaceSymbol/resolve` to obtain a
-    range-bearing location.
-  - Without it, `sourcekit/workspace/symbolInfo` returns `SymbolInformation` with the raw `file://` URI from the
-    index record.
-- The resolved location URI from `workspaceSymbol/resolve` uses a `sourcekit-lsp://generated-swift-interface/` scheme
-  when the client advertises `GetReferenceDocumentRequest` support, or a temp `file://` path otherwise. Both forms can
-  be used to open the generated interface.
+  produce a `WorkspaceSymbol` with a `sourcekit-lsp://generated-swift-interface` location URI and a `data` dictionary
+  with the USR, when the client has the required capabilities. sourcekitd can synthesize a textual interface from
+  either form.
+- The standard `workspace/symbol` request is unaffected: it filters out system symbols, so none of its results point
+  into a generated interface.
