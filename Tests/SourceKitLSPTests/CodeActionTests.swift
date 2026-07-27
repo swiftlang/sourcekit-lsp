@@ -3482,7 +3482,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
                 TextEdit(
                   range: positions["1️⃣"]..<positions["2️⃣"],
                   newText: """
-                    func testExample() {
+                    func testExample() throws {
                         XCTAssertEqual(2 + 2, 4)
                     }
                     """

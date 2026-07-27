@@ -22,7 +22,6 @@ struct ToggleTestCodeAction: SyntaxRefactoringCodeActionProvider {
   package static let title: String = "Toggle Test Enabled/Disabled"
 
   package static func nodeToRefactor(in scope: SyntaxCodeActionScope) -> FunctionDeclSyntax? {
-
     guard
       let function = scope.innermostNodeContainingRange?.findParentOfSelf(
         ofType: FunctionDeclSyntax.self,
@@ -32,8 +31,15 @@ struct ToggleTestCodeAction: SyntaxRefactoringCodeActionProvider {
       return nil
     }
 
-    guard findTestAttribute(in: function) != nil || isXCTestFunction(function) else {
-      return nil
+    if let (_, testAttribute) = findTestAttribute(in: function) {
+      if hasConditionalDisabledTrait(testAttribute) {
+        return nil
+      }
+      return function
+    }
+
+    guard function.isXCTestFunction else {
+        return nil
     }
 
     return function
@@ -44,12 +50,12 @@ struct ToggleTestCodeAction: SyntaxRefactoringCodeActionProvider {
 
     // Route to the appropriate toggling logic based on which test framework is detected.
     if let (index, testAttribute) = findTestAttribute(in: function) {
-      refactoredFunction = toggleSwiftTestingTest(
+      refactoredFunction = try toggleSwiftTestingTest(
         function: function,
         attributeIndex: index,
         testAttribute: testAttribute
       )
-    } else if isXCTestFunction(function) {
+    } else if function.isXCTestFunction {
       refactoredFunction = toggleXCTest(function: function)
     } else {
       throw RefactoringNotApplicableError("Function is not a recognized test")
@@ -65,7 +71,9 @@ struct ToggleTestCodeAction: SyntaxRefactoringCodeActionProvider {
     ]
   }
 
-  private static func findTestAttribute(in function: FunctionDeclSyntax) -> (Int, AttributeSyntax)? {
+  private static func findTestAttribute(
+    in function: FunctionDeclSyntax
+  ) -> (index: Int, attribute: AttributeSyntax)? {
     let attributesArray = Array(function.attributes)
 
     for (index, element) in attributesArray.enumerated() {
@@ -73,22 +81,41 @@ struct ToggleTestCodeAction: SyntaxRefactoringCodeActionProvider {
 
       let name = attr.attributeName.trimmedDescription
       if name == "Test" || name == "Testing.Test" {
-        return (index, attr)
+        return (index: index, attribute: attr)
       }
     }
     return nil
+  }
+
+  private static func hasConditionalDisabledTrait(_ testAttribute: AttributeSyntax) -> Bool {
+    guard case .argumentList(let arguments) = testAttribute.arguments else {
+      return false
+    }
+
+    return arguments.contains { argument in
+      guard let disabledCall = argument.expression.as(FunctionCallExprSyntax.self),
+        let memberAccess = disabledCall.calledExpression.as(MemberAccessExprSyntax.self),
+        memberAccess.declName.baseName.text == "disabled"
+      else {
+        return false
+      }
+
+      return disabledCall.arguments.contains { $0.label?.text == "if" }
+    }
   }
 
   private static func toggleSwiftTestingTest(
     function: FunctionDeclSyntax,
     attributeIndex: Int,
     testAttribute: AttributeSyntax
-  ) -> FunctionDeclSyntax {
-    var newFunction = function
+  ) throws -> FunctionDeclSyntax {
     var newAttribute = testAttribute
     var argumentsList = LabeledExprListSyntax([])
 
-    if case .argumentList(let exprList) = testAttribute.arguments {
+    if let arguments = testAttribute.arguments {
+      guard case .argumentList(let exprList) = arguments else {
+        throw RefactoringNotApplicableError("Unexpected argument type in @Test attribute")
+      }
       argumentsList = exprList
     }
 
@@ -96,7 +123,6 @@ struct ToggleTestCodeAction: SyntaxRefactoringCodeActionProvider {
 
     // Check if the `.disabled(...)` trait is already present in the arguments.
     if let disabledArgIndex = argumentsArray.firstIndex(where: { isDisabledTrait($0.expression) }) {
-
       // The test is currently disabled, so enable it by removing the trait.
       argumentsArray.remove(at: disabledArgIndex)
 
@@ -117,18 +143,18 @@ struct ToggleTestCodeAction: SyntaxRefactoringCodeActionProvider {
       let disabledExpr = ExprSyntax(
         MemberAccessExprSyntax(declName: DeclReferenceExprSyntax(baseName: .identifier("disabled")))
       )
-      let functionCall = FunctionCallExprSyntax(
+      let disabledCall = FunctionCallExprSyntax(
         calledExpression: disabledExpr,
         leftParen: .leftParenToken(),
         arguments: [],
         rightParen: .rightParenToken()
       )
 
-      if !argumentsArray.isEmpty {
+      if !argumentsArray.isEmpty, argumentsArray[argumentsArray.count - 1].trailingComma == nil {
         argumentsArray[argumentsArray.count - 1].trailingComma = .commaToken(trailingTrivia: .space)
       }
 
-      argumentsArray.append(LabeledExprSyntax(expression: ExprSyntax(functionCall)))
+      argumentsArray.append(LabeledExprSyntax(expression: ExprSyntax(disabledCall)))
 
       newAttribute.leftParen = testAttribute.leftParen ?? .leftParenToken()
       newAttribute.arguments = .argumentList(LabeledExprListSyntax(argumentsArray))
@@ -137,14 +163,16 @@ struct ToggleTestCodeAction: SyntaxRefactoringCodeActionProvider {
 
     var attributesArray = Array(function.attributes)
     attributesArray[attributeIndex] = .attribute(newAttribute)
+
+    var newFunction = function
     newFunction.attributes = AttributeListSyntax(attributesArray)
 
-    return newFunction.formatted().as(FunctionDeclSyntax.self) ?? newFunction
+    return newFunction
   }
 
   private static func isDisabledTrait(_ expr: ExprSyntax) -> Bool {
-    guard let functionCall = expr.as(FunctionCallExprSyntax.self),
-      let memberAccess = functionCall.calledExpression.as(MemberAccessExprSyntax.self)
+    guard let disabledCall = expr.as(FunctionCallExprSyntax.self),
+      let memberAccess = disabledCall.calledExpression.as(MemberAccessExprSyntax.self)
     else {
       return false
     }
@@ -158,40 +186,31 @@ struct ToggleTestCodeAction: SyntaxRefactoringCodeActionProvider {
       return false
     }
 
-    let indexAfterTest = name.index(name.startIndex, offsetBy: 4)
-    let nextChar = name[indexAfterTest]
-    guard nextChar.isUppercase || nextChar.isNumber || nextChar == "_" else {
+    guard function.signature.parameterClause.parameters.isEmpty else {
       return false
     }
 
-    let hasNoParams = function.signature.parameterClause.parameters.isEmpty
-    let hasNoReturnType = function.signature.returnClause == nil
-    let isNotStaticOrClass = !function.modifiers.contains { modifier in
-      let kind = modifier.name.tokenKind
-      return kind == .keyword(.static) || kind == .keyword(.class)
+    guard function.signature.returnClause == nil else {
+      return false
     }
 
-    return hasNoParams && hasNoReturnType && isNotStaticOrClass
+    guard !function.modifiers.contains(where: {
+      let kind = $0.name.tokenKind
+      return kind == .keyword(.static) || kind == .keyword(.class)
+    }) else {
+      return false
+    }
+
+    return true
   }
 
   private static func toggleXCTest(function: FunctionDeclSyntax) -> FunctionDeclSyntax {
     guard let body = function.body else { return function }
-
     var newFunction = function
     var statementsArray = Array(body.statements)
 
-    if let skipIndex = statementsArray.firstIndex(where: isXCTSkipStatement) {
-      statementsArray.remove(at: skipIndex)
-
-      // Remove `throws` only if the remaining body no longer requires it.
-      let remainingBody = CodeBlockSyntax(statements: CodeBlockItemListSyntax(statementsArray.map { $0.trimmed }))
-      if !bodyRequiresThrows(remainingBody) {
-        newFunction.signature.effectSpecifiers?.throwsClause = nil
-
-        if newFunction.signature.effectSpecifiers?.asyncSpecifier == nil {
-          newFunction.signature.effectSpecifiers = nil
-        }
-      }
+    if let firstStatement = statementsArray.first, isXCTSkipStatement(firstStatement) {
+      statementsArray.removeFirst()
     } else {
       let skipString = StringLiteralExprSyntax(content: "Disabled")
       let skipCall = FunctionCallExprSyntax(
@@ -201,11 +220,14 @@ struct ToggleTestCodeAction: SyntaxRefactoringCodeActionProvider {
         rightParen: .rightParenToken()
       )
       let throwStmt = ThrowStmtSyntax(
-        throwKeyword: .keyword(.throw),
+        throwKeyword: .keyword(.throw, trailingTrivia: .space),
         expression: ExprSyntax(skipCall)
       )
 
-      let wrappedItem = CodeBlockItemSyntax(item: .stmt(StmtSyntax(throwStmt)))
+      var wrappedItem = CodeBlockItemSyntax(item: .stmt(StmtSyntax(throwStmt)))
+      if let firstStmt = statementsArray.first {
+        wrappedItem.leadingTrivia = firstStmt.leadingTrivia
+      }
       statementsArray.insert(wrappedItem, at: 0)
 
       if newFunction.signature.effectSpecifiers?.throwsClause == nil {
@@ -213,18 +235,16 @@ struct ToggleTestCodeAction: SyntaxRefactoringCodeActionProvider {
         var effects = newSignature.effectSpecifiers ?? FunctionEffectSpecifiersSyntax()
 
         effects.throwsClause = ThrowsClauseSyntax(
-          throwsSpecifier: .keyword(.throws)
+          throwsSpecifier: .keyword(.throws, trailingTrivia: .space)
         )
         newSignature.effectSpecifiers = effects
         newFunction.signature = newSignature
       }
     }
 
-    newFunction.signature.parameterClause.rightParen.trailingTrivia = []
-    newFunction.body?.statements = CodeBlockItemListSyntax(statementsArray.map { $0.trimmed })
+    newFunction.body?.statements = CodeBlockItemListSyntax(statementsArray)
 
-    let formattedFunction = newFunction.formatted().as(FunctionDeclSyntax.self)
-    return formattedFunction ?? newFunction
+    return newFunction
   }
 
   private static func isXCTSkipStatement(_ item: CodeBlockItemSyntax) -> Bool {
@@ -235,19 +255,5 @@ struct ToggleTestCodeAction: SyntaxRefactoringCodeActionProvider {
       return false
     }
     return declRef.baseName.text == "XCTSkip"
-  }
-
-  private static func bodyRequiresThrows(_ body: CodeBlockSyntax) -> Bool {
-    for item in body.statements {
-      if item.item.is(ThrowStmtSyntax.self) {
-        return true
-      }
-      // Plain `try` requires the enclosing function to be declared `throws`.
-      // `try?` and `try!` do not.
-      if let tryExpr = item.item.as(ExprSyntax.self)?.as(TryExprSyntax.self), tryExpr.questionOrExclamationMark == nil {
-        return true
-      }
-    }
-    return false
   }
 }
