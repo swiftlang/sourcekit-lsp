@@ -3356,10 +3356,10 @@ final class CodeActionTests: SourceKitLSPTestCase {
   func testToggleSwiftTestingTestEnabledToDisabled() async throws {
     try await assertCodeActions(
       """
-      1️⃣@Test
+      1️⃣@Test2️⃣
       func testExample() {
         #expect(2 + 2 == 4)
-      }2️⃣
+      }
       """,
       markers: ["1️⃣"],
       exhaustive: false
@@ -3374,12 +3374,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
               uri: [
                 TextEdit(
                   range: positions["1️⃣"]..<positions["2️⃣"],
-                  newText: """
-                    @Test(.disabled())
-                    func testExample() {
-                      #expect(2 + 2 == 4)
-                    }
-                    """
+                  newText: "@Test(.disabled())"
                 )
               ]
             ]
@@ -3392,10 +3387,10 @@ final class CodeActionTests: SourceKitLSPTestCase {
   func testToggleSwiftTestingTestDisabledToEnabled() async throws {
     try await assertCodeActions(
       """
-      1️⃣@Test(.disabled())
+      1️⃣@Test(.disabled())2️⃣
       func testExample() {
         #expect(2 + 2 == 4)
-      }2️⃣
+      }
       """,
       markers: ["1️⃣"],
       exhaustive: false
@@ -3410,12 +3405,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
               uri: [
                 TextEdit(
                   range: positions["1️⃣"]..<positions["2️⃣"],
-                  newText: """
-                    @Test
-                    func testExample() {
-                      #expect(2 + 2 == 4)
-                    }
-                    """
+                  newText: "@Test"
                 )
               ]
             ]
@@ -3428,9 +3418,9 @@ final class CodeActionTests: SourceKitLSPTestCase {
   func testToggleXCTestEnabledToDisabled() async throws {
     try await assertCodeActions(
       """
-      1️⃣func testExample() {
-          XCTAssertEqual(2 + 2, 4)
-      }2️⃣
+      1️⃣func testExample()2️⃣ {
+          3️⃣XCTAssertEqual(2 + 2, 4)
+      }
       """,
       markers: ["1️⃣"],
       exhaustive: false
@@ -3444,14 +3434,13 @@ final class CodeActionTests: SourceKitLSPTestCase {
             changes: [
               uri: [
                 TextEdit(
-                  range: positions["1️⃣"]..<positions["2️⃣"],
-                  newText: """
-                    func testExample() throws {
-                        throw XCTSkip("Disabled")
-                        XCTAssertEqual(2 + 2, 4)
-                    }
-                    """
-                )
+                  range: positions["2️⃣"]..<positions["2️⃣"],
+                  newText: " throws"
+                ),
+                TextEdit(
+                  range: positions["3️⃣"]..<positions["3️⃣"],
+                  newText: "throw XCTSkip(\"Disabled\")\n    "
+                ),
               ]
             ]
           )
@@ -3464,9 +3453,9 @@ final class CodeActionTests: SourceKitLSPTestCase {
     try await assertCodeActions(
       """
       1️⃣func testExample() throws {
-          throw XCTSkip("Disabled")
+          2️⃣throw XCTSkip("Disabled")3️⃣
           XCTAssertEqual(2 + 2, 4)
-      }2️⃣
+      }
       """,
       markers: ["1️⃣"],
       exhaustive: false
@@ -3480,12 +3469,8 @@ final class CodeActionTests: SourceKitLSPTestCase {
             changes: [
               uri: [
                 TextEdit(
-                  range: positions["1️⃣"]..<positions["2️⃣"],
-                  newText: """
-                    func testExample() throws {
-                        XCTAssertEqual(2 + 2, 4)
-                    }
-                    """
+                  range: positions["2️⃣"]..<positions["3️⃣"],
+                  newText: ""
                 )
               ]
             ]
@@ -3511,9 +3496,9 @@ final class CodeActionTests: SourceKitLSPTestCase {
     try await assertCodeActions(
       """
       1️⃣func testExample() throws {
-          throw XCTSkip("Disabled")
+          2️⃣throw XCTSkip("Disabled")3️⃣
           try doSomething()
-      }2️⃣
+      }
       """,
       markers: ["1️⃣"],
       exhaustive: false
@@ -3527,12 +3512,8 @@ final class CodeActionTests: SourceKitLSPTestCase {
             changes: [
               uri: [
                 TextEdit(
-                  range: positions["1️⃣"]..<positions["2️⃣"],
-                  newText: """
-                    func testExample() throws {
-                        try doSomething()
-                    }
-                    """
+                  range: positions["2️⃣"]..<positions["3️⃣"],
+                  newText: ""
                 )
               ]
             ]
@@ -3545,10 +3526,10 @@ final class CodeActionTests: SourceKitLSPTestCase {
   func testToggleSwiftTestingTestEnabledToDisabled_withExistingTraits() async throws {
     try await assertCodeActions(
       """
-      1️⃣@Test("Custom Name", .bug("123"))
+      1️⃣@Test("Custom Name", .bug("123"))2️⃣
       func testExample() {
           #expect(2 + 2 == 4)
-      }2️⃣
+      }
       """,
       markers: ["1️⃣"],
       exhaustive: false
@@ -3563,12 +3544,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
               uri: [
                 TextEdit(
                   range: positions["1️⃣"]..<positions["2️⃣"],
-                  newText: """
-                    @Test("Custom Name", .bug("123"), .disabled())
-                    func testExample() {
-                        #expect(2 + 2 == 4)
-                    }
-                    """
+                  newText: "@Test(\"Custom Name\", .bug(\"123\"), .disabled())"
                 )
               ]
             ]
@@ -3581,10 +3557,10 @@ final class CodeActionTests: SourceKitLSPTestCase {
   func testToggleSwiftTestingTestDisabledToEnabled_withDisabledReason() async throws {
     try await assertCodeActions(
       """
-      1️⃣@Test(.disabled("Waiting on backend API"))
+      1️⃣@Test(.disabled("Waiting on backend API"))2️⃣
       func testExample() {
           #expect(2 + 2 == 4)
-      }2️⃣
+      }
       """,
       markers: ["1️⃣"],
       exhaustive: false
@@ -3599,13 +3575,108 @@ final class CodeActionTests: SourceKitLSPTestCase {
               uri: [
                 TextEdit(
                   range: positions["1️⃣"]..<positions["2️⃣"],
-                  newText: """
-                    @Test
-                    func testExample() {
-                        #expect(2 + 2 == 4)
-                    }
-                    """
+                  newText: "@Test"
                 )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testToggleXCTestEnabledToDisabled_emptyBody() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣func testExample()2️⃣ {
+      3️⃣}
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Toggle Test Enabled/Disabled",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["2️⃣"]..<positions["2️⃣"],
+                  newText: " throws"
+                ),
+                TextEdit(
+                  range: positions["3️⃣"]..<positions["3️⃣"],
+                  newText: "    throw XCTSkip(\"Disabled\")\n"
+                ),
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testToggleXCTestEnabledToDisabled_singleLineEmptyBody() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣func testExample()2️⃣ {3️⃣}
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Toggle Test Enabled/Disabled",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["2️⃣"]..<positions["2️⃣"],
+                  newText: " throws"
+                ),
+                TextEdit(
+                  range: positions["3️⃣"]..<positions["3️⃣"],
+                  newText: "\n    throw XCTSkip(\"Disabled\")\n"
+                ),
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testToggleXCTestEnabledToDisabled_indentedEmptyBody() async throws {
+    try await assertCodeActions(
+      """
+      class MyTests: XCTestCase {
+          1️⃣func testExample()2️⃣ {
+          3️⃣}
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Toggle Test Enabled/Disabled",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["2️⃣"]..<positions["2️⃣"],
+                  newText: " throws"
+                ),
+                TextEdit(
+                  range: positions["3️⃣"]..<positions["3️⃣"],
+                  newText: "    throw XCTSkip(\"Disabled\")\n    "
+                ),
               ]
             ]
           )

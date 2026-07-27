@@ -39,36 +39,27 @@ struct ToggleTestCodeAction: SyntaxRefactoringCodeActionProvider {
     }
 
     guard function.isXCTestFunction else {
-        return nil
+      return nil
     }
 
     return function
   }
 
   package static func textRefactor(syntax function: FunctionDeclSyntax, in context: Void) throws -> [SourceEdit] {
-    let refactoredFunction: FunctionDeclSyntax
-
     // Route to the appropriate toggling logic based on which test framework is detected.
-    if let (index, testAttribute) = findTestAttribute(in: function) {
-      refactoredFunction = try toggleSwiftTestingTest(
-        function: function,
-        attributeIndex: index,
-        testAttribute: testAttribute
-      )
+    if let (_, testAttribute) = findTestAttribute(in: function) {
+      let newAttribute = try toggleSwiftTestingTest(testAttribute: testAttribute)
+      return [
+        SourceEdit(
+          range: testAttributeRange(testAttribute),
+          replacement: newAttribute.trimmedDescription
+        )
+      ]
     } else if function.isXCTestFunction {
-      refactoredFunction = toggleXCTest(function: function)
+      return try toggleXCTestEdits(function: function)
     } else {
       throw RefactoringNotApplicableError("Function is not a recognized test")
     }
-
-    let editRange = function.position..<function.endPosition
-
-    return [
-      SourceEdit(
-        range: editRange,
-        replacement: refactoredFunction.description
-      )
-    ]
   }
 
   private static func findTestAttribute(
@@ -104,11 +95,15 @@ struct ToggleTestCodeAction: SyntaxRefactoringCodeActionProvider {
     }
   }
 
-  private static func toggleSwiftTestingTest(
-    function: FunctionDeclSyntax,
-    attributeIndex: Int,
-    testAttribute: AttributeSyntax
-  ) throws -> FunctionDeclSyntax {
+  private static func testAttributeRange(_ testAttribute: AttributeSyntax) -> Range<AbsolutePosition> {
+    let range = testAttribute.trimmedRange
+    if !range.isEmpty {
+      return range
+    }
+    return testAttribute.positionAfterSkippingLeadingTrivia..<testAttribute.endPositionBeforeTrailingTrivia
+  }
+
+  private static func toggleSwiftTestingTest(testAttribute: AttributeSyntax) throws -> AttributeSyntax {
     var newAttribute = testAttribute
     var argumentsList = LabeledExprListSyntax([])
 
@@ -161,13 +156,7 @@ struct ToggleTestCodeAction: SyntaxRefactoringCodeActionProvider {
       newAttribute.rightParen = testAttribute.rightParen ?? .rightParenToken()
     }
 
-    var attributesArray = Array(function.attributes)
-    attributesArray[attributeIndex] = .attribute(newAttribute)
-
-    var newFunction = function
-    newFunction.attributes = AttributeListSyntax(attributesArray)
-
-    return newFunction
+    return newAttribute
   }
 
   private static func isDisabledTrait(_ expr: ExprSyntax) -> Bool {
@@ -194,57 +183,90 @@ struct ToggleTestCodeAction: SyntaxRefactoringCodeActionProvider {
       return false
     }
 
-    guard !function.modifiers.contains(where: {
-      let kind = $0.name.tokenKind
-      return kind == .keyword(.static) || kind == .keyword(.class)
-    }) else {
+    guard
+      !function.modifiers.contains(where: {
+        let kind = $0.name.tokenKind
+        return kind == .keyword(.static) || kind == .keyword(.class)
+      })
+    else {
       return false
     }
 
     return true
   }
 
-  private static func toggleXCTest(function: FunctionDeclSyntax) -> FunctionDeclSyntax {
-    guard let body = function.body else { return function }
-    var newFunction = function
-    var statementsArray = Array(body.statements)
-
-    if let firstStatement = statementsArray.first, isXCTSkipStatement(firstStatement) {
-      statementsArray.removeFirst()
-    } else {
-      let skipString = StringLiteralExprSyntax(content: "Disabled")
-      let skipCall = FunctionCallExprSyntax(
-        calledExpression: DeclReferenceExprSyntax(baseName: .identifier("XCTSkip")),
-        leftParen: .leftParenToken(),
-        arguments: [LabeledExprSyntax(expression: ExprSyntax(skipString))],
-        rightParen: .rightParenToken()
-      )
-      let throwStmt = ThrowStmtSyntax(
-        throwKeyword: .keyword(.throw, trailingTrivia: .space),
-        expression: ExprSyntax(skipCall)
-      )
-
-      var wrappedItem = CodeBlockItemSyntax(item: .stmt(StmtSyntax(throwStmt)))
-      if let firstStmt = statementsArray.first {
-        wrappedItem.leadingTrivia = firstStmt.leadingTrivia
-      }
-      statementsArray.insert(wrappedItem, at: 0)
-
-      if newFunction.signature.effectSpecifiers?.throwsClause == nil {
-        var newSignature = newFunction.signature
-        var effects = newSignature.effectSpecifiers ?? FunctionEffectSpecifiersSyntax()
-
-        effects.throwsClause = ThrowsClauseSyntax(
-          throwsSpecifier: .keyword(.throws, trailingTrivia: .space)
-        )
-        newSignature.effectSpecifiers = effects
-        newFunction.signature = newSignature
-      }
+  private static func toggleXCTestEdits(function: FunctionDeclSyntax) throws -> [SourceEdit] {
+    guard let body = function.body else {
+      throw RefactoringNotApplicableError("XCTest function has no body")
     }
 
-    newFunction.body?.statements = CodeBlockItemListSyntax(statementsArray)
+    if let firstStatement = body.statements.first, isXCTSkipStatement(firstStatement) {
+      return [
+        SourceEdit(
+          range: firstStatement.positionAfterSkippingLeadingTrivia..<firstStatement.endPositionBeforeTrailingTrivia,
+          replacement: ""
+        )
+      ]
+    } else {
+      var edits: [SourceEdit] = []
+      if function.signature.effectSpecifiers?.throwsClause == nil {
+        let position =
+          function.signature.effectSpecifiers?.asyncSpecifier?.endPositionBeforeTrailingTrivia
+          ?? function.signature.parameterClause.endPositionBeforeTrailingTrivia
+        edits.append(
+          SourceEdit(
+            range: position..<position,
+            replacement: " throws"
+          )
+        )
+      }
 
-    return newFunction
+      let insertionPosition: AbsolutePosition
+      let indentation: String
+
+      if let firstStatement = body.statements.first {
+        insertionPosition = firstStatement.positionAfterSkippingLeadingTrivia
+        indentation = indentationBefore(firstStatement)
+
+        edits.append(
+          SourceEdit(
+            range: insertionPosition..<insertionPosition,
+            replacement: "throw XCTSkip(\"Disabled\")\n\(indentation)"
+          )
+        )
+      } else {
+        insertionPosition = body.rightBrace.positionAfterSkippingLeadingTrivia
+
+        let hasNewline = body.rightBrace.leadingTrivia.description.contains("\n")
+
+        let baseIndentation = indentationBefore(function)
+        let innerIndentation = baseIndentation + "    "
+
+        let replacementText: String
+        if hasNewline {
+          replacementText = "    throw XCTSkip(\"Disabled\")\n\(baseIndentation)"
+        } else {
+          replacementText = "\n\(innerIndentation)throw XCTSkip(\"Disabled\")\n\(baseIndentation)"
+        }
+
+        edits.append(
+          SourceEdit(
+            range: insertionPosition..<insertionPosition,
+            replacement: replacementText
+          )
+        )
+      }
+
+      return edits
+    }
+  }
+
+  private static func indentationBefore(_ node: some SyntaxProtocol) -> String {
+    let leadingTrivia = node.leadingTrivia.description
+    guard let lastNewline = leadingTrivia.lastIndex(of: "\n") else {
+      return leadingTrivia
+    }
+    return String(leadingTrivia[leadingTrivia.index(after: lastNewline)...])
   }
 
   private static func isXCTSkipStatement(_ item: CodeBlockItemSyntax) -> Bool {
