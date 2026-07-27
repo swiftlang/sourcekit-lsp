@@ -212,6 +212,9 @@ actor ExternalBuildServerAdapter {
   /// The configuration for this build server.
   private let serverConfig: BuildServerConfig
 
+  /// Hooks that allow tests to intercept the messages sent to the build server.
+  private let buildServerHooks: BuildServerHooks
+
   /// The `BuildServerManager` that handles messages from the BSP server to SourceKit-LSP.
   var messagesToSourceKitLSPHandler: any MessageHandler
 
@@ -244,10 +247,12 @@ actor ExternalBuildServerAdapter {
   init(
     projectRoot: URL,
     config: BuildServerConfig,
-    messagesToSourceKitLSPHandler: any MessageHandler
+    messagesToSourceKitLSPHandler: any MessageHandler,
+    buildServerHooks: BuildServerHooks
   ) async throws {
     self.projectRoot = projectRoot
     self.serverConfig = config
+    self.buildServerHooks = buildServerHooks
     self.messagesToSourceKitLSPHandler = messagesToSourceKitLSPHandler
     self.connectionToBuildServer = LegacyNameFallbackConnection(
       try await self.createConnectionToBspServer(),
@@ -258,13 +263,15 @@ actor ExternalBuildServerAdapter {
   init(
     projectRoot: URL,
     configPath: URL,
-    messagesToSourceKitLSPHandler: any MessageHandler
+    messagesToSourceKitLSPHandler: any MessageHandler,
+    buildServerHooks: BuildServerHooks
   ) async throws {
     let serverConfig = try BuildServerConfig.load(from: configPath)
     try await self.init(
       projectRoot: projectRoot,
       config: serverConfig,
-      messagesToSourceKitLSPHandler: messagesToSourceKitLSPHandler
+      messagesToSourceKitLSPHandler: messagesToSourceKitLSPHandler,
+      buildServerHooks: buildServerHooks
     )
   }
 
@@ -287,6 +294,7 @@ actor ExternalBuildServerAdapter {
 
   /// Send a request to the build server.
   func send<Request: RequestType>(_ request: Request) async throws -> Request.Response {
+    await buildServerHooks.preHandleRequest?(request)
     guard let connectionToBuildServer else {
       throw ResponseError.internalError("BSP server has crashed")
     }
