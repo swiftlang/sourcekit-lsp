@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.16.1)
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake/modules)
 
 project(SourceKit-LSP
-  LANGUAGES C Swift)
+  LANGUAGES C CXX Swift)
 
 set(CMAKE_Swift_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/swift)
 
