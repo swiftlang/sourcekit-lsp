@@ -18,7 +18,6 @@ import SwiftSyntax
 import SwiftSyntaxBuilder
 
 struct ToggleTestCodeAction: SyntaxRefactoringCodeActionProvider {
-
   package static let title: String = "Toggle Test Enabled/Disabled"
 
   package static func nodeToRefactor(in scope: SyntaxCodeActionScope) -> FunctionDeclSyntax? {
@@ -31,7 +30,7 @@ struct ToggleTestCodeAction: SyntaxRefactoringCodeActionProvider {
       return nil
     }
 
-    if let (_, testAttribute) = findTestAttribute(in: function) {
+    if let testAttribute = findTestAttribute(in: function) {
       if hasConditionalDisabledTrait(testAttribute) {
         return nil
       }
@@ -47,14 +46,8 @@ struct ToggleTestCodeAction: SyntaxRefactoringCodeActionProvider {
 
   package static func textRefactor(syntax function: FunctionDeclSyntax, in context: Void) throws -> [SourceEdit] {
     // Route to the appropriate toggling logic based on which test framework is detected.
-    if let (_, testAttribute) = findTestAttribute(in: function) {
-      let newAttribute = try toggleSwiftTestingTest(testAttribute: testAttribute)
-      return [
-        SourceEdit(
-          range: testAttributeRange(testAttribute),
-          replacement: newAttribute.trimmedDescription
-        )
-      ]
+    if let testAttribute = findTestAttribute(in: function) {
+      return try toggleSwiftTestingEdits(testAttribute: testAttribute)
     } else if function.isXCTestFunction {
       return try toggleXCTestEdits(function: function)
     } else {
@@ -64,15 +57,13 @@ struct ToggleTestCodeAction: SyntaxRefactoringCodeActionProvider {
 
   private static func findTestAttribute(
     in function: FunctionDeclSyntax
-  ) -> (index: Int, attribute: AttributeSyntax)? {
-    let attributesArray = Array(function.attributes)
-
-    for (index, element) in attributesArray.enumerated() {
+  ) -> AttributeSyntax? {
+    for element in function.attributes {
       guard case .attribute(let attr) = element else { continue }
 
       let name = attr.attributeName.trimmedDescription
       if name == "Test" || name == "Testing.Test" {
-        return (index: index, attribute: attr)
+        return attr
       }
     }
     return nil
@@ -84,26 +75,15 @@ struct ToggleTestCodeAction: SyntaxRefactoringCodeActionProvider {
     }
 
     return arguments.contains { argument in
-      guard let disabledCall = argument.expression.as(FunctionCallExprSyntax.self),
-        let memberAccess = disabledCall.calledExpression.as(MemberAccessExprSyntax.self),
-        memberAccess.declName.baseName.text == "disabled"
-      else {
+      guard let disabledCall = argument.expression.as(FunctionCallExprSyntax.self) else {
         return false
       }
 
-      return disabledCall.arguments.contains { $0.label?.text == "if" }
+      return disabledCall.isSwiftTestingConditionalDisabledTrait
     }
   }
 
-  private static func testAttributeRange(_ testAttribute: AttributeSyntax) -> Range<AbsolutePosition> {
-    let range = testAttribute.trimmedRange
-    if !range.isEmpty {
-      return range
-    }
-    return testAttribute.positionAfterSkippingLeadingTrivia..<testAttribute.endPositionBeforeTrailingTrivia
-  }
-
-  private static func toggleSwiftTestingTest(testAttribute: AttributeSyntax) throws -> AttributeSyntax {
+  private static func toggleSwiftTestingEdits(testAttribute: AttributeSyntax) throws -> [SourceEdit] {
     var newAttribute = testAttribute
     var argumentsList = LabeledExprListSyntax([])
 
@@ -133,8 +113,7 @@ struct ToggleTestCodeAction: SyntaxRefactoringCodeActionProvider {
         newAttribute.arguments = .argumentList(LabeledExprListSyntax(argumentsArray))
       }
     } else {
-
-      // The test is currently enabled, so disable it by appending the `.disabled()` trait.
+      // The test is currently enabled, so disable it by adding the `.disabled()` trait.
       let disabledExpr = ExprSyntax(
         MemberAccessExprSyntax(declName: DeclReferenceExprSyntax(baseName: .identifier("disabled")))
       )
@@ -145,18 +124,31 @@ struct ToggleTestCodeAction: SyntaxRefactoringCodeActionProvider {
         rightParen: .rightParenToken()
       )
 
-      if !argumentsArray.isEmpty, argumentsArray[argumentsArray.count - 1].trailingComma == nil {
-        argumentsArray[argumentsArray.count - 1].trailingComma = .commaToken(trailingTrivia: .space)
-      }
+      var newTrait = LabeledExprSyntax(expression: ExprSyntax(disabledCall))
 
-      argumentsArray.append(LabeledExprSyntax(expression: ExprSyntax(disabledCall)))
+      let insertIndex = argumentsArray.firstIndex(where: { $0.label != nil }) ?? argumentsArray.count
+
+      if insertIndex < argumentsArray.count {
+        newTrait.trailingComma = .commaToken(trailingTrivia: .space)
+        argumentsArray.insert(newTrait, at: insertIndex)
+      } else {
+        if !argumentsArray.isEmpty, argumentsArray[argumentsArray.count - 1].trailingComma == nil {
+          argumentsArray[argumentsArray.count - 1].trailingComma = .commaToken(trailingTrivia: .space)
+        }
+        argumentsArray.append(newTrait)
+      }
 
       newAttribute.leftParen = testAttribute.leftParen ?? .leftParenToken()
       newAttribute.arguments = .argumentList(LabeledExprListSyntax(argumentsArray))
       newAttribute.rightParen = testAttribute.rightParen ?? .rightParenToken()
     }
 
-    return newAttribute
+    return [
+      SourceEdit(
+        range: testAttribute.trimmedRange,
+        replacement: newAttribute.trimmedDescription
+      )
+    ]
   }
 
   private static func isDisabledTrait(_ expr: ExprSyntax) -> Bool {
@@ -168,33 +160,6 @@ struct ToggleTestCodeAction: SyntaxRefactoringCodeActionProvider {
     return memberAccess.declName.baseName.text == "disabled"
   }
 
-  private static func isXCTestFunction(_ function: FunctionDeclSyntax) -> Bool {
-    let name = function.name.text
-
-    guard name.hasPrefix("test"), name.count > 4 else {
-      return false
-    }
-
-    guard function.signature.parameterClause.parameters.isEmpty else {
-      return false
-    }
-
-    guard function.signature.returnClause == nil else {
-      return false
-    }
-
-    guard
-      !function.modifiers.contains(where: {
-        let kind = $0.name.tokenKind
-        return kind == .keyword(.static) || kind == .keyword(.class)
-      })
-    else {
-      return false
-    }
-
-    return true
-  }
-
   private static func toggleXCTestEdits(function: FunctionDeclSyntax) throws -> [SourceEdit] {
     guard let body = function.body else {
       throw RefactoringNotApplicableError("XCTest function has no body")
@@ -203,7 +168,7 @@ struct ToggleTestCodeAction: SyntaxRefactoringCodeActionProvider {
     if let firstStatement = body.statements.first, isXCTSkipStatement(firstStatement) {
       return [
         SourceEdit(
-          range: firstStatement.positionAfterSkippingLeadingTrivia..<firstStatement.endPositionBeforeTrailingTrivia,
+          range: firstStatement.position..<firstStatement.endPosition,
           replacement: ""
         )
       ]
@@ -221,33 +186,26 @@ struct ToggleTestCodeAction: SyntaxRefactoringCodeActionProvider {
         )
       }
 
-      let insertionPosition: AbsolutePosition
-      let indentation: String
-
       if let firstStatement = body.statements.first {
-        insertionPosition = firstStatement.positionAfterSkippingLeadingTrivia
-        indentation = indentationBefore(firstStatement)
+        let insertionPosition = firstStatement.positionAfterSkippingLeadingTrivia
+        let statementIndentation = firstStatement.firstToken(viewMode: .sourceAccurate)?.indentationOfLine ?? []
 
         edits.append(
           SourceEdit(
             range: insertionPosition..<insertionPosition,
-            replacement: "throw XCTSkip(\"Disabled\")\n\(indentation)"
+            replacement: "throw XCTSkip(\"Disabled\")\n\(statementIndentation.description)"
           )
         )
       } else {
-        insertionPosition = body.rightBrace.positionAfterSkippingLeadingTrivia
-
-        let hasNewline = body.rightBrace.leadingTrivia.description.contains("\n")
-
-        let baseIndentation = indentationBefore(function)
-        let innerIndentation = baseIndentation + "    "
-
-        let replacementText: String
-        if hasNewline {
-          replacementText = "    throw XCTSkip(\"Disabled\")\n\(baseIndentation)"
-        } else {
-          replacementText = "\n\(innerIndentation)throw XCTSkip(\"Disabled\")\n\(baseIndentation)"
-        }
+        let insertionPosition = body.rightBrace.positionAfterSkippingLeadingTrivia
+        let baseIndentation = body.rightBrace.indentationOfLine
+        let indentStep = BasicFormat.inferIndentation(of: Syntax(function.root)) ?? .spaces(4)
+        let innerIndentation = baseIndentation + indentStep
+        let hasNewline = body.rightBrace.leadingTrivia.contains(where: \.isNewline)
+        let replacementText =
+          hasNewline
+          ? "\(indentStep.description)throw XCTSkip(\"Disabled\")\n\(baseIndentation.description)"
+          : "\n\(innerIndentation.description)throw XCTSkip(\"Disabled\")\n\(baseIndentation.description)"
 
         edits.append(
           SourceEdit(
@@ -259,14 +217,6 @@ struct ToggleTestCodeAction: SyntaxRefactoringCodeActionProvider {
 
       return edits
     }
-  }
-
-  private static func indentationBefore(_ node: some SyntaxProtocol) -> String {
-    let leadingTrivia = node.leadingTrivia.description
-    guard let lastNewline = leadingTrivia.lastIndex(of: "\n") else {
-      return leadingTrivia
-    }
-    return String(leadingTrivia[leadingTrivia.index(after: lastNewline)...])
   }
 
   private static func isXCTSkipStatement(_ item: CodeBlockItemSyntax) -> Bool {

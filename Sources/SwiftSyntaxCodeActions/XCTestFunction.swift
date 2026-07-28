@@ -29,8 +29,7 @@ extension FunctionDeclSyntax {
     }
 
     guard !modifiers.contains(where: {
-      let kind = $0.name.tokenKind
-      return kind == .keyword(.static) || kind == .keyword(.class)
+      $0.name.tokenKind == .keyword(.static) || $0.name.tokenKind == .keyword(.class)
     }) else {
       return false
     }

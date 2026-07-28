@@ -15,6 +15,7 @@
 import SourceKitLSP
 import SwiftParser
 import SwiftSyntax
+import SwiftSyntaxCodeActions
 
 // MARK: - Attribute parsing
 
@@ -112,32 +113,7 @@ struct TestingAttributeData {
 
     self.isDisabled = traitArguments.lazy
       .compactMap { $0.as(FunctionCallExprSyntax.self) }
-      .filter { functionCall in
-        switch functionCall.calledExpression.as(MemberAccessExprSyntax.self)?.fullyQualifiedName {
-        case "disabled", "ConditionTrait.disabled", "Testing.ConditionTrait.disabled":
-          return true
-        default:
-          return false
-        }
-      }
-      .contains { functionCall in
-        // Ignore disabled traits which have an `if:` parameter since
-        // they're conditional.
-        let hasConditionParam = functionCall.arguments.lazy
-          .compactMap(\.label?.text)
-          .contains("if")
-        if hasConditionParam {
-          return false
-        }
-
-        // Ignore disabled traits which have a trailing closure since
-        // they're conditional.
-        if functionCall.trailingClosure != nil {
-          return false
-        }
-
-        return true
-      }
+      .contains { $0.isSwiftTestingUnconditionalDisabledTrait }
 
     self.isHidden = traitArguments.lazy
       .compactMap { $0.as(MemberAccessExprSyntax.self) }
