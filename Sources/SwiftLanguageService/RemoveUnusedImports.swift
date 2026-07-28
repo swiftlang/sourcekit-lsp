@@ -101,7 +101,7 @@ extension SwiftLanguageService {
     return [
       CodeAction(
         title: command.title,
-        kind: .sourceOrganizeImports,
+        kind: .refactor,
         diagnostics: nil,
         edit: nil,
         command: command.asCommand()
