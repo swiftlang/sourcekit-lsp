@@ -107,7 +107,8 @@ struct CursorInfo {
         isDynamic: dict[keys.isDynamic] ?? false,
         isSystem: dict[keys.isSystem] ?? false,
         receiverUsrs: dict[keys.receivers]?.compactMap { $0[keys.usr] as String? } ?? [],
-        systemModule: module
+        systemModule: module,
+        typeName: dict[keys.typeName]
       ),
       annotatedDeclaration: dict[keys.annotatedDecl],
       documentation: dict[keys.docComment]

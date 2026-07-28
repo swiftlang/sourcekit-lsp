@@ -14,17 +14,20 @@ import SwiftRefactor
 
 /// List of all of the syntactic code action providers, which can be used
 /// to produce code actions using only the swift-syntax tree of a file.
-package let allSyntaxCodeActions: [any SyntaxCodeActionProvider.Type] = {
+package let allSyntaxCodeActionProviders: [any SyntaxCodeActionProvider.Type] = {
   var result: [any SyntaxCodeActionProvider.Type] = [
     AddDocumentation.self,
     AddExplicitEnumRawValues.self,
     AddSeparatorsToIntegerLiteral.self,
     ApplyDeMorganLaw.self,
+    ConvertCommentToDocComment.self,
+    ConvertCommentToDocComment.self,
     ConvertComputedPropertyToStored.self,
     ConvertComputedPropertyToZeroParameterFunction.self,
     ConvertIfLetToGuard.self,
     ConvertIntegerLiteral.self,
     ConvertJSONToCodableStruct.self,
+    ConvertStoredPropertyToComputed.self,
     ConvertStringConcatenationToStringInterpolation.self,
     ConvertZeroParameterFunctionToComputedProperty.self,
     FormatRawStringLiteral.self,
@@ -34,7 +37,6 @@ package let allSyntaxCodeActions: [any SyntaxCodeActionProvider.Type] = {
     OpaqueParameterToGeneric.self,
     RemoveRedundantParentheses.self,
     RemoveSeparatorsFromIntegerLiteral.self,
-    ConvertCommentToDocComment.self,
     SwapBinaryOperands.self,
     ToggleTestCodeAction.self,
   ]

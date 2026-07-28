@@ -1003,16 +1003,55 @@ extension SwiftLanguageService {
     let snapshot = try documentManager.latestSnapshot(uri)
 
     let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
-    guard let scope = SyntaxCodeActionScope(snapshot: snapshot, syntaxTree: syntaxTree, request: request) else {
+    guard
+      let scope = SyntaxCodeActionScope(
+        resolveSupport: capabilityRegistry.clientCapabilities.textDocument?.codeAction?.resolveSupport,
+        snapshot: snapshot,
+        syntaxTree: syntaxTree,
+        requestedRange: request.range
+      )
+    else {
       return []
     }
-    return await allSyntaxCodeActions.concurrentMap { provider in
+    return await allSyntaxCodeActionProviders.concurrentMap { provider in
       return provider.codeActions(in: scope)
     }.flatMap { $0 }
   }
 
   package func codeActionResolve(_ req: CodeActionResolveRequest) async throws -> CodeAction {
-    return req.codeAction
+    guard let data = UnresolvedCodeActionData(fromLSPAny: req.codeAction.data) else {
+      // We don't have any data to resolve the code action.
+      return req.codeAction
+    }
+    guard let provider = allSyntaxCodeActionProviders.filter({ "\($0)" == data.action }).only else {
+      throw ResponseError.unknown("Could not find syntax action '\(data.action)' to resolve code action")
+    }
+    let snapshot = try documentManager.latestSnapshot(data.document.uri)
+    guard snapshot.version == data.document.version else {
+      throw ResponseError.unknown("Document was modified since between code action and resolve request")
+    }
+    let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
+
+    guard
+      let scope = SyntaxCodeActionScope(
+        resolveSupport: capabilityRegistry.clientCapabilities.textDocument?.codeAction?.resolveSupport,
+        snapshot: snapshot,
+        syntaxTree: syntaxTree,
+        requestedRange: data.range
+      )
+    else {
+      throw ResponseError.unknown("Unable to re-create code action scope")
+    }
+    return try await provider.resolve(
+      req.codeAction,
+      in: scope,
+      unresolvedData: data.data,
+      symbolInfo: { position in
+        try await self.symbolInfo(
+          SymbolInfoRequest(textDocument: TextDocumentIdentifier(snapshot.uri), position: position)
+        )
+      }
+    )
   }
 
   func retrieveRefactorCodeActions(_ params: CodeActionRequest) async throws -> [CodeAction] {

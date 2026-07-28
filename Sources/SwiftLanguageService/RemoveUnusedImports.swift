@@ -73,8 +73,13 @@ extension SwiftLanguageService {
 
     let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
     guard
-      let node = SyntaxCodeActionScope(snapshot: snapshot, syntaxTree: syntaxTree, request: request)?
-        .innermostNodeContainingRange,
+      let node = SyntaxCodeActionScope(
+        resolveSupport: nil,
+        snapshot: snapshot,
+        syntaxTree: syntaxTree,
+        requestedRange: request.range
+      )?
+      .innermostNodeContainingRange,
       node.findParentOfSelf(ofType: ImportDeclSyntax.self, stoppingIf: { _ in false }) != nil
     else {
       // Only offer the remove unused imports code action on an import statement.
@@ -96,7 +101,7 @@ extension SwiftLanguageService {
     return [
       CodeAction(
         title: command.title,
-        kind: .sourceOrganizeImports,
+        kind: .refactor,
         diagnostics: nil,
         edit: nil,
         command: command.asCommand()

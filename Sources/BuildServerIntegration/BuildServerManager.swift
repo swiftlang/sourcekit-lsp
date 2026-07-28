@@ -250,7 +250,8 @@ private extension BuildServerSpec {
         try await ExternalBuildServerAdapter(
           projectRoot: projectRoot,
           configPath: configPath,
-          messagesToSourceKitLSPHandler: messagesToSourceKitLSPHandler
+          messagesToSourceKitLSPHandler: messagesToSourceKitLSPHandler,
+          buildServerHooks: buildServerHooks
         )
       }
       guard let buildServer else {
@@ -325,7 +326,8 @@ private extension BuildServerSpec {
               options: options,
               toolchainRegistry: toolchainRegistry
             ),
-            messagesToSourceKitLSPHandler: messagesToSourceKitLSPHandler
+            messagesToSourceKitLSPHandler: messagesToSourceKitLSPHandler,
+            buildServerHooks: buildServerHooks
           )
         }
         guard let buildServer else {

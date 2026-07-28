@@ -45,15 +45,11 @@ struct SwapBinaryOperands: SyntaxRefactoringCodeActionProvider {
       return nil
     }
 
-    let startPos = scope.snapshot.absolutePosition(of: scope.request.range.lowerBound)
-    let endPos = scope.snapshot.absolutePosition(of: scope.request.range.upperBound)
-    let selectionRange = startPos..<endPos
-
     // Only offer the refactoring when the cursor or selection targets the
     // operator token. This prevents offering the action when the cursor is placed on
     // either operand or in surrounding trivia.
     let tokenRange = opExpr.operator.trimmedRange
-    guard selectionRange.overlapsOrTouches(tokenRange) else {
+    guard scope.range.overlapsOrTouches(tokenRange) else {
       return nil
     }
 

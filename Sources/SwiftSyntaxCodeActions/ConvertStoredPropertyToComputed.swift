@@ -10,11 +10,28 @@
 //
 //===----------------------------------------------------------------------===//
 
+package import LanguageServerProtocol
+import SourceKitLSP
 import SwiftRefactor
 package import SwiftSyntax
 import SwiftSyntaxBuilder
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
-package struct ConvertStoredPropertyToComputed: SyntaxRefactoringProvider {
+package struct ConvertStoredPropertyToComputed: SyntaxRefactoringProvider, ResolvableSyntaxRefactoringCodeActionProvider
+{
+  package typealias Input = VariableDeclSyntax
+
+  static let title: String = "Convert Stored Property to Computed Property"
+
+  static func nodeToRefactor(in scope: SyntaxCodeActionScope) -> VariableDeclSyntax? {
+    return scope.innermostNodeContainingRange?.findParentOfSelf(
+      ofType: VariableDeclSyntax.self,
+      stoppingIf: {
+        $0.is(CodeBlockItemSyntax.self) || $0.is(MemberBlockItemSyntax.self) || $0.is(InitializerClauseSyntax.self)
+      }
+    )
+  }
+
   package struct Context {
     package let type: TypeSyntax?
 
@@ -22,6 +39,46 @@ package struct ConvertStoredPropertyToComputed: SyntaxRefactoringProvider {
       self.type = type
     }
   }
+
+  package struct UnresolvedData: Codable, LSPAnyCodable {
+    package let position: Position
+  }
+
+  static func refactoringContext(
+    for node: Input,
+    in scope: SyntaxCodeActionScope
+  ) -> RefactoringContext<Context, UnresolvedData> {
+    guard scope.resolveSupport?.canResolveEdit ?? false else {
+      // If the editor doesn't have resolve support, fall back to a syntactic action that introduces an editor placeholder for the type, similar to
+      // if the type cannot be inferred.
+      return .context(Context())
+    }
+    guard node.bindings.contains(where: { $0.typeAnnotation?.type == nil }) else {
+      // All types are syntactically specified, we don't need to resolve the semantic type
+      return .context(Context())
+    }
+    guard let binding = node.bindings.only,
+      let identifier = binding.pattern.as(IdentifierPatternSyntax.self)?.identifier
+    else {
+      // We can only resolve type information for a single variable binding at the moment. If this is variable decl with multiple bindings, still
+      // offer the refactoring action and introduce placeholders for the type annotation.
+      return .context(Context())
+    }
+    return .unresolved(UnresolvedData(position: scope.snapshot.position(of: identifier.position)))
+  }
+
+  static func resolveContext(
+    for data: UnresolvedData,
+    in scope: SyntaxCodeActionScope,
+    symbolInfo: (_ position: Position) async throws -> [SymbolDetails]
+  ) async throws -> Context {
+    guard let symbolInfo = try await symbolInfo(data.position).only, let typeName = symbolInfo.typeName, typeName != "_"
+    else {
+      return Context()
+    }
+    return Context(type: "\(raw: typeName)")
+  }
+
   package static func refactor(syntax: VariableDeclSyntax, in context: Context) throws -> VariableDeclSyntax {
     guard syntax.bindings.count == 1, let binding = syntax.bindings.first, let initializer = binding.initializer else {
       throw RefactoringNotApplicableError("unsupported variable declaration")

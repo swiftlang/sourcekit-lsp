@@ -24,13 +24,9 @@ extension SwiftLanguageService {
   ) async throws -> GeneratedInterfaceDetails? {
     // Include build settings context to distinguish different versions/configurations
     let buildSettingsFileHash = "\(abs(document.buildSettingsFile.stringValue.hashValue))"
-    let sourcekitdDocumentName = [moduleName, groupName, buildSettingsFileHash].compactMap(\.self)
-      .joined(separator: ".")
-
     let urlData = GeneratedInterfaceDocumentURLData(
       moduleName: moduleName,
       groupName: groupName,
-      sourcekitdDocumentName: sourcekitdDocumentName,
       primaryFile: document
     )
     let position: Position? =

@@ -15,27 +15,72 @@ import SourceKitLSP
 import SwiftRefactor
 package import SwiftSyntax
 
-/// Protocol that adapts a SyntaxRefactoringProvider (that comes from
-/// swift-syntax) into a SyntaxCodeActionProvider.
-protocol SyntaxRefactoringCodeActionProvider: SyntaxCodeActionProvider, EditRefactoringProvider {
+enum RefactoringContext<Context, UnresolvedData: LSPAnyCodable> {
+  case context(Context)
+  case unresolved(UnresolvedData)
+}
+
+/// Protocol that adapts a `SyntaxRefactoringProvider` (which comes from swift-syntax) into a `SyntaxCodeActionProvider`, allowing asynchronous
+/// resolving of semantic properties.
+///
+/// `SyntaxRefactoringCodeActionProvider` is a specialized version of this protocol for code actions that can syntactically generate the post-edit
+/// test during the `textDocument/codeAction` request and don't need to resolve any semantic information.
+protocol ResolvableSyntaxRefactoringCodeActionProvider: SyntaxCodeActionProvider, EditRefactoringProvider {
   static var title: String { get }
 
   /// Returns the node that the syntax refactoring should be performed on, if code actions are requested for the given
   /// scope.
   static func nodeToRefactor(in scope: SyntaxCodeActionScope) -> Input?
 
-  static func refactoringContext(for scope: SyntaxCodeActionScope) -> Context
+  associatedtype UnresolvedData: LSPAnyCodable
+
+  /// The refactoring context with which to run the `SyntaxRefactoringProvider`.
+  ///
+  /// If this returns a refactoring context, the refactoring's edits are computed and returned from the `textDocument/codeAction` request.
+  /// If `UnresolvedData` is returned, no edit is computed. The client is expected to call `codeAction/resolve` to resolve the edit. `resolveContext`
+  /// will be called in that case to resolve the context.
+  static func refactoringContext(
+    for node: Input,
+    in scope: SyntaxCodeActionScope
+  ) -> RefactoringContext<Context, UnresolvedData>
+
+  /// Resolve the refactoring's context during a `codeAction/resolve` request.
+  ///
+  /// May call `symbolInfo` to retrieve semantic information about the current document.
+  static func resolveContext(
+    for data: UnresolvedData,
+    in scope: SyntaxCodeActionScope,
+    symbolInfo: (_ position: Position) async throws -> [SymbolDetails]
+  ) async throws -> Context
 }
 
 /// SyntaxCodeActionProviders with a \c Void context can automatically be
 /// adapted provide a code action based on their refactoring operation.
-extension SyntaxRefactoringCodeActionProvider {
+extension ResolvableSyntaxRefactoringCodeActionProvider {
   package static func codeActions(in scope: SyntaxCodeActionScope) -> [CodeAction] {
     guard let node = nodeToRefactor(in: scope) else {
       return []
     }
 
-    guard let sourceEdits = try? Self.textRefactor(syntax: node, in: refactoringContext(for: scope)) else {
+    let context: Context
+    switch refactoringContext(for: node, in: scope) {
+    case .context(let c):
+      context = c
+    case .unresolved(let data):
+      return [
+        CodeAction(
+          title: Self.title,
+          kind: .refactorInline,
+          data: UnresolvedCodeActionData(
+            actionType: Self.self,
+            document: VersionedTextDocumentIdentifier(scope.snapshot.uri, version: scope.snapshot.version),
+            range: scope.requestedRange,
+            data: data.encodeToLSPAny()
+          ).encodeToLSPAny()
+        )
+      ]
+    }
+    guard let sourceEdits = try? Self.textRefactor(syntax: node, in: context) else {
       return []
     }
 
@@ -51,11 +96,58 @@ extension SyntaxRefactoringCodeActionProvider {
       )
     ]
   }
+
+  package static func resolve(
+    _ codeAction: CodeAction,
+    in scope: SyntaxCodeActionScope,
+    unresolvedData: LSPAny,
+    symbolInfo: (_ position: Position) async throws -> [SymbolDetails]
+  ) async throws -> CodeAction {
+    guard let node = nodeToRefactor(in: scope) else {
+      throw ResponseError.internalError("Unable to find node to refactor")
+    }
+    guard let unresolvedData = UnresolvedData(fromLSPAny: unresolvedData) else {
+      throw ResponseError.internalError("Unable to parse the unresolved data")
+    }
+
+    let context = try await resolveContext(
+      for: unresolvedData,
+      in: scope,
+      symbolInfo: symbolInfo
+    )
+    let sourceEdits = try Self.textRefactor(syntax: node, in: context)
+
+    // `asWorkspaceEdit` returning `nil` signifies that no edits need to be performed. Since the user has already
+    // selected this action, we cannot filter it out anymore. Simply return the empty edits.
+    let workspaceEdit = sourceEdits.asWorkspaceEdit(snapshot: scope.snapshot) ?? WorkspaceEdit()
+
+    return CodeAction(
+      title: Self.title,
+      kind: .refactorInline,
+      edit: workspaceEdit
+    )
+  }
 }
 
-extension SyntaxRefactoringCodeActionProvider where Context == Void {
-  static func refactoringContext(for scope: SyntaxCodeActionScope) -> Context {
-    return ()
+package struct EmptyLSPCodable: Codable, LSPAnyCodable {}
+
+protocol SyntaxRefactoringCodeActionProvider: ResolvableSyntaxRefactoringCodeActionProvider
+where Context == Void, UnresolvedData == EmptyLSPCodable {}
+
+extension SyntaxRefactoringCodeActionProvider {
+  static func refactoringContext(
+    for node: Input,
+    in scope: SyntaxCodeActionScope
+  ) -> RefactoringContext<Context, EmptyLSPCodable> {
+    return .context(())
+  }
+
+  static func resolveContext(
+    for data: EmptyLSPCodable,
+    in scope: SyntaxCodeActionScope,
+    symbolInfo: (_ position: Position) async throws -> [SymbolDetails]
+  ) async throws -> Context {
+    throw ResponseError.internalError("\(Self.self) should always return text edits and never need to be resolved")
   }
 }
 

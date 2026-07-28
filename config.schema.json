@@ -282,6 +282,14 @@
           "markdownDescription" : "Disables running subprocesses from SwiftPM in a sandbox. Equivalent to SwiftPM's `--disable-sandbox` option. Useful when running `sourcekit-lsp` in a sandbox because nested sandboxes are not supported.",
           "type" : "boolean"
         },
+        "extraArguments" : {
+          "description" : "Additional arguments appended to SwiftPM when starting or preparing the build server.",
+          "items" : {
+            "type" : "string"
+          },
+          "markdownDescription" : "Additional arguments appended to SwiftPM when starting or preparing the build server.",
+          "type" : "array"
+        },
         "forceResolvedVersions" : {
           "description" : "Equivalent to SwiftPM's `--force-resolved-versions` option. Makes all processes (including background indexing) treat Package.resolved as a lock file.",
           "markdownDescription" : "Equivalent to SwiftPM's `--force-resolved-versions` option. Makes all processes (including background indexing) treat Package.resolved as a lock file.",
