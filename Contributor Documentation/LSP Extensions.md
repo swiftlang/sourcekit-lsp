@@ -59,6 +59,8 @@ functionScope = 'functionScope'
 classScope = 'classScope'
 fileScope = 'fileScope'
 globalScope = 'globalScope'
+//  Marks a token as a parameter label in a function signature or call.
+parameterLabel = 'parameterLabel'
 ```
 
 ## Semantic token types
