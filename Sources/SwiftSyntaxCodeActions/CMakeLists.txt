@@ -14,6 +14,7 @@ add_library(SwiftSyntaxCodeActions STATIC
   ConvertZeroParameterFunctionToComputedProperty.swift
   DeclModifierRemover.swift
   FormatRawStringLiteral.swift
+  FunctionDeclSyntax+IsXCTestFunction.swift
   GenerateEnumCaseAccessors.swift
   IndentationRemover.swift
   IntegerLiteralUtilities.swift
@@ -26,8 +27,7 @@ add_library(SwiftSyntaxCodeActions STATIC
   SyntaxCodeActionProvider.swift
   SyntaxCodeActions.swift
   SyntaxRefactoringCodeActionProvider.swift
-  ToggleTestCodeAction.swift
-  XCTestFunction.swift
+  ToggleTestDisabled.swift
 )
 set_target_properties(SwiftSyntaxCodeActions PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Swift_MODULE_DIRECTORY})

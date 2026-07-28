@@ -17,7 +17,9 @@ import SwiftRefactor
 import SwiftSyntax
 import SwiftSyntaxBuilder
 
-struct ToggleTestCodeAction: SyntaxRefactoringCodeActionProvider {
+/// A refactoring code action that toggles Swift Testing and XCTest tests
+/// between enabled and disabled states.
+struct ToggleTestDisabled: SyntaxRefactoringCodeActionProvider {
   package static let title: String = "Toggle Test Enabled/Disabled"
 
   package static func nodeToRefactor(in scope: SyntaxCodeActionScope) -> FunctionDeclSyntax? {
@@ -31,13 +33,16 @@ struct ToggleTestCodeAction: SyntaxRefactoringCodeActionProvider {
     }
 
     if let testAttribute = findTestAttribute(in: function) {
+      // Do not offer the toggle for conditionally disabled tests. Toggling would
+      // remove the `.disabled(if:)` or `.disabled { ... }` condition entirely,
+      // changing the test's semantics rather than simply enabling or disabling it.
       if hasConditionalDisabledTrait(testAttribute) {
         return nil
       }
       return function
     }
 
-    guard function.isXCTestFunction else {
+    guard function.isSyntacticXCTestMethod else {
       return nil
     }
 
@@ -48,7 +53,7 @@ struct ToggleTestCodeAction: SyntaxRefactoringCodeActionProvider {
     // Route to the appropriate toggling logic based on which test framework is detected.
     if let testAttribute = findTestAttribute(in: function) {
       return try toggleSwiftTestingEdits(testAttribute: testAttribute)
-    } else if function.isXCTestFunction {
+    } else if function.isSyntacticXCTestMethod { // <-- Consistent with nodeToRefactor
       return try toggleXCTestEdits(function: function)
     } else {
       throw RefactoringNotApplicableError("Function is not a recognized test")

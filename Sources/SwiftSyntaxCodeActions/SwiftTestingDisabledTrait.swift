@@ -21,12 +21,10 @@ package extension FunctionCallExprSyntax {
     }
 
     guard let base = memberAccess.base else {
-      // `.disabled`
       return true
     }
 
     if let declRef = base.as(DeclReferenceExprSyntax.self) {
-      // `ConditionTrait.disabled`
       return declRef.baseName.text == "ConditionTrait"
     }
 
@@ -34,7 +32,6 @@ package extension FunctionCallExprSyntax {
       baseMemberAccess.declName.baseName.text == "ConditionTrait",
       let moduleRef = baseMemberAccess.base?.as(DeclReferenceExprSyntax.self)
     {
-      // `Testing.ConditionTrait.disabled`
       return moduleRef.baseName.text == "Testing"
     }
 
@@ -55,7 +52,6 @@ package extension FunctionCallExprSyntax {
       .contains("if")
   }
 
-  /// Whether this call expression is an *unconditional* swift-testing disabled trait.
   var isSwiftTestingUnconditionalDisabledTrait: Bool {
     isSwiftTestingDisabledTrait && !isSwiftTestingConditionalDisabledTrait
   }

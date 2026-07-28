@@ -36,4 +36,18 @@ extension FunctionDeclSyntax {
 
     return true
   }
+
+  package var isSyntacticXCTestMethod: Bool {
+    guard isXCTestFunction else { return false }
+
+    guard let memberBlockItem = parent?.as(MemberBlockItemSyntax.self),
+      let memberBlockItemList = memberBlockItem.parent?.as(MemberBlockItemListSyntax.self),
+      let memberBlock = memberBlockItemList.parent?.as(MemberBlockSyntax.self),
+      let parentDecl = memberBlock.parent
+    else {
+      return false
+    }
+
+    return parentDecl.is(ClassDeclSyntax.self) || parentDecl.is(ExtensionDeclSyntax.self)
+  }
 }
