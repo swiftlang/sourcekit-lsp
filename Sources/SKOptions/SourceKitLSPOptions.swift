@@ -86,6 +86,9 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable, LSPAnyCodable {
     ///   background indexing.
     public var skipPlugins: Bool?
 
+    /// Additional arguments appended to SwiftPM when starting or preparing the build server.
+    public var extraArguments: [String]?
+
     /// Which SwiftPM build system should be used when opening a package.
     public var buildSystem: SwiftPMBuildSystem?
 
@@ -107,6 +110,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable, LSPAnyCodable {
       forceResolvedVersions: Bool? = nil,
       disableSandbox: Bool? = nil,
       skipPlugins: Bool? = nil,
+      extraArguments: [String]? = nil,
       buildSystem: SwiftPMBuildSystem? = nil
     ) {
       self.configuration = configuration
@@ -125,6 +129,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable, LSPAnyCodable {
       self.buildToolsSwiftCompilerFlags = buildToolsSwiftCompilerFlags
       self.forceResolvedVersions = forceResolvedVersions
       self.disableSandbox = disableSandbox
+      self.extraArguments = extraArguments
       self.buildSystem = buildSystem
     }
 
@@ -147,6 +152,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable, LSPAnyCodable {
         forceResolvedVersions: override?.forceResolvedVersions ?? base.forceResolvedVersions,
         disableSandbox: override?.disableSandbox ?? base.disableSandbox,
         skipPlugins: override?.skipPlugins ?? base.skipPlugins,
+        extraArguments: override?.extraArguments ?? base.extraArguments,
         buildSystem: override?.buildSystem ?? base.buildSystem
       )
     }

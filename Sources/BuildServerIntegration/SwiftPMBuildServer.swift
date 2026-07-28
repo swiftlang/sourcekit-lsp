@@ -846,6 +846,8 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
     case .noLazy: arguments += ["--experimental-prepare-for-indexing", "--experimental-prepare-for-indexing-no-lazy"]
     case .enabled: arguments.append("--experimental-prepare-for-indexing")
     }
+    // Keep this last so extra arguments can override the options above.
+    arguments += options.swiftPMOrDefault.extraArguments ?? []
     if Task.isCancelled {
       return
     }

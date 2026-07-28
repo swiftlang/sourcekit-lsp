@@ -187,6 +187,27 @@ struct SwiftPMBuildServerTests {
     }
   }
 
+  @Test
+  func testExtraArgumentsArePassedVerbatim() async throws {
+    try await withTestScratchDir { tempDir in
+      let extraArguments = [
+        "--experimental-prebuilts-download-url",
+        "file:swift-syntax-prebuilt/feed",
+        "--experimental-prebuilts-root-cert",
+        "swift-syntax-prebuilt/root.cer",
+      ]
+      let config = try await BuildServerConfig.forSwiftPMBuildServer(
+        projectRoot: tempDir,
+        options: SourceKitLSPOptions(
+          swiftPM: .init(extraArguments: extraArguments)
+        ),
+        toolchainRegistry: .forTesting
+      )
+
+      #expect(Array(config.argv.suffix(extraArguments.count)) == extraArguments)
+    }
+  }
+
   @Test(arguments: buildServerOptionsToTest)
   func testBasicSwiftArgs(options: SourceKitLSPOptions) async throws {
     try await withTestScratchDir { tempDir in

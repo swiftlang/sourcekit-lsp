@@ -11,15 +11,15 @@
 //===----------------------------------------------------------------------===//
 
 @_spi(SourceKitLSP) import BuildServerProtocol
-import Foundation
+package import Foundation
 @_spi(SourceKitLSP) import LanguageServerProtocol
 @_spi(SourceKitLSP) import LanguageServerProtocolExtensions
 @_spi(SourceKitLSP) import LanguageServerProtocolTransport
 @_spi(SourceKitLSP) import SKLogging
-import SKOptions
+package import SKOptions
 import SwiftExtensions
 import TSCExtensions
-import ToolchainRegistry
+package import ToolchainRegistry
 @_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 import func TSCBasic.getEnvSearchPaths
@@ -63,7 +63,7 @@ enum BuildServerNotFoundError: Error {
 /// BSP configuration
 ///
 /// See https://build-server-protocol.github.io/docs/overview/server-discovery#the-bsp-connection-details
-struct BuildServerConfig: Codable {
+package struct BuildServerConfig: Codable {
   /// The name of the build tool.
   let name: String
 
@@ -77,7 +77,7 @@ struct BuildServerConfig: Codable {
   let languages: [String]
 
   /// Command arguments runnable via server processes to start a BSP server.
-  let argv: [String]
+  package let argv: [String]
 
   static func load(from path: URL) throws -> BuildServerConfig {
     let decoder = JSONDecoder()
@@ -89,7 +89,7 @@ struct BuildServerConfig: Codable {
     case unsupportedToolchainForSwiftPMBuildServerWithoutBackgroundIndexing
   }
 
-  static func forSwiftPMBuildServer(
+  package static func forSwiftPMBuildServer(
     projectRoot: URL,
     options: SourceKitLSPOptions,
     toolchainRegistry: ToolchainRegistry
@@ -191,6 +191,10 @@ struct BuildServerConfig: Codable {
     }
     if options.swiftPMOrDefault.disableSandbox == true {
       args.append("--disable-sandbox")
+    }
+    // Keep this last so extra arguments can override the options above.
+    if let extraArguments = options.swiftPMOrDefault.extraArguments {
+      args.append(contentsOf: extraArguments)
     }
     // The skipPlugins option isn't currently respected because the underlying build server does not support it.
     // We may want to reconsider this in the future, or remove the option entirely.
