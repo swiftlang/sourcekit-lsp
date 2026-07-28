@@ -2374,6 +2374,96 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
     XCTAssertEqual(libBSupertypes?.count, 1)
   }
 
+  func testFilesAreBatchedByBuildSettingsIgnoringOutputPathAndOpaqueData() async throws {
+    // Swift files of a target are indexed by a single compiler invocation when they share the same build settings after
+    // normalization. Normalization strips the per-file `-index-unit-output-path` argument (re-added via an
+    // `-output-file-map`) and clears the opaque `data` field, which is build-server passthrough metadata that does not
+    // affect the compiler invocation. Files that differ only in those values are therefore batched together, while
+    // files whose compiler arguments genuinely differ are indexed by separate invocations.
+    final class BuildServer: CustomBuildServer {
+      let inProgressRequestsTracker = CustomBuildServerInProgressRequestTracker()
+
+      private let projectRoot: URL
+
+      private var sources: [SourceItem] {
+        ["FileA.swift", "FileB.swift", "FileC.swift"].map { fileName in
+          sourceItem(
+            for: projectRoot.appending(component: fileName),
+            outputPath: fakeOutputPath(for: fileName, in: "Lib")
+          )
+        }
+      }
+
+      init(projectRoot: URL, connectionToSourceKitLSP: any LanguageServerProtocol.Connection) {
+        self.projectRoot = projectRoot
+      }
+
+      func initializeBuildRequest(_ request: InitializeBuildRequest) async throws -> InitializeBuildResponse {
+        return try initializationResponseSupportingBackgroundIndexing(
+          projectRoot: projectRoot,
+          outputPathsProvider: true
+        )
+      }
+
+      func buildTargetSourcesRequest(_ request: BuildTargetSourcesRequest) async throws -> BuildTargetSourcesResponse {
+        return BuildTargetSourcesResponse(items: [SourcesItem(target: .dummy, sources: sources)])
+      }
+
+      func textDocumentSourceKitOptionsRequest(
+        _ request: TextDocumentSourceKitOptionsRequest
+      ) async throws -> TextDocumentSourceKitOptionsResponse? {
+        let sourceInfo = try XCTUnwrap(sources.first(where: { $0.uri == request.textDocument.uri }))
+        // The files share all compiler arguments except the per-file `-index-unit-output-path`, which is normalized
+        // away before batching.
+        var arguments =
+          sources.map(\.uri.pseudoPath) + [
+            "-module-name", "Lib",
+            "-index-unit-output-path", try XCTUnwrap(sourceInfo.sourceKitData?.outputPath),
+          ]
+        // FileC gets a genuinely different compiler argument, so it can't be batched with the other files.
+        if request.textDocument.uri.pseudoPath.hasSuffix("FileC.swift") {
+          arguments += ["-DEXTRA"]
+        }
+        if let defaultSDKPath {
+          arguments += ["-sdk", defaultSDKPath]
+        }
+        // Give every file a distinct `data` value to verify that it does not affect batching.
+        return TextDocumentSourceKitOptionsResponse(
+          compilerArguments: arguments,
+          data: ["file": .string(request.textDocument.uri.pseudoPath)]
+        )
+      }
+    }
+
+    let partitions = ThreadSafeBox<[[String]]>(initialValue: [])
+    _ = try await CustomBuildServerTestProject(
+      files: [
+        "FileA.swift": "func a() {}",
+        "FileB.swift": "func b() {}",
+        "FileC.swift": "func c() {}",
+      ],
+      buildServer: BuildServer.self,
+      hooks: Hooks(
+        indexHooks: IndexHooks(
+          updateIndexStoreTaskDidComputePartitions: { computedPartitions in
+            partitions.withLock { partitions in
+              partitions += computedPartitions.map {
+                $0.indexedFiles.map { $0.sourceFile.fileURL?.lastPathComponent ?? $0.sourceFile.pseudoPath }
+              }
+            }
+          }
+        )
+      ),
+      enableBackgroundIndexing: true
+    )
+
+    // The partition order and the file order within each partition are deterministic, so assert on the exact arrays.
+    XCTAssertEqual(
+      partitions.value,
+      [["FileA.swift", "FileB.swift"], ["FileC.swift"]]
+    )
+  }
+
   func testHeaderIncludedFromMultipleTargets() async throws {
     final class BuildServer: CustomBuildServer {
       let inProgressRequestsTracker = CustomBuildServerInProgressRequestTracker()
