@@ -59,7 +59,14 @@ functionScope = 'functionScope'
 classScope = 'classScope'
 fileScope = 'fileScope'
 globalScope = 'globalScope'
-//  Marks a token as a parameter label in a function signature or call.
+```
+
+Added case
+
+```ts
+/**
+ * Marks a token as a parameter label in a function signature or call.
+ */
 parameterLabel = 'parameterLabel'
 ```
 
