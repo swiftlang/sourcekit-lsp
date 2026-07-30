@@ -52,9 +52,6 @@ final class SyntacticSwiftXCTestScanner: SyntaxVisitor {
       guard let function = member.decl.as(FunctionDeclSyntax.self) else {
         return nil
       }
-      // Test methods can't have a return type or have parameters.
-      // Technically we are also filtering out functions that have an explicit `Void` return type here but such
-      // declarations are probably less common than helper functions that start with `test` and have a return type.
       guard function.isXCTestFunction else {
           return nil
       }

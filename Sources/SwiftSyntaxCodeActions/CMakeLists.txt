@@ -22,6 +22,7 @@ add_library(SwiftSyntaxCodeActions STATIC
   OpaqueParameterToGeneric.swift
   PackageManifestEdits.swift
   SwapBinaryOperands.swift
+  SwiftTestingDisabledTrait.swift
   RemoveRedundantParentheses.swift
   RemoveSeparatorsFromIntegerLiteral.swift
   SyntaxCodeActionProvider.swift

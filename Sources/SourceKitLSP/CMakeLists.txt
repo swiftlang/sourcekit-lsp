@@ -1,5 +1,6 @@
 
 add_library(SourceKitLSP STATIC
+  AttributeSyntax+isNamed.swift
   CapabilityRegistry.swift
   DocumentManager.swift
   DocumentSnapshot+FromFileContents.swift

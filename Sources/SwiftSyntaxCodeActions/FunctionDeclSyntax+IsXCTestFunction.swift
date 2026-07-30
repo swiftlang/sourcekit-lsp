@@ -13,6 +13,18 @@
 import SwiftSyntax
 
 extension FunctionDeclSyntax {
+  /// Returns whether the function matches the syntactic heuristic for an XCTest
+  /// test method.
+  ///
+  /// The heuristic checks that the function:
+  /// - Has a name starting with `test` (and is longer than just `test`).
+  /// - Takes no parameters.
+  /// - Has no return type.
+  /// - Is an instance method (not `static` or `class`).
+  ///
+  /// This intentionally excludes functions with an explicit `Void` return type.
+  /// While those are valid XCTest methods, helper functions whose names start
+  /// with `test` and return a value are expected to be more common.
   package var isXCTestFunction: Bool {
     let name = self.name.text
 
@@ -37,7 +49,9 @@ extension FunctionDeclSyntax {
     return true
   }
 
-  package var isSyntacticXCTestMethod: Bool {
+  /// Returns whether the function matches the XCTest heuristic and is an
+  /// immediate member of a class or extension declaration.
+  var isSyntacticXCTestMethod: Bool {
     guard isXCTestFunction else { return false }
 
     guard let memberBlockItem = parent?.as(MemberBlockItemSyntax.self),

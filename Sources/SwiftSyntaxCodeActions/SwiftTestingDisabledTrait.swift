@@ -12,47 +12,47 @@
 
 import SwiftSyntax
 
-package extension FunctionCallExprSyntax {
-  var isSwiftTestingDisabledTrait: Bool {
+package enum SwiftTestingDisabledTrait {
+  case none
+  case disabled
+  case conditionallyDisabled
+}
+
+extension FunctionCallExprSyntax {
+  package var swiftTestingDisabledTrait: SwiftTestingDisabledTrait {
     guard let memberAccess = calledExpression.as(MemberAccessExprSyntax.self),
       memberAccess.declName.baseName.text == "disabled"
     else {
+      return .none
+    }
+
+    let isValidBase: Bool = {
+      guard let base = memberAccess.base else {
+        return true
+      }
+
+      if let declRef = base.as(DeclReferenceExprSyntax.self) {
+        return declRef.baseName.text == "ConditionTrait"
+      }
+
+      if let baseMemberAccess = base.as(MemberAccessExprSyntax.self),
+        baseMemberAccess.declName.baseName.text == "ConditionTrait",
+        let moduleRef = baseMemberAccess.base?.as(DeclReferenceExprSyntax.self)
+      {
+        return moduleRef.baseName.text == "Testing"
+      }
+
       return false
+    }()
+
+    guard isValidBase else {
+      return .none
     }
 
-    guard let base = memberAccess.base else {
-      return true
-    }
-
-    if let declRef = base.as(DeclReferenceExprSyntax.self) {
-      return declRef.baseName.text == "ConditionTrait"
-    }
-
-    if let baseMemberAccess = base.as(MemberAccessExprSyntax.self),
-      baseMemberAccess.declName.baseName.text == "ConditionTrait",
-      let moduleRef = baseMemberAccess.base?.as(DeclReferenceExprSyntax.self)
-    {
-      return moduleRef.baseName.text == "Testing"
-    }
-
-    return false
-  }
-
-  var isSwiftTestingConditionalDisabledTrait: Bool {
-    guard isSwiftTestingDisabledTrait else {
-      return false
-    }
-
-    if trailingClosure != nil {
-      return true
-    }
-
-    return arguments.lazy
+    let isConditional = trailingClosure != nil || arguments.lazy
       .compactMap(\.label?.text)
       .contains("if")
-  }
 
-  var isSwiftTestingUnconditionalDisabledTrait: Bool {
-    isSwiftTestingDisabledTrait && !isSwiftTestingConditionalDisabledTrait
+    return isConditional ? .conditionallyDisabled : .disabled
   }
 }

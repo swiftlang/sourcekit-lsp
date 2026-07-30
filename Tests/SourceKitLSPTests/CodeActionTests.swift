@@ -3487,6 +3487,40 @@ final class CodeActionTests: SourceKitLSPTestCase {
     }
   }
 
+  func testToggleXCTestDisabledToEnabledPreservesComments() async throws {
+    try await assertCodeActions(
+      """
+      class MyTests {
+      1️⃣func testExample() throws {2️⃣
+          throw XCTSkip("Disabled")3️⃣
+          // We shouldn't delete this comment
+          XCTAssertEqual(2 + 2, 4)
+      }
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Toggle Test Enabled/Disabled",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["2️⃣"]..<positions["3️⃣"],
+                  newText: ""
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
   func testToggleTestNotOfferedForNonTestFunction() async throws {
     try await assertNoCodeAction(
       titled: "Toggle Test Enabled/Disabled",

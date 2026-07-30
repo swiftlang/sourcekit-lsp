@@ -113,7 +113,7 @@ struct TestingAttributeData {
 
     self.isDisabled = traitArguments.lazy
       .compactMap { $0.as(FunctionCallExprSyntax.self) }
-      .contains { $0.isSwiftTestingUnconditionalDisabledTrait }
+      .contains { $0.swiftTestingDisabledTrait == .disabled }
 
     self.isHidden = traitArguments.lazy
       .compactMap { $0.as(MemberAccessExprSyntax.self) }
@@ -365,33 +365,6 @@ final class SyntacticSwiftTestingTestScanner: SyntaxVisitor {
 }
 
 // MARK: - SwiftSyntax Utilities
-
-fileprivate extension AttributeSyntax {
-  /// Check whether or not this attribute is named with the specified name and
-  /// module.
-  ///
-  /// The attribute's name is accepted either without or with the specified
-  /// module name as a prefix to allow for either syntax. The name of this
-  /// attribute must not include generic type parameters.
-  ///
-  /// - Parameters:
-  ///   - name: The `"."`-separated type name to compare against.
-  ///   - moduleName: The module the specified type is declared in.
-  ///
-  /// - Returns: Whether or not this type has the given name.
-  func isNamed(_ name: String, inModuleNamed moduleName: String) -> Bool {
-    if let identifierType = attributeName.as(IdentifierTypeSyntax.self) {
-      return identifierType.name.text == name
-    } else if let memberType = attributeName.as(MemberTypeSyntax.self),
-      let baseIdentifierType = memberType.baseType.as(IdentifierTypeSyntax.self),
-      baseIdentifierType.genericArgumentClause == nil
-    {
-      return memberType.name.text == name && baseIdentifierType.name.text == moduleName
-    }
-
-    return false
-  }
-}
 
 fileprivate extension MemberAccessExprSyntax {
   /// The fully-qualified name of this instance (subject to available

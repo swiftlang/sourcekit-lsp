@@ -53,7 +53,7 @@ struct ToggleTestDisabled: SyntaxRefactoringCodeActionProvider {
     // Route to the appropriate toggling logic based on which test framework is detected.
     if let testAttribute = findTestAttribute(in: function) {
       return try toggleSwiftTestingEdits(testAttribute: testAttribute)
-    } else if function.isSyntacticXCTestMethod { // <-- Consistent with nodeToRefactor
+    } else if function.isSyntacticXCTestMethod {
       return try toggleXCTestEdits(function: function)
     } else {
       throw RefactoringNotApplicableError("Function is not a recognized test")
@@ -66,8 +66,7 @@ struct ToggleTestDisabled: SyntaxRefactoringCodeActionProvider {
     for element in function.attributes {
       guard case .attribute(let attr) = element else { continue }
 
-      let name = attr.attributeName.trimmedDescription
-      if name == "Test" || name == "Testing.Test" {
+      if attr.isNamed("Test", inModuleNamed: "Testing") {
         return attr
       }
     }
@@ -84,7 +83,7 @@ struct ToggleTestDisabled: SyntaxRefactoringCodeActionProvider {
         return false
       }
 
-      return disabledCall.isSwiftTestingConditionalDisabledTrait
+      return disabledCall.swiftTestingDisabledTrait == .conditionallyDisabled
     }
   }
 
@@ -102,7 +101,9 @@ struct ToggleTestDisabled: SyntaxRefactoringCodeActionProvider {
     var argumentsArray = Array(argumentsList)
 
     // Check if the `.disabled(...)` trait is already present in the arguments.
-    if let disabledArgIndex = argumentsArray.firstIndex(where: { isDisabledTrait($0.expression) }) {
+    if let disabledArgIndex = argumentsArray.firstIndex(where: {
+      $0.expression.as(FunctionCallExprSyntax.self)?.swiftTestingDisabledTrait == .disabled
+    }) {
       // The test is currently disabled, so enable it by removing the trait.
       argumentsArray.remove(at: disabledArgIndex)
 
@@ -156,15 +157,6 @@ struct ToggleTestDisabled: SyntaxRefactoringCodeActionProvider {
     ]
   }
 
-  private static func isDisabledTrait(_ expr: ExprSyntax) -> Bool {
-    guard let disabledCall = expr.as(FunctionCallExprSyntax.self),
-      let memberAccess = disabledCall.calledExpression.as(MemberAccessExprSyntax.self)
-    else {
-      return false
-    }
-    return memberAccess.declName.baseName.text == "disabled"
-  }
-
   private static func toggleXCTestEdits(function: FunctionDeclSyntax) throws -> [SourceEdit] {
     guard let body = function.body else {
       throw RefactoringNotApplicableError("XCTest function has no body")
@@ -198,7 +190,10 @@ struct ToggleTestDisabled: SyntaxRefactoringCodeActionProvider {
         edits.append(
           SourceEdit(
             range: insertionPosition..<insertionPosition,
-            replacement: "throw XCTSkip(\"Disabled\")\n\(statementIndentation.description)"
+            replacement: """
+              throw XCTSkip("Disabled")
+              \(statementIndentation.description)
+              """
           )
         )
       } else {
@@ -209,8 +204,15 @@ struct ToggleTestDisabled: SyntaxRefactoringCodeActionProvider {
         let hasNewline = body.rightBrace.leadingTrivia.contains(where: \.isNewline)
         let replacementText =
           hasNewline
-          ? "\(indentStep.description)throw XCTSkip(\"Disabled\")\n\(baseIndentation.description)"
-          : "\n\(innerIndentation.description)throw XCTSkip(\"Disabled\")\n\(baseIndentation.description)"
+          ? """
+          \(indentStep.description)throw XCTSkip("Disabled")
+          \(baseIndentation.description)
+          """
+          : """
+
+          \(innerIndentation.description)throw XCTSkip("Disabled")
+          \(baseIndentation.description)
+          """
 
         edits.append(
           SourceEdit(
@@ -225,7 +227,7 @@ struct ToggleTestDisabled: SyntaxRefactoringCodeActionProvider {
   }
 
   private static func isXCTSkipStatement(_ item: CodeBlockItemSyntax) -> Bool {
-    guard let throwStmt = item.item.as(StmtSyntax.self)?.as(ThrowStmtSyntax.self),
+    guard let throwStmt = item.item.as(ThrowStmtSyntax.self),
       let callExpr = throwStmt.expression.as(FunctionCallExprSyntax.self),
       let declRef = callExpr.calledExpression.as(DeclReferenceExprSyntax.self)
     else {
