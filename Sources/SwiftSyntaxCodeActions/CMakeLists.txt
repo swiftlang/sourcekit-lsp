@@ -14,7 +14,6 @@ add_library(SwiftSyntaxCodeActions STATIC
   ConvertZeroParameterFunctionToComputedProperty.swift
   DeclModifierRemover.swift
   FormatRawStringLiteral.swift
-  FunctionDeclSyntax+IsXCTestFunction.swift
   GenerateEnumCaseAccessors.swift
   IndentationRemover.swift
   IntegerLiteralUtilities.swift
@@ -22,7 +21,6 @@ add_library(SwiftSyntaxCodeActions STATIC
   OpaqueParameterToGeneric.swift
   PackageManifestEdits.swift
   SwapBinaryOperands.swift
-  SwiftTestingDisabledTrait.swift
   RemoveRedundantParentheses.swift
   RemoveSeparatorsFromIntegerLiteral.swift
   SyntaxCodeActionProvider.swift

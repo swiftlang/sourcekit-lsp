@@ -1,8 +1,12 @@
 set(sources
+  AttributeSyntax+isNamed.swift
   Debouncer.swift
   Dictionary+InitWithElementsKeyedBy.swift
+  FunctionDeclSyntax+IsXCTestFunction.swift
   LineTable.swift
   LRUCache.swift
+  MemberAccessExprSyntax+FullyQualifiedName.swift
+  SwiftTestingDisabledTrait.swift
 )
 
 add_library(SKUtilities STATIC ${sources})
@@ -27,4 +31,5 @@ target_link_libraries(SKUtilitiesForPlugin PRIVATE
   SwiftToolsProtocols::_SKLoggingForPlugin
   SwiftExtensionsForPlugin
   SwiftToolsProtocols::_ToolsProtocolsSwiftExtensionsForPlugin
+  SwiftSyntax
   $<$<NOT:$<PLATFORM_ID:Darwin>>:Foundation>)

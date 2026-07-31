@@ -12,7 +12,7 @@
 
 import SwiftSyntax
 
-extension FunctionDeclSyntax {
+package extension FunctionDeclSyntax {
   /// Returns whether the function matches the syntactic heuristic for an XCTest
   /// test method.
   ///
@@ -25,7 +25,7 @@ extension FunctionDeclSyntax {
   /// This intentionally excludes functions with an explicit `Void` return type.
   /// While those are valid XCTest methods, helper functions whose names start
   /// with `test` and return a value are expected to be more common.
-  package var isXCTestFunction: Bool {
+  var isXCTestFunction: Bool {
     let name = self.name.text
 
     guard name.hasPrefix("test"), name.count > 4 else {
@@ -40,9 +40,11 @@ extension FunctionDeclSyntax {
       return false
     }
 
-    guard !modifiers.contains(where: {
-      $0.name.tokenKind == .keyword(.static) || $0.name.tokenKind == .keyword(.class)
-    }) else {
+    guard
+      !modifiers.contains(where: {
+        $0.name.tokenKind == .keyword(.static) || $0.name.tokenKind == .keyword(.class)
+      })
+    else {
       return false
     }
 

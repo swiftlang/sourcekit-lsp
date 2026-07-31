@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 internal import LanguageServerProtocol
+import SKUtilities
 internal import SourceKitLSP
 import SwiftBasicFormat
 import SwiftRefactor

@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 @_spi(SourceKitLSP) import LanguageServerProtocol
+import SKUtilities
 import SourceKitLSP
 import SwiftSyntax
 import SwiftSyntaxCodeActions
@@ -53,7 +54,7 @@ final class SyntacticSwiftXCTestScanner: SyntaxVisitor {
         return nil
       }
       guard function.isXCTestFunction else {
-          return nil
+        return nil
       }
       let range = snapshot.positionRange(
         of: function.positionAfterSkippingLeadingTrivia..<function.endPositionBeforeTrailingTrivia

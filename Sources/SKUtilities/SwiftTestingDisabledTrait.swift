@@ -31,27 +31,23 @@ extension FunctionCallExprSyntax {
         return true
       }
 
-      if let declRef = base.as(DeclReferenceExprSyntax.self) {
-        return declRef.baseName.text == "ConditionTrait"
+      switch base.fullyQualifiedName {
+      case "ConditionTrait", "Testing.ConditionTrait":
+        return true
+      default:
+        return false
       }
-
-      if let baseMemberAccess = base.as(MemberAccessExprSyntax.self),
-        baseMemberAccess.declName.baseName.text == "ConditionTrait",
-        let moduleRef = baseMemberAccess.base?.as(DeclReferenceExprSyntax.self)
-      {
-        return moduleRef.baseName.text == "Testing"
-      }
-
-      return false
     }()
 
     guard isValidBase else {
       return .none
     }
 
-    let isConditional = trailingClosure != nil || arguments.lazy
-      .compactMap(\.label?.text)
-      .contains("if")
+    let isConditional =
+      trailingClosure != nil
+      || arguments.lazy
+        .compactMap(\.label?.text)
+        .contains("if")
 
     return isConditional ? .conditionallyDisabled : .disabled
   }
