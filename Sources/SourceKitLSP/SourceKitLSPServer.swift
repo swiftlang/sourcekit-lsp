@@ -2244,28 +2244,25 @@ extension SourceKitLSPServer {
 
     // Deduplicate USRs only for pure-implicit occurrences that need primary-definition lookup.
     var implicitUSRsNeedingLookup = Set<String>()
-    var uniqueImplicitUSRsInOrder: [String] = []
 
     for occurrence in overrideOccurrences {
-      let isExplicitDefinitionOrDeclaration =
-        occurrence.roles.contains(.definition) || occurrence.roles.contains(.declaration)
-      if isExplicitDefinitionOrDeclaration {
+      if occurrence.roles.contains(.definition) || occurrence.roles.contains(.declaration) {
         // Preserve every explicit declaration/definition location (important for C++ where
         // in-class declaration and out-of-line definition share a USR).
         if let location = occurrence.location.lspLocation {
           resultLocations.append(location)
         }
       } else if occurrence.roles.contains(.implicit) {
-        let implUSR = occurrence.symbol.usr
-        if implicitUSRsNeedingLookup.insert(implUSR).inserted {
-          uniqueImplicitUSRsInOrder.append(implUSR)
-        }
+        implicitUSRsNeedingLookup.insert(occurrence.symbol.usr)
+      } else {
+        logger.fault(
+          "Ignoring override occurrence \(occurrence.symbol.usr) with unexpected roles \(occurrence.roles)"
+        )
       }
-      // Other non-explicit, non-implicit roles: ignore.
     }
 
-    for implUSR in uniqueImplicitUSRsInOrder {
-      if let primary = try index.primaryDefinitionOrDeclarationOccurrence(ofUSR: implUSR),
+    for implicitUSR in implicitUSRsNeedingLookup {
+      if let primary = try index.primaryDefinitionOrDeclarationOccurrence(ofUSR: implicitUSR),
         let location = primary.location.lspLocation
       {
         resultLocations.append(location)

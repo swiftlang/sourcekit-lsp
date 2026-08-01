@@ -249,10 +249,6 @@ final class ImplementationTests: SourceKitLSPTestCase {
   }
 
   func testOverrideProtocolFunc() async throws {
-    // https://github.com/swiftlang/sourcekit-lsp/issues/1600
-    // Report actual method implementations only: not subclass names (4, 5) or
-    // conformance-only extensions (7). Retroactive methods declared in the type
-    // body (6) must still be found via the conformance extension's index relation.
     try await testImplementation(
       """
       protocol MyProto {
