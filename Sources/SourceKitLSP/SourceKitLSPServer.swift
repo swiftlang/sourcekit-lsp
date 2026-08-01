@@ -2228,36 +2228,32 @@ extension SourceKitLSPServer {
       return nil
     }
 
-    // Preserve baseOf-first dispatch used for type hierarchies (subclasses / protocol conformers).
-    // When baseOf is empty (typical for methods), keep explicit overrideOf definition/declaration
-    // locations and remap only pure-implicit sites to their primary definition (e.g. protocol
-    // requirement satisfied in a type body with a separate conformance extension).
+    // Report baseOf locations used for type hierarchies (subclasses / protocol conformers). For overrideOf
+    // occurrences, keep explicit definition/declaration locations and remap only pure-implicit sites to their primary
+    // definition (e.g. a protocol requirement satisfied in a type body with a separate conformance extension).
     // See https://github.com/swiftlang/sourcekit-lsp/issues/1600
-    var candidateLocations: [Location] = []
-    var fallbackOccurrences: [SymbolOccurrence] = []
+    var resultLocations: [Location] = []
+    var overrideOccurrences: [SymbolOccurrence] = []
 
     for symbol in symbols {
       guard let usr = symbol.usr else { continue }
       let baseOccurrences = try index.occurrences(ofUSR: usr, roles: .baseOf)
-      if !baseOccurrences.isEmpty {
-        candidateLocations += baseOccurrences.compactMap { $0.location.lspLocation }
-      } else {
-        fallbackOccurrences += try index.occurrences(relatedToUSR: usr, roles: .overrideOf)
-      }
+      resultLocations += baseOccurrences.compactMap { $0.location.lspLocation }
+      overrideOccurrences += try index.occurrences(relatedToUSR: usr, roles: .overrideOf)
     }
 
     // Deduplicate USRs only for pure-implicit occurrences that need primary-definition lookup.
     var implicitUSRsNeedingLookup = Set<String>()
     var uniqueImplicitUSRsInOrder: [String] = []
 
-    for occurrence in fallbackOccurrences {
+    for occurrence in overrideOccurrences {
       let isExplicitDefinitionOrDeclaration =
         occurrence.roles.contains(.definition) || occurrence.roles.contains(.declaration)
       if isExplicitDefinitionOrDeclaration {
         // Preserve every explicit declaration/definition location (important for C++ where
         // in-class declaration and out-of-line definition share a USR).
         if let location = occurrence.location.lspLocation {
-          candidateLocations.append(location)
+          resultLocations.append(location)
         }
       } else if occurrence.roles.contains(.implicit) {
         let implUSR = occurrence.symbol.usr
@@ -2272,13 +2268,13 @@ extension SourceKitLSPServer {
       if let primary = try index.primaryDefinitionOrDeclarationOccurrence(ofUSR: implUSR),
         let location = primary.location.lspLocation
       {
-        candidateLocations.append(location)
+        resultLocations.append(location)
       }
       // Pure implicit with no resolvable primary: drop (avoids subclass / conformance sites).
     }
 
     let copiedFileMap = await workspace.buildServerManager.cachedCopiedFileMap
-    let remappedLocations = candidateLocations.adjusted(for: copiedFileMap)
+    let remappedLocations = resultLocations.adjusted(for: copiedFileMap)
     return .locations(remappedLocations.unique.sorted())
   }
 
