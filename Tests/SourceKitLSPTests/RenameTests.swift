@@ -258,7 +258,7 @@ final class RenameTests: SourceKitLSPTestCase {
       struct Foo {
         1️⃣init(4️⃣x: Int) {}
       }
-      Foo(x: 1)
+      Foo(7️⃣x: 1)
       Foo.2️⃣init(5️⃣x: 1)
       _ = Foo.3️⃣init(6️⃣x:)
       """,
@@ -511,6 +511,39 @@ final class RenameTests: SourceKitLSPTestCase {
         """,
       ]
     )
+  }
+
+  func testCrossFileSwiftRenameInInitializer() async throws {
+    for type in ["struct", "class", "actor", "enum"] {
+      try await assertMultiFileRename(
+        files: [
+          "a.swift": """
+          func main() {
+            let foo: Foo = 1️⃣Foo()
+          }
+          """,
+          "b.swift": """
+          \(type) Foo {
+            init() {} // explicit initializer is needed for enums
+          }
+          """,
+        ],
+        newName: "Bar",
+        expectedPrepareRenamePlaceholder: "Foo",
+        expected: [
+          "a.swift": """
+          func main() {
+            let foo: Bar = Bar()
+          }
+          """,
+          "b.swift": """
+          \(type) Bar {
+            init() {} // explicit initializer is needed for enums
+          }
+          """,
+        ]
+      )
+    }
   }
 
   func testSwiftCrossModuleRename() async throws {

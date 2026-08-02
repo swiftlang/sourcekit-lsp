@@ -15,6 +15,7 @@ package import Foundation
 @_spi(SourceKitLSP) package import LanguageServerProtocol
 @_spi(SourceKitLSP) import SKLogging
 import SwiftExtensions
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 func lastIndexStorePathArgument(in compilerArgs: [String]) -> String? {
   if let indexStorePathIndex = compilerArgs.lastIndex(of: "-index-store-path"),

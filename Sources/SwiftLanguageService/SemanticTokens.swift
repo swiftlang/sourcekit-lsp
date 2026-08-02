@@ -62,7 +62,7 @@ extension SwiftLanguageService {
 
     async let semanticTokens =
       await orLog("Loading semantic tokens") { try await semanticHighlightingTokens(for: snapshot) }
-      ?? SyntaxHighlightingTokens(tokens: [])
+      ?? SyntaxHighlightingTokens(sortedTokens: [])
 
     let tokens =
       if self.options.reportSyntacticHighlightInSemanticTokensOrDefault {
@@ -70,7 +70,7 @@ extension SwiftLanguageService {
       } else {
         await semanticTokens
       }
-    return tokens.sorted({ $0.start < $1.start })
+    return tokens
   }
 
   private func syntacticTokens(
@@ -88,11 +88,12 @@ extension SwiftLanguageService {
         tree.range
       }
 
-    return
-      tree
-      .classifications(in: range)
-      .map { $0.highlightingTokens(in: snapshot) }
-      .reduce(into: SyntaxHighlightingTokens(tokens: [])) { $0.tokens += $1.tokens }
+    return SyntaxHighlightingTokens(
+      sortedTokens:
+        tree
+        .classifications(in: range)
+        .flatMap { $0.highlightingTokens(in: snapshot).tokens }
+    )
   }
 
   package func documentSemanticTokens(
@@ -126,7 +127,7 @@ extension SwiftLanguageService {
 extension SyntaxClassifiedRange {
   fileprivate func highlightingTokens(in snapshot: DocumentSnapshot) -> SyntaxHighlightingTokens {
     guard let (kind, modifiers) = self.kind.highlightingKindAndModifiers else {
-      return SyntaxHighlightingTokens(tokens: [])
+      return SyntaxHighlightingTokens(sortedTokens: [])
     }
 
     let multiLineRange = snapshot.positionRange(of: self.range)
@@ -140,7 +141,7 @@ extension SyntaxClassifiedRange {
       )
     }
 
-    return SyntaxHighlightingTokens(tokens: tokens)
+    return SyntaxHighlightingTokens(sortedTokens: tokens)
   }
 }
 

@@ -17,11 +17,12 @@ import SKUtilities
 import SwiftExtensions
 import TSCBasic
 import ToolchainRegistry
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
 
 final class WorkspaceSymbolInfoTests: XCTestCase {
-  /// Returns the first `WorkspaceSymbol` in a `workspaceSymbolInfo` response for `name` whose
-  /// location is a `file://` URI to a module file (`.swiftinterface` or `.swiftmodule`).
+  /// Returns the first `WorkspaceSymbol` in a `workspaceSymbolInfo` response for `name` whose location is a
+  /// URI-only `sourcekit-lsp://generated-swift-interface` reference-document location (no range).
   private func generatedInterfaceSymbol(
     for name: String,
     in response: WorkspaceSymbolInfoResponse
@@ -29,8 +30,9 @@ final class WorkspaceSymbolInfoTests: XCTestCase {
     for case .workspaceSymbol(let symbol) in response.results {
       if symbol.name == name,
         case .uri(let uriOnly) = symbol.location,
-        let path = uriOnly.uri.fileURL?.path,
-        path.hasSuffix(".swiftinterface") || path.hasSuffix(".swiftmodule")
+        let components = URLComponents(string: uriOnly.uri.arbitrarySchemeURL.absoluteString),
+        components.scheme == "sourcekit-lsp",
+        components.host == "generated-swift-interface"
       {
         return symbol
       }
@@ -69,31 +71,35 @@ final class WorkspaceSymbolInfoTests: XCTestCase {
 
     let response = try await project.testClient.send(WorkspaceSymbolInfoRequest(names: ["String"]))
 
-    // workspace/symbolInfo returns a deferred WorkspaceSymbol for SDK symbols:
-    // location is a file://<module-file>?module=<name> URI (no range), USR in data["usr"].
+    // workspace/symbolInfo returns SDK symbols as a `WorkspaceSymbol` whose location is the URI-only form of
+    // a `sourcekit-lsp://generated-swift-interface` reference document (no range), with a `sourceKitData`.
     let symbol = try XCTUnwrap(
       generatedInterfaceSymbol(for: "String", in: response),
-      "Expected a 'String' WorkspaceSymbol with a module file URI location"
+      "Expected a 'String' WorkspaceSymbol with a generated-interface reference-document URI"
     )
     guard case .uri(let uriOnly) = symbol.location else {
       XCTFail("Expected .uri location, got \(symbol.location)")
       return
     }
-    let path = try XCTUnwrap(uriOnly.uri.fileURL?.path)
-    XCTAssert(
-      path.hasSuffix(".swiftinterface") || path.hasSuffix(".swiftmodule"),
-      "Expected a .swiftinterface or .swiftmodule path, got: \(path)"
-    )
+    XCTAssertEqual(uriOnly.uri.scheme, "sourcekit-lsp")
     let urlComponents = try XCTUnwrap(URLComponents(string: uriOnly.uri.arbitrarySchemeURL.absoluteString))
-    let queryItems = urlComponents.queryItems
     let moduleParam = try XCTUnwrap(
-      queryItems?.first(where: { $0.name == "module" })?.value,
-      "URI should contain a ?module= query parameter"
+      urlComponents.queryItems?.first(where: { $0.name == "moduleName" })?.value,
+      "URI should contain a moduleName query parameter"
     )
-    XCTAssertFalse(moduleParam.isEmpty, "?module= query parameter should be non-empty")
-    XCTAssertNil(urlComponents.fragment, "URI should not contain a fragment")
+    XCTAssertFalse(moduleParam.isEmpty, "moduleName query parameter should be non-empty")
 
-    // workspaceSymbol/resolve turns the deferred URI into a sourcekit-lsp:// location with a range.
+    // The interface path and module name are also carried in `sourceKitData`.
+    let sourceKitData = try XCTUnwrap(symbol.sourceKitData, "Expected SourceKitWorkspaceSymbolData in data")
+    let dataModuleName = try XCTUnwrap(sourceKitData.moduleName, "Expected a moduleName in data")
+    XCTAssert(dataModuleName.hasPrefix("Swift"), "Expected module name starting with 'Swift', got \(dataModuleName)")
+    let dataInterfaceURI = try XCTUnwrap(sourceKitData.interfaceURI, "Expected an interfaceURI in data")
+    XCTAssert(
+      dataInterfaceURI.pseudoPath.hasSuffix(".swiftinterface") || dataInterfaceURI.pseudoPath.hasSuffix(".swiftmodule"),
+      "Expected interfaceURI to point at a .swiftinterface/.swiftmodule, got \(dataInterfaceURI)"
+    )
+
+    // workspaceSymbol/resolve fills in the range.
     let resolved = try await project.testClient.send(
       WorkspaceSymbolResolveRequest(workspaceSymbol: symbol)
     )
@@ -101,7 +107,7 @@ final class WorkspaceSymbolInfoTests: XCTestCase {
       XCTFail("Expected .location after resolve, got \(resolved.location)")
       return
     }
-    XCTAssertEqual(location.uri.scheme, "sourcekit-lsp")
+    XCTAssertEqual(location.uri, uriOnly.uri, "resolve must not change the URI, only fill in the range")
 
     // getReferenceDocument delivers the interface text; the resolved range points at the declaration.
     let refDoc = try await project.testClient.send(GetReferenceDocumentRequest(uri: location.uri))
@@ -115,6 +121,39 @@ final class WorkspaceSymbolInfoTests: XCTestCase {
     XCTAssert(
       line.contains("struct String"),
       "Line at resolved position should contain 'struct String', got: '\(line)'"
+    )
+  }
+
+  func testWorkspaceSymbolInfoStdlibSymbolFallsBackToFileLocationWithoutReferenceDocumentSupport() async throws {
+    let project = try await IndexedSingleSwiftFileTestProject(
+      """
+      let x: String = ""
+      """,
+      // No `workspaceSymbol/resolve` and no generated-interface reference-document support.
+      capabilities: ClientCapabilities(),
+      indexSystemModules: true
+    )
+
+    let response = try await project.testClient.send(WorkspaceSymbolInfoRequest(names: ["String"]))
+
+    // Without reference-document + resolve support, the SDK symbol falls back to a plain
+    // `SymbolInformation` pointing directly at its `.swiftinterface`/`.swiftmodule` file.
+    let interfaceLocation = response.results.lazy.compactMap { item -> Location? in
+      guard case .symbolInformation(let info) = item, info.name == "String" else { return nil }
+      return info.location
+    }.first { location in
+      guard let path = location.uri.fileURL?.path else { return false }
+      return path.hasSuffix(".swiftinterface") || path.hasSuffix(".swiftmodule")
+    }
+    XCTAssertNotNil(
+      interfaceLocation,
+      "Expected a 'String' SymbolInformation with a .swiftinterface/.swiftmodule file:// location"
+    )
+
+    // No generated-interface reference-document URI should be emitted.
+    XCTAssertNil(
+      generatedInterfaceSymbol(for: "String", in: response),
+      "Should not emit a reference-document URI without reference-document support"
     )
   }
 

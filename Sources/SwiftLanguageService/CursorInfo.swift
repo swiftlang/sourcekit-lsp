@@ -85,8 +85,10 @@ struct CursorInfo {
           documentManager.latestSnapshotOrDisk(uri, language: .swift)
         }
       if let snapshot {
-        let position = snapshot.positionOf(zeroBasedLine: line - 1, utf8Column: column - 1)
-        location = Location(uri: uri, range: Range(position))
+        let length = (dict[keys.length] ?? 0)
+        let positionStart = snapshot.positionOf(zeroBasedLine: line - 1, utf8Column: column - 1)
+        let positionEnd = snapshot.positionOf(zeroBasedLine: line - 1, utf8Column: column + length - 1)
+        location = Location(uri: uri, range: positionStart..<positionEnd)
       } else {
         logger.error("Failed to get snapshot for \(uri.forLogging) to convert position")
         location = nil
@@ -113,7 +115,8 @@ struct CursorInfo {
         isDynamic: dict[keys.isDynamic] ?? false,
         isSystem: dict[keys.isSystem] ?? false,
         receiverUsrs: dict[keys.receivers]?.compactMap { $0[keys.usr] as String? } ?? [],
-        systemModule: module
+        systemModule: module,
+        typeName: dict[keys.typeName]
       ),
       annotatedDeclaration: dict[keys.annotatedDecl],
       documentation: dict[keys.docComment]

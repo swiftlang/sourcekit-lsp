@@ -103,9 +103,12 @@ interface SKCompletionOptions {
 }
 ```
 
-## `textDocument/doccDocumentation`
+## `sourcekit/textDocument/doccDocumentation`
 
 New request that generates documentation for a symbol at a given cursor location.
+
+> [!NOTE]
+> This request was previously named `textDocument/doccDocumentation`. The old name is still accepted for backward compatibility.
 
 Primarily designed to support live preview of Swift documentation in editors.
 
@@ -124,7 +127,7 @@ failed LSP error code (-32803) that contains a human-readable error message. Thi
 be displayed within the live preview editor to indicate that something has gone wrong.
 
 At the moment this request is only available on macOS and Linux. SourceKit-LSP will advertise
-`textDocument/doccDocumentation` in its experimental server capabilities if it supports it.
+`sourcekit/textDocument/doccDocumentation` in its experimental server capabilities if it supports it.
 
 - params: `DoccDocumentationParams`
 - result: `DoccDocumentationResponse`
@@ -285,9 +288,12 @@ interface SymbolDetails {
 }
 ```
 
-## `textDocument/tests`
+## `sourcekit/textDocument/tests`
 
 New request that returns symbols for all the test classes and test methods within a file.
+
+> [!NOTE]
+> This request was previously named `textDocument/tests`. The old name is still accepted for backward compatibility.
 
 - params: `DocumentTestsParams`
 - result: `TestItem[]`
@@ -368,9 +374,12 @@ export interface DocumentTestsParams {
 }
 ```
 
-## `sourceKit/_isIndexing`
+## `sourcekit/isIndexing`
 
 Request from the client to the server querying whether SourceKit-LSP is currently performing an background indexing tasks, including target preparation.
+
+> [!NOTE]
+> This request was previously named `sourceKit/_isIndexing`. The old name is still accepted for backward compatibility.
 
 > [!IMPORTANT]
 > This request is experimental and may be modified or removed in future versions of SourceKit-LSP without notice. Do not rely on it.
@@ -397,7 +406,7 @@ Unlike the standard `workspace/symbol` request (which accepts a fuzzy query stri
 
 For each name the response contains zero or more `WorkspaceSymbolItem` values:
 - Source-file symbols carry a `SymbolInformation` with a `file://` URI and the exact position.
-- SDK/stdlib symbols carry a `WorkspaceSymbol` with `location: .uri(...)` pointing at the `file://` URI of the `.swiftinterface` or `.swiftmodule` file, with the fully-qualified module name as a `?module=` query parameter. The symbol's USR is stored in `data["usr"]`. Call `workspaceSymbol/resolve` to obtain the exact `Location` within the generated interface. The client must advertise `workspace.symbol.resolveSupport`; without it, the raw `file://` URI is returned as `SymbolInformation` instead.
+- SDK/stdlib symbols carry a `WorkspaceSymbol` with `location: .uri(...)` pointing at a `sourcekit-lsp://generated-swift-interface` reference-document URL (no range). Its `data` is a `SourceKitWorkspaceSymbolData` (see below). Call `workspaceSymbol/resolve` to fill in the exact `Location` range within the generated interface and `sourcekit/workspace/getReferenceDocument` to retrieve the interface's contents. The client must advertise both `workspace.symbol.resolveSupport` and the `sourcekit/workspace/getReferenceDocument` capability; without them, the raw `file://` URI of the `.swiftinterface`/`.swiftmodule` file is returned as `SymbolInformation` instead.
 
 Every requested name is present in the response as a flat array; items carry their name in the `name` field of the `SymbolInformation` or `WorkspaceSymbol`.
 
@@ -421,6 +430,23 @@ export interface WorkspaceSymbolInfoResult {
    * Each item carries the symbol name in its `name` field.
    */
   results: WorkspaceSymbolItem[];
+}
+
+/**
+ * For SDK/stdlib symbols, `WorkspaceSymbol.data` contains the following data.
+ */
+export interface SourceKitWorkspaceSymbolData {
+  /**
+   * The USR of the symbol, used by `workspaceSymbol/resolve` to find the symbol's position within the generated
+   * interface.
+   */
+  usr: string;
+
+  /** The `.swiftinterface`/`.swiftmodule` file the symbol is declared in. */
+  interfaceURI?: DocumentURI;
+
+  /** The fully-qualified module name recorded in the index (e.g. `Swift.String`). */
+  moduleName?: string;
 }
 ```
 
@@ -448,7 +474,7 @@ export interface WorkspaceSymbolNamesResult {
 }
 ```
 
-## `window/didChangeActiveDocument`
+## `sourcekit/window/didChangeActiveDocument`
 
 New notification from the client to the server, telling SourceKit-LSP which document is the currently active primary document.
 
@@ -456,9 +482,12 @@ This notification should only be called for documents that the editor has opened
 
 By default, SourceKit-LSP infers the currently active editor document from the last document that received a request.
 If the client supports active reporting of the currently active document, it should check for the
-`window/didChangeActiveDocument` experimental server capability. If that capability is present, it should respond with
-the `window/didChangeActiveDocument` experimental client capability and send this notification whenever the currently
+`sourcekit/window/didChangeActiveDocument` experimental server capability. If that capability is present, it should respond with
+the `sourcekit/window/didChangeActiveDocument` experimental client capability and send this notification whenever the currently
 active document changes.
+
+> [!NOTE]
+> This notification was previously named `window/didChangeActiveDocument`. The old name is still accepted for backward compatibility.
 
 - params: `DidChangeActiveDocumentParams`
 
@@ -533,11 +562,14 @@ export interface StructuredLogEnd {
 }
 ```
 
-## `workspace/_setOptions`
+## `sourcekit/workspace/setOptions`
 
 New request to modify runtime options of SourceKit-LSP.
 
 Any options not specified in this request will be left as-is.
+
+> [!NOTE]
+> This request was previously named `workspace/_setOptions`. The old name is still accepted for backward compatibility.
 
 > [!IMPORTANT]
 > This request is experimental, guarded behind the `set-options-request` experimental feature, and may be modified or removed in future versions of SourceKit-LSP without notice. Do not rely on it.
@@ -554,11 +586,14 @@ export interface SetOptionsParams {
 }
 ```
 
-## `workspace/_sourceKitOptions`
+## `sourcekit/workspace/sourceKitOptions`
 
 New request from the client to the server to retrieve the compiler arguments that SourceKit-LSP uses to process the document.
 
 This request does not require the document to be opened in SourceKit-LSP. This is also why it has the `workspace/` instead of the `textDocument/` prefix.
+
+> [!NOTE]
+> This request was previously named `workspace/_sourceKitOptions`. The old name is still accepted for backward compatibility.
 
 > [!IMPORTANT]
 > This request is experimental, guarded behind the `sourcekit-options-request` experimental feature, and may be modified or removed in future versions of SourceKit-LSP without notice. Do not rely on it.
@@ -651,11 +686,14 @@ export interface SourceKitOptionsResult {
 }
 ```
 
-## `workspace/_outputPaths`
+## `sourcekit/workspace/outputPaths`
 
 New request from the client to the server to retrieve the output paths of a target (see the `buildTarget/outputPaths` BSP request).
 
 This request will only succeed if the build server supports the `buildTarget/outputPaths` request.
+
+> [!NOTE]
+> This request was previously named `workspace/_outputPaths`. The old name is still accepted for backward compatibility.
 
 > [!IMPORTANT]
 > This request is experimental, guarded behind the `output-paths-request` experimental feature, and may be modified or removed in future versions of SourceKit-LSP without notice. Do not rely on it.
@@ -685,12 +723,15 @@ export interface OutputPathsResult {
 }
 ```
 
-## `workspace/getReferenceDocument`
+## `sourcekit/workspace/getReferenceDocument`
 
 Request from the client to the server asking for contents of a URI having a custom scheme.
 For example: "sourcekit-lsp:"
 
-Enable the experimental client capability `"workspace/getReferenceDocument"` so that the server responds with reference document URLs for certain requests or commands whenever possible.
+Enable the experimental client capability `"sourcekit/workspace/getReferenceDocument"` so that the server responds with reference document URLs for certain requests or commands whenever possible.
+
+> [!NOTE]
+> This request was previously named `workspace/getReferenceDocument`. The old name is still accepted for backward compatibility.
 
 - params: `GetReferenceDocumentParams`
 
@@ -712,13 +753,16 @@ export interface GetReferenceDocumentResult {
 }
 ```
 
-## `workspace/peekDocuments`
+## `sourcekit/workspace/peekDocuments`
 
 Request from the server to the client to show the given documents in a "peeked" editor.
 
 This request is handled by the client to show the given documents in a "peeked" editor (i.e. inline with / inside the editor canvas).
 
-It requires the experimental client capability `"workspace/peekDocuments"` to use.
+It requires the experimental client capability `"sourcekit/workspace/peekDocuments"` to use.
+
+> [!NOTE]
+> This request was previously named `workspace/peekDocuments`. The old name is still accepted for backward compatibility.
 
 - params: `PeekDocumentsParams`
 - result: `PeekDocumentsResult`
@@ -749,7 +793,7 @@ export interface PeekDocumentsResult {
 }
 ```
 
-## `workspace/playgrounds`
+## `sourcekit/workspace/playgrounds`
 
 New request for returning the list of all #Playground macros in the workspace.
 
@@ -758,9 +802,12 @@ jumping to the locations where the #Playground macro was expanded.
 
 The request fetches the list of all macros found in the workspace, returning the location, identifier, and optional label
 when available for each #Playground macro expansion. If you want to keep the list of playgrounds up to date without needing to
-call `workspace/playgrounds` each time a document is changed, you can filter for `swift.play` CodeLens returned by the `textDocument/codelens` request.
+call `sourcekit/workspace/playgrounds` each time a document is changed, you can filter for `swift.play` CodeLens returned by the `textDocument/codelens` request.
 
-SourceKit-LSP will advertise `workspace/playgrounds` in its experimental server capabilities if it supports it.
+SourceKit-LSP will advertise `sourcekit/workspace/playgrounds` in its experimental server capabilities if it supports it.
+
+> [!NOTE]
+> This request was previously named `workspace/playgrounds`. The old name is still accepted for backward compatibility.
 
 - params: `WorkspacePlaygroundParams`
 - result: `Playground[]`
@@ -795,9 +842,12 @@ export interface Playground {
 }
 ```
 
-## `workspace/synchronize`
+## `sourcekit/workspace/synchronize`
 
 Request from the client to the server to wait for SourceKit-LSP to handle all ongoing requests and, optionally, wait for background activity to finish.
+
+> [!NOTE]
+> This request was previously named `workspace/synchronize`. The old name is still accepted for backward compatibility.
 
 This method is intended to be used in automated environments which need to wait for background activity to finish before executing requests that rely on that background activity to finish. Examples of such cases are:
  - Automated tests that need to wait for background indexing to finish and then checking the result of request results
@@ -837,9 +887,12 @@ export interface SynchronizeParams {
 }
 ```
 
-## `workspace/tests`
+## `sourcekit/workspace/tests`
 
 New request that returns symbols for all the test classes and test methods within the current workspace.
+
+> [!NOTE]
+> This request was previously named `workspace/tests`. The old name is still accepted for backward compatibility.
 
 - params: `WorkspaceTestsParams`
 - result: `TestItem[]`
@@ -848,11 +901,14 @@ New request that returns symbols for all the test classes and test methods withi
 export interface WorkspaceTestsParams {}
 ```
 
-## `workspace/triggerReindex`
+## `sourcekit/workspace/triggerReindex`
 
 New request to re-index all files open in the SourceKit-LSP server.
 
 Users should not need to rely on this request. The index should always be updated automatically in the background. Having to invoke this request means there is a bug in SourceKit-LSP's automatic re-indexing. It does, however, offer a workaround to re-index files when such a bug occurs where otherwise there would be no workaround.
+
+> [!NOTE]
+> This request was previously named `workspace/triggerReindex`. The old name is still accepted for backward compatibility.
 
 
 - params: `TriggerReindexParams`

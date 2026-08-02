@@ -16,6 +16,7 @@ import Foundation
 import SourceKitD
 import SwiftExtensions
 import SwiftSourceKitPluginCommon
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 /// Legacy plugin initialization logic in which sourcekitd does not inform the plugin about the sourcekitd path it was
 /// loaded from.

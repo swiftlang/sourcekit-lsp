@@ -528,13 +528,8 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
   func testPrepareTargetAfterEditToDependency() async throws {
     var testHooks = Hooks()
     let expectedPreparationTracker = ExpectedIndexTaskTracker(expectedPreparations: [
-      [
-        try ExpectedPreparation(target: "LibA", destination: .target),
-        try ExpectedPreparation(target: "LibB", destination: .target),
-      ],
-      [
-        try ExpectedPreparation(target: "LibB", destination: .target)
-      ],
+      [try ExpectedPreparation(targetName: "LibB")],
+      [try ExpectedPreparation(targetName: "LibB")],
     ])
     testHooks.indexHooks = expectedPreparationTracker.testHooks
 
@@ -626,18 +621,16 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
 
     var testHooks = Hooks()
     let expectedPreparationTracker = ExpectedIndexTaskTracker(expectedPreparations: [
-      // Preparation of targets during the initial of the target
+      // Preparation of targets during the initial indexing of the target
       [
-        try ExpectedPreparation(target: "LibA", destination: .target),
-        try ExpectedPreparation(target: "LibB", destination: .target),
-        try ExpectedPreparation(target: "LibC", destination: .target),
-        try ExpectedPreparation(target: "LibD", destination: .target),
+        try ExpectedPreparation(targetName: "LibB"),
+        try ExpectedPreparation(targetName: "LibC"),
+        try ExpectedPreparation(targetName: "LibD"),
       ],
       // LibB's preparation has already started by the time we browse through the other files, so we finish its preparation
       [
         try ExpectedPreparation(
-          target: "LibB",
-          destination: .target,
+          targetName: "LibB",
           didStart: { libBStartedPreparation.signal() },
           didFinish: { allDocumentsOpened.waitOrXCTFail() }
         )
@@ -645,8 +638,7 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
       // And now we just want to prepare LibD, and not LibC
       [
         try ExpectedPreparation(
-          target: "LibD",
-          destination: .target,
+          targetName: "LibD",
           didFinish: { libDPreparedForEditing.signal() }
         )
       ],
@@ -1079,7 +1071,7 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
     let project = try await SwiftPMTestProject(
       files: [
         "Lib/MyFile.swift": """
-        public func 1️⃣foo() {}
+        public func 1️⃣foo3️⃣() {}
         """,
         "MyExec/MyExec.swift": """
         import Lib
@@ -1119,7 +1111,7 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
     let definition = try await project.testClient.send(
       DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
     )
-    XCTAssertEqual(definition, .locations([try project.location(from: "1️⃣", to: "1️⃣", in: "MyFile.swift")]))
+    XCTAssertEqual(definition, .locations([try project.location(from: "1️⃣", to: "3️⃣", in: "MyFile.swift")]))
   }
 
   func testCrossModuleFunctionalityEvenIfLowLevelModuleHasErrors() async throws {
@@ -1135,7 +1127,7 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
         "LibB/LibB.swift": """
         import LibA
 
-        public func 1️⃣libBTest() -> Int {
+        public func 1️⃣libBTest3️⃣() -> Int {
           return libATest()
         }
         """,
@@ -1165,7 +1157,7 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
     let response = try await project.testClient.send(
       DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
     )
-    XCTAssertEqual(response, .locations([try project.location(from: "1️⃣", to: "1️⃣", in: "LibB.swift")]))
+    XCTAssertEqual(response, .locations([try project.location(from: "1️⃣", to: "3️⃣", in: "LibB.swift")]))
   }
 
   func testCrossModuleFunctionalityWithErrors() async throws {
@@ -1174,7 +1166,7 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
     let project = try await SwiftPMTestProject(
       files: [
         "LibA/LibA.swift": """
-        public func 1️⃣libATest() -> Invalid {
+        public func 1️⃣libATest3️⃣() -> Invalid {
           return ""
         }
         """,
@@ -1203,7 +1195,7 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
     let response = try await project.testClient.send(
       DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
     )
-    XCTAssertEqual(response, .locations([try project.location(from: "1️⃣", to: "1️⃣", in: "LibA.swift")]))
+    XCTAssertEqual(response, .locations([try project.location(from: "1️⃣", to: "3️⃣", in: "LibA.swift")]))
   }
 
   func testCrossModuleFunctionalityWithPreparationNoSkipping() async throws {
@@ -1219,7 +1211,7 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
         "LibB/LibB.swift": """
         import LibA
 
-        public func 1️⃣libBTest() -> Int {
+        public func 1️⃣libBTest3️⃣() -> Int {
           return libATest()
         }
         """,
@@ -1249,7 +1241,7 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
     let response = try await project.testClient.send(
       DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
     )
-    XCTAssertEqual(response, .locations([try project.location(from: "1️⃣", to: "1️⃣", in: "LibB.swift")]))
+    XCTAssertEqual(response, .locations([try project.location(from: "1️⃣", to: "3️⃣", in: "LibB.swift")]))
   }
 
   func testUpdatePackageDependency() async throws {
@@ -1379,7 +1371,7 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
   }
 
   func testAddingRandomSwiftFileDoesNotTriggerPackageReload() async throws {
-    let packageInitialized = AtomicBool(initialValue: false)
+    let packageInitialized = ThreadSafeBox<Bool>(initialValue: false)
 
     var testHooks = Hooks()
     testHooks.buildServerHooks.swiftPMTestHooks.reloadPackageDidStart = {
@@ -1392,7 +1384,7 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
       hooks: testHooks,
       enableBackgroundIndexing: true
     )
-    packageInitialized.value = true
+    packageInitialized.withLock { $0 = true }
     project.testClient.send(
       DidChangeWatchedFilesNotification(changes: [
         FileEvent(uri: DocumentURI(project.scratchDirectory.appending(component: "random.swift")), type: .created)
@@ -1644,7 +1636,7 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
       "LibA.swift",
       newMarkedContents: """
         public struct LibA {
-          public func 2️⃣test() {}
+          public func 2️⃣test3️⃣() {}
         }
         """
     )
@@ -1655,7 +1647,7 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
       let definitionAfterEdit = try await project.testClient.send(
         DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
       )
-      return definitionAfterEdit?.locations == [Location(uri: libAUri, range: Range(newAMarkers["2️⃣"]))]
+      return definitionAfterEdit?.locations == [Location(uri: libAUri, range: newAMarkers["2️⃣"]..<newAMarkers["3️⃣"])]
     }
   }
 
@@ -2152,7 +2144,7 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
   }
 
   func testIndexingProgressIfNonIndexableFileIsInPackage() async throws {
-    let receivedReportProgressNotification = AtomicBool(initialValue: false)
+    let receivedReportProgressNotification = ThreadSafeBox<Bool>(initialValue: false)
 
     let project = try await SwiftPMTestProject(
       files: [
@@ -2186,7 +2178,7 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
         return data.title == "Indexing"
       }
     )
-    receivedReportProgressNotification.value = true
+    receivedReportProgressNotification.withLock { $0 = true }
 
     // Check that we receive an `end` notification
     _ = try await project.testClient.nextNotification(
@@ -2255,7 +2247,7 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
 
     // Ensure that changing `/private/tmp/.../test.c` only causes `/tmp/.../test.c` to be indexed, not
     // `/private/tmp/.../test.c`.
-    indexedFiles.value = []
+    indexedFiles.withLock { $0 = [] }
     let testFileURL = try XCTUnwrap(project.uri(for: "test.c").fileURL?.realpath)
     try await "void y() {}".writeWithRetry(to: testFileURL)
     project.testClient.send(
@@ -2380,6 +2372,96 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
       TypeHierarchySupertypesRequest(item: XCTUnwrap(libBTypeHierarchyPrepare?.only))
     )
     XCTAssertEqual(libBSupertypes?.count, 1)
+  }
+
+  func testFilesAreBatchedByBuildSettingsIgnoringOutputPathAndOpaqueData() async throws {
+    // Swift files of a target are indexed by a single compiler invocation when they share the same build settings after
+    // normalization. Normalization strips the per-file `-index-unit-output-path` argument (re-added via an
+    // `-output-file-map`) and clears the opaque `data` field, which is build-server passthrough metadata that does not
+    // affect the compiler invocation. Files that differ only in those values are therefore batched together, while
+    // files whose compiler arguments genuinely differ are indexed by separate invocations.
+    final class BuildServer: CustomBuildServer {
+      let inProgressRequestsTracker = CustomBuildServerInProgressRequestTracker()
+
+      private let projectRoot: URL
+
+      private var sources: [SourceItem] {
+        ["FileA.swift", "FileB.swift", "FileC.swift"].map { fileName in
+          sourceItem(
+            for: projectRoot.appending(component: fileName),
+            outputPath: fakeOutputPath(for: fileName, in: "Lib")
+          )
+        }
+      }
+
+      init(projectRoot: URL, connectionToSourceKitLSP: any LanguageServerProtocol.Connection) {
+        self.projectRoot = projectRoot
+      }
+
+      func initializeBuildRequest(_ request: InitializeBuildRequest) async throws -> InitializeBuildResponse {
+        return try initializationResponseSupportingBackgroundIndexing(
+          projectRoot: projectRoot,
+          outputPathsProvider: true
+        )
+      }
+
+      func buildTargetSourcesRequest(_ request: BuildTargetSourcesRequest) async throws -> BuildTargetSourcesResponse {
+        return BuildTargetSourcesResponse(items: [SourcesItem(target: .dummy, sources: sources)])
+      }
+
+      func textDocumentSourceKitOptionsRequest(
+        _ request: TextDocumentSourceKitOptionsRequest
+      ) async throws -> TextDocumentSourceKitOptionsResponse? {
+        let sourceInfo = try XCTUnwrap(sources.first(where: { $0.uri == request.textDocument.uri }))
+        // The files share all compiler arguments except the per-file `-index-unit-output-path`, which is normalized
+        // away before batching.
+        var arguments =
+          sources.map(\.uri.pseudoPath) + [
+            "-module-name", "Lib",
+            "-index-unit-output-path", try XCTUnwrap(sourceInfo.sourceKitData?.outputPath),
+          ]
+        // FileC gets a genuinely different compiler argument, so it can't be batched with the other files.
+        if request.textDocument.uri.pseudoPath.hasSuffix("FileC.swift") {
+          arguments += ["-DEXTRA"]
+        }
+        if let defaultSDKPath {
+          arguments += ["-sdk", defaultSDKPath]
+        }
+        // Give every file a distinct `data` value to verify that it does not affect batching.
+        return TextDocumentSourceKitOptionsResponse(
+          compilerArguments: arguments,
+          data: ["file": .string(request.textDocument.uri.pseudoPath)]
+        )
+      }
+    }
+
+    let partitions = ThreadSafeBox<[[String]]>(initialValue: [])
+    _ = try await CustomBuildServerTestProject(
+      files: [
+        "FileA.swift": "func a() {}",
+        "FileB.swift": "func b() {}",
+        "FileC.swift": "func c() {}",
+      ],
+      buildServer: BuildServer.self,
+      hooks: Hooks(
+        indexHooks: IndexHooks(
+          updateIndexStoreTaskDidComputePartitions: { computedPartitions in
+            partitions.withLock { partitions in
+              partitions += computedPartitions.map {
+                $0.indexedFiles.map { $0.sourceFile.fileURL?.lastPathComponent ?? $0.sourceFile.pseudoPath }
+              }
+            }
+          }
+        )
+      ),
+      enableBackgroundIndexing: true
+    )
+
+    // The partition order and the file order within each partition are deterministic, so assert on the exact arrays.
+    XCTAssertEqual(
+      partitions.value,
+      [["FileA.swift", "FileB.swift"], ["FileC.swift"]]
+    )
   }
 
   func testHeaderIncludedFromMultipleTargets() async throws {
@@ -2579,7 +2661,7 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
   }
 
   func testEnsureSymbolsLoadedIntoIndexstoreDbWhenIndexingHasFinished() async throws {
-    let testSetupComplete = AtomicBool(initialValue: false)
+    let testSetupComplete = ThreadSafeBox<Bool>(initialValue: false)
     let updateIndexStoreStarted = self.expectation(description: "Update index store started")
     let project = try await SwiftPMTestProject(
       files: [
@@ -2603,7 +2685,7 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
     let symbolsBeforeUpdate = try await project.testClient.send(WorkspaceSymbolsRequest(query: "myTestFu"))
     XCTAssertEqual(symbolsBeforeUpdate, [])
 
-    testSetupComplete.value = true
+    testSetupComplete.withLock { $0 = true }
     try await project.changeFileOnDisk(
       "Test.swift",
       newMarkedContents: """
@@ -2627,42 +2709,70 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
     let testHooks = Hooks(
       buildServerHooks: BuildServerHooks(preHandleRequest: { request in
         if let request = request as? BuildTargetPrepareRequest {
-          preparationRequests.value.append(request)
-          if preparationRequests.value.count >= 2 {
+          let count = preparationRequests.withLock { (value: inout [BuildTargetPrepareRequest]) in
+            value.append(request)
+            return value.count
+          }
+          if count >= 2 {
             twoPreparationRequestsReceived.fulfill()
           }
         }
       })
     )
-    let project = try await SwiftPMTestProject(
+    let project = try await MultiFileTestProject(
       files: [
-        "LibA/LibA.swift": "",
-        "LibB/LibB.swift": "",
-      ],
-      manifest: """
+        "MyDependency/Sources/DependencyA/DependencyA.swift": "",
+        "MyDependency/Package.swift": """
+        // swift-tools-version: 5.7
+
+        import PackageDescription
+
         let package = Package(
-          name: "MyLibrary",
+          name: "MyDependency",
+          products: [.library(name: "DependencyA", targets: ["DependencyA"])],
           targets: [
-           .target(name: "LibA"),
-           .target(name: "LibB", dependencies: ["LibA"])
+            .target(name: "DependencyA"),
           ]
         )
         """,
+
+        "MyPackage/Sources/LibA/LibA.swift": "",
+        "MyPackage/Sources/LibB/LibB.swift": "",
+        "MyPackage/Sources/LibC/LibC.swift": "",
+        "MyPackage/Package.swift": """
+        // swift-tools-version: 5.7
+
+        import PackageDescription
+
+        let package = Package(
+          name: "MyPackage",
+          dependencies: [.package(path: "../MyDependency")],
+          targets: [
+           .target(name: "LibA", dependencies: [.product(name: "DependencyA", package: "MyDependency")]),
+           .target(name: "LibB", dependencies: ["LibA"]),
+           .target(name: "LibC")
+          ]
+        )
+        """,
+      ],
+      workspaces: { scratchDirectory in
+        [WorkspaceFolder(uri: DocumentURI(scratchDirectory.appending(component: "MyPackage")))]
+      },
       hooks: testHooks,
-      enableBackgroundIndexing: true,
-      pollIndex: false
+      enableBackgroundIndexing: true
     )
     // We can't poll the index using `workspace/synchronize` because that elevates the priority of the indexing requests
-    // in a non-deterministic order (due to the way ). If LibB's priority gets elevated before LibA's, then LibB will
-    // get prepared first, which is contrary to the background behavior we want to check here.
+    // in a non-deterministic order (due to the way `withTaskPriorityChangedHandler` is implemented). If LibB's priority
+    // gets elevated before LibA's, then LibB will get prepared first, which is contrary to the background behavior we
+    // want to check here.
     try await fulfillmentOfOrThrow(twoPreparationRequestsReceived)
-    XCTAssertEqual(
-      preparationRequests.value.flatMap(\.targets),
-      [
-        try BuildTargetIdentifier(target: "LibA", destination: .target),
-        try BuildTargetIdentifier(target: "LibB", destination: .target),
-      ]
-    )
+    let preparedTargets = preparationRequests.value.flatMap(\.targets)
+    guard preparedTargets.count == 2 else {
+      XCTFail("expected 2 prepared targets, but got: \(preparedTargets)")
+      return
+    }
+    XCTAssert(preparedTargets[0].matchesTargetName("LibB"))
+    XCTAssert(preparedTargets[1].matchesTargetName("LibC"))
     withExtendedLifetime(project) {}
   }
 
@@ -2714,8 +2824,8 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
         return TextDocumentSourceKitOptionsResponse(compilerArguments: arguments)
       }
 
-      func prepareTarget(_ request: BuildTargetPrepareRequest) async throws -> VoidResponse {
-        return VoidResponse()
+      func prepareTarget(_ request: BuildTargetPrepareRequest) async throws -> BuildTargetPrepareResponse {
+        return BuildTargetPrepareResponse()
       }
     }
 
@@ -2767,7 +2877,6 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
   }
 
   func testIndexMultipleSwiftFilesInSameCompilerInvocation() async throws {
-    try await SkipUnless.canIndexMultipleSwiftFilesInSingleInvocation()
     let hooks = Hooks(
       indexHooks: IndexHooks(
         updateIndexStoreTaskDidStart: { taskDescription in

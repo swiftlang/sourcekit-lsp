@@ -14,7 +14,9 @@ package import Foundation
 import RegexBuilder
 @_spi(SourceKitLSP) import SKLogging
 import SwiftExtensions
+import Synchronization
 import TSCExtensions
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 import class TSCBasic.Process
 
@@ -107,7 +109,7 @@ public final class Toolchain: Sendable {
   /// The path to the indexstore library if available.
   package let libIndexStore: URL?
 
-  private let swiftVersionTask = ThreadSafeBox<Task<SwiftVersion, any Error>?>(initialValue: nil)
+  private let swiftVersionTask: Mutex<Task<SwiftVersion, any Error>?> = Mutex(nil)
 
   /// The Swift version installed in the toolchain. Throws an error if the version could not be parsed or if no Swift
   /// compiler is installed in the toolchain.
@@ -145,56 +147,6 @@ public final class Toolchain: Sendable {
       }
 
       return try await task.value
-    }
-  }
-
-  private let canIndexMultipleSwiftFilesInSingleInvocationTask = ThreadSafeBox<Task<Bool, Never>?>(
-    initialValue: nil
-  )
-
-  /// Checks if the Swift compiler in this toolchain can index multiple Swift files in a single compiler invocation, i.e
-  /// if the Swift compiler contains https://github.com/swiftlang/swift-driver/pull/1979.
-  package var canIndexMultipleSwiftFilesInSingleInvocation: Bool {
-    get async {
-      let task = canIndexMultipleSwiftFilesInSingleInvocationTask.withLock { task in
-        if let task {
-          return task
-        }
-        let newTask = Task<Bool, Never> { () -> Bool in
-          #if compiler(>=6.4)
-          #warning(
-            "Once we no longer Swift 6.2 toolchains, we can assume that the compiler has https://github.com/swiftlang/swift-driver/pull/1979"
-          )
-          #endif
-          let result = await orLog("Getting frontend invocation to check if multi-file indexing is supported") {
-            guard let swiftc else {
-              throw SwiftVersionParsingError.failedToFindSwiftc
-            }
-            return try await Process.run(
-              arguments: [
-                swiftc.filePath,
-                "-index-file", "a.swift", "b.swift",
-                "-index-file-path", "a.swift",
-                "-index-file-path", "b.swift",
-                "-###",
-              ],
-              workingDirectory: nil
-            ).utf8Output()
-          }
-          guard let result else {
-            return false
-          }
-
-          // Before https://github.com/swiftlang/swift-driver/pull/1979, only the last `-index-file-path` was declared
-          // as `-primary-file`. With https://github.com/swiftlang/swift-driver/pull/1979, all `-index-file-path`s are
-          // passed as primary files to the frontend.
-          return result.contains("-primary-file a.swift") && result.contains("-primary-file b.swift")
-        }
-        task = newTask
-        return newTask
-      }
-
-      return await task.value
     }
   }
 

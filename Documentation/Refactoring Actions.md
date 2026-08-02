@@ -81,6 +81,9 @@ The specific refactorings available depend on what code is selected or where the
 | **Move To Extension** | Select one or more member declarations inside a type which aren't stored properties |
 | **Convert To Computed Property** | Select a variable declaration with an initializer |
 | **Expand 'some' parameters to generic parameters** | Cursor on a function declaration using `some` opaque parameter types |
+| **Add Explicit Raw Values** | Cursor on an enum with an integer or `String` raw value type where some cases lack explicit raw values |
+| **Generate 'as' accessors for enum cases** | Cursor inside an enum that has a case with associated values |
+| **Generate 'is' accessors for enum cases** | Cursor inside an enum that has a case |
 
 ### Source Organization
 
@@ -88,6 +91,7 @@ The specific refactorings available depend on what code is selected or where the
 |--------|---------|
 | **Remove Unused Imports** | Cursor on an import declaration (only available when file has no errors) |
 | **Remove Redundant Parentheses** | Cursor on a parenthesized expression that contains a redundant outer set of parentheses |
+| **Swap operands** | Cursor or selection on a supported binary operator in an infix expression |
 
 ### Package.swift Manifest Editing
 

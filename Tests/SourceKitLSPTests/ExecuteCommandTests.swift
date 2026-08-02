@@ -17,6 +17,7 @@ import SKTestSupport
 @_spi(Testing) import SourceKitLSP
 import SwiftExtensions
 import SwiftLanguageService
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
 
 final class ExecuteCommandTests: SourceKitLSPTestCase {
@@ -52,8 +53,8 @@ final class ExecuteCommandTests: SourceKitLSPTestCase {
     let applyEditWorkspaceEdit = ThreadSafeBox<WorkspaceEdit?>(initialValue: nil)
 
     testClient.handleSingleRequest { (req: ApplyEditRequest) -> ApplyEditResponse in
-      applyEditTitle.value = req.label
-      applyEditWorkspaceEdit.value = req.edit
+      applyEditTitle.withLock { $0 = req.label }
+      applyEditWorkspaceEdit.withLock { $0 = req.edit }
       expectation.fulfill()
 
       return ApplyEditResponse(applied: true, failureReason: nil)
@@ -117,8 +118,8 @@ final class ExecuteCommandTests: SourceKitLSPTestCase {
     let applyEditWorkspaceEdit = ThreadSafeBox<WorkspaceEdit?>(initialValue: nil)
 
     testClient.handleSingleRequest { (req: ApplyEditRequest) -> ApplyEditResponse in
-      applyEditTitle.value = req.label
-      applyEditWorkspaceEdit.value = req.edit
+      applyEditTitle.withLock { $0 = req.label }
+      applyEditWorkspaceEdit.withLock { $0 = req.edit }
       expectation.fulfill()
 
       return ApplyEditResponse(applied: true, failureReason: nil)

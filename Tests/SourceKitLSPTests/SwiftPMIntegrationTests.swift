@@ -18,6 +18,7 @@ import SKOptions
 import SKTestSupport
 import SourceKitLSP
 import SwiftExtensions
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
 
 final class SwiftPMIntegrationTests: SourceKitLSPTestCase {
@@ -497,7 +498,7 @@ final class SwiftPMIntegrationTests: SourceKitLSPTestCase {
       let topLocation = try XCTUnwrap(topResult?.locations?.only)
       XCTAssertTrue(topLocation.uri.pseudoPath.hasSuffix("generated.swift"))
       XCTAssertEqual(topLocation.range.lowerBound, Position(line: 0, utf16index: 4))
-      XCTAssertEqual(topLocation.range.upperBound, Position(line: 0, utf16index: 4))
+      XCTAssertEqual(topLocation.range.upperBound, Position(line: 0, utf16index: 16))
 
       let targetResult = try await project.testClient.send(
         DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
@@ -505,7 +506,7 @@ final class SwiftPMIntegrationTests: SourceKitLSPTestCase {
       let targetLocation = try XCTUnwrap(targetResult?.locations?.only)
       XCTAssertTrue(targetLocation.uri.pseudoPath.hasSuffix("generated.swift"))
       XCTAssertEqual(targetLocation.range.lowerBound, Position(line: 1, utf16index: 4))
-      XCTAssertEqual(targetLocation.range.upperBound, Position(line: 1, utf16index: 4))
+      XCTAssertEqual(targetLocation.range.upperBound, Position(line: 1, utf16index: 19))
     }
 
     // Make a change to the top level input file of the plugin command
@@ -901,5 +902,57 @@ final class SwiftPMIntegrationTests: SourceKitLSPTestCase {
     XCTAssertEqual(fooSymbol.kind, .struct)
     let xSymbol = try XCTUnwrap(fooSymbol.children?.first(where: { $0.name == "x" }))
     XCTAssertEqual(xSymbol.kind, .property)
+  }
+
+  func testPackagePlugin() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Test.swift": "",
+        "Plugins/PrintMessage/Plugin.swift": """
+        import PackagePlugin
+
+        @main
+        struct PrintMessagePlugin: CommandPlugin {
+          func performCommand(context: PluginContext, arguments: [String]) throws {
+            print("Message")
+            let x: String = 1
+          }
+        }
+        """,
+      ],
+      manifest: """
+        import PackageDescription
+
+        let package = Package(
+          name: "PrintMessage",
+          platforms: [.macOS(.v14)],
+          products: [
+            .plugin(
+              name: "PrintMessage",
+              targets: ["PrintMessage"]
+            )
+          ],
+          targets: [
+            .target(name: "MyLibrary"),
+            .plugin(
+              name: "PrintMessage",
+              capability: .command(
+                intent: .custom(
+                  verb: "print-message",
+                  description: "Prints message"
+                )
+              )
+            )
+          ]
+        )
+        """,
+      // enableBackgroundIndexing: true
+    )
+    let (uri, _) = try! project.openDocument("Plugin.swift")
+    let diags = try await project.testClient.send(DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri)))
+    XCTAssertEqual(
+      diags.fullReport?.items.map(\.message),
+      ["Cannot convert value of type 'Int' to specified type 'String'"]
+    )
   }
 }

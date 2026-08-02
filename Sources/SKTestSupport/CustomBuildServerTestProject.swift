@@ -290,7 +290,7 @@ package final class CustomBuildServerTestProject<BuildServer: CustomBuildServer>
     XCTAssertNil(hooks.buildServerHooks.injectBuildServer)
     hooks.buildServerHooks.injectBuildServer = { [buildServerBox] projectRoot, connectionToSourceKitLSP in
       let buildServer = BuildServer(projectRoot: projectRoot, connectionToSourceKitLSP: connectionToSourceKitLSP)
-      buildServerBox.value = buildServer
+      buildServerBox.withLock { $0 = buildServer }
       return LocalConnection(receiverName: "TestBuildServer", handler: buildServer)
     }
     try await super.init(

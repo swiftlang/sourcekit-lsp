@@ -16,6 +16,7 @@ import SKUtilities
 import SourceKitLSP
 import SwiftExtensions
 import SwiftSyntax
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 extension SwiftLanguageService {
   package func inlayHint(_ req: InlayHintRequest) async throws -> [InlayHint] {

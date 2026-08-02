@@ -78,7 +78,7 @@ extension SwiftLanguageService {
     }
 
     guard
-      let buildSettings = await self.compileCommand(for: scope.request.textDocument.uri, fallbackAfterTimeout: true),
+      let buildSettings = await self.compileCommand(for: scope.snapshot.uri, fallbackAfterTimeout: true),
       !buildSettings.isFallback,
       try await !diagnosticReportManager.diagnosticReport(for: scope.snapshot, buildSettings: buildSettings).items
         .contains(where: { $0.severity == .error })
@@ -88,11 +88,11 @@ extension SwiftLanguageService {
       return []
     }
 
-    let command = RemoveUnusedImportsCommand(textDocument: scope.request.textDocument)
+    let command = RemoveUnusedImportsCommand(textDocument: TextDocumentIdentifier(scope.snapshot.uri))
     return [
       CodeAction(
         title: command.title,
-        kind: .sourceOrganizeImports,
+        kind: .refactor,
         diagnostics: nil,
         edit: nil,
         command: command.asCommand()

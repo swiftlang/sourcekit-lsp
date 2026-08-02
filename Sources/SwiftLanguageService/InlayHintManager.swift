@@ -57,6 +57,12 @@ actor InlayHintManager {
   /// Used to avoid scheduling multiple concurrent recomputations for the same document.
   private var inFlightRefreshTasks: [DocumentURI: InFlightInlayHintRefreshTask] = [:]
 
+  private let hooks: Hooks
+
+  init(hooks: Hooks = Hooks()) {
+    self.hooks = hooks
+  }
+
   func getCachedInlayHints(
     swiftLanguageService service: SwiftLanguageService,
     for snapshot: DocumentSnapshot,
@@ -213,6 +219,8 @@ actor InlayHintManager {
           let updatedHints = try await computeTypeInlayHints(swiftLanguageService: service, for: snapshot, range: nil)
 
           try Task.checkCancellation()
+
+          await hooks.inlayHintRefreshWillUpdateCache?()
 
           let updatedEntry = InlayHintCacheEntry(
             version: snapshot.version,

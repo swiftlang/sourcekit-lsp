@@ -17,10 +17,26 @@ import SourceKitLSP
 
 /// A wrapper around an array of syntax highlighting tokens.
 package struct SyntaxHighlightingTokens: Sendable {
-  package var tokens: [SyntaxHighlightingToken]
 
+  /// Syntax highlighting tokens sorted by their start position.
+  package let tokens: [SyntaxHighlightingToken]
+
+  /// Creates a syntax highlighting token collection from an sorted array.
+  ///
+  /// - Parameter sortedTokens: Syntax highlighting tokens sorted by their start position.
+  package init(sortedTokens: [SyntaxHighlightingToken]) {
+    assert(
+      zip(sortedTokens, sortedTokens.dropFirst()).allSatisfy { $0.start <= $1.start },
+      "Tokens must always be sorted by their start position"
+    )
+    self.tokens = sortedTokens
+  }
+
+  /// Creates a syntax highlighting token collection from a potentially unsorted array.
+  ///
+  /// - Parameter tokens: Syntax highlighting tokens that will be sorted by their start position.
   package init(tokens: [SyntaxHighlightingToken]) {
-    self.tokens = tokens
+    self.init(sortedTokens: tokens.sorted { $0.start < $1.start })
   }
 
   /// The LSP representation of syntax highlighting tokens. Note that this
@@ -56,32 +72,50 @@ package struct SyntaxHighlightingTokens: Sendable {
   }
 
   /// Merges the tokens in this array into a new token array,
-  /// preferring the given array's tokens if duplicate ranges are
+  /// preferring the given array's tokens if overlapping ranges are
   /// found.
   package func mergingTokens(with other: SyntaxHighlightingTokens) -> SyntaxHighlightingTokens {
-    let otherRanges = Set(other.tokens.map(\.range))
-    return SyntaxHighlightingTokens(tokens: tokens.filter { !otherRanges.contains($0.range) } + other.tokens)
-  }
+    var merged: [SyntaxHighlightingToken] = []
+    merged.reserveCapacity(tokens.count + other.tokens.count)
 
-  package func mergingTokens(with other: [SyntaxHighlightingToken]) -> SyntaxHighlightingTokens {
-    let otherRanges = Set(other.map(\.range))
-    return SyntaxHighlightingTokens(tokens: tokens.filter { !otherRanges.contains($0.range) } + other)
-  }
+    var selfIterator = tokens.makeIterator()
+    var otherIterator = other.tokens.makeIterator()
 
-  /// Sorts the tokens in this array by their start position.
-  package func sorted(
-    _ areInIncreasingOrder: (SyntaxHighlightingToken, SyntaxHighlightingToken) -> Bool
-  ) -> SyntaxHighlightingTokens {
-    SyntaxHighlightingTokens(tokens: tokens.sorted(by: areInIncreasingOrder))
+    var currentToken = selfIterator.next()
+    var currentOtherToken = otherIterator.next()
+
+    while let token = currentToken, let otherToken = currentOtherToken {
+      if token.range.overlaps(otherToken.range) {
+        currentToken = selfIterator.next()
+      } else if token.start < otherToken.start {
+        merged.append(token)
+        currentToken = selfIterator.next()
+      } else {
+        merged.append(otherToken)
+        currentOtherToken = otherIterator.next()
+      }
+    }
+
+    while let token = currentToken {
+      merged.append(token)
+      currentToken = selfIterator.next()
+    }
+
+    while let otherToken = currentOtherToken {
+      merged.append(otherToken)
+      currentOtherToken = otherIterator.next()
+    }
+
+    return SyntaxHighlightingTokens(sortedTokens: merged)
   }
 }
 
 extension SyntaxHighlightingTokens {
   /// Decodes the LSP representation of syntax highlighting tokens
   package init(lspEncodedTokens rawTokens: [UInt32]) {
-    self.init(tokens: [])
     assert(rawTokens.count.isMultiple(of: 5))
-    self.tokens.reserveCapacity(rawTokens.count / 5)
+    var parsedTokens: [SyntaxHighlightingToken] = []
+    parsedTokens.reserveCapacity(rawTokens.count / 5)
 
     var current = Position(line: 0, utf16index: 0)
 
@@ -103,7 +137,7 @@ extension SyntaxHighlightingTokens {
       let kind = SemanticTokenTypes.all[Int(rawKind)]
       let modifiers = SemanticTokenModifiers(rawValue: rawModifiers)
 
-      self.tokens.append(
+      parsedTokens.append(
         SyntaxHighlightingToken(
           start: current,
           utf16length: length,
@@ -112,5 +146,6 @@ extension SyntaxHighlightingTokens {
         )
       )
     }
+    self.init(sortedTokens: parsedTokens)
   }
 }

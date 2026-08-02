@@ -21,7 +21,7 @@ package import ToolchainRegistry
 
 package actor DocumentationLanguageService: LanguageService, Sendable {
   /// The ``SourceKitLSPServer`` instance that created this `DocumentationLanguageService`.
-  private(set) weak var sourceKitLSPServer: SourceKitLSPServer?
+  weak let sourceKitLSPServer: SourceKitLSPServer?
 
   let documentationManager: DocCDocumentationManager
 
@@ -51,16 +51,8 @@ package actor DocumentationLanguageService: LanguageService, Sendable {
     self.documentationManager = DocCDocumentationManager(buildServerManager: workspace.buildServerManager)
   }
 
-  package nonisolated func canHandle(workspace: Workspace, toolchain: Toolchain) -> Bool {
+  package nonisolated func canHandle(toolchain: Toolchain) -> Bool {
     return true
-  }
-
-  package func initialize(
-    _ initialize: InitializeRequest
-  ) async throws -> InitializeResult {
-    return InitializeResult(
-      capabilities: ServerCapabilities()
-    )
   }
 
   package func shutdown() async {

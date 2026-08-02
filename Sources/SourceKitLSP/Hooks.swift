@@ -41,6 +41,13 @@ public struct Hooks: Sendable {
   /// The URL passed is the toolchain root (`.xctoolchain` bundle path).
   package var sourcekitdCoreInjector: (@Sendable (URL) throws -> (any SourceKitDCore)?)?
 
+  /// Closure that is executed by the background inlay hint refresh task right after it has computed updated hints
+  /// but before it writes them into the cache.
+  ///
+  /// This allows tests to deterministically pause the background refresh and inspect the cache contents written by
+  /// the synchronous position-shifting logic before the background task's write can race with it.
+  package var inlayHintRefreshWillUpdateCache: (@Sendable () async -> Void)?
+
   public init() {
     self.init(indexHooks: IndexHooks(), buildServerHooks: BuildServerHooks())
   }
@@ -50,12 +57,14 @@ public struct Hooks: Sendable {
     buildServerHooks: BuildServerHooks = BuildServerHooks(),
     preHandleRequest: (@Sendable (any RequestType) async -> Void)? = nil,
     preForwardRequestToClangd: (@Sendable (any RequestType) async -> Void)? = nil,
-    sourcekitdCoreInjector: (@Sendable (URL) throws -> (any SourceKitDCore)?)? = nil
+    sourcekitdCoreInjector: (@Sendable (URL) throws -> (any SourceKitDCore)?)? = nil,
+    inlayHintRefreshWillUpdateCache: (@Sendable () async -> Void)? = nil
   ) {
     self.indexHooks = indexHooks
     self.buildServerHooks = buildServerHooks
     self.preHandleRequest = preHandleRequest
     self.preForwardRequestToClangd = preForwardRequestToClangd
     self.sourcekitdCoreInjector = sourcekitdCoreInjector
+    self.inlayHintRefreshWillUpdateCache = inlayHintRefreshWillUpdateCache
   }
 }

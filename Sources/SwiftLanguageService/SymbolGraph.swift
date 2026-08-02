@@ -17,6 +17,7 @@ package import IndexStoreDB
 package import SourceKitLSP
 import SwiftExtensions
 import SwiftSyntax
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 extension SwiftLanguageService {
   package func symbolGraph(

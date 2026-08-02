@@ -779,7 +779,7 @@ final class WorkspaceTests: SourceKitLSPTestCase {
         """,
         "Sources/lib/lib.swift": """
         public struct Lib {
-          public func 5️⃣foo() {}
+          public func 5️⃣foo6️⃣() {}
           public init() {}
         }
         """,
@@ -804,10 +804,14 @@ final class WorkspaceTests: SourceKitLSPTestCase {
     let fooDefinitionResponse = try await project.testClient.send(
       DefinitionRequest(textDocument: TextDocumentIdentifier(mainUri), position: mainPositions["3️⃣"])
     )
+
     XCTAssertEqual(
       fooDefinitionResponse,
       .locations([
-        Location(uri: try project.uri(for: "lib.swift"), range: try Range(project.position(of: "5️⃣", in: "lib.swift")))
+        Location(
+          uri: try project.uri(for: "lib.swift"),
+          range: try project.range(from: "5️⃣", to: "6️⃣", in: "lib.swift")
+        )
       ])
     )
 
@@ -1107,7 +1111,7 @@ final class WorkspaceTests: SourceKitLSPTestCase {
   }
 
   func testDidChangeActiveEditorDocument() async throws {
-    let didChangeBaseLib = AtomicBool(initialValue: false)
+    let didChangeBaseLib = ThreadSafeBox<Bool>(initialValue: false)
     let didPrepareLibBAfterChangingBaseLib = self.expectation(description: "Did prepare LibB after changing base lib")
     let project = try await SwiftPMTestProject(
       files: [
@@ -1135,7 +1139,7 @@ final class WorkspaceTests: SourceKitLSPTestCase {
           }
           do {
             XCTAssert(
-              task.targetsToPrepare.contains(try BuildTargetIdentifier(target: "LibB", destination: .target)),
+              task.targetsToPrepare.contains(where: { $0.matchesTargetName("LibB") }),
               "Prepared unexpected targets: \(task.targetsToPrepare)"
             )
             try await repeatUntilExpectedResult {
@@ -1157,7 +1161,7 @@ final class WorkspaceTests: SourceKitLSPTestCase {
     project.testClient.send(DidChangeWatchedFilesNotification(changes: [FileEvent(uri: baseLibUri, type: .changed)]))
     // Ensure that we handle the `DidChangeWatchedFilesNotification`.
     try await project.testClient.send(SynchronizeRequest())
-    didChangeBaseLib.value = true
+    didChangeBaseLib.withLock { $0 = true }
 
     project.testClient.send(
       DidChangeActiveDocumentNotification(textDocument: TextDocumentIdentifier(libBUri))
@@ -1221,7 +1225,7 @@ final class WorkspaceTests: SourceKitLSPTestCase {
   }
 
   func testSourceKitOptionsTriggersPrepare() async throws {
-    let didChangeBaseLib = AtomicBool(initialValue: false)
+    let didChangeBaseLib = ThreadSafeBox<Bool>(initialValue: false)
     let didPrepareAfterChangingBaseLib = self.expectation(description: "Did prepare after changing base lib")
 
     let project = try await SwiftPMTestProject(
@@ -1276,7 +1280,7 @@ final class WorkspaceTests: SourceKitLSPTestCase {
     project.testClient.send(DidChangeWatchedFilesNotification(changes: [FileEvent(uri: baseLibUri, type: .changed)]))
     // Ensure that we handle the `DidChangeWatchedFilesNotification`.
     try await project.testClient.send(SynchronizeRequest())
-    didChangeBaseLib.value = true
+    didChangeBaseLib.withLock { $0 = true }
 
     let triggerPrepare = try await project.testClient.send(
       SourceKitOptionsRequest(
@@ -1380,9 +1384,13 @@ final class WorkspaceTests: SourceKitLSPTestCase {
       enableBackgroundIndexing: true
     )
 
+    let fileAUri = try project.uri(for: "FileA.swift")
+    let workspace = try await unwrap(project.testClient.server.workspaceForDocument(uri: fileAUri))
+    let target = try await unwrap(workspace.buildServerManager.canonicalTarget(for: fileAUri))
+
     let outputPaths = try await project.testClient.send(
       OutputPathsRequest(
-        target: BuildTargetIdentifier(target: "MyLibrary", destination: .target).uri,
+        target: target.uri,
         workspace: DocumentURI(project.scratchDirectory)
       )
     )
@@ -1427,11 +1435,7 @@ final class WorkspaceTests: SourceKitLSPTestCase {
     )
 
     // Get the language service for WorkspaceB before closing
-    let clangLanguageServiceBeforeClose = try await project.testClient.server.primaryLanguageService(
-      for: mainUri,
-      .c,
-      in: unwrap(project.testClient.server.workspaceForDocument(uri: mainUri))
-    )
+    let clangLanguageServiceBeforeClose = try await unwrap(project.testClient.primaryLanguageService(for: mainUri))
 
     // close the document
     project.testClient.send(DidCloseTextDocumentNotification(textDocument: TextDocumentIdentifier(mainUri)))
@@ -1460,11 +1464,7 @@ final class WorkspaceTests: SourceKitLSPTestCase {
       DocumentSymbolRequest(textDocument: TextDocumentIdentifier(dummyUri))
     )
 
-    let clangLanguageServiceForWorkspaceA = try await project.testClient.server.primaryLanguageService(
-      for: dummyUri,
-      .c,
-      in: unwrap(project.testClient.server.workspaceForDocument(uri: dummyUri))
-    )
+    let clangLanguageServiceForWorkspaceA = try await unwrap(project.testClient.primaryLanguageService(for: dummyUri))
 
     XCTAssertFalse(
       clangLanguageServiceBeforeClose === clangLanguageServiceForWorkspaceA,
@@ -1472,8 +1472,9 @@ final class WorkspaceTests: SourceKitLSPTestCase {
     )
   }
 
-  func testOrphanedSwiftLanguageServiceIsImmortal() async throws {
-    try await SkipUnless.sourcekitdSupportsPlugin()
+  func testOrphanedSwiftLanguageServiceIsShutDown() async throws {
+    // Test that when a workspace is removed, its SwiftLanguageService is shut down
+    // and WorkspaceA gets an independent service instance — mirroring the Clang behavior.
 
     let project = try await MultiFileTestProject(
       files: [
@@ -1507,6 +1508,8 @@ final class WorkspaceTests: SourceKitLSPTestCase {
         """,
       ],
       workspaces: { scratchDir in
+        try await SwiftPMTestProject.resolvePackageDependencies(at: scratchDir.appending(component: "WorkspaceA"))
+        try await SwiftPMTestProject.resolvePackageDependencies(at: scratchDir.appending(component: "WorkspaceB"))
         return [
           WorkspaceFolder(uri: DocumentURI(scratchDir.appending(component: "WorkspaceA"))),
           WorkspaceFolder(uri: DocumentURI(scratchDir.appending(component: "WorkspaceB"))),
@@ -1514,24 +1517,29 @@ final class WorkspaceTests: SourceKitLSPTestCase {
       }
     )
 
+    // Wait for SwiftPM to finish loading the package graph before opening documents.
+    _ = try await project.testClient.send(SynchronizeRequest(index: true))
+
     let (libBUri, libBPositions) = try project.openDocument("LibB.swift")
 
-    let initialHover = try await project.testClient.send(
+    // Send a request to ensure the SwiftLanguageService for WorkspaceB is up.
+    _ = try await project.testClient.send(
       HoverRequest(textDocument: TextDocumentIdentifier(libBUri), position: libBPositions["2️⃣"])
     )
-    XCTAssertNotNil(initialHover, "Should get hover response for LibB.swift")
 
-    // Get the SwiftLanguageService before closing WorkspaceB
-    let swiftLanguageServiceBeforeClose = try await project.testClient.server.primaryLanguageService(
-      for: libBUri,
-      .swift,
-      in: unwrap(project.testClient.server.workspaceForDocument(uri: libBUri))
+    // Capture the identity of WorkspaceB's SwiftLanguageService before removal.
+    let libBServiceID = try await ObjectIdentifier(unwrap(project.testClient.primaryLanguageService(for: libBUri)))
+
+    // Open a file in WorkspaceA before removing WorkspaceB, to verify the service survives the removal.
+    let (libAUri, libAPositions) = try project.openDocument("LibA.swift")
+
+    // Capture the identity of WorkspaceA's service before the removal.
+    let libAServiceIDBefore = try await ObjectIdentifier(
+      unwrap(project.testClient.primaryLanguageService(for: libAUri))
     )
 
-    // Close the document in WorkspaceB
+    // Close the document and remove WorkspaceB.
     project.testClient.send(DidCloseTextDocumentNotification(textDocument: TextDocumentIdentifier(libBUri)))
-
-    // Remove WorkspaceB
     let workspaceBUri = DocumentURI(project.scratchDirectory.appending(component: "WorkspaceB"))
     project.testClient.send(
       DidChangeWorkspaceFoldersNotification(
@@ -1540,26 +1548,23 @@ final class WorkspaceTests: SourceKitLSPTestCase {
     )
     _ = try await project.testClient.send(SynchronizeRequest())
 
-    // Open a file in WorkspaceA
-    let (libAUri, libAPositions) = try project.openDocument("LibA.swift")
-
-    // Verify that the language service in WorkspaceA still works correctly
+    // WorkspaceA's service should still work after WorkspaceB is removed.
     let hover = try await project.testClient.send(
       HoverRequest(textDocument: TextDocumentIdentifier(libAUri), position: libAPositions["1️⃣"])
     )
     XCTAssertNotNil(hover, "Should still get hover response after removing WorkspaceB")
     assertContains(hover?.contents.markupContent?.value ?? "", "foo")
 
-    // Verify that the same SwiftLanguageService is reused (immortal, not shut down)
-    let swiftLanguageServiceForWorkspaceA = try await project.testClient.server.primaryLanguageService(
-      for: libAUri,
-      .swift,
-      in: unwrap(project.testClient.server.workspaceForDocument(uri: libAUri))
+    let libAService = try await unwrap(project.testClient.primaryLanguageService(for: libAUri))
+    XCTAssertEqual(
+      libAServiceIDBefore,
+      ObjectIdentifier(libAService),
+      "WorkspaceA's service should be the same instance"
     )
-
-    XCTAssertTrue(
-      swiftLanguageServiceBeforeClose === swiftLanguageServiceForWorkspaceA,
-      "SwiftLanguageService should be immortal and reused across workspaces"
+    XCTAssertNotEqual(
+      libBServiceID,
+      ObjectIdentifier(libAService),
+      "WorkspaceA and WorkspaceB must use independent service instances"
     )
   }
 }

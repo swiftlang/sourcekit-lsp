@@ -15,6 +15,7 @@ package import Foundation
 @_spi(SourceKitLSP) import SKLogging
 import SwiftExtensions
 import TSCExtensions
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 package import class TSCBasic.Process
 package import enum TSCBasic.ProcessEnv

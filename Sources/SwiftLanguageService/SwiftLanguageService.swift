@@ -97,13 +97,13 @@ package struct SwiftCompileCommand: Sendable, Equatable, Hashable {
     self.isFallback = settings.isFallback
   }
 
-  /// Extract the `Parser.ExperimentalFeatures` from the compiler arguments.
+  /// Extract the `Parser.LanguageFeatures` from the compiler arguments.
   ///
   /// This scans the compiler arguments for `-enable-experimental-feature <name>` flags and maps them
-  /// to `Parser.ExperimentalFeatures` values so that the SwiftParser can parse the file correctly
+  /// to `Parser.LanguageFeatures` values so that the SwiftParser can parse the file correctly
   /// with the same experimental features that the compiler would use.
-  package var experimentalFeatures: Parser.ExperimentalFeatures {
-    var features: Parser.ExperimentalFeatures = []
+  package var experimentalFeatures: Parser.LanguageFeatures {
+    var features: Parser.LanguageFeatures = []
     var iterator = compilerArgs.makeIterator()
     while let arg = iterator.next() {
       if arg == "-enable-experimental-feature", let featureName = iterator.next() {
@@ -111,7 +111,7 @@ package struct SwiftCompileCommand: Sendable, Equatable, Hashable {
         // availability suffix (e.g. "FeatureName:adoption"). Strip it before
         // looking up the parser feature.
         let baseName = featureName.firstIndex(of: ":").map { String(featureName[..<$0]) } ?? featureName
-        if let feature = Parser.ExperimentalFeatures(name: baseName) {
+        if let feature = Parser.LanguageFeatures(name: baseName) {
           features.insert(feature)
         }
       }
@@ -122,7 +122,7 @@ package struct SwiftCompileCommand: Sendable, Equatable, Hashable {
 
 package actor SwiftLanguageService: LanguageService, Sendable {
   /// The ``SourceKitLSPServer`` instance that created this `SwiftLanguageService`.
-  private(set) weak var sourceKitLSPServer: SourceKitLSPServer?
+  weak let sourceKitLSPServer: SourceKitLSPServer?
 
   private let sourcekitdPath: URL
 
@@ -159,7 +159,7 @@ package actor SwiftLanguageService: LanguageService, Sendable {
   ///   might have finished. This isn't an issue since the tasks do not retain `self`.
   private var inFlightPublishDiagnosticsTasks: [DocumentURI: Task<Void, Never>] = [:]
 
-  let inlayHintManager = InlayHintManager()
+  let inlayHintManager: InlayHintManager
 
   let syntaxTreeManager = SyntaxTreeManager()
 
@@ -260,6 +260,7 @@ package actor SwiftLanguageService: LanguageService, Sendable {
     self.capabilityRegistry = workspace.capabilityRegistry
     self.semanticIndexManagerTask = workspace.semanticIndexManagerTask
     self.hooks = hooks
+    self.inlayHintManager = InlayHintManager(hooks: hooks)
     self.state = .connected
     self.options = options
 
@@ -295,7 +296,8 @@ package actor SwiftLanguageService: LanguageService, Sendable {
       options: options,
       syntaxTreeManager: syntaxTreeManager,
       documentManager: sourceKitLSPServer.documentManager,
-      clientHasDiagnosticsCodeDescriptionSupport: await capabilityRegistry.clientHasDiagnosticsCodeDescriptionSupport
+      clientHasDiagnosticsCodeDescriptionSupport: await capabilityRegistry.clientHasDiagnosticsCodeDescriptionSupport,
+      uncheckedIndexProvider: { await workspace.uncheckedIndex }
     )
 
     self.macroExpansionManager = MacroExpansionManager(swiftLanguageService: self)
@@ -304,6 +306,8 @@ package actor SwiftLanguageService: LanguageService, Sendable {
     // Create sub-directories for each type of generated file
     try FileManager.default.createDirectory(at: generatedInterfacesPath, withIntermediateDirectories: true)
     try FileManager.default.createDirectory(at: generatedMacroExpansionsPath, withIntermediateDirectories: true)
+
+    await self.initialize()
   }
 
   /// - Important: For testing only
@@ -316,7 +320,7 @@ package actor SwiftLanguageService: LanguageService, Sendable {
     switch try? ReferenceDocumentURL(from: uri) {
     case .macroExpansion(let data):
       let content = try await self.macroExpansionManager.macroExpansion(for: data)
-      return DocumentSnapshot(uri: uri, language: .swift, version: 0, lineTable: LineTable(content))
+      return DocumentSnapshot(uri: uri, language: .swift, version: 0, lineTable: LineTable(content), origin: .generated)
     case .generatedInterface(let data):
       return try await self.generatedInterfaceManager.snapshot(of: data)
     case nil:
@@ -359,7 +363,7 @@ package actor SwiftLanguageService: LanguageService, Sendable {
     )
   }
 
-  package nonisolated func canHandle(workspace: Workspace, toolchain: Toolchain) -> Bool {
+  package nonisolated func canHandle(toolchain: Toolchain) -> Bool {
     return self.sourcekitdPath == toolchain.sourcekitd
   }
 
@@ -398,12 +402,11 @@ package actor SwiftLanguageService: LanguageService, Sendable {
 }
 
 extension SwiftLanguageService {
-
-  package func initialize(_ initialize: InitializeRequest) async throws -> InitializeResult {
+  private func initialize() async {
     await sourcekitd.addNotificationHandler(self)
 
-    return InitializeResult(
-      capabilities: ServerCapabilities(
+    await sourceKitLSPServer?.registerCapabilities(
+      for: ServerCapabilities(
         textDocumentSync: .options(
           TextDocumentSyncOptions(
             openClose: true,
@@ -427,7 +430,7 @@ extension SwiftLanguageService {
         documentSymbolProvider: .bool(true),
         codeActionProvider: .value(
           CodeActionServerCapabilities(
-            clientCapabilities: initialize.capabilities.textDocument?.codeAction,
+            clientCapabilities: capabilityRegistry.clientCapabilities.textDocument?.codeAction,
             codeActionOptions: CodeActionOptions(codeActionKinds: [.quickFix, .refactor]),
             supportsCodeActions: true
           )
@@ -449,12 +452,17 @@ extension SwiftLanguageService {
           workspaceDiagnostics: false
         ),
         selectionRangeProvider: .bool(true)
-      )
+      ),
+      languages: [.swift],
+      registry: capabilityRegistry
     )
   }
 
   package func shutdown() async {
-    await self.sourcekitd.removeNotificationHandler(self)
+    await sourcekitd.removeNotificationHandler(self)
+    if state == .connectionInterrupted || state == .semanticFunctionalityDisabled {
+      await sourceKitLSPServer?.sourcekitdCrashedWorkDoneProgress.end()
+    }
   }
 
   package func canonicalDeclarationPosition(of position: Position, in uri: DocumentURI) async -> Position? {
@@ -951,11 +959,11 @@ extension SwiftLanguageService {
     }
 
     let uri = req.textDocument.uri
-    let sharedCursorInfo = SharedCursorInfo { [weak self] in
+    let sharedCursorInfo = SharedCursorInfo { [weak self] range in
       guard let self else { throw CancellationError() }
       return try await self.cursorInfo(
         uri,
-        req.range,
+        range,
         fallbackSettingsAfterTimeout: true,
         additionalParameters: { skreq in
           skreq.set(self.keys.retrieveRefactorActions, to: 1)
@@ -967,51 +975,115 @@ extension SwiftLanguageService {
     let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
     guard
       let scope = SyntaxCodeActionScope(
+        resolveSupport: capabilityRegistry.clientCapabilities.textDocument?.codeAction?.resolveSupport,
         snapshot: snapshot,
         syntaxTree: syntaxTree,
-        request: req,
-        sharedCursorInfo: sharedCursorInfo
+        requestedRange: req.range,
+        symbolInfo: { position in
+          let response = try await sharedCursorInfo.value(for: position..<position)
+          return response.cursorInfo.map(\.symbolInfo)
+        }
       )
     else {
       return nil
     }
 
+    let providersAndKinds: [(provider: CodeActionProvider, kind: CodeActionKind?)] = [
+      ({ _ in await self.retrieveSyntaxCodeActions(scope) }, nil),
+      (
+        { request in
+          try await self.retrieveRefactorCodeActions(request, sharedCursorInfo: sharedCursorInfo)
+        },
+        .refactor
+      ),
+      (retrieveQuickFixCodeActions, .quickFix),
+      ({ _ in try await self.retrieveRemoveUnusedImportsCodeAction(scope) }, .sourceOrganizeImports),
+    ]
     let wantedActionKinds = req.context.only
-    func wantActionKind(_ kind: CodeActionKind) -> Bool {
-      guard let only = wantedActionKinds else { return true }
-      return only.contains(kind)
+    let providers: [CodeActionProvider] = providersAndKinds.compactMap { (provider, kind) in
+      if let wantedActionKinds, let kind, !wantedActionKinds.contains(kind) {
+        return nil
+      }
+      return provider
     }
 
-    async let syntaxActions = retrieveSyntaxCodeActions(scope)
-    async let refactorActions = wantActionKind(.refactor) ? retrieveRefactorCodeActions(scope) : []
-    async let quickFixActions = wantActionKind(.quickFix) ? retrieveQuickFixCodeActions(scope) : []
-    async let unusedImportActions =
-      wantActionKind(.sourceOrganizeImports)
-      ? retrieveRemoveUnusedImportsCodeAction(scope) : []
-
-    let allCodeActions = try await syntaxActions + refactorActions + quickFixActions + unusedImportActions
-
     let codeActionCapabilities = capabilityRegistry.clientCapabilities.textDocument?.codeAction
+    let codeActions = try await retrieveCodeActions(req, providers: providers)
     let response = CodeActionRequestResponse(
-      codeActions: allCodeActions,
+      codeActions: codeActions,
       clientCapabilities: codeActionCapabilities
     )
     return response
   }
 
+  func retrieveCodeActions(
+    _ req: CodeActionRequest,
+    providers: [CodeActionProvider]
+  ) async throws -> [CodeAction] {
+    guard providers.isEmpty == false else {
+      return []
+    }
+    return await providers.concurrentMap { provider in
+      do {
+        return try await provider(req)
+      } catch {
+        // Ignore any providers that failed to provide refactoring actions.
+        return []
+      }
+    }
+    .flatMap { $0 }
+  }
+
   func retrieveSyntaxCodeActions(_ scope: SyntaxCodeActionScope) async -> [CodeAction] {
-    return await allSyntaxCodeActions.concurrentMap { provider in
+    return await allSyntaxCodeActionProviders.concurrentMap { provider in
       await provider.codeActions(in: scope)
     }.flatMap { $0 }
   }
 
   package func codeActionResolve(_ req: CodeActionResolveRequest) async throws -> CodeAction {
-    return req.codeAction
+    guard let data = UnresolvedCodeActionData(fromLSPAny: req.codeAction.data) else {
+      // We don't have any data to resolve the code action.
+      return req.codeAction
+    }
+    guard let provider = allSyntaxCodeActionProviders.filter({ "\($0)" == data.action }).only else {
+      throw ResponseError.unknown("Could not find syntax action '\(data.action)' to resolve code action")
+    }
+    let snapshot = try documentManager.latestSnapshot(data.document.uri)
+    guard snapshot.version == data.document.version else {
+      throw ResponseError.unknown("Document was modified since between code action and resolve request")
+    }
+    let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
+
+    let symbolInfo: @Sendable (Position) async throws -> [SymbolDetails] = { position in
+      try await self.symbolInfo(
+        SymbolInfoRequest(textDocument: TextDocumentIdentifier(snapshot.uri), position: position)
+      )
+    }
+
+    guard
+      let scope = SyntaxCodeActionScope(
+        resolveSupport: capabilityRegistry.clientCapabilities.textDocument?.codeAction?.resolveSupport,
+        snapshot: snapshot,
+        syntaxTree: syntaxTree,
+        requestedRange: data.range,
+        symbolInfo: symbolInfo
+      )
+    else {
+      throw ResponseError.unknown("Unable to re-create code action scope")
+    }
+    return try await provider.resolve(
+      req.codeAction,
+      in: scope,
+      unresolvedData: data.data,
+      symbolInfo: symbolInfo
+    )
   }
 
-  func retrieveRefactorCodeActions(_ scope: SyntaxCodeActionScope) async throws -> [CodeAction] {
-    let cursorInfoResult = try await scope.cursorInfoResponse()
-    let params = scope.request
+  func retrieveRefactorCodeActions(
+    _ params: CodeActionRequest,
+    sharedCursorInfo: SharedCursorInfo
+  ) async throws -> [CodeAction] {
+    let cursorInfoResult = try await sharedCursorInfo.value(for: params.range)
 
     var canInlineMacro = false
 
@@ -1034,9 +1106,8 @@ extension SwiftLanguageService {
     return refactorActions
   }
 
-  func retrieveQuickFixCodeActions(_ scope: SyntaxCodeActionScope) async throws -> [CodeAction] {
-    let params = scope.request
-    let snapshot = scope.snapshot
+  func retrieveQuickFixCodeActions(_ params: CodeActionRequest) async throws -> [CodeAction] {
+    let snapshot = try await self.latestSnapshot(for: params.textDocument.uri)
     let buildSettings = await self.compileCommand(for: params.textDocument.uri, fallbackAfterTimeout: true)
     let diagnosticReport = try await self.diagnosticReportManager.diagnosticReport(
       for: snapshot,
@@ -1407,5 +1478,34 @@ extension SwiftLanguageService {
     }
 
     return false
+  }
+}
+
+extension SwiftLanguageService {
+  package func localReferences(
+    at position: Position,
+    in uri: DocumentURI,
+    includeDeclaration: Bool
+  ) async throws -> [Location] {
+    guard let snapshot = try? await latestSnapshot(for: uri) else {
+      return []
+    }
+
+    let response = try await self.relatedIdentifiers(
+      at: position,
+      in: snapshot,
+      includeNonEditableBaseNames: false
+    )
+
+    var identifiers = response.relatedIdentifiers
+
+    if !includeDeclaration {
+      // Remove declaration occurrences when `includeDeclaration` is false.
+      identifiers = identifiers.filter { $0.usage != .definition }
+    }
+
+    return identifiers.map {
+      Location(uri: uri, range: $0.range)
+    }
   }
 }

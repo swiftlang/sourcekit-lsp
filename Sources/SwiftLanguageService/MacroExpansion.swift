@@ -20,6 +20,7 @@ import SKUtilities
 import SourceKitD
 import SourceKitLSP
 import SwiftExtensions
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 /// Caches the contents of macro expansions that were recently requested by the user.
 actor MacroExpansionManager {
@@ -33,7 +34,7 @@ actor MacroExpansionManager {
     self.swiftLanguageService = swiftLanguageService
   }
 
-  private weak var swiftLanguageService: SwiftLanguageService?
+  private weak let swiftLanguageService: SwiftLanguageService?
 
   /// The cache that stores reportTasks for a combination of uri, range and build settings.
   ///

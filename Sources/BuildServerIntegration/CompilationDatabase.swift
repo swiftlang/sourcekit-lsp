@@ -16,6 +16,7 @@ package import Foundation
 @_spi(SourceKitLSP) import SKLogging
 import SwiftExtensions
 import TSCExtensions
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 #if os(Windows)
 import WinSDK

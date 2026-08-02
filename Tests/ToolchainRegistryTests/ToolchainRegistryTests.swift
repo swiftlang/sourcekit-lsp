@@ -16,6 +16,7 @@ import SKUtilities
 import SwiftExtensions
 import TSCBasic
 import ToolchainRegistry
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
 
 #if canImport(Android)

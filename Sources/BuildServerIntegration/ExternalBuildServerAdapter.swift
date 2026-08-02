@@ -11,15 +11,16 @@
 //===----------------------------------------------------------------------===//
 
 @_spi(SourceKitLSP) import BuildServerProtocol
-import Foundation
+package import Foundation
 @_spi(SourceKitLSP) import LanguageServerProtocol
 @_spi(SourceKitLSP) import LanguageServerProtocolExtensions
 @_spi(SourceKitLSP) import LanguageServerProtocolTransport
 @_spi(SourceKitLSP) import SKLogging
-import SKOptions
+package import SKOptions
 import SwiftExtensions
 import TSCExtensions
-import ToolchainRegistry
+package import ToolchainRegistry
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 import func TSCBasic.getEnvSearchPaths
 import var TSCBasic.localFileSystem
@@ -62,7 +63,7 @@ enum BuildServerNotFoundError: Error {
 /// BSP configuration
 ///
 /// See https://build-server-protocol.github.io/docs/overview/server-discovery#the-bsp-connection-details
-struct BuildServerConfig: Codable {
+package struct BuildServerConfig: Codable {
   /// The name of the build tool.
   let name: String
 
@@ -76,7 +77,7 @@ struct BuildServerConfig: Codable {
   let languages: [String]
 
   /// Command arguments runnable via server processes to start a BSP server.
-  let argv: [String]
+  package let argv: [String]
 
   static func load(from path: URL) throws -> BuildServerConfig {
     let decoder = JSONDecoder()
@@ -88,7 +89,7 @@ struct BuildServerConfig: Codable {
     case unsupportedToolchainForSwiftPMBuildServerWithoutBackgroundIndexing
   }
 
-  static func forSwiftPMBuildServer(
+  package static func forSwiftPMBuildServer(
     projectRoot: URL,
     options: SourceKitLSPOptions,
     toolchainRegistry: ToolchainRegistry
@@ -101,25 +102,50 @@ struct BuildServerConfig: Codable {
     // The build server requires use of the Swift Build backend.
     args.append(contentsOf: ["--build-system", "swiftbuild"])
 
+    let swiftVersion = try? await toolchain?.swiftVersion
+    if let swiftVersion, swiftVersion >= SwiftVersion(6, 4) {
+      // Skip acquiring the workspace lock.
+      args.append("--experimental-skip-acquiring-lock")
+    } else if !options.backgroundIndexingOrDefault {
+      // Without background indexing we always need to be able to coexist with user-initiated builds,
+      // which older toolchains can't do because they can't skip acquiring the workspace lock.
+      throw SwiftPMBuildServerConfigError.unsupportedToolchainForSwiftPMBuildServerWithoutBackgroundIndexing
+    }
+    if let swiftVersion, swiftVersion >= SwiftVersion(6, 5) {
+      // Preserve symlinks in the package and source file paths so that the paths reported by the
+      // build server match the path SourceKit-LSP opened the package with.
+      args.append("--experimental-skip-resolving-package-paths")
+    }
     if !options.backgroundIndexingOrDefault {
-      if let swiftVersion = try? await toolchain?.swiftVersion, swiftVersion >= SwiftVersion(6, 4) {
-        // If we're not background indexing, do not acquire the workspace lock, or else user-initiated builds will be blocked.
-        args.append(contentsOf: ["--experimental-skip-acquiring-lock", "--force-resolved-versions"])
-      } else {
-        throw SwiftPMBuildServerConfigError.unsupportedToolchainForSwiftPMBuildServerWithoutBackgroundIndexing
-      }
+      // When not background indexing we don't want to modify the user's `Package.resolved`, so force
+      // the use of the already-resolved versions. We can't do this while background indexing because
+      // the package may not have been resolved yet, in which case the native build server can still
+      // enumerate targets from the manifest alone.
+      args.append("--force-resolved-versions")
     }
     // Explicitly specify the package path.
     try args.append(contentsOf: ["--package-path", projectRoot.filePath])
     // Map LSP SwiftPM options to build server flags
+
+    func resolvedRelativeToProjectRoot(_ path: String) throws -> String {
+      try URL(fileURLWithPath: path, relativeTo: projectRoot.ensuringCorrectTrailingSlash).filePath
+    }
+
     if let configuration = options.swiftPMOrDefault.configuration {
       args.append(contentsOf: ["--configuration", configuration.rawValue])
     }
     if let scratchPath = options.swiftPMOrDefault.scratchPath {
-      args.append(contentsOf: ["--scratch-path", scratchPath])
+      args.append(contentsOf: ["--scratch-path", try resolvedRelativeToProjectRoot(scratchPath)])
+    } else if options.backgroundIndexingOrDefault {
+      // When background indexing without an explicit scratch path, build into `.build/index-build`
+      // so that the index build is independent of the user's regular `.build` directory and doesn't
+      // contend with user-initiated builds.
+      try args.append(contentsOf: [
+        "--scratch-path", projectRoot.appending(components: ".build", "index-build").filePath,
+      ])
     }
     if let swiftSDKsDirectory = options.swiftPMOrDefault.swiftSDKsDirectory {
-      args.append(contentsOf: ["--swift-sdks-path", swiftSDKsDirectory])
+      args.append(contentsOf: ["--swift-sdks-path", try resolvedRelativeToProjectRoot(swiftSDKsDirectory)])
     }
     if let swiftSDK = options.swiftPMOrDefault.swiftSDK {
       args.append(contentsOf: ["--swift-sdk", swiftSDK])
@@ -129,11 +155,11 @@ struct BuildServerConfig: Codable {
     }
     if let toolsets = options.swiftPMOrDefault.toolsets {
       for toolset in toolsets {
-        args.append(contentsOf: ["--toolset", toolset])
+        args.append(contentsOf: ["--toolset", try resolvedRelativeToProjectRoot(toolset)])
       }
     }
     if let sdk = options.swiftPMOrDefault.sdk {
-      args.append(contentsOf: ["--sdk", sdk])
+      args.append(contentsOf: ["--sdk", try resolvedRelativeToProjectRoot(sdk)])
     }
     if let traits = options.swiftPMOrDefault.traits {
       args.append(contentsOf: ["--traits", traits.joined(separator: ",")])
@@ -166,6 +192,10 @@ struct BuildServerConfig: Codable {
     if options.swiftPMOrDefault.disableSandbox == true {
       args.append("--disable-sandbox")
     }
+    // Keep this last so extra arguments can override the options above.
+    if let extraArguments = options.swiftPMOrDefault.extraArguments {
+      args.append(contentsOf: extraArguments)
+    }
     // The skipPlugins option isn't currently respected because the underlying build server does not support it.
     // We may want to reconsider this in the future, or remove the option entirely.
     return BuildServerConfig(
@@ -186,11 +216,14 @@ actor ExternalBuildServerAdapter {
   /// The configuration for this build server.
   private let serverConfig: BuildServerConfig
 
+  /// Hooks that allow tests to intercept the messages sent to the build server.
+  private let buildServerHooks: BuildServerHooks
+
   /// The `BuildServerManager` that handles messages from the BSP server to SourceKit-LSP.
   var messagesToSourceKitLSPHandler: any MessageHandler
 
   /// The JSON-RPC connection between SourceKit-LSP and the BSP server.
-  private(set) var connectionToBuildServer: JSONRPCConnection?
+  private(set) var connectionToBuildServer: LegacyNameFallbackConnection?
 
   /// After a `build/initialize` request has been sent to the BSP server, that request, so we can replay it in case the
   /// server crashes.
@@ -218,24 +251,31 @@ actor ExternalBuildServerAdapter {
   init(
     projectRoot: URL,
     config: BuildServerConfig,
-    messagesToSourceKitLSPHandler: any MessageHandler
+    messagesToSourceKitLSPHandler: any MessageHandler,
+    buildServerHooks: BuildServerHooks
   ) async throws {
     self.projectRoot = projectRoot
     self.serverConfig = config
+    self.buildServerHooks = buildServerHooks
     self.messagesToSourceKitLSPHandler = messagesToSourceKitLSPHandler
-    self.connectionToBuildServer = try await self.createConnectionToBspServer()
+    self.connectionToBuildServer = LegacyNameFallbackConnection(
+      try await self.createConnectionToBspServer(),
+      legacyNames: MessageRegistry.bspLegacyNames
+    )
   }
 
   init(
     projectRoot: URL,
     configPath: URL,
-    messagesToSourceKitLSPHandler: any MessageHandler
+    messagesToSourceKitLSPHandler: any MessageHandler,
+    buildServerHooks: BuildServerHooks
   ) async throws {
     let serverConfig = try BuildServerConfig.load(from: configPath)
     try await self.init(
       projectRoot: projectRoot,
       config: serverConfig,
-      messagesToSourceKitLSPHandler: messagesToSourceKitLSPHandler
+      messagesToSourceKitLSPHandler: messagesToSourceKitLSPHandler,
+      buildServerHooks: buildServerHooks
     )
   }
 
@@ -258,6 +298,7 @@ actor ExternalBuildServerAdapter {
 
   /// Send a request to the build server.
   func send<Request: RequestType>(_ request: Request) async throws -> Request.Response {
+    await buildServerHooks.preHandleRequest?(request)
     guard let connectionToBuildServer else {
       throw ResponseError.internalError("BSP server has crashed")
     }
@@ -400,7 +441,10 @@ actor ExternalBuildServerAdapter {
     // crash recovery and doesn't need to gain it because it is deprecated).
     _ = try await restartedConnection.send(initializeRequest)
     restartedConnection.send(OnBuildInitializedNotification())
-    self.connectionToBuildServer = restartedConnection
+    self.connectionToBuildServer = LegacyNameFallbackConnection(
+      restartedConnection,
+      legacyNames: MessageRegistry.bspLegacyNames
+    )
 
     // The build targets might have changed after the restart. Send a `buildTarget/didChange` notification to
     // SourceKit-LSP to discard cached information.

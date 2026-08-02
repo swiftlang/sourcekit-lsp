@@ -15,6 +15,7 @@ import SwiftExtensions
 import SwiftParser
 import SwiftRefactor
 package import SwiftSyntax
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 /// Insert a documentation template associated with a function or macro.
 ///

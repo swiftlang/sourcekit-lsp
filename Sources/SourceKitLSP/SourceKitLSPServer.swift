@@ -23,6 +23,7 @@ package import SKOptions
 import SemanticIndex
 import SourceKitD
 import SwiftExtensions
+import Synchronization
 package import ToolchainRegistry
 @_spi(SourceKitLSP) package import ToolsProtocolsSwiftExtensions
 
@@ -54,16 +55,16 @@ package actor SourceKitLSPServer {
   private let workspaceQueue = AsyncQueue<Serial>()
 
   /// The connection to the editor.
-  package nonisolated let client: any Connection
+  nonisolated let client: LegacyNameFallbackConnection
 
   /// Set to `true` after the `SourceKitLSPServer` has send the reply to the `InitializeRequest`.
   ///
   /// Initialization can be awaited using `waitUntilInitialized`.
   private var initialized: Bool = false
 
-  private let _options: ThreadSafeBox<SourceKitLSPOptions>
+  private let _options: Mutex<SourceKitLSPOptions>
   nonisolated package var options: SourceKitLSPOptions {
-    _options.value
+    _options.withLock { $0 }
   }
 
   package let hooks: Hooks
@@ -73,8 +74,6 @@ package actor SourceKitLSPServer {
   package var capabilityRegistry: CapabilityRegistry?
 
   let languageServiceRegistry: LanguageServiceRegistry
-
-  var languageServices: [LanguageServiceType: [any LanguageService]] = [:]
 
   package nonisolated let documentManager = DocumentManager()
 
@@ -175,11 +174,11 @@ package actor SourceKitLSPServer {
   ) {
     self.toolchainRegistry = toolchainRegistry
     self.languageServiceRegistry = languageServerRegistry
-    self._options = ThreadSafeBox(initialValue: options)
+    self._options = Mutex(options)
     self.hooks = hooks
     self.onExit = onExit
 
-    self.client = client
+    self.client = LegacyNameFallbackConnection(client, legacyNames: MessageRegistry.lspLegacyNames)
     self.indexTaskScheduler = TaskScheduler(
       maxConcurrentTasksByPriority: Self.maxConcurrentIndexingTasksByPriority(isIndexingPaused: false, options: options)
     )
@@ -382,7 +381,7 @@ package actor SourceKitLSPServer {
 
     // This should be created as soon as we receive an open call, even if the document
     // isn't yet ready.
-    for languageService in workspace.languageServices(for: doc) {
+    for languageService in workspace.languageServices(forOpenDocument: doc) {
       await notificationHandler(notification, languageService)
     }
   }
@@ -401,7 +400,7 @@ package actor SourceKitLSPServer {
       guard let workspace = await self.workspaceForDocument(uri: request.textDocument.uri) else {
         throw ResponseError.workspaceNotOpen(request.textDocument.uri)
       }
-      let languageServices = workspace.languageServices(for: doc)
+      let languageServices = workspace.languageServices(forOpenDocument: doc)
       if languageServices.isEmpty {
         throw ResponseError.unknown("No language service for '\(request.textDocument.uri)' found")
       }
@@ -433,7 +432,7 @@ package actor SourceKitLSPServer {
       guard let workspace = await self.workspaceForDocument(uri: documentUri) else {
         continue
       }
-      guard workspace.languageServices(for: documentUri).contains(where: { $0 === languageService }) else {
+      guard workspace.languageServices(forOpenDocument: documentUri).contains(where: { $0 === languageService }) else {
         continue
       }
       guard let snapshot = try? self.documentManager.latestSnapshot(documentUri) else {
@@ -458,165 +457,6 @@ package actor SourceKitLSPServer {
     }
   }
 
-  /// If a language service of type `serverType` that can handle `workspace` using the given toolchain has already been
-  /// started, return it, otherwise return `nil`.
-  private func existingLanguageService(
-    _ serverType: any LanguageService.Type,
-    toolchain: Toolchain,
-    workspace: Workspace
-  ) -> (any LanguageService)? {
-    for languageService in languageServices[LanguageServiceType(serverType), default: []] {
-      if languageService.canHandle(workspace: workspace, toolchain: toolchain) {
-        return languageService
-      }
-    }
-    return nil
-  }
-
-  /// Get the language services that can handle the given languages in the given workspace using the given toolchain.
-  ///
-  /// If we have language services that can handle this combination but that haven't been started yet, start them.
-  func languageServices(
-    for toolchain: Toolchain,
-    _ language: Language,
-    in workspace: Workspace
-  ) async -> [any LanguageService] {
-    var result: [any LanguageService] = []
-    for serverType in languageServiceRegistry.languageServices(for: language) {
-      if let languageService = existingLanguageService(serverType, toolchain: toolchain, workspace: workspace) {
-        result.append(languageService)
-        continue
-      }
-
-      // Start a new service.
-      let languageService: (any LanguageService)? = await orLog("failed to start language service") {
-        [options = workspace.options, hooks] in
-        let service = try await serverType.init(
-          sourceKitLSPServer: self,
-          toolchain: toolchain,
-          options: options,
-          hooks: hooks,
-          workspace: workspace
-        )
-
-        let pid = Int(ProcessInfo.processInfo.processIdentifier)
-        let resp = try await service.initialize(
-          InitializeRequest(
-            processId: pid,
-            rootPath: nil,
-            rootURI: workspace.rootUri,
-            initializationOptions: nil,
-            capabilities: workspace.capabilityRegistry.clientCapabilities,
-            trace: .off,
-            workspaceFolders: nil
-          )
-        )
-        let languages = languageClass(for: language)
-        await self.registerCapabilities(
-          for: resp.capabilities,
-          languages: languages,
-          registry: workspace.capabilityRegistry
-        )
-
-        var syncKind: TextDocumentSyncKind
-        switch resp.capabilities.textDocumentSync {
-        case .options(let options):
-          syncKind = options.change ?? .incremental
-        case .kind(let kind):
-          syncKind = kind
-        default:
-          syncKind = .incremental
-        }
-        guard syncKind == .incremental else {
-          throw ResponseError.internalError("non-incremental update not implemented")
-        }
-
-        await service.clientInitialized(InitializedNotification())
-
-        if let concurrentlyInitializedService = existingLanguageService(
-          serverType,
-          toolchain: toolchain,
-          workspace: workspace
-        ) {
-          // Since we 'await' above, another call to languageService might have
-          // happened concurrently, passed the `existingLanguageService` check at
-          // the top and started initializing another language service.
-          // If this race happened, just shut down our server and return the
-          // other one.
-          await service.shutdown()
-          return concurrentlyInitializedService
-        }
-
-        languageServices[LanguageServiceType(serverType), default: []].append(service)
-        return service
-      }
-      guard let languageService else {
-        // If a language service fails to start, don't try starting language services with lower precedence. Otherwise
-        // we get into a situation where eg. `SwiftLanguageService`` fails to start (eg. because the toolchain doesn't
-        // contain sourcekitd) and the `DocumentationLanguageService` now becomes the primary language service for the
-        // document, trying to serve documentation, completion etc. which is not intended.
-        break
-      }
-      result.append(languageService)
-    }
-    if result.isEmpty {
-      logger.error("Unable to infer language server type for language '\(language)'")
-    }
-    return result
-  }
-
-  /// Get the language services that can handle the given document.
-  ///
-  /// If we have language services that can handle this document but that haven't been started yet, start them.
-  package func languageServices(
-    for uri: DocumentURI,
-    _ language: Language,
-    in workspace: Workspace
-  ) async -> [any LanguageService] {
-    let existingLanguageServices = workspace.languageServices(for: uri)
-    if !existingLanguageServices.isEmpty {
-      return existingLanguageServices
-    }
-
-    let toolchain = await workspace.buildServerManager.toolchain(
-      for: await workspace.buildServerManager.canonicalTarget(for: uri),
-      language: language
-    )
-    guard let toolchain else {
-      logger.error("Failed to determine toolchain for \(uri)")
-      return []
-    }
-    let languageServices = await self.languageServices(for: toolchain, language, in: workspace)
-
-    if languageServices.isEmpty {
-      logger.error("No language service found to handle \(uri.forLogging)")
-    }
-
-    logger.log(
-      """
-      Using toolchain at \(toolchain.path.description) (\(toolchain.identifier, privacy: .public)) \
-      for \(uri.forLogging)
-      """
-    )
-
-    return languageServices
-  }
-
-  /// The language service with the highest precedence that can handle the given document.
-  ///
-  /// If we have language services that can handle this document but that haven't been started yet, start them.
-  ///
-  /// If no language service exists for this document, throw an error.
-  package func primaryLanguageService(
-    for uri: DocumentURI,
-    _ language: Language,
-    in workspace: Workspace
-  ) async throws -> any LanguageService {
-    guard let languageService = await languageServices(for: uri, language, in: workspace).first else {
-      throw ResponseError.unknown("No language service found for \(uri)")
-    }
-    return languageService
-  }
 }
 
 // MARK: - MessageHandler
@@ -964,6 +804,7 @@ extension SourceKitLSPServer {
       toolchainRegistry: self.toolchainRegistry,
       options: options,
       hooks: hooks,
+      languageServiceRegistry: languageServiceRegistry,
       indexTaskScheduler: indexTaskScheduler
     )
     return workspace
@@ -1001,7 +842,12 @@ extension SourceKitLSPServer {
         DidChangeActiveDocumentNotification.method,
       ]
       for capabilityName in experimentalClientCapabilities {
-        guard let experimentalCapability = initializationOptions[capabilityName] else {
+        // Some clients still pass these under their legacy method names, so accept
+        // either the current name or the legacy name from `initializationOptions`.
+        let experimentalCapability =
+          initializationOptions[capabilityName]
+          ?? MessageRegistry.lspLegacyNames[capabilityName].flatMap { initializationOptions[$0] }
+        guard let experimentalCapability else {
           continue
         }
         var experimentalCapabilities: [String: LSPAny] =
@@ -1079,6 +925,7 @@ extension SourceKitLSPServer {
           toolchainRegistry: self.toolchainRegistry,
           options: options,
           hooks: hooks,
+          languageServiceRegistry: self.languageServiceRegistry,
           indexTaskScheduler: self.indexTaskScheduler
         )
 
@@ -1092,12 +939,12 @@ extension SourceKitLSPServer {
       let onWorkspaceTestsChanged =
         capabilityRegistry!.clientHasWorkspaceTestsRefreshSupport
         ? { @Sendable [weak self] in
-          _ = Task { try await self?.client.send(WorkspaceTestsRefreshRequest()) }
+          _ = Task { try await self?.sendRequestToClient(WorkspaceTestsRefreshRequest()) }
         } : nil
       let onWorkspacePlaygroundsChanged =
         capabilityRegistry!.clientHasWorkspacePlaygroundsRefreshSupport
         ? { @Sendable [weak self] in
-          _ = Task { try await self?.client.send(WorkspacePlaygroundsRefreshRequest()) }
+          _ = Task { try await self?.sendRequestToClient(WorkspacePlaygroundsRefreshRequest()) }
         } : nil
       await entryPointManager.setCallbacks(
         onWorkspaceTestsChanged: onWorkspaceTestsChanged,
@@ -1167,19 +1014,25 @@ extension SourceKitLSPServer {
       ? nil
       : ExecuteCommandOptions(commands: languageServiceRegistry.languageServices.flatMap { $0.type.builtInCommands })
 
-    var experimentalCapabilities: [String: LSPAny] = [
-      WorkspaceTestsRequest.method: ["version": 2],
-      WorkspaceTestsRefreshRequest.method: ["version": 1],
-      DocumentTestsRequest.method: ["version": 2],
-      TriggerReindexRequest.method: ["version": 1],
-      GetReferenceDocumentRequest.method: ["version": 1],
-      DidChangeActiveDocumentNotification.method: ["version": 1],
-      WorkspacePlaygroundsRefreshRequest.method: ["version": 1],
-      WorkspaceSymbolNamesRequest.method: ["version": 1],
-      WorkspaceSymbolInfoRequest.method: ["version": 1],
-    ]
+    var experimentalCapabilities: [String: LSPAny] = [:]
+    // Add both the current and legacy method names so old clients still discover the capability.
+    func addCapabilities(_ method: String, _ value: LSPAny) {
+      experimentalCapabilities[method] = value
+      if let legacy = MessageRegistry.lspLegacyNames[method] { experimentalCapabilities[legacy] = value }
+    }
+    addCapabilities(WorkspaceTestsRequest.method, ["version": 2])
+    addCapabilities(WorkspaceTestsRefreshRequest.method, ["version": 1])
+    addCapabilities(DocumentTestsRequest.method, ["version": 2])
+    addCapabilities(DoccDocumentationRequest.method, ["version": 1])
+    addCapabilities(TriggerReindexRequest.method, ["version": 1])
+    addCapabilities(GetReferenceDocumentRequest.method, ["version": 1])
+    addCapabilities(DidChangeActiveDocumentNotification.method, ["version": 1])
+    addCapabilities(SynchronizeRequest.method, ["version": 1])
+    addCapabilities(WorkspaceSymbolNamesRequest.method, ["version": 1])
+    addCapabilities(WorkspaceSymbolInfoRequest.method, ["version": 1])
     if let toolchain = await toolchainRegistry.preferredToolchain(containing: [\.swiftc]), toolchain.swiftPlay != nil {
-      experimentalCapabilities[WorkspacePlaygroundsRequest.method] = ["version": 1]
+      addCapabilities(WorkspacePlaygroundsRefreshRequest.method, ["version": 1])
+      addCapabilities(WorkspacePlaygroundsRequest.method, ["version": 1])
     }
     for (key, value) in languageServiceRegistry.languageServices.flatMap({ $0.type.experimentalCapabilities }) {
       if let existingValue = experimentalCapabilities[key] {
@@ -1206,7 +1059,7 @@ extension SourceKitLSPServer {
       referencesProvider: .bool(true),
       documentHighlightProvider: .bool(true),
       documentSymbolProvider: .bool(true),
-      workspaceSymbolProvider: .bool(true),
+      workspaceSymbolProvider: .value(WorkspaceSymbolOptions(resolveProvider: true)),
       codeActionProvider: .value(
         CodeActionServerCapabilities(
           clientCapabilities: client.textDocument?.codeAction,
@@ -1238,7 +1091,7 @@ extension SourceKitLSPServer {
     )
   }
 
-  func registerCapabilities(
+  package func registerCapabilities(
     for server: ServerCapabilities,
     languages: [Language],
     registry: CapabilityRegistry
@@ -1297,9 +1150,6 @@ extension SourceKitLSPServer {
   //     possible shutdown sequences, including pipe failure.
   package func prepareForExit() async {
     // We are shutting down / closing all workspaces and language services, so clear the arrays caching them.
-    let languageServices = self.languageServices
-    self.languageServices = [:]
-
     let workspaces = await self.workspaceQueue.async {
       let workspaces = self.workspaces
       self.workspacesAndIsImplicit = []
@@ -1307,26 +1157,9 @@ extension SourceKitLSPServer {
     }.valuePropagatingCancellation
 
     // Concurrently shut all things down.
-    await withTaskGroup(of: Void.self) { taskGroup in
-      taskGroup.addTask {
-        await orLog("Shutting down index scheduler") {
-          await self.indexTaskScheduler.shutDown()
-        }
-      }
-      for service in languageServices.values.flatMap({ $0 }) {
-        taskGroup.addTask {
-          await service.shutdown()
-        }
-      }
-      for workspace in workspaces {
-        taskGroup.addTask {
-          await orLog("Shutting down build server") {
-            await workspace.buildServerManager.shutdown()
-          }
-          await workspace.uncheckedIndex?.close()
-        }
-      }
-    }
+    async let taskSchedulerShutdown = self.indexTaskScheduler.shutDown()
+    async let workspaceShutdown = workspaces.concurrentForEach { await $0.shutdown() }
+    _ = await (taskSchedulerShutdown, workspaceShutdown)
 
     // Make sure we emit all pending log messages. When we're not using `NonDarwinLogger` this is a no-op.
     await NonDarwinLogger.flush()
@@ -1409,13 +1242,14 @@ extension SourceKitLSPServer {
     let uri = textDocument.uri
     let language = textDocument.language
 
-    let languageServices = await languageServices(for: uri, language, in: workspace)
-    workspace.setLanguageServices(for: uri, languageServices)
+    let languageServices = await workspace.languageServices(for: uri, language)
 
     if languageServices.isEmpty {
       // If we can't create a service, this document is unsupported and we can bail here.
       return
     }
+
+    workspace.setLanguageServices(forOpenDocument: uri, languageServices)
 
     await workspace.buildServerManager.registerForChangeNotifications(for: uri, language: language)
 
@@ -1445,7 +1279,7 @@ extension SourceKitLSPServer {
       return
     }
 
-    for languageService in workspace.languageServices(for: uri) {
+    for languageService in workspace.languageServices(forOpenDocument: uri) {
       await languageService.reopenDocument(notification)
     }
   }
@@ -1461,11 +1295,11 @@ extension SourceKitLSPServer {
 
     await workspace.buildServerManager.unregisterForChangeNotifications(for: uri)
 
-    for languageService in workspace.languageServices(for: uri) {
+    for languageService in workspace.languageServices(forOpenDocument: uri) {
       await languageService.closeDocument(notification)
     }
 
-    workspace.removeLanguageServices(for: uri)
+    workspace.removeLanguageServices(forOpenDocument: uri)
 
     workspaceQueue.async {
       self.workspaceForUri[notification.textDocument.uri] = nil
@@ -1495,7 +1329,7 @@ extension SourceKitLSPServer {
       // Already logged failure
       return
     }
-    for languageService in workspace.languageServices(for: uri) {
+    for languageService in workspace.languageServices(forOpenDocument: uri) {
       await languageService.changeDocument(
         notification,
         preEditSnapshot: preEditSnapshot,
@@ -1571,14 +1405,18 @@ extension SourceKitLSPServer {
     for docUri in self.documentManager.openDocuments {
       preChangeWorkspaces[docUri] = await self.workspaceForDocument(uri: docUri)
     }
+    // Capture the workspaces that will be removed so we can shut down their services after.
+    var removedWorkspaces: [Workspace] = []
     await workspaceQueue.async {
       if let removed = notification.event.removed {
-        self.workspacesAndIsImplicit.removeAll { workspace in
+        var entries = self.workspacesAndIsImplicit
+        let firstIndexToRemove = entries.partition { entry in
           // Close all implicit workspaces as well because we could have opened a new explicit workspace that now contains
           // files from a previous implicit workspace.
-          return workspace.isImplicit
-            || removed.contains(where: { workspaceFolder in workspace.workspace.rootUri == workspaceFolder.uri })
+          entry.isImplicit || removed.contains { $0.uri == entry.workspace.rootUri }
         }
+        self.workspacesAndIsImplicit = Array(entries[..<firstIndexToRemove])
+        removedWorkspaces = Array(entries[firstIndexToRemove...]).map(\.workspace)
       }
       if let added = notification.event.added {
         let newWorkspaces = await added.asyncCompactMap { workspaceFolder in
@@ -1590,47 +1428,10 @@ extension SourceKitLSPServer {
       }
     }.value
 
-    // Shut down any language services that are no longer referenced by any workspace.
-    await self.shutdownOrphanedLanguageServices()
-  }
-
-  /// Shuts down any language services that are no longer referenced by any open workspace.
-  ///
-  /// This method gathers all language services that are currently referenced by open workspaces
-  /// and shuts down any language services that are not in that set.
-  private func shutdownOrphanedLanguageServices() async {
-    // Gather all language services referenced by open workspaces
-    var referencedServices: Set<ObjectIdentifier> = []
-    for workspace in workspaces {
-      for languageService in workspace.allLanguageServices {
-        referencedServices.insert(ObjectIdentifier(languageService))
-      }
-    }
-
-    // Find and remove orphaned language services, skipping immortal ones
-    var orphanedServices: [any LanguageService] = []
-    for (serviceType, services) in languageServices {
-      var remainingServices: [any LanguageService] = []
-      for service in services {
-        if referencedServices.contains(ObjectIdentifier(service)) || type(of: service).isImmortal {
-          remainingServices.append(service)
-        } else {
-          orphanedServices.append(service)
-        }
-      }
-      if remainingServices.count != services.count {
-        languageServices[serviceType] = remainingServices.isEmpty ? nil : remainingServices
-      }
-    }
-
-    // Shut down orphaned services in a background task to avoid blocking other requests.
-
-    if !orphanedServices.isEmpty {
+    // Shut down orphaned workspaces in a background task to avoid blocking other requests.
+    if !removedWorkspaces.isEmpty {
       Task {
-        for service in orphanedServices {
-          logger.info("Shutting down orphaned language service: \(type(of: service))")
-          await service.shutdown()
-        }
+        await removedWorkspaces.concurrentForEach { await $0.shutdown() }
       }
     }
   }
@@ -1642,10 +1443,6 @@ extension SourceKitLSPServer {
     // (e.g. Package.swift doesn't have build settings but affects build
     // settings). Inform the build server about all file changes.
     await workspaces.concurrentForEach { await $0.filesDidChange(notification.changes) }
-
-    for languageService in languageServices.values.flatMap(\.self) {
-      await languageService.filesDidChange(notification.changes)
-    }
 
     // Schedule updating entry point cache.
     await entryPointManager.refresh()
@@ -1741,8 +1538,8 @@ extension SourceKitLSPServer {
     guard let workspace = await self.workspaceForDocument(uri: uri) else {
       throw ResponseError.workspaceNotOpen(uri)
     }
-    let language = try documentManager.latestSnapshot(uri.buildSettingsFile).language
-    return try await primaryLanguageService(for: uri, language, in: workspace).completionItemResolve(request)
+    let languageService = try workspace.primaryLanguageService(forOpenDocument: uri)
+    return try await languageService.completionItemResolve(request)
   }
 
   func doccDocumentation(
@@ -1784,13 +1581,21 @@ extension SourceKitLSPServer {
     return WorkspaceSymbolNamesResponse(names: symbols)
   }
 
-  /// Map a `SymbolOccurrence` from the index to a `WorkspaceSymbolItem` suitable for returning in a
-  /// `workspace/symbolInfo` response.
+  /// Map a `SymbolOccurrence` from the index to a `WorkspaceSymbolItem`, or `nil` if it has no
+  /// representable location.
+  ///
+  /// - Parameter referenceDocumentMainFile: The project file whose build settings are used to open the
+  ///   symbol's generated interface. **Passing a non-`nil` value changes the shape of the result**: the
+  ///   symbol is returned as a `WorkspaceSymbol` with a `sourcekit-lsp://generated-swift-interface`
+  ///   reference-document location (its range resolved lazily via `workspaceSymbol/resolve`) and the USR
+  ///   in `data`, instead of a `SymbolInformation` with a plain `file://` location. A non-`nil` value must
+  ///   therefore only be passed when the client supports **both** `workspace/getReferenceDocument` and
+  ///   `workspaceSymbol/resolve`; enforcing that is the caller's responsibility.
   private nonisolated func workspaceSymbolItem(
     for symbolOccurrence: SymbolOccurrence,
     in index: CheckedIndex,
     copiedFileMap: CopiedFileMap,
-    canUseWorkspaceSymbolResolve: Bool
+    referenceDocumentMainFile: DocumentURI?
   ) throws -> WorkspaceSymbolItem? {
     let containerNames = try index.containerNames(of: symbolOccurrence)
     let containerName: String? =
@@ -1803,38 +1608,28 @@ extension SourceKitLSPServer {
         nil
       }
 
-    // For SDK symbols (location in `.swiftinterface`/`.swiftmodule`), return a `WorkspaceSymbol`
-    // with a deferred location so the client can resolve it via `workspaceSymbol/resolve`.
-    // Falls through to `SymbolInformation` with regular file:// URL for clients without `workspace.symbol.resolveSupport`.
-    if canUseWorkspaceSymbolResolve,
-      symbolOccurrence.location.path.hasSuffix(".swiftinterface")
-        || symbolOccurrence.location.path.hasSuffix(".swiftmodule")
-    {
-      // URL: file://<path>.swiftinterface?module=<moduleName>
-      // Clients use `module` to show e.g. "Swift > String".
-      guard let documentURL = symbolOccurrence.location.uri?.fileURL else {
-        return nil
-      }
-      guard var urlComponents = URLComponents(url: documentURL, resolvingAgainstBaseURL: false) else {
-        return nil
-      }
-      urlComponents.queryItems = [
-        URLQueryItem(name: "module", value: symbolOccurrence.location.moduleName)
-      ]
-      guard let locationURL = urlComponents.url else {
-        return nil
-      }
-
+    if let referenceDocumentMainFile {
+      let (interfaceModuleName, groupName) = Self.splitModuleNameAndGroup(symbolOccurrence.location.moduleName)
+      let urlData = GeneratedInterfaceDocumentURLData(
+        moduleName: interfaceModuleName,
+        groupName: groupName,
+        primaryFile: referenceDocumentMainFile
+      )
       let usr = symbolOccurrence.symbol.usr
-      let data: LSPAny? = usr.isEmpty ? nil : WorkspaceSymbolData(usr: usr).encodeToLSPAny()
-
+      // Include the interface path and module name in `data` so clients can render the candidate without
+      // parsing the opaque location URI.
+      let data = SourceKitWorkspaceSymbolData(
+        usr: usr,
+        interfaceURI: symbolOccurrence.location.uri,
+        moduleName: symbolOccurrence.location.moduleName
+      )
       return WorkspaceSymbolItem.workspaceSymbol(
         WorkspaceSymbol(
           name: symbolOccurrence.symbol.name,
           kind: symbolOccurrence.symbol.kind.asLspSymbolKind(),
           containerName: containerName,
-          location: .uri(.init(uri: DocumentURI(locationURL))),
-          data: data
+          location: .uri(.init(uri: try urlData.uri)),
+          data: data.encodeToLSPAny()
         )
       )
     }
@@ -1852,6 +1647,51 @@ extension SourceKitLSPServer {
     )
   }
 
+  /// Split an index module name into its module and optional group components.
+  private nonisolated static func splitModuleNameAndGroup(
+    _ fullModuleName: String
+  ) -> (module: String, group: String?) {
+    // A dotted index module name is ambiguous: `Foo.Bar` could be module `Foo` with group `Bar`, or a real
+    // submodule named `Foo.Bar`, and SourceKit-LSP can't tell the two apart. In practice only the `Swift`
+    // module is divided into groups (and it has no submodules), so only there is the trailing component
+    // treated as a group; every other module name is kept whole.
+    let swiftModulePrefix = "Swift."
+    guard fullModuleName.hasPrefix(swiftModulePrefix) else {
+      return (fullModuleName, nil)
+    }
+    return ("Swift", String(fullModuleName.dropFirst(swiftModulePrefix.count)))
+  }
+
+  /// For each distinct SDK interface (`.swiftinterface`/`.swiftmodule`) among `symbols`, resolve the main
+  /// file — a project file that imports the module, found via `mainFiles(containing:)` — whose build
+  /// settings are used to open the generated interface. The lookup runs once per interface so a
+  /// `workspace/symbol` response with many members of the same module doesn't repeat it. Interfaces with no
+  /// main file are omitted, so callers skip those symbols.
+  private func generatedInterfaceMainFiles(
+    for symbols: [SymbolOccurrence],
+    in workspace: Workspace
+  ) async throws -> [DocumentURI: DocumentURI] {
+    var mainFiles: [DocumentURI: DocumentURI] = [:]
+    for symbol in symbols {
+      let path = symbol.location.path
+      guard path.hasSuffix(".swiftinterface") || path.hasSuffix(".swiftmodule"),
+        let interfaceURI = symbol.location.uri,
+        mainFiles[interfaceURI] == nil
+      else {
+        continue
+      }
+      try Task.checkCancellation()
+      let mainFile = await workspace.buildServerManager
+        .mainFiles(containing: interfaceURI)
+        .sorted(by: { $0.arbitrarySchemeURL.absoluteString < $1.arbitrarySchemeURL.absoluteString })
+        .first
+      if let mainFile {
+        mainFiles[interfaceURI] = mainFile
+      }
+    }
+    return mainFiles
+  }
+
   /// Handle a `workspace/symbolInfo` request.
   ///
   /// For each name in `req.names`, looks up all canonical occurrences in every workspace index and
@@ -1866,14 +1706,17 @@ extension SourceKitLSPServer {
   /// Every requested name is present as a key in the response, mapping to an empty array when there
   /// are no occurrences.
   func workspaceSymbolInfo(_ req: WorkspaceSymbolInfoRequest) async throws -> WorkspaceSymbolInfoResponse {
-    let canUseWorkspaceSymbolResolve = self.capabilityRegistry?.clientSupportsWorkspaceSymbolResolve ?? false
+    // Emitting a generated-interface reference document requires both that the client can open it and that
+    // it will call `workspaceSymbol/resolve` to fill in the range.
+    let canUseGeneratedInterfaceReferenceDocument =
+      (self.capabilityRegistry?.clientHasWorkspaceGetReferenceDocumentSupport ?? false)
+      && (self.capabilityRegistry?.clientSupportsWorkspaceSymbolResolve ?? false)
 
-    var groupedResultPerWorkspace = await workspaces.concurrentMap { workspace -> [String: [WorkspaceSymbolItem]] in
+    let groupedResultPerWorkspace = await workspaces.concurrentMap { workspace -> [String: [WorkspaceSymbolItem]] in
       guard let index = await workspace.index(checkedFor: .deletedFiles) else {
         return [:]
       }
-      var result: [String: [WorkspaceSymbolItem]] = [:]
-      let copiedFileMap = await workspace.buildServerManager.cachedCopiedFileMap
+      var occurrencesByName: [String: [SymbolOccurrence]] = [:]
       for name in req.names {
         if Task.isCancelled { return [:] }
         var symbols: [SymbolOccurrence] = []
@@ -1883,14 +1726,29 @@ extension SourceKitLSPServer {
             return true
           }
         }
-        if Task.isCancelled { return [:] }
-        result[name] = symbols.compactMap { symbol in
+        occurrencesByName[name] = symbols
+      }
+
+      var mainFiles: [DocumentURI: DocumentURI] = [:]
+      if canUseGeneratedInterfaceReferenceDocument {
+        let occurrences = occurrencesByName.values.flatMap { $0 }
+        mainFiles =
+          await orLog("Resolving generated interface main files") {
+            try await self.generatedInterfaceMainFiles(for: occurrences, in: workspace)
+          } ?? [:]
+      }
+      if Task.isCancelled { return [:] }
+
+      var result: [String: [WorkspaceSymbolItem]] = [:]
+      let copiedFileMap = await workspace.buildServerManager.cachedCopiedFileMap
+      for name in req.names {
+        result[name] = (occurrencesByName[name] ?? []).compactMap { symbol in
           orLog("Getting symbol information") {
             try self.workspaceSymbolItem(
               for: symbol,
               in: index,
               copiedFileMap: copiedFileMap,
-              canUseWorkspaceSymbolResolve: canUseWorkspaceSymbolResolve
+              referenceDocumentMainFile: symbol.location.uri.flatMap { mainFiles[$0] }
             )
           }
         }
@@ -1914,67 +1772,40 @@ extension SourceKitLSPServer {
 
   /// Handle a `workspaceSymbol/resolve` request.
   ///
-  /// If the symbol has a `location: .uri(moduleFileURL?module=...)` (as emitted by
-  /// `workspace/symbolInfo` for SDK/stdlib symbols), opens the generated Swift interface, resolves
-  /// the symbol position using `data["usr"]`, and returns the symbol with `location: .location(...)`.
-  /// Symbols with an already-resolved `location: .location(...)` are returned unchanged.
+  /// If the symbol has a `location: .uri(sourcekit-lsp://generated-swift-interface?...)` (as emitted by
+  /// `workspace/symbol` and `workspace/symbolInfo` for SDK/stdlib symbols), opens the generated Swift
+  /// interface, resolves the symbol position using `data["usr"]`, and returns the symbol with the exact
+  /// range. Symbols with an already-resolved `location: .location(...)` are returned unchanged.
   func workspaceSymbolResolve(_ req: WorkspaceSymbolResolveRequest) async throws -> WorkspaceSymbol {
     var symbol = req.workspaceSymbol
     guard
       case .uri(let uriOnly) = symbol.location,
-      let urlComponents = URLComponents(url: uriOnly.uri.arbitrarySchemeURL, resolvingAgainstBaseURL: false),
-      let fullModuleName = urlComponents.queryItems?.last(where: { $0.name == "module" })?.value
+      let referenceURL = try? ReferenceDocumentURL(from: uriOnly.uri),
+      case .generatedInterface(let urlData) = referenceURL
     else {
       return symbol
     }
 
-    let moduleName: String
-    let groupName: String?
-    if let dotIndex = fullModuleName.firstIndex(of: ".") {
-      moduleName = String(fullModuleName[fullModuleName.startIndex..<dotIndex])
-      groupName = String(fullModuleName[fullModuleName.index(after: dotIndex)...])
-    } else {
-      moduleName = fullModuleName
-      groupName = nil
-    }
-
-    let usr = WorkspaceSymbolData(fromLSPAny: symbol.data)?.usr
-
-    let moduleFileURI = DocumentURI(
-      {
-        var components = urlComponents
-        components.query = nil
-        return components.url!
-      }()
-    )
-    for workspace in workspaces {
-      let mainFile = await workspace.buildServerManager
-        .mainFiles(containing: moduleFileURI)
-        .sorted(by: { $0.arbitrarySchemeURL.absoluteString < $1.arbitrarySchemeURL.absoluteString })
-        .first
-      guard let mainFile else {
-        continue
-      }
-      let languageService = try await primaryLanguageService(for: mainFile, .swift, in: workspace)
-      let details = await orLog("Opening generated interface in workspaceSymbol/resolve") {
-        try await languageService.openGeneratedInterface(
-          document: mainFile,
-          moduleName: moduleName,
-          groupName: groupName,
-          symbolUSR: usr
-        )
-      }
-      if let details {
-        symbol.location = .location(
-          Location(uri: details.uri, range: Range(details.position ?? Position(line: 0, utf16index: 0)))
-        )
-      }
+    // A USR is always present in practice; this only guards against a malformed `data` payload with an
+    // empty USR string, treating it as absent so we don't run a position lookup that can't match.
+    let usr = (symbol.sourceKitData?.usr).flatMap { $0.isEmpty ? nil : $0 }
+    let buildSettingsFile = urlData.buildSettingsFrom
+    guard let workspace = await self.workspaceForDocument(uri: buildSettingsFile) else {
       return symbol
     }
-
-    throw ResponseError.requestFailed(
-      "No source file found that imports \(fullModuleName); cannot open generated interface"
+    let languageService = try await workspace.primaryLanguageService(for: buildSettingsFile, .swift)
+    let details = await orLog("Opening generated interface in workspaceSymbol/resolve") {
+      try await languageService.openGeneratedInterface(
+        document: buildSettingsFile,
+        moduleName: urlData.moduleName,
+        groupName: urlData.groupName,
+        symbolUSR: usr
+      )
+    }
+    symbol.location = .location(
+      Location(uri: uriOnly.uri, range: Range(details?.position ?? Position(line: 0, utf16index: 0)))
     )
+    return symbol
   }
 
   /// Handle a workspace/symbol request, returning the SymbolInformation.
@@ -1987,7 +1818,6 @@ extension SourceKitLSPServer {
     guard req.query.count >= minWorkspaceSymbolPatternLength else {
       return []
     }
-    let canUseWorkspaceSymbolResolve = self.capabilityRegistry?.clientSupportsWorkspaceSymbolResolve ?? false
     var items: [WorkspaceSymbolItem] = []
     for workspace in workspaces {
       guard let index = await workspace.index(checkedFor: .deletedFiles) else {
@@ -2012,12 +1842,14 @@ extension SourceKitLSPServer {
         return true
       }
       try Task.checkCancellation()
+      // `workspace/symbol` filters out system symbols above, so no result points into a generated
+      // interface and there is no main file to resolve.
       items += try symbols.sorted(by: <).compactMap {
         try self.workspaceSymbolItem(
           for: $0,
           in: index,
           copiedFileMap: copiedFileMap,
-          canUseWorkspaceSymbolResolve: canUseWorkspaceSymbolResolve
+          referenceDocumentMainFile: nil
         )
       }
     }
@@ -2142,16 +1974,15 @@ extension SourceKitLSPServer {
     guard let workspace = await self.workspaceForDocument(uri: uri) else {
       throw ResponseError.workspaceNotOpen(uri)
     }
-    let language = try documentManager.latestSnapshot(uri.buildSettingsFile).language
     // First, check if we have a language service that explicitly declares support for this command.
-    if let languageService = await languageServices(for: uri, language, in: workspace)
+    if let languageService = workspace.languageServices(forOpenDocument: uri)
       .first(where: { type(of: $0).builtInCommands.contains(req.command) })
     {
       return try await languageService.executeCommand(executeCommand)
     }
     // Otherwise handle it in the primary language service. This is important to handle eg. commands in clangd, which
     // are not declared as built-in commands.
-    return try await primaryLanguageService(for: uri, language, in: workspace).executeCommand(executeCommand)
+    return try await workspace.primaryLanguageService(forOpenDocument: uri).executeCommand(executeCommand)
   }
 
   func getReferenceDocument(_ req: GetReferenceDocumentRequest) async throws -> GetReferenceDocumentResponse {
@@ -2176,7 +2007,7 @@ extension SourceKitLSPServer {
       throw ResponseError.unknown("Unable to infer language for \(buildSettingsUri)")
     }
 
-    return try await primaryLanguageService(for: buildSettingsUri, language, in: workspace).getReferenceDocument(req)
+    return try await workspace.primaryLanguageService(for: buildSettingsUri, language).getReferenceDocument(req)
   }
 
   func codeAction(
@@ -2204,9 +2035,8 @@ extension SourceKitLSPServer {
     var forwardedReq = req
     forwardedReq.codeAction.data = resolveMetadata.underlyingData
 
-    let language = try documentManager.latestSnapshot(uri.buildSettingsFile).language
-    return try await primaryLanguageService(for: uri, language, in: workspace)
-      .codeActionResolve(forwardedReq)
+    let languageService = try workspace.primaryLanguageService(forOpenDocument: uri)
+    return try await languageService.codeActionResolve(forwardedReq)
   }
 
   func codeLens(
@@ -2234,8 +2064,8 @@ extension SourceKitLSPServer {
     guard let workspace = await self.workspaceForDocument(uri: uri) else {
       return request.inlayHint
     }
-    let language = try documentManager.latestSnapshot(uri.buildSettingsFile).language
-    return try await primaryLanguageService(for: uri, language, in: workspace).inlayHintResolve(request)
+    let languageService = try workspace.primaryLanguageService(forOpenDocument: uri)
+    return try await languageService.inlayHintResolve(request)
   }
 
   func documentDiagnostic(
@@ -2462,11 +2292,9 @@ extension SourceKitLSPServer {
         position: req.position
       )
     )
-    guard let index = await workspaceForDocument(uri: req.textDocument.uri)?.index(checkedFor: .deletedFiles) else {
-      return []
-    }
-    let locations = try symbols.flatMap { (symbol) -> [Location] in
-      guard let usr = symbol.usr else { return [] }
+    let index = await workspaceForDocument(uri: req.textDocument.uri)?.index(checkedFor: .deletedFiles)
+    let indexLocations = try symbols.flatMap { symbol -> [Location] in
+      guard let usr = symbol.usr, let index else { return [] }
       logger.info("Finding references for USR \(usr)")
       var roles: SymbolRole = [.reference]
       if req.context.includeDeclaration {
@@ -2474,6 +2302,26 @@ extension SourceKitLSPServer {
       }
       return try index.occurrences(ofUSR: usr, roles: roles).compactMap { $0.location.lspLocation }
     }
+
+    var locations = indexLocations
+
+    let hasCurrentFileIndexResults = indexLocations.contains { $0.uri == req.textDocument.uri }
+
+    if !hasCurrentFileIndexResults {
+      do {
+        let localLocations = try await languageService.localReferences(
+          at: req.position,
+          in: req.textDocument.uri,
+          includeDeclaration: req.context.includeDeclaration
+        )
+        locations += localLocations
+      } catch let error as ResponseError {
+        logger.debug("localReferences not supported for this language service")
+      } catch {
+        logger.error("Unexpected error computing local references: \(String(describing: error))")
+      }
+    }
+
     let copiedFileMap = await workspace.buildServerManager.cachedCopiedFileMap
     let remappedLocations = locations.adjusted(for: copiedFileMap)
     return remappedLocations.unique.sorted()

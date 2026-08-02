@@ -20,6 +20,7 @@ import SourceKitLSP
 import SwiftDiagnostics
 import SwiftExtensions
 import SwiftSyntax
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 import struct SourceKitLSP.Diagnostic
 

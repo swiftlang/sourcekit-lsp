@@ -15,6 +15,7 @@ import SKLogging
 import SKTestSupport
 import SourceKitLSP
 import SwiftExtensions
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
 
 final class InlayHintTests: SourceKitLSPTestCase {
@@ -117,12 +118,13 @@ final class InlayHintTests: SourceKitLSPTestCase {
   private func runInlayHintTestCase(
     initialText: String,
     range: (start: String, end: String)? = nil,
+    hooks: Hooks = Hooks(),
     testBody: (InlayHintTestCaseContext) async throws -> Void
   ) async throws {
     let capabilities = ClientCapabilities(
       workspace: WorkspaceClientCapabilities(inlayHint: RefreshRegistrationCapability(refreshSupport: true))
     )
-    let testClient = try await TestSourceKitLSPClient(capabilities: capabilities)
+    let testClient = try await TestSourceKitLSPClient(hooks: hooks, capabilities: capabilities)
     let uri = DocumentURI(for: .swift)
 
     let positions = testClient.openDocument(initialText, uri: uri)
@@ -176,6 +178,35 @@ final class InlayHintTests: SourceKitLSPTestCase {
       XCTAssertEqual(actualHint.kind, expectedHint.kind, file: file, line: line)
       XCTAssertEqual(actualHint.textEdits, expectedHint.textEdits, file: file, line: line)
       XCTAssertEqual(actualHint.tooltip, expectedHint.tooltip, file: file, line: line)
+    }
+  }
+
+  /// Lets a test deterministically block the background inlay hint refresh task right before it writes its
+  /// recomputed hints into the cache, so the test can assert on hints computed by some other means (eg. the
+  /// synchronous position-shifting logic) without racing against that write.
+  private final class InlayHintBackgroundRefreshBlocker: Sendable {
+    private let isEnabled = ThreadSafeBox<Bool>(initialValue: false)
+    private let semaphore = MultiEntrySemaphore(name: "Inlay hint background refresh may proceed")
+
+    var hooks: Hooks {
+      var hooks = Hooks()
+      hooks.inlayHintRefreshWillUpdateCache = { [isEnabled, semaphore] in
+        if isEnabled.value {
+          await semaphore.waitOrXCTFail()
+        }
+      }
+      return hooks
+    }
+
+    /// From this point on, the background refresh task will block before writing to the cache until `unblock` is
+    /// called.
+    func enable() {
+      isEnabled.withLock { $0 = true }
+    }
+
+    /// Lets a blocked background refresh task proceed.
+    func unblock() {
+      semaphore.signal()
     }
   }
 
@@ -383,7 +414,7 @@ final class InlayHintTests: SourceKitLSPTestCase {
   func testInlayHintResolve() async throws {
     try await runInlayHintTestCase(
       initialText: """
-        struct 1️⃣MyType {}
+        struct 1️⃣MyType3️⃣ {}
         let x2️⃣ = MyType()
         """,
     ) { context in
@@ -411,7 +442,7 @@ final class InlayHintTests: SourceKitLSPTestCase {
       }
 
       XCTAssertEqual(location.uri, context.uri)
-      XCTAssertEqual(location.range, Range(context.positions["1️⃣"]))
+      XCTAssertEqual(location.range, context.positions["1️⃣"]..<context.positions["3️⃣"])
     }
   }
 
@@ -574,18 +605,22 @@ final class InlayHintTests: SourceKitLSPTestCase {
   }
 
   func testInlayHintShiftingWorks() async throws {
+    let blocker = InlayHintBackgroundRefreshBlocker()
+
     try await runInlayHintTestCase(
       initialText: """
         let y1️⃣ = 2
         2️⃣
         let x3️⃣ = 4
         """,
+      hooks: blocker.hooks
     ) { context in
       try await context.checkInlayHintsComputedInTheBackgroundMatch(expected: [
         makeInlayHint(position: context.positions["1️⃣"], kind: .type, label: ": Int"),
         makeInlayHint(position: context.positions["3️⃣"], kind: .type, label: ": Int"),
       ])
 
+      blocker.enable()
       context.sendChange(
         range: context.positions["2️⃣"]..<context.positions["2️⃣"],
         text: """
@@ -604,6 +639,8 @@ final class InlayHintTests: SourceKitLSPTestCase {
       ).positions
 
       let shiftedHints = try await context.getCachedInlayHints()
+      blocker.unblock()
+
       assertHintsEqual(
         shiftedHints,
         [
@@ -615,12 +652,15 @@ final class InlayHintTests: SourceKitLSPTestCase {
   }
 
   func testInlayHintShiftingRemovesHintsInsideDeletedRegion() async throws {
+    let blocker = InlayHintBackgroundRefreshBlocker()
+
     try await runInlayHintTestCase(
       initialText: """
         let x1️⃣ = 1
         2️⃣let y3️⃣ = 24️⃣
         let z5️⃣ = ""
         """,
+      hooks: blocker.hooks
     ) { context in
       try await context.checkInlayHintsComputedInTheBackgroundMatch(expected: [
         makeInlayHint(position: context.positions["1️⃣"], kind: .type, label: ": Int"),
@@ -628,6 +668,7 @@ final class InlayHintTests: SourceKitLSPTestCase {
         makeInlayHint(position: context.positions["5️⃣"], kind: .type, label: ": String"),
       ])
 
+      blocker.enable()
       context.sendChange(
         range: context.positions["2️⃣"]..<context.positions["4️⃣"],
         text: ""
@@ -642,6 +683,8 @@ final class InlayHintTests: SourceKitLSPTestCase {
       ).positions
 
       let shiftedHints = try await context.getCachedInlayHints()
+      blocker.unblock()
+
       assertHintsEqual(
         shiftedHints,
         [
@@ -653,15 +696,19 @@ final class InlayHintTests: SourceKitLSPTestCase {
   }
 
   func testInlayHintShiftingWithInsertionDirectlyBeforeAHint() async throws {
+    let blocker = InlayHintBackgroundRefreshBlocker()
+
     try await runInlayHintTestCase(
       initialText: """
         let x1️⃣ = 1
         """,
+      hooks: blocker.hooks
     ) { context in
       try await context.checkInlayHintsComputedInTheBackgroundMatch(expected: [
         makeInlayHint(position: context.positions["1️⃣"], kind: .type, label: ": Int")
       ])
 
+      blocker.enable()
       context.sendChange(
         range: context.positions["1️⃣"]..<context.positions["1️⃣"],
         text: "yz"
@@ -674,6 +721,8 @@ final class InlayHintTests: SourceKitLSPTestCase {
       ).positions
 
       let shiftedHints = try await context.getCachedInlayHints()
+      blocker.unblock()
+
       assertHintsEqual(
         shiftedHints,
         [
@@ -684,16 +733,20 @@ final class InlayHintTests: SourceKitLSPTestCase {
   }
 
   func testInlayHintShiftingWithMultiCodePointInsertion() async throws {
+    let blocker = InlayHintBackgroundRefreshBlocker()
+
     try await runInlayHintTestCase(
       initialText: """
         1️⃣let x2️⃣ = 1
         """,
+      hooks: blocker.hooks
     ) { context in
       try await context.checkInlayHintsComputedInTheBackgroundMatch(expected: [
         makeInlayHint(position: context.positions["2️⃣"], kind: .type, label: ": Int")
       ]
       )
 
+      blocker.enable()
       let inserted = "👨‍💻"
       context.sendChange(
         range: context.positions["1️⃣"]..<context.positions["1️⃣"],
@@ -707,6 +760,8 @@ final class InlayHintTests: SourceKitLSPTestCase {
       ).positions
 
       let shiftedHints = try await context.getCachedInlayHints()
+      blocker.unblock()
+
       assertHintsEqual(
         shiftedHints,
         [
@@ -717,15 +772,19 @@ final class InlayHintTests: SourceKitLSPTestCase {
   }
 
   func testInlayHintShiftingWithMultiCodePointAndNewlineInsertionDirectlyBeforeAHint() async throws {
+    let blocker = InlayHintBackgroundRefreshBlocker()
+
     try await runInlayHintTestCase(
       initialText: """
         let x1️⃣ = 1
         """,
+      hooks: blocker.hooks
     ) { context in
       try await context.checkInlayHintsComputedInTheBackgroundMatch(expected: [
         makeInlayHint(position: context.positions["1️⃣"], kind: .type, label: ": Int")
       ])
 
+      blocker.enable()
       context.sendChange(
         range: context.positions["1️⃣"]..<context.positions["1️⃣"],
         text: "abc\n👨‍💻"
@@ -739,6 +798,8 @@ final class InlayHintTests: SourceKitLSPTestCase {
       ).positions
 
       let shiftedHints = try await context.getCachedInlayHints()
+      blocker.unblock()
+
       assertHintsEqual(
         shiftedHints,
         [
@@ -749,6 +810,8 @@ final class InlayHintTests: SourceKitLSPTestCase {
   }
 
   func testInlayHintShiftingWithMultipleChanges() async throws {
+    let blocker = InlayHintBackgroundRefreshBlocker()
+
     try await runInlayHintTestCase(
       initialText: """
         4️⃣let x1️⃣ = 1
@@ -756,6 +819,7 @@ final class InlayHintTests: SourceKitLSPTestCase {
 
         let z3️⃣ = ""
         """,
+      hooks: blocker.hooks
     ) { context in
       try await context.checkInlayHintsComputedInTheBackgroundMatch(expected: [
         makeInlayHint(position: context.positions["1️⃣"], kind: .type, label: ": Int"),
@@ -763,6 +827,7 @@ final class InlayHintTests: SourceKitLSPTestCase {
         makeInlayHint(position: context.positions["3️⃣"], kind: .type, label: ": String"),
       ])
 
+      blocker.enable()
       context.sendChanges(changes: [
         (range: context.positions["4️⃣"]..<context.positions["4️⃣"], text: "let abc = 5\n"),
         (range: Position(line: 2, utf16index: 0)..<Position(line: 3, utf16index: 0), text: ""),
@@ -780,6 +845,8 @@ final class InlayHintTests: SourceKitLSPTestCase {
       ).positions
 
       let shiftedHints = try await context.getCachedInlayHints()
+      blocker.unblock()
+
       assertHintsEqual(
         shiftedHints,
         [

@@ -19,15 +19,16 @@ import SwiftSyntaxBuilder
 
 /// Code action to convert `.forEach { }` calls to `for-in` loops.
 ///
-/// Only active when the cursor is on the `forEach` token. Uses shared `cursorInfo`
-/// to verify that `.forEach` refers to `Sequence.forEach` from the Swift stdlib.
+/// Only active when the cursor is on the `forEach` token and the symbol resolves
+/// to `Sequence.forEach` from the Swift standard library.
 struct ForEachToForInCodeAction: SyntaxCodeActionProvider {
   package static func codeActions(in scope: SyntaxCodeActionScope) async -> [CodeAction] {
     guard let match = findForEachCall(in: scope) else {
       return []
     }
 
-    guard let info = try? await scope.cursorInfo(),
+    let position = scope.snapshot.position(of: match.forEachToken.position)
+    guard let info = try? await scope.symbolInfo(at: position).first,
       isStdlibSequenceForEach(info)
     else {
       return []
@@ -152,8 +153,8 @@ private func findForEachCall(in scope: SyntaxCodeActionScope) -> Match? {
 /// selection via `tokenForRefactoring`, which may shift a boundary-position cursor to the
 /// previous token.
 private func selectedForEachToken(in scope: SyntaxCodeActionScope) -> TokenSyntax? {
-  let lowerBound = scope.snapshot.absolutePosition(of: scope.request.range.lowerBound)
-  let upperBound = scope.snapshot.absolutePosition(of: scope.request.range.upperBound)
+  let lowerBound = scope.snapshot.absolutePosition(of: scope.requestedRange.lowerBound)
+  let upperBound = scope.snapshot.absolutePosition(of: scope.requestedRange.upperBound)
 
   guard let token = tokenAtRequestStart(in: scope.file, at: lowerBound),
     lowerBound == token.position
@@ -175,8 +176,8 @@ private func tokenAtRequestStart(in file: SourceFileSyntax, at position: Absolut
   return file.token(at: position)
 }
 
-private func isStdlibSequenceForEach(_ info: CursorInfo) -> Bool {
-  guard let module = info.symbolInfo.systemModule else {
+private func isStdlibSequenceForEach(_ info: SymbolDetails) -> Bool {
+  guard let module = info.systemModule else {
     return false
   }
   return module.moduleName == "Swift"

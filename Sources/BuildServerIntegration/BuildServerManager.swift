@@ -181,9 +181,10 @@ private enum BuildServerAdapter {
           if Task.isCancelled {
             return continuation.resume(throwing: CancellationError())
           }
-          requestID.value = messageHandler.send(request) { response in
+          let id = messageHandler.send(request) { response in
             continuation.resume(with: response)
           }
+          requestID.withLock { $0 = id }
           if Task.isCancelled {
             // The task might have been cancelled after we checked `Task.isCancelled` above but before `requestID.value`
             // is set, we won't send a `CancelRequestNotification` from the `onCancel` handler. Send it from here.
@@ -249,7 +250,8 @@ private extension BuildServerSpec {
         try await ExternalBuildServerAdapter(
           projectRoot: projectRoot,
           configPath: configPath,
-          messagesToSourceKitLSPHandler: messagesToSourceKitLSPHandler
+          messagesToSourceKitLSPHandler: messagesToSourceKitLSPHandler,
+          buildServerHooks: buildServerHooks
         )
       }
       guard let buildServer else {
@@ -324,7 +326,8 @@ private extension BuildServerSpec {
               options: options,
               toolchainRegistry: toolchainRegistry
             ),
-            messagesToSourceKitLSPHandler: messagesToSourceKitLSPHandler
+            messagesToSourceKitLSPHandler: messagesToSourceKitLSPHandler,
+            buildServerHooks: buildServerHooks
           )
         }
         guard let buildServer else {
@@ -628,13 +631,29 @@ package actor BuildServerManager: QueueBasedMessageHandler {
       }
       let initializeResponse: InitializeBuildResponse?
       do {
+        var experimentalCapabilities: [String: LSPAny] = [:]
+        func addCapability(_ method: String, _ value: LSPAny) {
+          experimentalCapabilities[method] = value
+          if let legacy = MessageRegistry.bspLegacyNames[method] {
+            experimentalCapabilities[legacy] = value
+          }
+        }
+        // client -> server
+        addCapability(BuildTargetPrepareRequest.method, .dictionary(["version": .int(1)]))
+        addCapability(TextDocumentSourceKitOptionsRequest.method, .dictionary(["version": .int(1)]))
+        addCapability(WorkspaceWaitForBuildSystemUpdatesRequest.method, .dictionary(["version": .int(1)]))
+        // server -> client
+        addCapability(FileOptionsChangedNotification.method, .dictionary(["version": .int(1)]))
         initializeResponse = try await buildServerAdapter.send(
           InitializeBuildRequest(
             displayName: "SourceKit-LSP",
             version: "",
             bspVersion: "2.2.0",
             rootUri: URI(buildServerSpec.projectRoot),
-            capabilities: BuildClientCapabilities(languageIds: [.c, .cpp, .objective_c, .objective_cpp, .swift])
+            capabilities: BuildClientCapabilities(
+              languageIds: [.c, .cpp, .objective_c, .objective_cpp, .swift],
+              experimental: .dictionary(experimentalCapabilities)
+            )
           )
         )
       } catch {
@@ -682,8 +701,9 @@ package actor BuildServerManager: QueueBasedMessageHandler {
       await buildServerAdapter.send(OnBuildInitializedNotification())
       return initializeResponse
     }
-    self.mainFilesProvider = Task {
-      await createMainFilesProvider(initializationData) { [weak self] in
+    self.mainFilesProvider = Task { [weak self] in
+      guard let self else { return nil }
+      return await createMainFilesProvider(await self.initializationData) { [weak self] in
         await self?.mainFilesChanged()
       }
     }
@@ -1448,24 +1468,55 @@ package actor BuildServerManager: QueueBasedMessageHandler {
     return (depths, dependents)
   }
 
-  /// Sort the targets so that low-level targets occur before high-level targets.
-  ///
-  /// This sorting is best effort but allows the indexer to prepare and index low-level targets first, which allows
-  /// index data to be available earlier.
-  package func topologicalSort(of targets: [BuildTargetIdentifier]) async throws -> [BuildTargetIdentifier] {
+  /// Sort the targets in the order they should be indexed in for best performance.
+  package func targetsSortedForIndexing(_ targets: [BuildTargetIdentifier]) async throws -> [BuildTargetIdentifier] {
     guard let buildTargets = await orLog("Getting build targets for topological sort", { try await buildTargets() })
     else {
       return targets.sorted { $0.uri.stringValue < $1.uri.stringValue }
     }
 
-    return targets.sorted { (lhs: BuildTargetIdentifier, rhs: BuildTargetIdentifier) -> Bool in
-      let lhsDepth = buildTargets[lhs]?.depth ?? 0
-      let rhsDepth = buildTargets[rhs]?.depth ?? 0
-      if lhsDepth != rhsDepth {
-        return lhsDepth > rhsDepth
+    // Generate a preliminary work list of targets to index in which we prefer top-level targets over low-level targets
+    // and targets of the root package over targets in dependencies.
+    // We want to index targets in the root package first because those are likely the files that the user is interested
+    // in editing. We want to index top-level targets first, because preparing those likely implies preparation of the
+    // low-level targets.
+    let workList = targets.sorted { (lhs: BuildTargetIdentifier, rhs: BuildTargetIdentifier) -> Bool in
+      let lhsTarget = buildTargets[lhs]
+      let rhsTarget = buildTargets[rhs]
+
+      switch (lhsTarget?.target.tags.contains(.dependency), rhsTarget?.target.tags.contains(.dependency)) {
+      case (true, false): return false
+      case (false, true): return true
+      default: break
       }
+
+      let lhsDepth = lhsTarget?.depth ?? 0
+      let rhsDepth = rhsTarget?.depth ?? 0
+      if lhsDepth != rhsDepth {
+        return lhsDepth < rhsDepth
+      }
+      // Use the target's name as a tie-breaker
       return lhs.uri.stringValue < rhs.uri.stringValue
     }
+
+    // Now walk through the list of targets in the work list. For each target from the work list, index all of its
+    // transitive dependencies next. We do this because preparing a top-level target likely also prepared all of its
+    // dependencies, so we should be able to index all files in the target's dependencies without needing to perform any
+    // target preparation.
+    var sorted: [BuildTargetIdentifier] = []
+    // A `Set` representation of `sorted` to efficiently check if `target` is already in `sorted` and should be skipped.
+    var visited: Set<BuildTargetIdentifier> = []
+    for target in workList where !visited.contains(target) {
+      sorted.append(target)
+      visited.insert(target)
+
+      let transitiveDependencies = transitiveClosure(of: [target]) { Set(buildTargets[$0]?.target.dependencies ?? []) }
+      let dependenciesInWorkList = workList.filter { transitiveDependencies.contains($0) }
+      sorted += dependenciesInWorkList
+      visited.formUnion(dependenciesInWorkList)
+    }
+
+    return sorted
   }
 
   /// Returns the list of targets that might depend on the given target and that need to be re-prepared when a file in
@@ -1481,14 +1532,18 @@ package actor BuildServerManager: QueueBasedMessageHandler {
       .sorted { $0.uri.stringValue < $1.uri.stringValue }
   }
 
-  package func prepare(targets: Set<BuildTargetIdentifier>) async throws {
-    let _: BuildTargetPrepareResponse? = try await buildServerAdapterAfterInitialized?.send(
+  package func prepare(targets: Set<BuildTargetIdentifier>) async throws -> BuildTargetPrepareResponse {
+    guard let buildServerAdapterAfterInitialized = try await buildServerAdapterAfterInitialized else {
+      throw ResponseError.unknown("No connection to build server")
+    }
+    let response = try await buildServerAdapterAfterInitialized.send(
       BuildTargetPrepareRequest(targets: targets.sorted { $0.uri.stringValue < $1.uri.stringValue })
     )
     await orLog("Calling fileDependenciesUpdated") {
       let filesInPreparedTargets = try await self.sourceFiles(in: targets).flatMap(\.sources).map(\.uri)
       await filesDependenciesUpdatedDebouncer.scheduleCall(Set(filesInPreparedTargets))
     }
+    return response
   }
 
   package func registerForChangeNotifications(for uri: DocumentURI, language: Language) async {

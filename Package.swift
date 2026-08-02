@@ -1,4 +1,4 @@
-// swift-tools-version: 6.2
+// swift-tools-version: 6.3
 
 import Foundation
 import PackageDescription
@@ -540,6 +540,19 @@ var targets: [Target] = [
     exclude: ["CMakeLists.txt"],
   ),
 
+  .testTarget(
+    name: "SwiftSyntaxCodeActionsTests",
+    dependencies: [
+      "SwiftSyntaxCodeActions"
+    ]
+      + swiftSyntaxDependencies([
+        "SwiftParser",
+        "SwiftRefactor",
+        "SwiftSyntax",
+        "SwiftSyntaxBuilder",
+      ]),
+  ),
+
   // MARK: SwiftSourceKitClientPlugin
 
   .target(
@@ -550,6 +563,7 @@ var targets: [Target] = [
       "SwiftExtensionsForPlugin",
       "SwiftSourceKitPluginCommon",
       .product(name: "_SKLoggingForPlugin", package: "swift-tools-protocols"),
+      .product(name: "_ToolsProtocolsSwiftExtensionsForPlugin", package: "swift-tools-protocols"),
     ],
     exclude: ["CMakeLists.txt"],
     swiftSettings: [
@@ -557,6 +571,7 @@ var targets: [Target] = [
         "-module-alias", "SKLogging=_SKLoggingForPlugin",
         "-module-alias", "SourceKitD=SourceKitDForPlugin",
         "-module-alias", "SwiftExtensions=SwiftExtensionsForPlugin",
+        "-module-alias", "ToolsProtocolsSwiftExtensions=_ToolsProtocolsSwiftExtensionsForPlugin",
       ])
     ],
     linkerSettings: sourcekitLSPLinkSettings
