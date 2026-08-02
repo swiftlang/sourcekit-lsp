@@ -682,6 +682,8 @@ package actor DocumentationLanguageService: LanguageService, Sendable {
       return .full(RelatedFullDocumentDiagnosticReport(items: []))
     }
 
+    try Task.checkCancellation()
+
     let diagnostics = await symbolLinkDiagnostics(for: snapshot) ?? []
     return .full(RelatedFullDocumentDiagnosticReport(items: diagnostics))
   }
