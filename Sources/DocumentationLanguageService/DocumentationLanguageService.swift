@@ -195,7 +195,7 @@ package actor DocumentationLanguageService: LanguageService, Sendable {
         return
       }
 
-       // Symbol links are delimited by two backticks (``Foo/bar``),
+      // Symbol links are delimited by two backticks (``Foo/bar``),
       // so the destination starts two columns past the start of the link.
       let destinationStartColumn = range.lowerBound.column + 2
       let relativeColumn = target.column - destinationStartColumn
@@ -270,7 +270,7 @@ package actor DocumentationLanguageService: LanguageService, Sendable {
     return line.utf8.distance(from: line.startIndex, to: stringIndex)
   }
 
-  /// The inverse of `utf8Offset(inLine:forUTF16Offset:)`.
+  /// The inverse of `utf8Offset(inLine:forUTF16Offset:)`
   private func utf16Offset(inLine line: String, forUTF8Offset utf8Offset: Int) -> Int {
     let utf8View = line.utf8
     guard
