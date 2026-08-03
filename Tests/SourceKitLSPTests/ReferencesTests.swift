@@ -328,4 +328,45 @@ final class ReferencesTests: SourceKitLSPTestCase {
     XCTAssertEqual(Set(response.map(\.uri)), [libURI, otherURI])
     XCTAssertEqual(Set(response.map(\.range.lowerBound)), [libPositions["1️⃣"], otherPositions["2️⃣"]])
   }
+
+  func testReferencesForSymbolInDocumentThatIsNotOpen() async throws {
+    // Neither `Lib.swift` nor `Other.swift` is opened. `references` invoked on the declaration of
+    // `foo` should resolve the symbol at the requested position from the index instead of requiring a
+    // language service for the document, and return `foo`'s references across the project. `Lib.swift`
+    // also defines `bar` so that the test verifies the requested position is honored — we must get
+    // `foo`'s references, not `bar`'s and not every symbol recorded for the file.
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Lib.swift": """
+        func 1️⃣foo() {}
+        func 2️⃣bar() {}
+        """,
+        "Other.swift": """
+        func test() {
+          3️⃣foo()
+          4️⃣bar()
+        }
+        """,
+      ],
+      enableBackgroundIndexing: true
+    )
+
+    let response = try await project.testClient.send(
+      ReferencesRequest(
+        textDocument: TextDocumentIdentifier(try project.uri(for: "Lib.swift")),
+        position: try project.position(of: "1️⃣", in: "Lib.swift"),
+        context: ReferencesContext(includeDeclaration: true)
+      )
+    )
+    XCTAssertEqual(
+      response,
+      [
+        Location(uri: try project.uri(for: "Lib.swift"), range: Range(try project.position(of: "1️⃣", in: "Lib.swift"))),
+        Location(
+          uri: try project.uri(for: "Other.swift"),
+          range: Range(try project.position(of: "3️⃣", in: "Other.swift"))
+        ),
+      ]
+    )
+  }
 }

@@ -290,6 +290,53 @@ final class TypeHierarchyTests: SourceKitLSPTestCase {
     )
     XCTAssertNil(response)
   }
+
+  func testPrepareTypeHierarchyForSymbolInDocumentThatIsNotOpen() async throws {
+    // Neither file is opened. Preparing the type hierarchy on `MyClass` should resolve the item from
+    // the index instead of requiring a language service for the document, and expanding its (index-only)
+    // subtypes should find the subclass in the other file. `Lib.swift` also defines `OtherClass` so that
+    // the test verifies the requested position is honored — we must get `MyClass`, not `OtherClass`.
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Lib.swift": """
+        class 1️⃣MyClass {}
+        class 2️⃣OtherClass {}
+        """,
+        "Other.swift": """
+        class 3️⃣MySubclass: MyClass {}
+        """,
+      ],
+      enableBackgroundIndexing: true
+    )
+
+    let prepare = try await project.testClient.send(
+      TypeHierarchyPrepareRequest(
+        textDocument: TextDocumentIdentifier(try project.uri(for: "Lib.swift")),
+        position: try project.position(of: "1️⃣", in: "Lib.swift")
+      )
+    )
+    XCTAssertEqual(prepare?.count, 1)
+    let item = try XCTUnwrap(prepare?.first)
+    XCTAssertEqual(item.name, "MyClass")
+    XCTAssertEqual(item.uri, try project.uri(for: "Lib.swift"))
+    XCTAssertEqual(item.selectionRange, Range(try project.position(of: "1️⃣", in: "Lib.swift")))
+
+    let subtypes = try await project.testClient.send(TypeHierarchySubtypesRequest(item: item))
+    assertEqualIgnoringData(
+      subtypes,
+      [
+        TypeHierarchyItem(
+          name: "MySubclass",
+          kind: .class,
+          tags: nil,
+          detail: "MyLibrary",
+          uri: try project.uri(for: "Other.swift"),
+          range: Range(try project.position(of: "3️⃣", in: "Other.swift")),
+          selectionRange: Range(try project.position(of: "3️⃣", in: "Other.swift"))
+        )
+      ]
+    )
+  }
 }
 
 // MARK: - Utilities

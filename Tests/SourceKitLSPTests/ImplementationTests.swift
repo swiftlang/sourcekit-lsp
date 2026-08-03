@@ -307,4 +307,36 @@ final class ImplementationTests: SourceKitLSPTestCase {
       [Location(uri: try project.uri(for: "b.swift"), range: Range(try project.position(of: "2️⃣", in: "b.swift")))]
     )
   }
+
+  func testImplementationForSymbolInDocumentThatIsNotOpen() async throws {
+    // Neither file is opened. `implementation` invoked on `MyProto` should resolve the symbol at the
+    // requested position from the index instead of requiring a language service for the document, and
+    // return the conforming type in the other file. `a.swift` also defines `OtherProto` so that the
+    // test verifies the requested position is honored — we must get `MyProto`'s implementations, not
+    // `OtherProto`'s.
+    let project = try await SwiftPMTestProject(
+      files: [
+        "a.swift": """
+        protocol 1️⃣MyProto {}
+        protocol 2️⃣OtherProto {}
+        """,
+        "b.swift": """
+        struct MyStruct: 3️⃣MyProto {}
+        struct OtherStruct: 4️⃣OtherProto {}
+        """,
+      ],
+      enableBackgroundIndexing: true
+    )
+
+    let response = try await project.testClient.send(
+      ImplementationRequest(
+        textDocument: TextDocumentIdentifier(try project.uri(for: "a.swift")),
+        position: try project.position(of: "1️⃣", in: "a.swift")
+      )
+    )
+    XCTAssertEqual(
+      response?.locations,
+      [Location(uri: try project.uri(for: "b.swift"), range: Range(try project.position(of: "3️⃣", in: "b.swift")))]
+    )
+  }
 }

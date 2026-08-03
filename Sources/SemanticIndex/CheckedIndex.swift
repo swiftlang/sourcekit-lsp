@@ -161,6 +161,17 @@ package final class CheckedIndex {
     return try index.symbols(inFilePath: path)
   }
 
+  /// All symbol occurrences recorded in the index for the given file, filtered to those that are up-to-date.
+  ///
+  /// Unlike `symbols(inFilePath:)`, each occurrence carries its `SymbolLocation` (line/column), so callers
+  /// can resolve the symbol(s) at a specific position without opening the document or invoking sourcekitd.
+  package func symbolOccurrences(inFilePath path: String) throws -> [SymbolOccurrence] {
+    guard try self.hasAnyUpToDateUnit(for: DocumentURI(filePath: path, isDirectory: false)) else {
+      return []
+    }
+    return try index.symbolOccurrences(inFilePath: path).filter { checker.isUpToDate($0.location) }
+  }
+
   /// Returns all unit test symbol in unit files that reference one of the main files in `mainFilePaths`.
   package func unitTests(referencedByMainFiles mainFilePaths: [String]) throws -> [SymbolOccurrence] {
     return try index.unitTests(referencedByMainFiles: mainFilePaths).filter { checker.isUpToDate($0.location) }
