@@ -16,6 +16,7 @@ target_link_libraries(SKUtilities PRIVATE
   SwiftToolsProtocols::SKLogging
   SwiftExtensions
   SwiftToolsProtocols::ToolsProtocolsSwiftExtensions
+  SwiftSyntax
   $<$<NOT:$<PLATFORM_ID:Darwin>>:Foundation>)
 
 add_library(SKUtilitiesForPlugin STATIC ${sources})
