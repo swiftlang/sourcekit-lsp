@@ -408,22 +408,42 @@ package actor SourceKitLSPServer {
         throw ResponseError.unknown("No language service for '\(request.textDocument.uri)' found")
       }
 
-      var responses: [RequestType.Response] = []
-      for languageService in languageServices {
-        do {
-          guard let response = try await requestHandler(request, workspace, languageService) else {
-            continue
+      guard let combine else {
+        // No `combine` supplied: first language service to answer wins, race them.
+        return try await withThrowingTaskGroup(of: RequestType.Response?.self) { group in
+          for languageService in languageServices {
+            group.addTask {
+              do {
+                return try await requestHandler(request, workspace, languageService)
+              } catch let error as ResponseError where error.code == .requestNotImplemented {
+                return nil
+              }
+            }
           }
-          guard let combine else {
-            // No `combine` supplied: first language service to answer wins,
-            return response
+          for try await response in group {
+            if let response { return response }
           }
-          responses.append(response)
-        } catch let error as ResponseError where error.code == .requestNotImplemented {
-          continue
+          throw ResponseError.unknown("No language service implements \(type(of: request).method)")
         }
       }
-      guard let combine, !responses.isEmpty else {
+
+      let responses = try await withThrowingTaskGroup(of: RequestType.Response?.self) { group in
+        for languageService in languageServices {
+          group.addTask {
+            do {
+              return try await requestHandler(request, workspace, languageService)
+            } catch let error as ResponseError where error.code == .requestNotImplemented {
+              return nil
+            }
+          }
+        }
+        var results: [RequestType.Response] = []
+        for try await response in group {
+          if let response { results.append(response) }
+        }
+        return results
+      }
+      guard !responses.isEmpty else {
         throw ResponseError.unknown("No language service implements \(type(of: request).method)")
       }
       return combine(responses)
