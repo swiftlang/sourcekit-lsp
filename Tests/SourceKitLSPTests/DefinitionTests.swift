@@ -259,6 +259,7 @@ class DefinitionTests: SourceKitLSPTestCase {
         )
         """
     )
+    try await SwiftPMTestProject.build(at: project.scratchDirectory)
     let (uri, positions) = try project.openDocument("LibB.m")
     let response = try await project.testClient.send(
       DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["3️⃣"])
@@ -300,6 +301,7 @@ class DefinitionTests: SourceKitLSPTestCase {
         )
         """
     )
+    try await SwiftPMTestProject.build(at: project.scratchDirectory)
     let (uri, positions) = try project.openDocument("LibB.m")
     let response = try await project.testClient.send(
       DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["3️⃣"])
