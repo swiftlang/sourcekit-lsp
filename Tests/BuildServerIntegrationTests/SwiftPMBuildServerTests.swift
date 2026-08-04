@@ -1299,8 +1299,10 @@ struct SwiftPMBuildServerTests {
     #expect(diagnostics.isEmpty)
   }
 
-  @Test func testPkgConfigDirectories() async throws {
-    var options = try await SourceKitLSPOptions.testDefault(experimentalFeatures: [.sourceKitOptionsRequest])
+  @Test(arguments: buildServerOptionsToTest)
+  func testPkgConfigDirectories(options: SourceKitLSPOptions) async throws {
+    var options = options
+    options.experimentalFeatures = [.sourceKitOptionsRequest]
     options.swiftPMOrDefault.pkgConfigPaths = ["pcfiles"]
     let project = try await SwiftPMTestProject(
       files: [
