@@ -15,27 +15,6 @@ package import IndexStoreDB
 @_spi(SourceKitLSP) import SKLogging
 package import SemanticIndex
 
-/// Converts a location from the symbol index to an LSP location.
-///
-/// - Parameter location: The symbol index location
-/// - Returns: The LSP location
-package func indexToLSPLocation(_ location: SymbolLocation) -> Location? {
-  guard !location.path.isEmpty else { return nil }
-  return Location(
-    uri: location.documentUri,
-    range: Range(
-      Position(
-        // 1-based -> 0-based
-        // Note that we still use max(0, ...) as a fallback if the location is zero.
-        line: max(0, location.line - 1),
-        // Technically we would need to convert the UTF-8 column to a UTF-16 column. This would require reading the
-        // file. In practice they almost always coincide, so we accept the incorrectness here to avoid the file read.
-        utf16index: max(0, location.utf8Column - 1)
-      )
-    )
-  )
-}
-
 /// The result of looking up definition locations for a symbol.
 package struct DefinitionLocationsResult {
   /// The locations of the symbol's definition.
@@ -126,7 +105,7 @@ package func definitionLocations(
   }
 
   return DefinitionLocationsResult(
-    locations: occurrences.compactMap { indexToLSPLocation($0.location) }.sorted(),
+    locations: occurrences.compactMap { $0.location.lspLocation }.sorted(),
     indexOccurrences: occurrences
   )
 }

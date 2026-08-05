@@ -15,6 +15,7 @@ package import Foundation
 @_spi(SourceKitLSP) package import LanguageServerProtocol
 @_spi(SourceKitLSP) import SKLogging
 import SwiftExtensions
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 func lastIndexStorePathArgument(in compilerArgs: [String]) -> String? {
   if let indexStorePathIndex = compilerArgs.lastIndex(of: "-index-store-path"),
@@ -111,7 +112,7 @@ package actor FixedCompilationDatabaseBuildServer: BuiltInBuildServer {
     }
   }
 
-  package func prepare(request: BuildTargetPrepareRequest) async throws -> VoidResponse {
+  package func prepare(request: BuildTargetPrepareRequest) async throws -> BuildTargetPrepareResponse {
     throw ResponseError.methodNotFound(BuildTargetPrepareRequest.method)
   }
 

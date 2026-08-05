@@ -181,9 +181,10 @@ private enum BuildServerAdapter {
           if Task.isCancelled {
             return continuation.resume(throwing: CancellationError())
           }
-          requestID.value = messageHandler.send(request) { response in
+          let id = messageHandler.send(request) { response in
             continuation.resume(with: response)
           }
+          requestID.withLock { $0 = id }
           if Task.isCancelled {
             // The task might have been cancelled after we checked `Task.isCancelled` above but before `requestID.value`
             // is set, we won't send a `CancelRequestNotification` from the `onCancel` handler. Send it from here.
@@ -249,7 +250,8 @@ private extension BuildServerSpec {
         try await ExternalBuildServerAdapter(
           projectRoot: projectRoot,
           configPath: configPath,
-          messagesToSourceKitLSPHandler: messagesToSourceKitLSPHandler
+          messagesToSourceKitLSPHandler: messagesToSourceKitLSPHandler,
+          buildServerHooks: buildServerHooks
         )
       }
       guard let buildServer else {
@@ -279,27 +281,26 @@ private extension BuildServerSpec {
           connectionToSourceKitLSP: connectionToSourceKitLSP
         )
       }
-    case .swiftPM:
-      switch options.swiftPMOrDefault.buildSystem {
-      case .swiftbuild:
-        let buildServer = await orLog("Creating external SwiftPM build server") {
-          try await ExternalBuildServerAdapter(
-            projectRoot: projectRoot,
-            config: BuildServerConfig.forSwiftPMBuildServer(
-              projectRoot: projectRoot,
-              swiftPMOptions: options.swiftPMOrDefault,
-              toolchainRegistry: toolchainRegistry
-            ),
-            messagesToSourceKitLSPHandler: messagesToSourceKitLSPHandler
-          )
-        }
-        guard let buildServer else {
-          logger.log("Failed to create external SwiftPM build server at \(projectRoot)")
-          return nil
-        }
-        logger.log("Created external SwiftPM build server at \(projectRoot)")
-        return .external(buildServer)
-      case .native, nil:
+    case .swiftPM(let inferredBuildSystem):
+      let selectedBuildSystem: SwiftPMBuildSystem
+      switch (options.swiftPMOrDefault.buildSystem, options.backgroundIndexingOrDefault) {
+      // If the user's config explicitly specifies a build system, respect that choice.
+      case (.swiftbuild, _):
+        selectedBuildSystem = .swiftbuild
+      case (.native, _):
+        selectedBuildSystem = .native
+      // If there is no explicit preference and we're background indexing, default to native
+      // for now.
+      case (nil, true):
+        selectedBuildSystem = .native
+      // If there is no explicit preference and we're not background indexing, we should
+      // attempt to match the user's manually intiated builds to maximize compatibility.
+      case (nil, false):
+        selectedBuildSystem = inferredBuildSystem ?? .native
+      }
+      // Choose the appropiate adapter based on the build system we just selected.
+      switch selectedBuildSystem {
+      case .native:
         #if !NO_SWIFTPM_DEPENDENCY
         return await createBuiltInBuildServerAdapter(
           messagesToSourceKitLSPHandler: messagesToSourceKitLSPHandler,
@@ -316,6 +317,25 @@ private extension BuildServerSpec {
         #else
         return nil
         #endif
+      case .swiftbuild:
+        let buildServer = await orLog("Creating external SwiftPM build server") {
+          try await ExternalBuildServerAdapter(
+            projectRoot: projectRoot,
+            config: BuildServerConfig.forSwiftPMBuildServer(
+              projectRoot: projectRoot,
+              options: options,
+              toolchainRegistry: toolchainRegistry
+            ),
+            messagesToSourceKitLSPHandler: messagesToSourceKitLSPHandler,
+            buildServerHooks: buildServerHooks
+          )
+        }
+        guard let buildServer else {
+          logger.log("Failed to create external SwiftPM build server at \(projectRoot)")
+          return nil
+        }
+        logger.log("Created external SwiftPM build server at \(projectRoot)")
+        return .external(buildServer)
       }
     case .injected(let injector):
       let connectionToSourceKitLSP = LocalConnection(
@@ -326,6 +346,46 @@ private extension BuildServerSpec {
         await injector(projectRoot, connectionToSourceKitLSP)
       )
     }
+  }
+}
+
+/// Maps build-directory copies of source files back to their original source URIs.
+///
+/// During target preparation the build system may copy source files into the build directory
+/// (recorded as `copyDestinations` in `SourceFileInfo`). Index records and diagnostics can
+/// therefore reference the copy rather than the original. `CopiedFileMap` holds the reverse
+/// mapping — copy URI → original source URI — so that the server can translate those locations
+/// back to the files the user is actually editing before returning them to the client.
+package struct CopiedFileMap: Sendable {
+  private var map: [DocumentURI: DocumentURI]
+
+  init(map: [DocumentURI: DocumentURI]) {
+    self.map = map
+  }
+
+  /// Returns `true` if `uri` is a copy of a source file created during target preparation.
+  package func isCopiedFile(_ uri: DocumentURI) -> Bool {
+    return map[uri] != nil
+  }
+
+  /// Returns the original source URI for the given copied file URI, or `nil` if the URI is not a known copy.
+  package func originalURI(for uri: DocumentURI) -> DocumentURI? {
+    return map[uri]
+  }
+
+  /// If `uri` refers to a copy of a source file created during preparation, returns the URI of the
+  /// original source file (provided it exists on disk). Otherwise returns `uri` unchanged.
+  package func adjustedURI(for uri: DocumentURI) -> DocumentURI {
+    guard let originalUri = map[uri] else {
+      return uri
+    }
+    if let fileUrl = originalUri.fileURL, !FileManager.default.fileExists(at: fileUrl) {
+      return uri
+    }
+    // If we regularly get issues that the copied file is out-of-sync with its original, we can check that the contents
+    // of the lines touched by the location match and only return the original URI if they do. For now, we avoid this
+    // check due to its performance cost of reading files from disk.
+    return originalUri
   }
 }
 
@@ -486,17 +546,15 @@ package actor BuildServerManager: QueueBasedMessageHandler {
 
   private let cachedSourceFilesAndDirectories = Cache<SourceFilesAndDirectoriesKey, SourceFilesAndDirectories>()
 
-  /// The latest map of copied file URIs to their original source locations.
-  ///
-  /// We don't use a `Cache` for this because we can provide reasonable functionality even without or with an
-  /// out-of-date copied file map - in the worst case we jump to a file in the build directory instead of the source
-  /// directory.
-  /// We don't want to block requests like definition on receiving up-to-date index information from the build server.
-  private var cachedCopiedFileMap: [DocumentURI: DocumentURI] = [:]
+  /// Task that computes the latest map of copied file URIs to their original source locations.
+  private var copiedFileMap: Task<CopiedFileMap, Never>?
 
-  /// The latest task to update the `cachedCopiedFileMap`. This allows us to cancel previous tasks to update the copied
-  /// file map when a new update is requested.
-  private var copiedFileMapUpdateTask: Task<Void, Never>?
+  /// The last computed copied file map, which may be out-of-date.
+  ///
+  /// Even with out-of-date information for the copied file map, we can provide reasonable functionality - in the worst
+  /// case we jump to a file in the build directory instead of the source directory. We don't want to block requests
+  /// like definition on receiving up-to-date build target information from the build server.
+  package private(set) var cachedCopiedFileMap: CopiedFileMap = CopiedFileMap(map: [:])
 
   /// The `SourceKitInitializeBuildResponseData` received from the `build/initialize` request, if any.
   package var initializationData: SourceKitInitializeBuildResponseData? {
@@ -573,13 +631,29 @@ package actor BuildServerManager: QueueBasedMessageHandler {
       }
       let initializeResponse: InitializeBuildResponse?
       do {
+        var experimentalCapabilities: [String: LSPAny] = [:]
+        func addCapability(_ method: String, _ value: LSPAny) {
+          experimentalCapabilities[method] = value
+          if let legacy = MessageRegistry.bspLegacyNames[method] {
+            experimentalCapabilities[legacy] = value
+          }
+        }
+        // client -> server
+        addCapability(BuildTargetPrepareRequest.method, .dictionary(["version": .int(1)]))
+        addCapability(TextDocumentSourceKitOptionsRequest.method, .dictionary(["version": .int(1)]))
+        addCapability(WorkspaceWaitForBuildSystemUpdatesRequest.method, .dictionary(["version": .int(1)]))
+        // server -> client
+        addCapability(FileOptionsChangedNotification.method, .dictionary(["version": .int(1)]))
         initializeResponse = try await buildServerAdapter.send(
           InitializeBuildRequest(
             displayName: "SourceKit-LSP",
             version: "",
             bspVersion: "2.2.0",
             rootUri: URI(buildServerSpec.projectRoot),
-            capabilities: BuildClientCapabilities(languageIds: [.c, .cpp, .objective_c, .objective_cpp, .swift])
+            capabilities: BuildClientCapabilities(
+              languageIds: [.c, .cpp, .objective_c, .objective_cpp, .swift],
+              experimental: .dictionary(experimentalCapabilities)
+            )
           )
         )
       } catch {
@@ -627,8 +701,9 @@ package actor BuildServerManager: QueueBasedMessageHandler {
       await buildServerAdapter.send(OnBuildInitializedNotification())
       return initializeResponse
     }
-    self.mainFilesProvider = Task {
-      await createMainFilesProvider(initializationData) { [weak self] in
+    self.mainFilesProvider = Task { [weak self] in
+      guard let self else { return nil }
+      return await createMainFilesProvider(await self.initializationData) { [weak self] in
         await self?.mainFilesChanged()
       }
     }
@@ -706,7 +781,7 @@ package actor BuildServerManager: QueueBasedMessageHandler {
   package func handle<Request: RequestType>(
     request: Request,
     id: RequestID,
-    reply: @Sendable @escaping (LSPResult<Request.Response>) -> Void
+    reply: @Sendable @escaping (Result<Request.Response, any Error>) -> Void
   ) async {
     let request = RequestAndReply(request, reply: reply)
     switch request {
@@ -965,141 +1040,11 @@ package actor BuildServerManager: QueueBasedMessageHandler {
     }
   }
 
-  /// Check if the URI referenced by `location` has been copied during the preparation phase. If so, adjust the URI to
-  /// the original source file.
-  package func locationAdjustedForCopiedFiles(_ location: Location) -> Location {
-    guard let originalUri = cachedCopiedFileMap[location.uri] else {
-      return location
-    }
-    // If we regularly get issues that the copied file is out-of-sync with its original, we can check that the contents
-    // of the lines touched by the location match and only return the original URI if they do. For now, we avoid this
-    // check due to its performance cost of reading files from disk.
-    return Location(uri: originalUri, range: location.range)
-  }
-
-  /// Check if the URI referenced by `location` has been copied during the preparation phase. If so, adjust the URI to
-  /// the original source file.
-  package func locationsAdjustedForCopiedFiles(_ locations: [Location]) -> [Location] {
-    return locations.map { locationAdjustedForCopiedFiles($0) }
-  }
-
-  private func uriAdjustedForCopiedFiles(_ uri: DocumentURI) -> DocumentURI {
-    guard let originalUri = cachedCopiedFileMap[uri] else {
-      return uri
-    }
-    return originalUri
-  }
-
-  package func workspaceEditAdjustedForCopiedFiles(_ workspaceEdit: WorkspaceEdit?) -> WorkspaceEdit? {
-    guard var edit = workspaceEdit else {
-      return nil
-    }
-    if let changes = edit.changes {
-      var newChanges: [DocumentURI: [TextEdit]] = [:]
-      for (uri, edits) in changes {
-        let newUri = self.uriAdjustedForCopiedFiles(uri)
-        newChanges[newUri, default: []] += edits
-      }
-      edit.changes = newChanges
-    }
-    if let documentChanges = edit.documentChanges {
-      edit.documentChanges = documentChanges.map { change in
-        switch change {
-        case .textDocumentEdit(var textEdit):
-          textEdit.textDocument.uri = self.uriAdjustedForCopiedFiles(textEdit.textDocument.uri)
-          return .textDocumentEdit(textEdit)
-        case .createFile(var create):
-          create.uri = self.uriAdjustedForCopiedFiles(create.uri)
-          return .createFile(create)
-        case .renameFile(var rename):
-          rename.oldUri = self.uriAdjustedForCopiedFiles(rename.oldUri)
-          rename.newUri = self.uriAdjustedForCopiedFiles(rename.newUri)
-          return .renameFile(rename)
-        case .deleteFile(var delete):
-          delete.uri = self.uriAdjustedForCopiedFiles(delete.uri)
-          return .deleteFile(delete)
-        }
-      }
-    }
-    return edit
-  }
-
-  package func locationsOrLocationLinksAdjustedForCopiedFiles(
-    _ response: LocationsOrLocationLinksResponse?
-  ) -> LocationsOrLocationLinksResponse? {
-    guard let response = response else {
-      return nil
-    }
-    switch response {
-    case .locations(let locations):
-      let remappedLocations = self.locationsAdjustedForCopiedFiles(locations)
-      return .locations(remappedLocations)
-    case .locationLinks(let locationLinks):
-      let remappedLinks = locationLinks.map { link -> LocationLink in
-        let adjustedTargetLocation = self.locationAdjustedForCopiedFiles(
-          Location(uri: link.targetUri, range: link.targetRange)
-        )
-        let adjustedTargetSelectionLocation = self.locationAdjustedForCopiedFiles(
-          Location(uri: link.targetUri, range: link.targetSelectionRange)
-        )
-        return LocationLink(
-          originSelectionRange: link.originSelectionRange,
-          targetUri: adjustedTargetLocation.uri,
-          targetRange: adjustedTargetLocation.range,
-          targetSelectionRange: adjustedTargetSelectionLocation.range
-        )
-      }
-      return .locationLinks(remappedLinks)
-    }
-  }
-
-  package func typeHierarchyItemAdjustedForCopiedFiles(_ item: TypeHierarchyItem) -> TypeHierarchyItem {
-    let adjustedLocation = self.locationAdjustedForCopiedFiles(Location(uri: item.uri, range: item.range))
-    let adjustedSelectionLocation = self.locationAdjustedForCopiedFiles(
-      Location(uri: item.uri, range: item.selectionRange)
-    )
-    return TypeHierarchyItem(
-      name: item.name,
-      kind: item.kind,
-      tags: item.tags,
-      detail: item.detail,
-      uri: adjustedLocation.uri,
-      range: adjustedLocation.range,
-      selectionRange: adjustedSelectionLocation.range,
-      data: item.data
-    )
-  }
-
-  package func callHierarchyItemAdjustedForCopiedFiles(_ item: CallHierarchyItem) -> CallHierarchyItem {
-    let adjustedLocation = self.locationAdjustedForCopiedFiles(Location(uri: item.uri, range: item.range))
-    let adjustedSelectionLocation = self.locationAdjustedForCopiedFiles(
-      Location(uri: item.uri, range: item.selectionRange)
-    )
-    return CallHierarchyItem(
-      name: item.name,
-      kind: item.kind,
-      tags: item.tags,
-      detail: item.detail,
-      uri: adjustedLocation.uri,
-      range: adjustedLocation.range,
-      selectionRange: adjustedSelectionLocation.range,
-      data: .dictionary([
-        "usr": item.data.flatMap { data in
-          if case let .dictionary(dict) = data {
-            return dict["usr"]
-          }
-          return nil
-        } ?? .null,
-        "uri": .string(adjustedLocation.uri.stringValue),
-      ])
-    )
-  }
-
   @discardableResult
-  package func scheduleRecomputeCopyFileMap() -> Task<Void, Never> {
-    let task = Task { [previousUpdateTask = copiedFileMapUpdateTask] in
+  package func scheduleRecomputeCopyFileMap() -> Task<CopiedFileMap, Never> {
+    let task = Task<CopiedFileMap, Never> { [previousUpdateTask = copiedFileMap] in
       previousUpdateTask?.cancel()
-      await orLog("Re-computing copy file map") {
+      return await orLog("Re-computing copy file map") {
         let sourceFilesAndDirectories = try await self.sourceFilesAndDirectories()
         try Task.checkCancellation()
         var copiedFileMap: [DocumentURI: DocumentURI] = [:]
@@ -1108,11 +1053,24 @@ package actor BuildServerManager: QueueBasedMessageHandler {
             copiedFileMap[copyDestination] = file
           }
         }
-        self.cachedCopiedFileMap = copiedFileMap
-      }
+        self.cachedCopiedFileMap = CopiedFileMap(map: copiedFileMap)
+        return self.cachedCopiedFileMap
+      } ?? CopiedFileMap(map: [:])
     }
-    copiedFileMapUpdateTask = task
+    copiedFileMap = task
     return task
+  }
+
+  /// Whether the build server knows about the document with the given URI. This can be either because the file is part
+  /// of one of the targets or because the document is a copy destination of a source file.
+  package func canHandle(_ document: DocumentURI) async -> Bool {
+    if await !targets(for: document).isEmpty {
+      return true
+    }
+    if await self.copiedFileMap?.value.isCopiedFile(document) == true {
+      return true
+    }
+    return false
   }
 
   /// Returns all the targets that the document is part of.
@@ -1240,7 +1198,32 @@ package actor BuildServerManager: QueueBasedMessageHandler {
       )
     }
     return buildSettingsFromBuildServer
+  }
 
+  /// If the given document is the copy destination of a source file, return fallback build settings based on the
+  /// original file. This allows us to provide semantic functionality in the destinations of copied files.
+  private func fallbackBuildSettingsInferredFromCopySource(
+    of document: DocumentURI,
+    target explicitlyRequestedTarget: BuildTargetIdentifier?,
+    language: Language?,
+    fallbackAfterTimeout: Bool
+  ) async throws -> FileBuildSettings? {
+    guard let copySource = cachedCopiedFileMap.originalURI(for: document) else {
+      return nil
+    }
+    let copySourceSettings = await self.buildSettingsInferredFromMainFile(
+      for: copySource,
+      target: explicitlyRequestedTarget,
+      language: language,
+      fallbackAfterTimeout: fallbackAfterTimeout,
+      allowInferenceFromRelatedFile: false
+    )
+    guard var copySourceSettings, !copySourceSettings.isFallback else {
+      return nil
+    }
+    copySourceSettings.isFallback = true
+    copySourceSettings = copySourceSettings.patching(newFile: document, originalFile: copySource)
+    return copySourceSettings
   }
 
   /// Try finding a source file with the same language as `document` in the same directory as `document` and patch its
@@ -1284,7 +1267,7 @@ package actor BuildServerManager: QueueBasedMessageHandler {
       target: explicitlyRequestedTarget,
       language: language,
       fallbackAfterTimeout: fallbackAfterTimeout,
-      allowInferenceFromSiblingFile: false
+      allowInferenceFromRelatedFile: false
     )
     guard var siblingSettings, !siblingSettings.isFallback else {
       return nil
@@ -1318,7 +1301,7 @@ package actor BuildServerManager: QueueBasedMessageHandler {
     target explicitlyRequestedTarget: BuildTargetIdentifier? = nil,
     language: Language?,
     fallbackAfterTimeout: Bool,
-    allowInferenceFromSiblingFile: Bool = true
+    allowInferenceFromRelatedFile: Bool = true
   ) async -> FileBuildSettings? {
     if buildServerAdapter == nil {
       guard let language = language ?? Language(inferredFromFileExtension: document) else {
@@ -1377,7 +1360,19 @@ package actor BuildServerManager: QueueBasedMessageHandler {
             fallbackAfterTimeout: fallbackAfterTimeout
           )
         case .result(nil):
-          if allowInferenceFromSiblingFile {
+          if allowInferenceFromRelatedFile {
+            let settingsFromCopySource = await orLog("Inferring build settings from copy source") {
+              try await self.fallbackBuildSettingsInferredFromCopySource(
+                of: document,
+                target: explicitlyRequestedTarget,
+                language: language,
+                fallbackAfterTimeout: fallbackAfterTimeout
+              )
+            }
+            if let settingsFromCopySource {
+              return settingsFromCopySource
+            }
+
             let settingsFromSibling = await orLog("Inferring build settings from sibling file") {
               try await self.fallbackBuildSettingsInferredFromSiblingFile(
                 of: document,
@@ -1473,24 +1468,55 @@ package actor BuildServerManager: QueueBasedMessageHandler {
     return (depths, dependents)
   }
 
-  /// Sort the targets so that low-level targets occur before high-level targets.
-  ///
-  /// This sorting is best effort but allows the indexer to prepare and index low-level targets first, which allows
-  /// index data to be available earlier.
-  package func topologicalSort(of targets: [BuildTargetIdentifier]) async throws -> [BuildTargetIdentifier] {
+  /// Sort the targets in the order they should be indexed in for best performance.
+  package func targetsSortedForIndexing(_ targets: [BuildTargetIdentifier]) async throws -> [BuildTargetIdentifier] {
     guard let buildTargets = await orLog("Getting build targets for topological sort", { try await buildTargets() })
     else {
       return targets.sorted { $0.uri.stringValue < $1.uri.stringValue }
     }
 
-    return targets.sorted { (lhs: BuildTargetIdentifier, rhs: BuildTargetIdentifier) -> Bool in
-      let lhsDepth = buildTargets[lhs]?.depth ?? 0
-      let rhsDepth = buildTargets[rhs]?.depth ?? 0
-      if lhsDepth != rhsDepth {
-        return lhsDepth > rhsDepth
+    // Generate a preliminary work list of targets to index in which we prefer top-level targets over low-level targets
+    // and targets of the root package over targets in dependencies.
+    // We want to index targets in the root package first because those are likely the files that the user is interested
+    // in editing. We want to index top-level targets first, because preparing those likely implies preparation of the
+    // low-level targets.
+    let workList = targets.sorted { (lhs: BuildTargetIdentifier, rhs: BuildTargetIdentifier) -> Bool in
+      let lhsTarget = buildTargets[lhs]
+      let rhsTarget = buildTargets[rhs]
+
+      switch (lhsTarget?.target.tags.contains(.dependency), rhsTarget?.target.tags.contains(.dependency)) {
+      case (true, false): return false
+      case (false, true): return true
+      default: break
       }
+
+      let lhsDepth = lhsTarget?.depth ?? 0
+      let rhsDepth = rhsTarget?.depth ?? 0
+      if lhsDepth != rhsDepth {
+        return lhsDepth < rhsDepth
+      }
+      // Use the target's name as a tie-breaker
       return lhs.uri.stringValue < rhs.uri.stringValue
     }
+
+    // Now walk through the list of targets in the work list. For each target from the work list, index all of its
+    // transitive dependencies next. We do this because preparing a top-level target likely also prepared all of its
+    // dependencies, so we should be able to index all files in the target's dependencies without needing to perform any
+    // target preparation.
+    var sorted: [BuildTargetIdentifier] = []
+    // A `Set` representation of `sorted` to efficiently check if `target` is already in `sorted` and should be skipped.
+    var visited: Set<BuildTargetIdentifier> = []
+    for target in workList where !visited.contains(target) {
+      sorted.append(target)
+      visited.insert(target)
+
+      let transitiveDependencies = transitiveClosure(of: [target]) { Set(buildTargets[$0]?.target.dependencies ?? []) }
+      let dependenciesInWorkList = workList.filter { transitiveDependencies.contains($0) }
+      sorted += dependenciesInWorkList
+      visited.formUnion(dependenciesInWorkList)
+    }
+
+    return sorted
   }
 
   /// Returns the list of targets that might depend on the given target and that need to be re-prepared when a file in
@@ -1506,14 +1532,18 @@ package actor BuildServerManager: QueueBasedMessageHandler {
       .sorted { $0.uri.stringValue < $1.uri.stringValue }
   }
 
-  package func prepare(targets: Set<BuildTargetIdentifier>) async throws {
-    let _: VoidResponse? = try await buildServerAdapterAfterInitialized?.send(
+  package func prepare(targets: Set<BuildTargetIdentifier>) async throws -> BuildTargetPrepareResponse {
+    guard let buildServerAdapterAfterInitialized = try await buildServerAdapterAfterInitialized else {
+      throw ResponseError.unknown("No connection to build server")
+    }
+    let response = try await buildServerAdapterAfterInitialized.send(
       BuildTargetPrepareRequest(targets: targets.sorted { $0.uri.stringValue < $1.uri.stringValue })
     )
     await orLog("Calling fileDependenciesUpdated") {
       let filesInPreparedTargets = try await self.sourceFiles(in: targets).flatMap(\.sources).map(\.uri)
       await filesDependenciesUpdatedDebouncer.scheduleCall(Set(filesInPreparedTargets))
     }
+    return response
   }
 
   package func registerForChangeNotifications(for uri: DocumentURI, language: Language) async {

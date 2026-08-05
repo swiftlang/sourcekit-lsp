@@ -16,6 +16,7 @@ import SKUtilities
 import SwiftExtensions
 import TSCBasic
 import ToolchainRegistry
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
 
 #if canImport(Android)
@@ -62,6 +63,7 @@ final class ToolchainRegistryTests: SourceKitLSPTestCase {
         xcodes: [xcodeDeveloper],
         libraryDirectories: [],
         pathEnvironmentVariables: [],
+        preferInProcessSourceKitD: false,
         darwinToolchainOverride: nil
       )
 
@@ -105,6 +107,7 @@ final class ToolchainRegistryTests: SourceKitLSPTestCase {
         xcodes: [xcodeDeveloper],
         libraryDirectories: [],
         pathEnvironmentVariables: [],
+        preferInProcessSourceKitD: false,
         darwinToolchainOverride: nil
       )
 
@@ -140,6 +143,7 @@ final class ToolchainRegistryTests: SourceKitLSPTestCase {
         xcodes: [xcodeDeveloper],
         libraryDirectories: [],
         pathEnvironmentVariables: [],
+        preferInProcessSourceKitD: false,
         darwinToolchainOverride: nil
       )
 
@@ -176,6 +180,7 @@ final class ToolchainRegistryTests: SourceKitLSPTestCase {
         xcodes: [xcodeDeveloper],
         libraryDirectories: [],
         pathEnvironmentVariables: [],
+        preferInProcessSourceKitD: false,
         darwinToolchainOverride: nil
       )
 
@@ -202,6 +207,7 @@ final class ToolchainRegistryTests: SourceKitLSPTestCase {
         xcodes: [],
         libraryDirectories: [libraryDir],
         pathEnvironmentVariables: [],
+        preferInProcessSourceKitD: false,
         darwinToolchainOverride: nil
       )
       assertEqual(await tr.toolchains.map(\.identifier), ["org.fake.global.A"])
@@ -232,6 +238,7 @@ final class ToolchainRegistryTests: SourceKitLSPTestCase {
         xcodes: [],
         libraryDirectories: [],
         pathEnvironmentVariables: [],
+        preferInProcessSourceKitD: false,
         darwinToolchainOverride: nil
       )
       await assertEqual(trInstall.default?.identifier, "org.fake.explicit")
@@ -268,6 +275,7 @@ final class ToolchainRegistryTests: SourceKitLSPTestCase {
         xcodes: [xcodeDeveloper],
         libraryDirectories: [],
         pathEnvironmentVariables: [],
+        preferInProcessSourceKitD: false,
         darwinToolchainOverride: nil
       )
 
@@ -279,6 +287,7 @@ final class ToolchainRegistryTests: SourceKitLSPTestCase {
         xcodes: [xcodeDeveloper],
         libraryDirectories: [],
         pathEnvironmentVariables: [],
+        preferInProcessSourceKitD: false,
         darwinToolchainOverride: "org.fake.global.A"
       )
       await assertEqual(darwinToolchainOverrideRegistry.darwinToolchainIdentifier, "org.fake.global.A")
@@ -381,6 +390,7 @@ final class ToolchainRegistryTests: SourceKitLSPTestCase {
         xcodes: [],
         libraryDirectories: [],
         pathEnvironmentVariables: [],
+        preferInProcessSourceKitD: false,
         darwinToolchainOverride: nil
       )
 
@@ -412,6 +422,7 @@ final class ToolchainRegistryTests: SourceKitLSPTestCase {
         xcodes: [],
         libraryDirectories: [],
         pathEnvironmentVariables: [],
+        preferInProcessSourceKitD: false,
         darwinToolchainOverride: nil
       )
 
@@ -486,7 +497,7 @@ final class ToolchainRegistryTests: SourceKitLSPTestCase {
   func testDylibNames() async throws {
     try await withTestScratchDir { tempDir in
       let binPath = tempDir.appending(component: "bin", directoryHint: .isDirectory)
-      try makeToolchain(binPath: binPath, sourcekitdInProc: true, libIndexStore: true)
+      try makeToolchain(binPath: binPath, sourcekitd: true, libIndexStore: true)
       guard let t = Toolchain(binPath) else {
         XCTFail("could not find any tools")
         return
@@ -575,6 +586,7 @@ final class ToolchainRegistryTests: SourceKitLSPTestCase {
         xcodes: [],
         libraryDirectories: [],
         pathEnvironmentVariables: [],
+        preferInProcessSourceKitD: false,
         darwinToolchainOverride: nil
       )
       await assertNil(trEmpty.default)
@@ -585,6 +597,7 @@ final class ToolchainRegistryTests: SourceKitLSPTestCase {
         xcodes: [],
         libraryDirectories: [],
         pathEnvironmentVariables: [],
+        preferInProcessSourceKitD: false,
         darwinToolchainOverride: nil
       )
       await assertEqual(tr1.default?.path, binPath)
@@ -596,6 +609,7 @@ final class ToolchainRegistryTests: SourceKitLSPTestCase {
         xcodes: [],
         libraryDirectories: [],
         pathEnvironmentVariables: [],
+        preferInProcessSourceKitD: false,
         darwinToolchainOverride: nil
       )
       await assertNil(tr2.default)
@@ -617,12 +631,77 @@ final class ToolchainRegistryTests: SourceKitLSPTestCase {
         xcodes: [],
         libraryDirectories: [],
         pathEnvironmentVariables: [],
+        preferInProcessSourceKitD: false,
         darwinToolchainOverride: nil
       )
       await assertEqual(tr.toolchains.count, 2)
 
       // Env variable wins.
       await assertEqual(tr.default?.path, t2Bin)
+    }
+  }
+
+  func testPreferredToolchainAlwaysChoosesToolchainFromEnvVar() async throws {
+    try await withTestScratchDir { tempDir in
+      let t1Bin = tempDir.appending(components: "t1", "bin", directoryHint: .isDirectory)
+      let t2Bin = tempDir.appending(components: "t2", "bin", directoryHint: .isDirectory)
+      try makeToolchain(binPath: t1Bin, clang: true, swiftc: true)
+      try makeToolchain(binPath: t2Bin, clang: false, swiftc: true)
+
+      try ProcessEnv.setVar("TEST_SOURCEKIT_TOOLCHAIN_PATH", value: t2Bin.filePath)
+      defer { try! ProcessEnv.unsetVar("TEST_SOURCEKIT_TOOLCHAIN_PATH") }
+
+      let tr = ToolchainRegistry(
+        installPath: t1Bin,
+        environmentVariables: ["TEST_SOURCEKIT_TOOLCHAIN_PATH"],
+        xcodes: [],
+        libraryDirectories: [],
+        pathEnvironmentVariables: [],
+        preferInProcessSourceKitD: false,
+        darwinToolchainOverride: nil
+      )
+      await assertEqual(tr.toolchains.count, 2)
+
+      // Env variable wins.
+      await assertEqual(tr.preferredToolchain(containing: [\.swiftc])?.path, t2Bin)
+      await assertNil(tr.preferredToolchain(containing: [\.swiftc, \.clang]))
+    }
+  }
+
+  func testSourceKitInProcessEnvVar() async throws {
+    try SkipUnless.platformIsDarwin("XPC sourcekitd is only supported on macOS")
+    try await withTestScratchDir { tempDir in
+      let bin = tempDir.appending(components: "t1", "bin", directoryHint: .isDirectory)
+      try makeToolchain(binPath: bin, sourcekitd: true)
+
+      let libPath = bin.deletingLastPathComponent().appending(component: "lib")
+
+      let tr1 = ToolchainRegistry(
+        installPath: bin,
+        environmentVariables: [],
+        xcodes: [],
+        libraryDirectories: [],
+        pathEnvironmentVariables: [],
+        preferInProcessSourceKitD: false,
+        darwinToolchainOverride: nil
+      )
+
+      await assertEqual(tr1.default?.sourcekitd, libPath.appending(components: "sourcekitd.framework", "sourcekitd"))
+
+      let tr2 = ToolchainRegistry(
+        installPath: bin,
+        environmentVariables: [],
+        xcodes: [],
+        libraryDirectories: [],
+        pathEnvironmentVariables: [],
+        preferInProcessSourceKitD: true,
+        darwinToolchainOverride: nil
+      )
+
+      await assertEqual(
+        tr2.default?.sourcekitd,
+        libPath.appending(components: "sourcekitdInProc.framework", "sourcekitdInProc")
+      )
     }
   }
 
@@ -660,7 +739,6 @@ private func makeXCToolchain(
   swiftc: Bool = false,
   shouldChmod: Bool = true,  // whether to mark exec
   sourcekitd: Bool = false,
-  sourcekitdInProc: Bool = false,
   libIndexStore: Bool = false
 ) throws {
   try FileManager.default.createDirectory(at: path, withIntermediateDirectories: true)
@@ -677,7 +755,6 @@ private func makeXCToolchain(
     swiftc: swiftc,
     shouldChmod: shouldChmod,
     sourcekitd: sourcekitd,
-    sourcekitdInProc: sourcekitdInProc,
     libIndexStore: libIndexStore
   )
 }
@@ -689,7 +766,6 @@ private func makeToolchain(
   swiftc: Bool = false,
   shouldChmod: Bool = true,  // whether to mark exec
   sourcekitd: Bool = false,
-  sourcekitdInProc: Bool = false,
   libIndexStore: Bool = false
 ) throws {
   // tiny PE binary from: https://archive.is/w01DO
@@ -733,14 +809,18 @@ private func makeToolchain(
   let dylibSuffix = Platform.current?.dynamicLibraryExtension ?? ".so"
 
   if sourcekitd {
+    #if os(macOS)
     try FileManager.default.createDirectory(
       at: libPath.appending(component: "sourcekitd.framework"),
       withIntermediateDirectories: true
     )
     try Data().write(to: libPath.appending(components: "sourcekitd.framework", "sourcekitd"))
-  }
-  if sourcekitdInProc {
-    #if os(Windows)
+    try FileManager.default.createDirectory(
+      at: libPath.appending(component: "sourcekitdInProc.framework"),
+      withIntermediateDirectories: true
+    )
+    try Data().write(to: libPath.appending(components: "sourcekitdInProc.framework", "sourcekitdInProc"))
+    #elseif os(Windows)
     try Data().write(to: binPath.appending(component: "sourcekitdInProc\(dylibSuffix)"))
     #else
     try Data().write(to: libPath.appending(component: "libsourcekitdInProc\(dylibSuffix)"))

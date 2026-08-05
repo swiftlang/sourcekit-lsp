@@ -21,7 +21,7 @@ package import ToolchainRegistry
 
 package actor DocumentationLanguageService: LanguageService, Sendable {
   /// The ``SourceKitLSPServer`` instance that created this `DocumentationLanguageService`.
-  private(set) weak var sourceKitLSPServer: SourceKitLSPServer?
+  weak let sourceKitLSPServer: SourceKitLSPServer?
 
   let documentationManager: DocCDocumentationManager
 
@@ -36,7 +36,7 @@ package actor DocumentationLanguageService: LanguageService, Sendable {
 
   package static var experimentalCapabilities: [String: LSPAny] {
     return [
-      DoccDocumentationRequest.method: .dictionary(["version": .int(1)])
+      DoccDocumentationRequest.method: ["version": 1]
     ]
   }
 
@@ -51,16 +51,8 @@ package actor DocumentationLanguageService: LanguageService, Sendable {
     self.documentationManager = DocCDocumentationManager(buildServerManager: workspace.buildServerManager)
   }
 
-  package nonisolated func canHandle(workspace: Workspace, toolchain: Toolchain) -> Bool {
+  package nonisolated func canHandle(toolchain: Toolchain) -> Bool {
     return true
-  }
-
-  package func initialize(
-    _ initialize: InitializeRequest
-  ) async throws -> InitializeResult {
-    return InitializeResult(
-      capabilities: ServerCapabilities()
-    )
   }
 
   package func shutdown() async {
@@ -88,7 +80,8 @@ package actor DocumentationLanguageService: LanguageService, Sendable {
     // The DocumentationLanguageService does not do anything with document events
   }
 
-  package func syntacticTestItems(for snapshot: DocumentSnapshot) async -> [AnnotatedTestItem] {
+  package func syntacticTestItems(for snapshot: DocumentSnapshot) async -> [AnnotatedTestItem]? {
+    // We know documentation files have no test cases.
     return []
   }
 

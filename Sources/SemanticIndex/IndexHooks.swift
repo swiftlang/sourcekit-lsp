@@ -43,6 +43,10 @@ package struct IndexHooks: Sendable {
 
   package var updateIndexStoreTaskDidStart: (@Sendable (UpdateIndexStoreTaskDescription) async -> Void)?
 
+  /// A callback that is called with the partitions into which an index task grouped its files. Each partition is
+  /// indexed by a single compiler invocation, so this allows tests to inspect how files were batched together.
+  package var updateIndexStoreTaskDidComputePartitions: (@Sendable ([UpdateIndexStorePartition]) async -> Void)?
+
   /// A callback that is called when an index task finishes.
   package var updateIndexStoreTaskDidFinish: (@Sendable (UpdateIndexStoreTaskDescription) async -> Void)?
 
@@ -53,6 +57,7 @@ package struct IndexHooks: Sendable {
     preparationTaskDidStart: (@Sendable (PreparationTaskDescription) async -> Void)? = nil,
     preparationTaskDidFinish: (@Sendable (PreparationTaskDescription) async -> Void)? = nil,
     updateIndexStoreTaskDidStart: (@Sendable (UpdateIndexStoreTaskDescription) async -> Void)? = nil,
+    updateIndexStoreTaskDidComputePartitions: (@Sendable ([UpdateIndexStorePartition]) async -> Void)? = nil,
     updateIndexStoreTaskDidFinish: (@Sendable (UpdateIndexStoreTaskDescription) async -> Void)? = nil
   ) {
     self.indexInjector = indexInjector
@@ -61,6 +66,7 @@ package struct IndexHooks: Sendable {
     self.preparationTaskDidStart = preparationTaskDidStart
     self.preparationTaskDidFinish = preparationTaskDidFinish
     self.updateIndexStoreTaskDidStart = updateIndexStoreTaskDidStart
+    self.updateIndexStoreTaskDidComputePartitions = updateIndexStoreTaskDidComputePartitions
     self.updateIndexStoreTaskDidFinish = updateIndexStoreTaskDidFinish
   }
 }

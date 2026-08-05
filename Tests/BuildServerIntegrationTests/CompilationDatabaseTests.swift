@@ -20,6 +20,7 @@ import SKTestSupport
 import SwiftExtensions
 import TSCExtensions
 import ToolchainRegistry
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
 
 import struct TSCBasic.RelativePath

@@ -18,44 +18,41 @@ import SwiftExtensions
 @_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 /// `IndexDelegate` for the SourceKit workspace.
-actor SourceKitIndexDelegate: IndexDelegate {
-  /// Registered `MainFilesDelegate`s to notify when main files change.
-  var mainFilesChangedCallback: @Sendable () async -> Void
+class SourceKitIndexDelegate: IndexDelegate {
+  let callback: @Sendable () async -> Void
 
   /// The count of pending unit events. Whenever this transitions to 0, it represents a time where
   /// the index finished processing known events. Of course, that may have already changed by the
   /// time we are notified.
-  let pendingUnitCount = AtomicInt32(initialValue: 0)
+  var pendingUnitCount = 0
 
-  package init(mainFilesChangedCallback: @escaping @Sendable () async -> Void) {
-    self.mainFilesChangedCallback = mainFilesChangedCallback
+  package init(callback: @escaping @Sendable () async -> Void) {
+    self.callback = callback
   }
 
-  nonisolated package func processingAddedPending(_ count: Int) {
-    pendingUnitCount.value += Int32(count)
+  package func processingAddedPending(_ count: Int) {
+    pendingUnitCount += count
   }
 
-  nonisolated package func processingCompleted(_ count: Int) {
-    pendingUnitCount.value -= Int32(count)
-    if pendingUnitCount.value == 0 {
-      Task {
-        await indexChanged()
-      }
+  package func processingCompleted(_ count: Int) {
+    pendingUnitCount -= count
+    if pendingUnitCount == 0 {
+      indexChanged()
     }
 
-    if pendingUnitCount.value < 0 {
+    if pendingUnitCount < 0 {
       // Technically this is not data race safe because `pendingUnitCount` might change between the check and us setting
       // it to 0. But then, this should never happen anyway, so it's fine.
-      logger.fault("pendingUnitCount dropped below zero: \(self.pendingUnitCount.value)")
-      pendingUnitCount.value = 0
-      Task {
-        await indexChanged()
-      }
+      logger.fault("pendingUnitCount dropped below zero: \(self.pendingUnitCount)")
+      pendingUnitCount = 0
+      indexChanged()
     }
   }
 
-  private func indexChanged() async {
-    logger.debug("IndexStoreDB changed")
-    await mainFilesChangedCallback()
+  private func indexChanged() {
+    Task { [callback] in
+      logger.debug("IndexStoreDB changed")
+      await callback()
+    }
   }
 }

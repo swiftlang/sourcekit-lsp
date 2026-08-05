@@ -10,16 +10,19 @@
 //
 //===----------------------------------------------------------------------===//
 
+@preconcurrency import IndexStoreDB
 @_spi(SourceKitLSP) import LanguageServerProtocol
 @_spi(SourceKitLSP) import LanguageServerProtocolExtensions
 @_spi(SourceKitLSP) import SKLogging
 import SKOptions
 import SKUtilities
+import SemanticIndex
 import SourceKitD
 import SourceKitLSP
 import SwiftDiagnostics
 import SwiftExtensions
 import SwiftParserDiagnostics
+import SwiftSyntax
 @_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 import struct SourceKitLSP.Diagnostic
@@ -40,6 +43,7 @@ actor DiagnosticReportManager {
   private let syntaxTreeManager: SyntaxTreeManager
   private let documentManager: DocumentManager
   private let clientHasDiagnosticsCodeDescriptionSupport: Bool
+  private let uncheckedIndexProvider: @Sendable () async -> UncheckedIndex?
 
   private nonisolated var keys: sourcekitd_api_keys { return sourcekitd.keys }
   private nonisolated var requests: sourcekitd_api_requests { return sourcekitd.requests }
@@ -54,13 +58,15 @@ actor DiagnosticReportManager {
     options: SourceKitLSPOptions,
     syntaxTreeManager: SyntaxTreeManager,
     documentManager: DocumentManager,
-    clientHasDiagnosticsCodeDescriptionSupport: Bool
+    clientHasDiagnosticsCodeDescriptionSupport: Bool,
+    uncheckedIndexProvider: @escaping @Sendable () async -> UncheckedIndex?
   ) {
     self.sourcekitd = sourcekitd
     self.options = options
     self.syntaxTreeManager = syntaxTreeManager
     self.documentManager = documentManager
     self.clientHasDiagnosticsCodeDescriptionSupport = clientHasDiagnosticsCodeDescriptionSupport
+    self.uncheckedIndexProvider = uncheckedIndexProvider
   }
 
   func diagnosticReport(
@@ -149,15 +155,58 @@ actor DiagnosticReportManager {
 
     try Task.checkCancellation()
 
+    let rawDiagnostics: SKDResponseArray? = dict[keys.diagnostics]
+
+    let hasMissingImportDiagnostic =
+      rawDiagnostics?.compactMap { rawDiagnostic -> String? in
+        guard let diagnosticID: String = rawDiagnostic[keys.id] else {
+          return nil
+        }
+
+        return missingImportDiagnosticIDs.contains(diagnosticID) ? diagnosticID : nil
+      }.isEmpty == false
+
+    let checkedIndex: CheckedIndex?
+    let syntaxTree: SourceFileSyntax?
+    if hasMissingImportDiagnostic, let uncheckedIndex = await uncheckedIndex(timeout: .milliseconds(500)) {
+      checkedIndex = uncheckedIndex.checked(for: .deletedFiles)
+      syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
+    } else {
+      checkedIndex = nil
+      syntaxTree = nil
+    }
+
     let diagnostics: [Diagnostic] =
-      dict[keys.diagnostics]?.compactMap({ diag in
-        Diagnostic(
-          diag,
-          in: snapshot,
-          documentManager: documentManager,
-          useEducationalNoteAsCode: self.clientHasDiagnosticsCodeDescriptionSupport
-        )
-      }) ?? []
+      rawDiagnostics?.compactMap { rawDiagnostic in
+        guard
+          var diagnostic = Diagnostic(
+            rawDiagnostic,
+            in: snapshot,
+            documentManager: documentManager,
+            useEducationalNoteAsCode: self.clientHasDiagnosticsCodeDescriptionSupport
+          )
+        else {
+          return nil
+        }
+
+        if let diagnosticID: String = rawDiagnostic[keys.id],
+          missingImportDiagnosticIDs.contains(diagnosticID),
+          let diagnosticDescription: String = rawDiagnostic[keys.description],
+          let missingSymbol = missingSymbolName(from: diagnosticDescription),
+          let checkedIndex,
+          let syntaxTree,
+          let codeAction = try? missingImportCodeAction(
+            for: missingSymbol,
+            index: checkedIndex,
+            syntaxTree: syntaxTree,
+            snapshot: snapshot
+          )
+        {
+          diagnostic.codeActions = (diagnostic.codeActions ?? []) + [codeAction]
+        }
+
+        return diagnostic
+      } ?? []
 
     let report = RelatedFullDocumentDiagnosticReport(items: diagnostics)
     return (report, cachable: true)
@@ -200,5 +249,94 @@ actor DiagnosticReportManager {
     // Remove any reportTasks for old versions of this document.
     reportTaskCache.removeAll(where: { $0.snapshotID <= snapshotID })
     reportTaskCache[CacheKey(snapshotID: snapshotID, buildSettings: buildSettings)] = reportTask
+  }
+
+  private let missingImportDiagnosticIDs: Set<String> = [
+    "cannot_find_type_in_scope",
+    "cannot_find_in_scope",
+    "use_of_unresolved_identifier",
+  ]
+
+  private func missingSymbolName(from diagnosticDescription: String) -> String? {
+    let components = diagnosticDescription.split(separator: "'", omittingEmptySubsequences: false)
+    guard components.count == 3 else {
+      return nil
+    }
+
+    let symbolName = String(components[1])
+    return symbolName.isEmpty ? nil : symbolName
+  }
+
+  private func missingImportCodeAction(
+    for symbolName: String,
+    index: CheckedIndex,
+    syntaxTree: SourceFileSyntax,
+    snapshot: DocumentSnapshot
+  ) throws -> CodeAction? {
+    guard let moduleName = try index.uniqueModuleProvidingSymbol(named: symbolName) else {
+      return nil
+    }
+
+    let existingImports = syntaxTree.statements.compactMap { $0.item.as(ImportDeclSyntax.self) }
+    let edit: TextEdit
+    if let lastImport = existingImports.last {
+      let insertionPosition = snapshot.position(of: lastImport.endPosition)
+      edit = TextEdit(
+        range: insertionPosition..<insertionPosition,
+        newText: "\nimport \(moduleName)"
+      )
+    } else {
+      let startOfFile = Position(line: 0, utf16index: 0)
+      edit = TextEdit(
+        range: startOfFile..<startOfFile,
+        newText: "import \(moduleName)\n\n"
+      )
+    }
+
+    return CodeAction(
+      title: "Add import for '\(moduleName)'",
+      kind: .quickFix,
+      diagnostics: nil,
+      edit: WorkspaceEdit(changes: [snapshot.uri: [edit]])
+    )
+  }
+
+  private func uncheckedIndex(timeout: Duration) async -> UncheckedIndex? {
+    let uncheckedIndexProvider = self.uncheckedIndexProvider
+
+    do {
+      return try await withTimeout(timeout) {
+        await uncheckedIndexProvider()
+      }
+    } catch {
+      return nil
+    }
+  }
+}
+
+fileprivate extension CheckedIndex {
+  func uniqueModuleProvidingSymbol(named symbolName: String) throws -> String? {
+    var moduleName: String?
+
+    try forEachCanonicalSymbolOccurrence(byName: symbolName) { occurrence in
+      guard occurrence.roles.contains(.definition) || occurrence.roles.contains(.declaration) else {
+        return true
+      }
+
+      let occurrenceModuleName = occurrence.location.moduleName
+      guard !occurrenceModuleName.isEmpty else {
+        return true
+      }
+
+      guard moduleName == nil || moduleName == occurrenceModuleName else {
+        moduleName = nil
+        return false
+      }
+
+      moduleName = occurrenceModuleName
+      return true
+    }
+
+    return moduleName
   }
 }

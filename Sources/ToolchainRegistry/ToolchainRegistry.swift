@@ -15,6 +15,7 @@ package import Foundation
 @_spi(SourceKitLSP) import SKLogging
 import SwiftExtensions
 import TSCExtensions
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 package import class TSCBasic.Process
 package import enum TSCBasic.ProcessEnv
@@ -170,6 +171,7 @@ package final actor ToolchainRegistry {
     xcodes: [URL] = [_currentXcodeDeveloperPath].compactMap({ $0 }),
     libraryDirectories: [URL] = FileManager.default.urls(for: .libraryDirectory, in: .allDomainsMask),
     pathEnvironmentVariables: [ProcessEnvironmentKey] = ["SOURCEKIT_PATH", "PATH"],
+    preferInProcessSourceKitD: Bool = ProcessEnv.block["SOURCEKIT_LSP_RUN_SOURCEKITD_IN_PROCESS"] != nil,
     darwinToolchainOverride: String? = ProcessEnv.block["TOOLCHAINS"]
   ) {
     // The paths at which we have found toolchains
@@ -222,7 +224,7 @@ package final actor ToolchainRegistry {
         try toolchainAndReason.path.realpath
       }
       if let resolvedPath,
-        let toolchain = Toolchain(resolvedPath)
+        let toolchain = Toolchain(resolvedPath, preferInProcessSourceKitD: preferInProcessSourceKitD)
       {
         return (toolchain, toolchainAndReason.reason)
       }
@@ -271,6 +273,28 @@ package final actor ToolchainRegistry {
 
   /// Returns the preferred toolchain that contains all the tools at the given key paths.
   package func preferredToolchain(containing requiredTools: [KeyPath<Toolchain, URL?>]) -> Toolchain? {
+    if let toolchain = toolchainsAndReasons.first(where: { $0.reason == .sourcekitToolchainEnvironmentVariable })?
+      .toolchain
+    {
+      // If a specific toolchain was set via an environment variable, we always try to use it. If it doesn't contain the
+      // required tools, we log an error and return nil instead of falling back to other toolchains, since the user
+      // explicitly specified this toolchain in the environment variable and likely wants us to use it.
+
+      if requiredTools.allSatisfy({ toolchain[keyPath: $0] != nil }) {
+        return toolchain
+      }
+
+      let missingTools = requiredTools.filter { toolchain[keyPath: $0] == nil }.map { "\($0)" }.joined(separator: ", ")
+      logger.error(
+        """
+        A toolchain was given via an environment variable, ususally `SOURCEKIT_TOOLCHAIN_PATH`, but it doesn't contain \
+        all required tools. Missing tools: \(missingTools). Not falling back to other toolchains since the toolchain \
+        was explicitly specified in the environment variable.
+        """
+      )
+      return nil
+    }
+
     if let toolchain = self.default, requiredTools.allSatisfy({ toolchain[keyPath: $0] != nil }) {
       return toolchain
     }

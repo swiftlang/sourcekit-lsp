@@ -13,6 +13,7 @@
 @_spi(SourceKitLSP) package import LanguageServerProtocol
 @_spi(SourceKitLSP) package import SKLogging
 import SwiftExtensions
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 // MARK: - Build settings logger
 
@@ -41,6 +42,24 @@ package actor BuildSettingsLogger {
   /// In contrast to the instance method `log`, this will always log the build settings. The instance method only logs
   /// the build settings if they have changed.
   package static func log(level: LogLevel = .default, settings: FileBuildSettings, for uris: [DocumentURI]) {
+    log(
+      level: level,
+      compilerArguments: settings.compilerArguments,
+      workingDirectory: settings.workingDirectory,
+      for: uris
+    )
+  }
+
+  /// Log the given compiler arguments and working directory for a list of source files that all share them.
+  ///
+  /// In contrast to the instance method `log`, this will always log the build settings. The instance method only logs
+  /// the build settings if they have changed.
+  package static func log(
+    level: LogLevel = .default,
+    compilerArguments: [String],
+    workingDirectory: String?,
+    for uris: [DocumentURI]
+  ) {
     let header: String
     if let uri = uris.only {
       header = "Build settings for \(uri.forLogging)"
@@ -49,16 +68,21 @@ package actor BuildSettingsLogger {
     } else {
       header = "Build settings for empty list"
     }
-    log(level: level, settings: settings, header: header)
+    log(level: level, compilerArguments: compilerArguments, workingDirectory: workingDirectory, header: header)
   }
 
-  private static func log(level: LogLevel = .default, settings: FileBuildSettings, header: String) {
+  private static func log(
+    level: LogLevel = .default,
+    compilerArguments: [String],
+    workingDirectory: String?,
+    header: String
+  ) {
     let log = """
       Compiler Arguments:
-      \(settings.compilerArguments.joined(separator: "\n"))
+      \(compilerArguments.joined(separator: "\n"))
 
       Working directory:
-      \(settings.workingDirectory ?? "<nil>")
+      \(workingDirectory ?? "<nil>")
       """
 
     let chunks = splitLongMultilineMessage(message: log)

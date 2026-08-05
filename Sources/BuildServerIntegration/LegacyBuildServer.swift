@@ -34,7 +34,7 @@ import ToolsProtocolsSwiftExtensions
 /// This build server should be phased out in favor of the pull-based settings model described in
 /// https://forums.swift.org/t/extending-functionality-of-build-server-protocol-with-sourcekit-lsp/74400
 actor LegacyBuildServer: MessageHandler, BuiltInBuildServer {
-  private var buildServer: JSONRPCConnection?
+  private var buildServer: (any Connection)?
 
   /// The queue on which all messages that originate from the build server are
   /// handled.
@@ -169,7 +169,7 @@ actor LegacyBuildServer: MessageHandler, BuiltInBuildServer {
 
   package func didChangeWatchedFiles(notification: OnWatchedFilesDidChangeNotification) {}
 
-  package func prepare(request: BuildTargetPrepareRequest) async throws -> VoidResponse {
+  package func prepare(request: BuildTargetPrepareRequest) async throws -> BuildTargetPrepareResponse {
     throw ResponseError.methodNotFound(BuildTargetPrepareRequest.method)
   }
 

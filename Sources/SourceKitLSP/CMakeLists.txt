@@ -5,6 +5,7 @@ add_library(SourceKitLSP STATIC
   DocumentSnapshot+FromFileContents.swift
   DocumentSnapshot+PositionConversions.swift
   DefinitionLocations.swift
+  EntryPointManager.swift
   GeneratedInterfaceDocumentURLData.swift
   Hooks.swift
   IndexProgressManager.swift
@@ -12,10 +13,13 @@ add_library(SourceKitLSP STATIC
   LanguageService.swift
   LanguageServiceRegistry.swift
   LogMessageNotification+representingStructureUsingEmojiPrefixIfNecessary.swift
+  LSP+CopiedFileMap.swift
   MacroExpansionReferenceDocumentURLData.swift
   MessageHandlingDependencyTracker.swift
+  MessageMetadata.swift
   OnDiskDocumentManager.swift
   PlaygroundDiscovery.swift
+  QualifiedWorkspaceSymbolQuery.swift
   ReferenceDocumentURL.swift
   Rename.swift
   SemanticTokensLegend+SourceKitLSPLegend.swift
@@ -23,7 +27,7 @@ add_library(SourceKitLSP STATIC
   SourceKitIndexDelegate.swift
   SourceKitLSPCommandMetadata.swift
   SourceKitLSPServer.swift
-  SymbolLocation+DocumentURI.swift
+  SymbolLocation+LSPConversions.swift
   SyntacticIndex.swift
   TestDiscovery.swift
   TextEdit+IsNoop.swift

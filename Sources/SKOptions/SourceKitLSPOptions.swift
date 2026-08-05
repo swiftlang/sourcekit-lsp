@@ -20,7 +20,7 @@ import struct TSCBasic.AbsolutePath
 /// Options that can be used to modify SourceKit-LSP's behavior.
 ///
 /// See `ConfigurationFile.md` for a description of the configuration file's behavior.
-public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
+public struct SourceKitLSPOptions: Sendable, Codable, Equatable, LSPAnyCodable {
   public struct SwiftPMOptions: Sendable, Codable, Equatable {
     /// The configuration to build the project for during background indexing
     /// and the configuration whose build folder should be used for Swift
@@ -44,8 +44,14 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     /// Equivalent to SwiftPM's `--triple` option.
     public var triple: String?
 
+    /// Equivalent to SwiftPM's `--sdk` option.
+    public var sdk: String?
+
     /// Equivalent to SwiftPM's `--toolset` option.
     public var toolsets: [String]?
+
+    /// Equivalent to SwiftPM's `--pkg-config-path` option.
+    public var pkgConfigPaths: [String]?
 
     /// Traits to enable for the package. Equivalent to SwiftPM's `--traits` option.
     public var traits: [String]?
@@ -66,6 +72,10 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     /// `-Xbuild-tools-swiftc` option.
     public var buildToolsSwiftCompilerFlags: [String]?
 
+    /// Equivalent to SwiftPM's `--force-resolved-versions` option.
+    /// Makes all processes (including background indexing) treat Package.resolved as a lock file.
+    public var forceResolvedVersions: Bool?
+
     /// Disables running subprocesses from SwiftPM in a sandbox. Equivalent to SwiftPM's `--disable-sandbox` option.
     /// Useful when running `sourcekit-lsp` in a sandbox because nested sandboxes are not supported.
     public var disableSandbox: Bool?
@@ -76,6 +86,9 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     ///   background indexing.
     public var skipPlugins: Bool?
 
+    /// Additional arguments appended to SwiftPM when starting or preparing the build server.
+    public var extraArguments: [String]?
+
     /// Which SwiftPM build system should be used when opening a package.
     public var buildSystem: SwiftPMBuildSystem?
 
@@ -85,15 +98,19 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
       swiftSDKsDirectory: String? = nil,
       swiftSDK: String? = nil,
       triple: String? = nil,
+      sdk: String? = nil,
       toolsets: [String]? = nil,
+      pkgConfigDirectories: [String]? = nil,
       traits: [String]? = nil,
       cCompilerFlags: [String]? = nil,
       cxxCompilerFlags: [String]? = nil,
       swiftCompilerFlags: [String]? = nil,
       linkerFlags: [String]? = nil,
       buildToolsSwiftCompilerFlags: [String]? = nil,
+      forceResolvedVersions: Bool? = nil,
       disableSandbox: Bool? = nil,
       skipPlugins: Bool? = nil,
+      extraArguments: [String]? = nil,
       buildSystem: SwiftPMBuildSystem? = nil
     ) {
       self.configuration = configuration
@@ -101,14 +118,18 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
       self.swiftSDKsDirectory = swiftSDKsDirectory
       self.swiftSDK = swiftSDK
       self.triple = triple
+      self.sdk = sdk
       self.toolsets = toolsets
+      self.pkgConfigPaths = pkgConfigDirectories
       self.traits = traits
       self.cCompilerFlags = cCompilerFlags
       self.cxxCompilerFlags = cxxCompilerFlags
       self.swiftCompilerFlags = swiftCompilerFlags
       self.linkerFlags = linkerFlags
       self.buildToolsSwiftCompilerFlags = buildToolsSwiftCompilerFlags
+      self.forceResolvedVersions = forceResolvedVersions
       self.disableSandbox = disableSandbox
+      self.extraArguments = extraArguments
       self.buildSystem = buildSystem
     }
 
@@ -119,15 +140,19 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
         swiftSDKsDirectory: override?.swiftSDKsDirectory ?? base.swiftSDKsDirectory,
         swiftSDK: override?.swiftSDK ?? base.swiftSDK,
         triple: override?.triple ?? base.triple,
+        sdk: override?.sdk ?? base.sdk,
         toolsets: override?.toolsets ?? base.toolsets,
+        pkgConfigDirectories: override?.pkgConfigPaths ?? base.pkgConfigPaths,
         traits: override?.traits ?? base.traits,
         cCompilerFlags: override?.cCompilerFlags ?? base.cCompilerFlags,
         cxxCompilerFlags: override?.cxxCompilerFlags ?? base.cxxCompilerFlags,
         swiftCompilerFlags: override?.swiftCompilerFlags ?? base.swiftCompilerFlags,
         linkerFlags: override?.linkerFlags ?? base.linkerFlags,
         buildToolsSwiftCompilerFlags: override?.buildToolsSwiftCompilerFlags ?? base.buildToolsSwiftCompilerFlags,
+        forceResolvedVersions: override?.forceResolvedVersions ?? base.forceResolvedVersions,
         disableSandbox: override?.disableSandbox ?? base.disableSandbox,
         skipPlugins: override?.skipPlugins ?? base.skipPlugins,
+        extraArguments: override?.extraArguments ?? base.extraArguments,
         buildSystem: override?.buildSystem ?? base.buildSystem
       )
     }
@@ -382,7 +407,17 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
   public var cancelTextDocumentRequestsOnEditAndClose: Bool? = nil
 
   public var cancelTextDocumentRequestsOnEditAndCloseOrDefault: Bool {
-    return cancelTextDocumentRequestsOnEditAndClose ?? true
+    return cancelTextDocumentRequestsOnEditAndClose ?? false
+  }
+
+  /// Whether the response for `textDocument/semanticTokens` should include semantic tokens for syntactic and semantic
+  /// highlighting or just semantic highlighting. This should be enabled in cases where the syntactic grammar
+  /// (e.g. TextMate or tree-sitter) used by an editor is insufficient for properly highlighting the source code. This
+  /// can happen for example happen when using complex string interpolations or nested raw strings.
+  public var reportSyntacticHighlightInSemanticTokens: Bool? = nil
+
+  public var reportSyntacticHighlightInSemanticTokensOrDefault: Bool {
+    return reportSyntacticHighlightInSemanticTokens ?? false
   }
 
   /// Experimental features that are enabled.
@@ -474,6 +509,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     backgroundPreparationMode: BackgroundPreparationMode? = nil,
     preparationBatchingStrategy: PreparationBatchingStrategy? = nil,
     cancelTextDocumentRequestsOnEditAndClose: Bool? = nil,
+    reportSyntacticHighlightInSemanticTokens: Bool? = nil,
     experimentalFeatures: Set<ExperimentalFeature>? = nil,
     swiftPublishDiagnosticsDebounceDuration: Double? = nil,
     workDoneProgressDebounceDuration: Double? = nil,
@@ -495,27 +531,13 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
     self.backgroundPreparationMode = backgroundPreparationMode
     self.preparationBatchingStrategy = preparationBatchingStrategy
     self.cancelTextDocumentRequestsOnEditAndClose = cancelTextDocumentRequestsOnEditAndClose
+    self.reportSyntacticHighlightInSemanticTokens = reportSyntacticHighlightInSemanticTokens
     self.experimentalFeatures = experimentalFeatures
     self.swiftPublishDiagnosticsDebounceDuration = swiftPublishDiagnosticsDebounceDuration
     self.workDoneProgressDebounceDuration = workDoneProgressDebounceDuration
     self.sourcekitdRequestTimeout = sourcekitdRequestTimeout
     self.semanticServiceRestartTimeout = semanticServiceRestartTimeout
     self.buildServerWorkspaceRequestsTimeout = buildServerWorkspaceRequestsTimeout
-  }
-
-  public init?(fromLSPAny lspAny: LSPAny?) throws {
-    guard let lspAny else {
-      return nil
-    }
-    let jsonEncoded = try JSONEncoder().encode(lspAny)
-    self = try JSONDecoder().decode(Self.self, from: jsonEncoded)
-  }
-
-  public var asLSPAny: LSPAny {
-    get throws {
-      let jsonEncoded = try JSONEncoder().encode(self)
-      return try JSONDecoder().decode(LSPAny.self, from: jsonEncoded)
-    }
   }
 
   public init?(path: URL?) {
@@ -560,6 +582,8 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable {
       preparationBatchingStrategy: override?.preparationBatchingStrategy ?? base.preparationBatchingStrategy,
       cancelTextDocumentRequestsOnEditAndClose: override?.cancelTextDocumentRequestsOnEditAndClose
         ?? base.cancelTextDocumentRequestsOnEditAndClose,
+      reportSyntacticHighlightInSemanticTokens: override?.reportSyntacticHighlightInSemanticTokens
+        ?? base.reportSyntacticHighlightInSemanticTokens,
       experimentalFeatures: override?.experimentalFeatures ?? base.experimentalFeatures,
       swiftPublishDiagnosticsDebounceDuration: override?.swiftPublishDiagnosticsDebounceDuration
         ?? base.swiftPublishDiagnosticsDebounceDuration,

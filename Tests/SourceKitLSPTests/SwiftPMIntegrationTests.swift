@@ -14,9 +14,11 @@ import BuildServerIntegration
 import Foundation
 @_spi(SourceKitLSP) import LanguageServerProtocol
 import SKLogging
+import SKOptions
 import SKTestSupport
 import SourceKitLSP
 import SwiftExtensions
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
 
 final class SwiftPMIntegrationTests: SourceKitLSPTestCase {
@@ -496,7 +498,7 @@ final class SwiftPMIntegrationTests: SourceKitLSPTestCase {
       let topLocation = try XCTUnwrap(topResult?.locations?.only)
       XCTAssertTrue(topLocation.uri.pseudoPath.hasSuffix("generated.swift"))
       XCTAssertEqual(topLocation.range.lowerBound, Position(line: 0, utf16index: 4))
-      XCTAssertEqual(topLocation.range.upperBound, Position(line: 0, utf16index: 4))
+      XCTAssertEqual(topLocation.range.upperBound, Position(line: 0, utf16index: 16))
 
       let targetResult = try await project.testClient.send(
         DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
@@ -504,7 +506,7 @@ final class SwiftPMIntegrationTests: SourceKitLSPTestCase {
       let targetLocation = try XCTUnwrap(targetResult?.locations?.only)
       XCTAssertTrue(targetLocation.uri.pseudoPath.hasSuffix("generated.swift"))
       XCTAssertEqual(targetLocation.range.lowerBound, Position(line: 1, utf16index: 4))
-      XCTAssertEqual(targetLocation.range.upperBound, Position(line: 1, utf16index: 4))
+      XCTAssertEqual(targetLocation.range.upperBound, Position(line: 1, utf16index: 19))
     }
 
     // Make a change to the top level input file of the plugin command
@@ -761,5 +763,196 @@ final class SwiftPMIntegrationTests: SourceKitLSPTestCase {
       )
       return try XCTUnwrap(postEditHoverResponse?.contents.markupContent?.value).contains("let x: String")
     }
+  }
+
+  // Ensure that when background indexing is disabled, we infer the build system based
+  // on existing products.
+  func testBuildSystemInference(buildSystem: SwiftPMBuildSystem) async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Lib/Lib.swift": """
+        public func libFunction() -> Int { 0 }
+        """,
+        "MyClient/MyClient.swift": """
+        import Lib
+        func test() {
+          let _: String = libFunction()
+        }
+        """,
+      ],
+      manifest: """
+        let package = Package(
+          name: "MyPackage",
+          targets: [
+            .target(name: "Lib"),
+            .executableTarget(name: "MyClient", dependencies: ["Lib"]),
+          ]
+        )
+        """,
+      workspaces: { scratchDirectory in
+        // This build is expected to fail, but it will produce the 'Lib' module needed when we fetch diagnostics.
+        try? await SwiftPMTestProject.build(at: scratchDirectory, buildSystem: buildSystem)
+        return [WorkspaceFolder(uri: DocumentURI(scratchDirectory))]
+      },
+      enableBackgroundIndexing: false,
+    )
+
+    let (uri, _) = try project.openDocument("MyClient.swift")
+    let diagnostics = try await project.testClient.send(
+      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+    )
+    XCTAssertEqual(
+      diagnostics.fullReport?.items.map(\.message),
+      ["Cannot convert value of type 'Int' to specified type 'String'"]
+    )
+  }
+
+  @inline(never)  // https://github.com/swiftlang/swift/issues/88199
+  func testBuildSystemInference_Native() async throws {
+    try await testBuildSystemInference(buildSystem: .native)
+  }
+
+  @inline(never)  // https://github.com/swiftlang/swift/issues/88199
+  func testBuildSystemInference_SwiftBuild() async throws {
+    try await SkipUnless.swiftPMBuildServerSupportedWithoutBackgroundIndexing()
+    try await testBuildSystemInference(buildSystem: .swiftbuild)
+  }
+
+  func testExperimentalFeaturesPassedToSyntaxTreeManager() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Test.swift": """
+        struct Foo {
+          var x: Int
+        }
+        """
+      ],
+      manifest: """
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+            .target(
+              name: "MyLibrary",
+              swiftSettings: [.enableExperimentalFeature("_test_EverythingUnexpected")]
+            )
+          ]
+        )
+        """,
+      // We don't want to test behavior based on fallback settings. Increase the buildSettingsTimeout to ensure we always get proper build settings.
+      options: .testDefault(buildSettingsTimeout: defaultTimeoutDuration)
+    )
+
+    let (uri, _) = try project.openDocument("Test.swift")
+
+    // DocumentSymbolRequest uses SyntaxTreeManager directly (not sourcekitd).
+    // After package loading, build settings include -enable-experimental-feature _test_EverythingUnexpected,
+    // which gets extracted and passed to the parser via SyntaxTreeManager.
+    // With this feature, all content is parsed as unexpected nodes and statements are empty,
+    // so DocumentSymbolRequest should return empty symbols (no struct Foo, no var x).
+    let responseWithFeature = try await project.testClient.send(
+      DocumentSymbolRequest(textDocument: TextDocumentIdentifier(uri))
+    )
+    guard case .documentSymbols(let symbolsWithFeature) = responseWithFeature else {
+      XCTFail("Expected document symbols")
+      return
+    }
+
+    // With _test_EverythingUnexpected, all content is parsed as unexpected,
+    // so there should be no symbols found
+    XCTAssertTrue(
+      symbolsWithFeature.isEmpty,
+      "Expected no symbols with _test_EverythingUnexpected feature, but got '\(symbolsWithFeature)' (all content parsed as unexpected)"
+    )
+
+    // Now update Package.swift to remove the experimental feature flag
+    let newManifest = """
+      // swift-tools-version: 5.7
+
+      import PackageDescription
+
+      let package = Package(
+        name: "MyLibrary",
+        targets: [
+          .target(name: "MyLibrary")
+        ]
+      )
+      """
+
+    try await project.changeFileOnDisk(
+      "Package.swift",
+      newMarkedContents: newManifest
+    )
+
+    // Wait for the build server to update the build graph after Package.swift changes.
+    // SynchronizeRequest(index: true) calls buildServerManager.waitForUpToDateBuildGraph()
+    // which ensures SwiftPM has finished re-parsing Package.swift and updated build settings.
+    try await project.testClient.send(SynchronizeRequest(index: true))
+
+    // After removing the experimental feature from Package.swift, the parser should
+    // produce a proper syntax tree, and DocumentSymbolRequest should find the symbols.
+    let response = try await project.testClient.send(
+      DocumentSymbolRequest(textDocument: TextDocumentIdentifier(uri))
+    )
+    guard case .documentSymbols(let symbols) = response else {
+      XCTFail("Expected document symbols")
+      return
+    }
+    // Check that we now find the struct Foo and var x
+    let fooSymbol = try XCTUnwrap(symbols.first(where: { $0.name == "Foo" }))
+    XCTAssertEqual(fooSymbol.kind, .struct)
+    let xSymbol = try XCTUnwrap(fooSymbol.children?.first(where: { $0.name == "x" }))
+    XCTAssertEqual(xSymbol.kind, .property)
+  }
+
+  func testPackagePlugin() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Test.swift": "",
+        "Plugins/PrintMessage/Plugin.swift": """
+        import PackagePlugin
+
+        @main
+        struct PrintMessagePlugin: CommandPlugin {
+          func performCommand(context: PluginContext, arguments: [String]) throws {
+            print("Message")
+            let x: String = 1
+          }
+        }
+        """,
+      ],
+      manifest: """
+        import PackageDescription
+
+        let package = Package(
+          name: "PrintMessage",
+          platforms: [.macOS(.v14)],
+          products: [
+            .plugin(
+              name: "PrintMessage",
+              targets: ["PrintMessage"]
+            )
+          ],
+          targets: [
+            .target(name: "MyLibrary"),
+            .plugin(
+              name: "PrintMessage",
+              capability: .command(
+                intent: .custom(
+                  verb: "print-message",
+                  description: "Prints message"
+                )
+              )
+            )
+          ]
+        )
+        """,
+      // enableBackgroundIndexing: true
+    )
+    let (uri, _) = try! project.openDocument("Plugin.swift")
+    let diags = try await project.testClient.send(DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri)))
+    XCTAssertEqual(
+      diags.fullReport?.items.map(\.message),
+      ["Cannot convert value of type 'Int' to specified type 'String'"]
+    )
   }
 }

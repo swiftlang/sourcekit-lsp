@@ -70,6 +70,22 @@ package struct GeneratedInterfaceDocumentURLData: Hashable, ReferenceURLData {
     self.buildSettingsFrom = primaryFile.buildSettingsFile
   }
 
+  /// Create the URL data for a generated interface, deriving the `sourcekitdDocumentName` from the module
+  /// and the build-settings file of `primaryFile`. Both the `workspace/symbol` emission site and
+  /// `openGeneratedInterface` construct the data this way so they agree on the sourcekitd document name.
+  package init(moduleName: String, groupName: String?, primaryFile: DocumentURI) {
+    let buildSettingsFileHash = "\(abs(primaryFile.buildSettingsFile.stringValue.hashValue))"
+    let sourcekitdDocumentName = [moduleName, groupName, buildSettingsFileHash]
+      .compactMap(\.self)
+      .joined(separator: ".")
+    self.init(
+      moduleName: moduleName,
+      groupName: groupName,
+      sourcekitdDocumentName: sourcekitdDocumentName,
+      primaryFile: primaryFile
+    )
+  }
+
   init(queryItems: [URLQueryItem]) throws {
     guard let moduleName = queryItems.last(where: { $0.name == Parameters.moduleName })?.value,
       let sourcekitdDocumentName = queryItems.last(where: { $0.name == Parameters.sourcekitdDocumentName })?.value,

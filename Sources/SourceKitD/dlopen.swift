@@ -12,6 +12,7 @@
 
 @_spi(SourceKitLSP) import SKLogging
 import SwiftExtensions
+import Synchronization
 
 #if os(Windows)
 import CRT
@@ -39,14 +40,22 @@ package final class DLHandle: Sendable {
   package static let rtldDefault = DLHandle(rawValue: Handle(handle: UnsafeMutableRawPointer(bitPattern: -2)!))
   #endif
 
-  fileprivate let rawValue: ThreadSafeBox<Handle?>
+  /// Wrap a raw handle that is owned by an external system. The caller must call `leak()` before
+  /// `deinit` gets called prevent the assertion, since the external owner manages the lifecycle.
+  #if !os(Windows)
+  package static func adoptExisting(_ rawHandle: UnsafeMutableRawPointer) -> DLHandle {
+    DLHandle(rawValue: Handle(handle: rawHandle))
+  }
+  #endif
+
+  fileprivate let rawValue: Mutex<Handle?>
 
   fileprivate init(rawValue: Handle) {
-    self.rawValue = .init(initialValue: rawValue)
+    self.rawValue = Mutex(rawValue)
   }
 
   deinit {
-    if rawValue.value != nil {
+    if rawValue.withLock({ $0 != nil }) {
       logger.fault("DLHandle must be closed or explicitly leaked before destroying")
     }
   }
@@ -71,7 +80,7 @@ package final class DLHandle: Sendable {
 
   /// The handle must not be used anymore after calling `leak`.
   package func leak() {
-    rawValue.value = nil
+    rawValue.withLock { $0 = nil }
   }
 }
 
@@ -86,8 +95,10 @@ package struct DLOpenFlags: RawRepresentable, OptionSet, Sendable {
   // Platform-specific flags.
   #if os(macOS)
   package static let first: DLOpenFlags = DLOpenFlags(rawValue: RTLD_FIRST)
+  package static let noLoad: DLOpenFlags = DLOpenFlags(rawValue: RTLD_NOLOAD)
   #else
   package static let first: DLOpenFlags = DLOpenFlags(rawValue: 0)
+  package static let noLoad: DLOpenFlags = DLOpenFlags(rawValue: 0)
   #endif
   #endif
 
@@ -118,11 +129,11 @@ package func dlopen(_ path: String?, mode: DLOpenFlags) throws -> DLHandle {
 
 package func dlsym<T>(_ handle: DLHandle, symbol: String) -> T? {
   #if os(Windows)
-  guard let ptr = GetProcAddress(handle.rawValue.value!.handle, symbol) else {
+  guard let ptr = handle.rawValue.withLock({ GetProcAddress($0!.handle, symbol) }) else {
     return nil
   }
   #else
-  guard let ptr = dlsym(handle.rawValue.value!.handle, symbol) else {
+  guard let ptr = handle.rawValue.withLock({ dlsym($0!.handle, symbol) }) else {
     return nil
   }
   #endif

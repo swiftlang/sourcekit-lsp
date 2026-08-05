@@ -19,6 +19,8 @@ import SwiftExtensions
 import SwiftParser
 import SwiftSyntax
 import SwiftSyntaxBuilder
+import SwiftSyntaxCodeActions
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
 
 private typealias CodeActionCapabilities = TextDocumentClientCapabilities.CodeAction
@@ -141,12 +143,20 @@ final class CodeActionTests: SourceKitLSPTestCase {
   func testCodeActionResponseCommandMetadataInjection() throws {
     let url = URL(fileURLWithPath: "/a.swift")
     let textDocument = TextDocumentIdentifier(url)
-    let expectedMetadata: LSPAny = try {
+    let expectedCommandMetadata: LSPAny = try {
       let metadata = SourceKitLSPCommandMetadata(textDocument: textDocument)
       let data = try JSONEncoder().encode(metadata)
       return try JSONDecoder().decode(LSPAny.self, from: data)
     }()
-    XCTAssertEqual(expectedMetadata, .dictionary(["sourcekitlsp_textDocument": ["uri": "file:///a.swift"]]))
+    XCTAssertEqual(expectedCommandMetadata, ["sourcekitlsp_textDocument": ["uri": "file:///a.swift"]])
+
+    let expectedResolveMetadata: LSPAny = try {
+      let metadata = CodeActionResolveMetadata(textDocument: textDocument)
+      let data = try JSONEncoder().encode(metadata)
+      return try JSONDecoder().decode(LSPAny.self, from: data)
+    }()
+    XCTAssertEqual(expectedResolveMetadata, ["textDocument": ["uri": "file:///a.swift"]])
+
     let command = Command(title: "Title", command: "Command", arguments: [1, "text", 2.2, nil])
     let codeAction = CodeAction(title: "1")
     let codeAction2 = CodeAction(title: "2", command: command)
@@ -162,27 +172,55 @@ final class CodeActionTests: SourceKitLSPTestCase {
         Command(
           title: command.title,
           command: command.command,
-          arguments: command.arguments! + [expectedMetadata]
+          arguments: command.arguments! + [expectedCommandMetadata]
         )
       ])
     )
     response = request.injectMetadata(toResponse: .codeActions([codeAction, codeAction2]))
+    var expectedCodeAction = codeAction
+    expectedCodeAction.data = expectedResolveMetadata
     XCTAssertEqual(
       response,
       .codeActions([
-        codeAction,
+        expectedCodeAction,
         CodeAction(
           title: codeAction2.title,
           command: Command(
             title: command.title,
             command: command.command,
-            arguments: command.arguments! + [expectedMetadata]
+            arguments: command.arguments! + [expectedCommandMetadata]
           )
         ),
       ])
     )
     response = request.injectMetadata(toResponse: nil)
     XCTAssertNil(response)
+  }
+
+  func testCodeActionResolveMetadataPreservesUnderlyingData() throws {
+    let url = URL(fileURLWithPath: "/a.swift")
+    let textDocument = TextDocumentIdentifier(url)
+
+    let originalData: LSPAny = ["custom": "value"]
+    var codeAction = CodeAction(title: "With data")
+    codeAction.data = originalData
+
+    let request = CodeActionRequest(
+      range: Position(line: 0, utf16index: 0)..<Position(line: 1, utf16index: 1),
+      context: .init(diagnostics: [], only: nil),
+      textDocument: textDocument
+    )
+    let response = request.injectMetadata(toResponse: .codeActions([codeAction]))
+
+    guard case .codeActions(let actions) = response, let injected = actions.first,
+      case .dictionary(let dict) = injected.data,
+      let metadata = CodeActionResolveMetadata(fromLSPDictionary: dict)
+    else {
+      return XCTFail("Expected resolve metadata in data")
+    }
+
+    XCTAssertEqual(metadata.textDocument, textDocument)
+    XCTAssertEqual(metadata.underlyingData, originalData)
   }
 
   func testCommandEncoding() throws {
@@ -236,7 +274,10 @@ final class CodeActionTests: SourceKitLSPTestCase {
       textDocument: TextDocumentIdentifier(uri)
     )
     let result = try await testClient.send(request)
-    XCTAssertEqual(result?.codeActions?.map(\.title), ["Add documentation"])
+    XCTAssertEqual(
+      result?.codeActions?.map(\.title),
+      ["Add documentation", "Convert Stored Property to Computed Property"]
+    )
   }
 
   func testSemanticRefactorLocationCodeActionResult() async throws {
@@ -709,7 +750,8 @@ final class CodeActionTests: SourceKitLSPTestCase {
       """
       let x = 1️⃣12️⃣63️⃣
       """,
-      ranges: [("1️⃣", "2️⃣"), ("1️⃣", "3️⃣")]
+      ranges: [("1️⃣", "2️⃣"), ("1️⃣", "3️⃣")],
+      ignoringCodeActions: ["Convert to computed property"]
     ) { uri, positions in
       [
         CodeAction(
@@ -745,7 +787,8 @@ final class CodeActionTests: SourceKitLSPTestCase {
       """
       let x = 1️⃣10002️⃣
       """,
-      markers: ["1️⃣"]
+      markers: ["1️⃣"],
+      ignoringCodeActions: ["Convert to computed property"]
     ) { uri, positions in
       [
         CodeAction(
@@ -782,6 +825,325 @@ final class CodeActionTests: SourceKitLSPTestCase {
         ),
       ]
     }
+  }
+
+  func testAddExplicitEnumRawValuesInt() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣enum Status: Int {
+        case active2️⃣
+        case inactive3️⃣
+        case pending = 10
+        case archived4️⃣
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Add Explicit Raw Values",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(range: positions["2️⃣"]..<positions["2️⃣"], newText: " = 0"),
+                TextEdit(range: positions["3️⃣"]..<positions["3️⃣"], newText: " = 1"),
+                TextEdit(range: positions["4️⃣"]..<positions["4️⃣"], newText: " = 11"),
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testAddExplicitEnumRawValuesString() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣enum Direction: String {
+        case north2️⃣
+        case south = "down"
+        case east3️⃣
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Add Explicit Raw Values",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(range: positions["2️⃣"]..<positions["2️⃣"], newText: " = \"north\""),
+                TextEdit(range: positions["3️⃣"]..<positions["3️⃣"], newText: " = \"east\""),
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testAddExplicitEnumRawValuesContinuesAfterNegativeLiteral() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣enum Offset: Int {
+        case low = -5
+        case medium2️⃣
+        case high3️⃣
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Add Explicit Raw Values",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(range: positions["2️⃣"]..<positions["2️⃣"], newText: " = -4"),
+                TextEdit(range: positions["3️⃣"]..<positions["3️⃣"], newText: " = -3"),
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testAddExplicitEnumRawValuesContinuesAfterHexLiteral() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣enum Mask: Int {
+        case bit0 = 0x10
+        case bit12️⃣
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Add Explicit Raw Values",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(range: positions["2️⃣"]..<positions["2️⃣"], newText: " = 17")
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testAddExplicitEnumRawValuesNotOfferedWhenAllCasesExplicit() async throws {
+    try await assertNoCodeAction(
+      titled: "Add Explicit Raw Values",
+      in: """
+        1️⃣enum Status: Int {
+          case active = 0
+          case inactive = 1
+        }
+        """,
+      atMarker: "1️⃣"
+    )
+  }
+
+  func testAddExplicitEnumRawValuesNotOfferedWithoutRawValueType() async throws {
+    try await assertNoCodeAction(
+      titled: "Add Explicit Raw Values",
+      in: """
+        1️⃣enum Direction {
+          case north
+          case south
+        }
+        """,
+      atMarker: "1️⃣"
+    )
+  }
+
+  func testAddExplicitEnumRawValuesNotOfferedWithUnsupportedRawValue() async throws {
+    try await assertNoCodeAction(
+      titled: "Add Explicit Raw Values",
+      in: """
+        let base = 10
+        1️⃣enum Tier: Int {
+          case low = base
+          case high
+        }
+        """,
+      atMarker: "1️⃣"
+    )
+  }
+
+  func testAddExplicitEnumRawValuesStripsBackticksInImplicitStringRawValue() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣enum Keyword: String {
+        case `default`2️⃣
+        case ifBranch = "if"
+        case `class`3️⃣
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Add Explicit Raw Values",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(range: positions["2️⃣"]..<positions["2️⃣"], newText: " = \"default\""),
+                TextEdit(range: positions["3️⃣"]..<positions["3️⃣"], newText: " = \"class\""),
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testAddExplicitEnumRawValuesNotOfferedWhenRawValueTypeIsNotFirst() async throws {
+    // Per Swift's grammar, only the first inherited type may specify a raw
+    // value. `: CaseIterable, Int` is invalid Swift, so the code action must
+    // not be offered.
+    try await assertNoCodeAction(
+      titled: "Add Explicit Raw Values",
+      in: """
+        1️⃣enum Status: CaseIterable, Int {
+          case active
+          case inactive
+        }
+        """,
+      atMarker: "1️⃣"
+    )
+  }
+
+  func testAddExplicitEnumRawValuesNotOfferedWithIfConfigMembers() async throws {
+    // `#if` blocks change which cases are active in a given configuration, so
+    // the implicit raw value counter cannot be computed purely syntactically.
+    try await assertNoCodeAction(
+      titled: "Add Explicit Raw Values",
+      in: """
+        1️⃣enum Mode: Int {
+          case a
+          #if DEBUG
+          case b
+          #endif
+          case c
+        }
+        """,
+      atMarker: "1️⃣"
+    )
+  }
+
+  func testAddExplicitEnumRawValuesNotOfferedWithFreestandingMacro() async throws {
+    // Freestanding declaration macros can expand to enum cases, so the counter
+    // cannot be computed without expanding the macro.
+    try await assertNoCodeAction(
+      titled: "Add Explicit Raw Values",
+      in: """
+        1️⃣enum Mode: Int {
+          case a
+          #generatedCases()
+          case b
+        }
+        """,
+      atMarker: "1️⃣"
+    )
+  }
+
+  func testAddExplicitEnumRawValuesNotOfferedWithAssociatedValues() async throws {
+    // Cases with associated values cannot have raw values. Mixing them inside
+    // a raw-value enum is invalid Swift; the refactor should bail rather than
+    // produce broken output like `case payload = 0(String)`.
+    try await assertNoCodeAction(
+      titled: "Add Explicit Raw Values",
+      in: """
+        1️⃣enum Event: Int {
+          case empty
+          case payload(String)
+        }
+        """,
+      atMarker: "1️⃣"
+    )
+  }
+
+  func testAddExplicitEnumRawValuesUInt() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣enum Mask: UInt {
+        case bit02️⃣
+        case bit13️⃣
+        case bit2 = 4
+        case bit34️⃣
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Add Explicit Raw Values",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(range: positions["2️⃣"]..<positions["2️⃣"], newText: " = 0"),
+                TextEdit(range: positions["3️⃣"]..<positions["3️⃣"], newText: " = 1"),
+                TextEdit(range: positions["4️⃣"]..<positions["4️⃣"], newText: " = 5"),
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testAddExplicitEnumRawValuesNotOfferedForUnsignedEnumWithNegativeRawValue() async throws {
+    // `case = -1` is invalid Swift for an unsigned-integer raw type, so the
+    // refactor must not insert further values based on it.
+    try await assertNoCodeAction(
+      titled: "Add Explicit Raw Values",
+      in: """
+        1️⃣enum Mask: UInt {
+          case a = -1
+          case b
+        }
+        """,
+      atMarker: "1️⃣"
+    )
+  }
+
+  func testAddExplicitEnumRawValuesNotOfferedWhenEnumHasAttribute() async throws {
+    // Attached attribute macros can introduce members at expansion time, so
+    // the refactor bails whenever the enum has any attributes.
+    try await assertNoCodeAction(
+      titled: "Add Explicit Raw Values",
+      in: """
+        @available(*, deprecated)
+        1️⃣enum Status: Int {
+          case active
+          case inactive
+        }
+        """,
+      atMarker: "1️⃣"
+    )
   }
 
   func testFormatRawStringLiteral() async throws {
@@ -839,7 +1201,8 @@ final class CodeActionTests: SourceKitLSPTestCase {
     try await assertCodeActions(
       ##"""
       let x = #"Hello \#(n1️⃣ame)"#
-      """##
+      """##,
+      ignoringCodeActions: ["Convert to computed property"]
     ) { uri, positions in
       []
     }
@@ -921,7 +1284,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
         2️⃣print("x")
       }3️⃣
       """##,
-      exhaustive: false
+      ignoringCodeActions: ["Add documentation"]
     ) { uri, positions in
       []
     }
@@ -1034,7 +1397,8 @@ final class CodeActionTests: SourceKitLSPTestCase {
     try await assertCodeActions(
       """
       var x = 1; var 1️⃣y = 2
-      """
+      """,
+      ignoringCodeActions: ["Convert to computed property", "Convert Stored Property to Computed Property"]
     ) { uri, positions in
       []
     }
@@ -1611,6 +1975,189 @@ final class CodeActionTests: SourceKitLSPTestCase {
     }
   }
 
+  func testAddMissingImport() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "MyLibrary/ImportedType.swift": """
+        public struct ImportedType {
+        public init() {}
+        }
+        """,
+        "MyApp/main.swift": """
+        let value = 1️⃣ImportedType()
+        """,
+      ],
+      manifest: """
+        let package = Package(
+          name: "MissingImport",
+          targets: [
+            .target(name: "MyLibrary"),
+            .executableTarget(name: "MyApp", dependencies: ["MyLibrary"]),
+          ]
+        )
+        """,
+      capabilities: clientCapabilitiesWithCodeActionSupport,
+      enableBackgroundIndexing: true
+    )
+
+    let (uri, positions) = try project.openDocument("main.swift")
+
+    let diagnosticReport = try await project.testClient.send(
+      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+    )
+
+    let diagnostics = try XCTUnwrap(diagnosticReport.fullReport?.items)
+
+    let result = try await project.testClient.send(
+      CodeActionRequest(
+        range: Range(positions["1️⃣"]),
+        context: CodeActionContext(
+          diagnostics: diagnostics,
+          only: [.quickFix],
+          triggerKind: .invoked
+        ),
+        textDocument: TextDocumentIdentifier(uri)
+      )
+    )
+
+    let codeActions = try XCTUnwrap(result?.codeActions)
+    let actionTitles = codeActions.map(\.title)
+    let addImportAction = try XCTUnwrap(
+      codeActions.first { $0.title == "Add import for 'MyLibrary'" },
+      "Expected Add import for 'MyLibrary' action. Available actions: \(actionTitles). Diagnostics: \(diagnostics.map { "\($0.source ?? "nil"): \($0.message)" })"
+    )
+
+    XCTAssertEqual(addImportAction.kind, .quickFix)
+    XCTAssertEqual(
+      addImportAction.edit?.changes?[uri],
+      [
+        TextEdit(
+          range: Position(line: 0, utf16index: 0)..<Position(line: 0, utf16index: 0),
+          newText: "import MyLibrary\n\n"
+        )
+      ]
+    )
+  }
+
+  func testAddMissingImportNotAvailableForAmbiguousSymbol() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "LibA/ImportedType.swift": """
+        public struct ImportedType {
+        public init() {}
+        }
+        """,
+        "LibB/ImportedType.swift": """
+        public struct ImportedType {
+        public init() {}
+        }
+        """,
+        "MyApp/main.swift": """
+        let value = 1️⃣ImportedType()
+        """,
+      ],
+      manifest: """
+        let package = Package(
+          name: "MissingImport",
+          targets: [
+            .target(name: "LibA"),
+            .target(name: "LibB"),
+            .executableTarget(name: "MyApp", dependencies: ["LibA", "LibB"]),
+          ]
+        )
+        """,
+      capabilities: clientCapabilitiesWithCodeActionSupport,
+      enableBackgroundIndexing: true
+    )
+
+    let (uri, positions) = try project.openDocument("main.swift")
+
+    let diagnosticReport = try await project.testClient.send(
+      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+    )
+
+    let diagnostics = try XCTUnwrap(diagnosticReport.fullReport?.items)
+
+    let result = try await project.testClient.send(
+      CodeActionRequest(
+        range: Range(positions["1️⃣"]),
+        context: CodeActionContext(
+          diagnostics: diagnostics,
+          only: [.quickFix],
+          triggerKind: .invoked
+        ),
+        textDocument: TextDocumentIdentifier(uri)
+      )
+    )
+
+    let codeActions = try XCTUnwrap(result?.codeActions)
+    XCTAssertFalse(codeActions.contains { $0.title.hasPrefix("Add import for ") })
+  }
+
+  func testAddMissingImportInsertsAtStartOfFileBeforeDocComment() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "MyLibrary/ImportedType.swift": """
+        public struct ImportedType {
+          public init() {}
+        }
+        """,
+        "MyApp/main.swift": """
+        /// Do an amazing thing
+        struct Starstruck {
+          let value = 1️⃣ImportedType()
+        }
+        """,
+      ],
+      manifest: """
+        let package = Package(
+          name: "MissingImport",
+          targets: [
+            .target(name: "MyLibrary"),
+            .executableTarget(name: "MyApp", dependencies: ["MyLibrary"]),
+          ]
+        )
+        """,
+      capabilities: clientCapabilitiesWithCodeActionSupport,
+      enableBackgroundIndexing: true
+    )
+
+    let (uri, positions) = try project.openDocument("main.swift")
+
+    let diagnosticReport = try await project.testClient.send(
+      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+    )
+    let diagnostics = try XCTUnwrap(diagnosticReport.fullReport?.items)
+
+    let result = try await project.testClient.send(
+      CodeActionRequest(
+        range: Range(positions["1️⃣"]),
+        context: CodeActionContext(
+          diagnostics: diagnostics,
+          only: [.quickFix],
+          triggerKind: .invoked
+        ),
+        textDocument: TextDocumentIdentifier(uri)
+      )
+    )
+
+    let codeActions = try XCTUnwrap(result?.codeActions)
+    let addImportAction = try XCTUnwrap(
+      codeActions.first { $0.title == "Add import for 'MyLibrary'" },
+      "Expected Add import for 'MyLibrary' action. Available actions: \(codeActions.map(\.title))"
+    )
+
+    XCTAssertEqual(
+      addImportAction.edit?.changes?[uri],
+      [
+        TextEdit(
+          range: Position(line: 0, utf16index: 0)..<Position(line: 0, utf16index: 0),
+          newText: "import MyLibrary\n\n"
+        )
+      ]
+    )
+  }
+
   func testRemoveUnusedImports() async throws {
     let project = try await SwiftPMTestProject(
       files: [
@@ -1784,7 +2331,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
         2️⃣return ""
       }3️⃣
       """##,
-      exhaustive: false
+      ignoringCodeActions: ["Add documentation"]
     ) { uri, positions in
       []
     }
@@ -1796,7 +2343,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
       1️⃣func test()2️⃣ { }3️⃣
       """,
       ranges: [("1️⃣", "2️⃣")],
-      exhaustive: false
+      ignoringCodeActions: ["Add documentation"]
     ) { _, _ in
       []
     }
@@ -1808,7 +2355,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
       1️⃣func test() -> Void2️⃣ { }3️⃣
       """,
       ranges: [("1️⃣", "2️⃣")],
-      exhaustive: false
+      ignoringCodeActions: ["Add documentation"]
     ) { _, _ in
       []
     }
@@ -1820,11 +2367,12 @@ final class CodeActionTests: SourceKitLSPTestCase {
       1️⃣func test() -> ()2️⃣ { }3️⃣
       """,
       ranges: [("1️⃣", "2️⃣")],
-      exhaustive: false
+      ignoringCodeActions: ["Add documentation"]
     ) { _, _ in
       []
     }
   }
+
   func testConvertComputedPropertyToZeroParameterFunction() async throws {
     let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
     let uri = DocumentURI(for: .swift)
@@ -1872,13 +2420,986 @@ final class CodeActionTests: SourceKitLSPTestCase {
   func testConvertComputedPropertyToZeroParameterFunctionIsNotShownFromTheBody() async throws {
     try await assertCodeActions(
       ##"""
-      var someFunction: String 1️⃣{
-        2️⃣return ""
-      }3️⃣
-      """##,
-      exhaustive: false
+      var someFunction: String {
+        1️⃣return ""
+      }
+      """##
     ) { uri, positions in
       []
+    }
+  }
+
+  func testConvertComputeToStoredProperty() async throws {
+    try await assertCodeActions(
+      ##"""
+      1️⃣var 2️⃣foo: String { "abc" }3️⃣
+      """##,
+      markers: ["2️⃣"],
+      ignoringCodeActions: ["Add documentation", "Convert to zero parameter function"]
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Convert to stored property",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["3️⃣"],
+                  newText: """
+                    let foo: String = "abc"
+                    """
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testConvertLineCommentToDocComment() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣// A comment
+      func foo() {}2️⃣
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Convert Comment to Doc Comment",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: """
+                    /// A comment
+                    func foo() {}
+                    """
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testConvertBlockCommentToDocComment() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣/* A block comment */
+      func foo() {}2️⃣
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Convert Comment to Doc Comment",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: """
+                    /** A block comment */
+                    func foo() {}
+                    """
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testConvertMultipleLineCommentsToDocComments() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣// First line
+      // Second line
+      func foo() {}2️⃣
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Convert Comment to Doc Comment",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: """
+                    /// First line
+                    /// Second line
+                    func foo() {}
+                    """
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testConvertCommentToDocCommentNotShownOnFunctionBody() async throws {
+    try await assertCodeActions(
+      """
+      // A comment
+      func foo() {
+        1️⃣print("hello")
+      }
+      """
+    ) { uri, positions in
+      []
+    }
+  }
+
+  func testSwapBinaryOperandsComparison() async throws {
+    try await assertCodeActions(
+      """
+      let x = 0️⃣1 1️⃣<2️⃣ 23️⃣
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Swap operands",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(range: positions["0️⃣"]..<positions["3️⃣"], newText: "2 > 1")
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testSwapBinaryOperandsCommutative() async throws {
+    try await assertCodeActions(
+      """
+      let x = 0️⃣a 1️⃣+2️⃣ b3️⃣
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Swap operands",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(range: positions["0️⃣"]..<positions["3️⃣"], newText: "b + a")
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testSwapBinaryOperandsNotOfferedOutsideOperator() async throws {
+    try await assertNoCodeAction(
+      titled: "Swap operands",
+      in: """
+        let x = 1️⃣a + b
+        """,
+      atMarker: "1️⃣"
+    )
+  }
+
+  func testSwapBinaryOperandsNotOfferedForUnsupportedOperator() async throws {
+    try await assertNoCodeAction(
+      titled: "Swap operands",
+      in: """
+        let x = a 1️⃣- b
+        """,
+      atMarker: "1️⃣"
+    )
+  }
+
+  func testSwapBinaryOperandsNestedExpression() async throws {
+    try await assertCodeActions(
+      """
+      let x = 1 + 0️⃣-2 1️⃣*2️⃣ 53️⃣
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Swap operands",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["0️⃣"]..<positions["3️⃣"],
+                  newText: "5 * -2"
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testSwapBinaryOperandsLessThanOrEqual() async throws {
+    try await assertCodeActions(
+      """
+      let x = 0️⃣a 1️⃣<=2️⃣ b3️⃣
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Swap operands",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(range: positions["0️⃣"]..<positions["3️⃣"], newText: "b >= a")
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testSwapBinaryOperandsNotOfferedOutsideOperatorRight() async throws {
+    try await assertNoCodeAction(
+      titled: "Swap operands",
+      in: """
+        let x = a + 1️⃣b
+        """,
+      atMarker: "1️⃣"
+    )
+  }
+
+  func testSwapBinaryOperandsGreaterThan() async throws {
+    try await assertCodeActions(
+      """
+      let x = 0️⃣a 1️⃣>2️⃣ b3️⃣
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Swap operands",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(range: positions["0️⃣"]..<positions["3️⃣"], newText: "b < a")
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testSwapBinaryOperandsEquality() async throws {
+    try await assertCodeActions(
+      """
+      let x = 0️⃣a 1️⃣==2️⃣ b3️⃣
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Swap operands",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(range: positions["0️⃣"]..<positions["3️⃣"], newText: "b == a")
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testSwapBinaryOperandsPlusOperatorInNestedExpression() async throws {
+    try await assertCodeActions(
+      """
+      let x = 0️⃣1 1️⃣+2️⃣ -2 * 53️⃣
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Swap operands",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["0️⃣"]..<positions["3️⃣"],
+                  newText: "-2 * 5 + 1"
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testSwapBinaryOperandsNotOfferedOnNestedOperand() async throws {
+    try await assertNoCodeAction(
+      titled: "Swap operands",
+      in: """
+        let x = 1 + 1️⃣-2 * 5
+        """,
+      atMarker: "1️⃣"
+    )
+  }
+
+  func testSwapBinaryOperandsNotEqual() async throws {
+    try await assertCodeActions(
+      """
+      let x = 0️⃣a 1️⃣!=2️⃣ b3️⃣
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Swap operands",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(range: positions["0️⃣"]..<positions["3️⃣"], newText: "b != a")
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testSwapBinaryOperandsNotOfferedWhitespaceBeforeOperator() async throws {
+    try await assertNoCodeAction(
+      titled: "Swap operands",
+      in: """
+        let x = a1️⃣ + b
+        """,
+      atMarker: "1️⃣"
+    )
+  }
+
+  func testSwapBinaryOperandsOfferedWhitespaceAfterOperator() async throws {
+    try await assertCodeActions(
+      """
+      let x = 0️⃣a +1️⃣ b3️⃣
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Swap operands",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(range: positions["0️⃣"]..<positions["3️⃣"], newText: "b + a")
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testSwapBinaryOperandsPreservesTrivia() async throws {
+    try await assertCodeActions(
+      """
+      let x = 0️⃣a /* left */ 1️⃣+2️⃣ /* right */ b3️⃣
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Swap operands",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(range: positions["0️⃣"]..<positions["3️⃣"], newText: "b /* left */ + /* right */ a")
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testSwapBinaryOperandsMultiline() async throws {
+    try await assertCodeActions(
+      """
+      let x = 0️⃣a
+        1️⃣+2️⃣ b3️⃣
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Swap operands",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["0️⃣"]..<positions["3️⃣"],
+                  newText: "b\n  + a"
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testSwapBinaryOperandsNotOfferedForIncompleteExpressionRightMissing() async throws {
+    try await assertNoCodeAction(
+      titled: "Swap operands",
+      in: """
+        let x = a 1️⃣+
+        """,
+      atMarker: "1️⃣"
+    )
+  }
+
+  func testSwapBinaryOperandsNotOfferedForIncompleteExpressionLeftMissing() async throws {
+    try await assertNoCodeAction(
+      titled: "Swap operands",
+      in: """
+        let x = 1️⃣+ b
+        """,
+      atMarker: "1️⃣"
+    )
+  }
+
+  func testSwapBinaryOperandsMultipleOperators() async throws {
+    try await assertCodeActions(
+      """
+      let x = 0️⃣1 1️⃣+2️⃣ 2 3️⃣- 3
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Swap operands",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["0️⃣"]..<positions["3️⃣"],
+                  newText: "2 + 1 "
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testSwapBinaryOperandsNotOfferedForFunctionArgument() async throws {
+    try await assertNoCodeAction(
+      titled: "Swap operands",
+      in: """
+        let x = 2 * list.reduce(0, 1️⃣+)
+        """,
+      atMarker: "1️⃣"
+    )
+  }
+
+  func testGenerateEnumCaseAsAccessors() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣enum Value {
+          case text(String)
+          case number(Int)
+          case unknown2️⃣
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Generate 'as' accessors for enum cases",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["2️⃣"]..<positions["2️⃣"],
+                  newText: """
+
+
+                        var asText: String? {
+                            if case let .text(value) = self { return value }
+                            return nil
+                        }
+
+                        var asNumber: Int? {
+                            if case let .number(value) = self { return value }
+                            return nil
+                        }
+                    """
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testGenerateEnumCaseIsAccessors() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣enum Value {
+          case text(String)
+          case number(Int)
+          case unknown2️⃣
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Generate 'is' accessors for enum cases",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["2️⃣"]..<positions["2️⃣"],
+                  newText: """
+
+
+                        var isText: Bool {
+                            if case .text = self { return true }
+                            return false
+                        }
+
+                        var isNumber: Bool {
+                            if case .number = self { return true }
+                            return false
+                        }
+
+                        var isUnknown: Bool {
+                            if case .unknown = self { return true }
+                            return false
+                        }
+                    """
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testGenerateEnumCaseAsAccessorsForMultipleAssociatedValues() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣enum Value {
+          case pair(Int, String)2️⃣
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Generate 'as' accessors for enum cases",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["2️⃣"]..<positions["2️⃣"],
+                  newText: """
+
+
+                        var asPair: (Int, String)? {
+                            if case let .pair(value1, value2) = self { return (value1, value2) }
+                            return nil
+                        }
+                    """
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testGenerateEnumCaseAsAccessorsForLabeledValues() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣enum Value {
+          case point(x: Int, y: Int)
+          case single(Int)2️⃣
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Generate 'as' accessors for enum cases",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["2️⃣"]..<positions["2️⃣"],
+                  newText: """
+
+
+                        var asPoint: (x: Int, y: Int)? {
+                            if case let .point(x, y) = self { return (x, y) }
+                            return nil
+                        }
+
+                        var asSingle: Int? {
+                            if case let .single(value) = self { return value }
+                            return nil
+                        }
+                    """
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testGenerateEnumCaseIsAccessorsSkipsExistingMember() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣enum Value {
+          case text(String)
+          case number(Int)
+
+          var isText: Bool { false }2️⃣
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Generate 'is' accessors for enum cases",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["2️⃣"]..<positions["2️⃣"],
+                  newText: """
+
+
+                        var isNumber: Bool {
+                            if case .number = self { return true }
+                            return false
+                        }
+                    """
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testGenerateEnumCaseIsAccessorsNotOfferedWhenAllAccessorsExist() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣enum Value {
+          case text
+          case number
+
+          var isText: Bool { false }
+          var isNumber: Bool { false }
+      }
+      """,
+      markers: ["1️⃣"],
+      ignoringCodeActions: ["Add documentation"],
+      exhaustive: true
+    ) { _, _ in
+      []
+    }
+  }
+
+  func testGenerateEnumCaseAsAccessorsSkipsExistingMember() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣enum Value {
+          case text(String)
+          case number(Int)
+
+          var asText: String? { nil }2️⃣
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Generate 'as' accessors for enum cases",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["2️⃣"]..<positions["2️⃣"],
+                  newText: """
+
+
+                        var asNumber: Int? {
+                            if case let .number(value) = self { return value }
+                            return nil
+                        }
+                    """
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testGenerateEnumCaseAsAccessorsForFunctionTypedValue() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣enum Value {
+          case handler((Int) -> Void)2️⃣
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Generate 'as' accessors for enum cases",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["2️⃣"]..<positions["2️⃣"],
+                  newText: """
+
+
+                        var asHandler: ((Int) -> Void)? {
+                            if case let .handler(value) = self { return value }
+                            return nil
+                        }
+                    """
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testGenerateEnumCaseAsAccessorsInfersIndentation() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣enum Value {
+        case text(String)
+        case number(Int)
+        case other(Bool)2️⃣
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Generate 'as' accessors for enum cases",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["2️⃣"]..<positions["2️⃣"],
+                  newText: """
+
+
+                      var asText: String? {
+                        if case let .text(value) = self { return value }
+                        return nil
+                      }
+
+                      var asNumber: Int? {
+                        if case let .number(value) = self { return value }
+                        return nil
+                      }
+
+                      var asOther: Bool? {
+                        if case let .other(value) = self { return value }
+                        return nil
+                      }
+                    """
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testGenerateEnumCaseIsAccessorsGeneratesDuplicateNames() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣enum Value {
+          case foo
+          case Foo2️⃣
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Generate 'is' accessors for enum cases",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["2️⃣"]..<positions["2️⃣"],
+                  newText: """
+
+
+                        var isFoo: Bool {
+                            if case .foo = self { return true }
+                            return false
+                        }
+
+                        var isFoo: Bool {
+                            if case .Foo = self { return true }
+                            return false
+                        }
+                    """
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testGenerateEnumCaseAsAccessorsForOverloadedCaseNames() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣enum Foo {
+          case value(int: Int)
+          case value(string: String)2️⃣
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Generate 'as' accessors for enum cases",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["2️⃣"]..<positions["2️⃣"],
+                  newText: """
+
+
+                        var asValue: Int? {
+                            if case let .value(int) = self { return int }
+                            return nil
+                        }
+
+                        var asValue: String? {
+                            if case let .value(string) = self { return string }
+                            return nil
+                        }
+                    """
+                )
+              ]
+            ]
+          )
+        )
+      ]
     }
   }
 
@@ -1889,6 +3410,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
   ///   - markers: The list of markers to retrieve code actions at. If `nil` code actions will be retrieved for all
   ///     markers in `markedText`
   ///   - ranges: If specified, code actions are also requested for selection ranges between these markers.
+  ///   - ignoringCodeActions: Ignore code actions with this title for exhaustiveness checking
   ///   - exhaustive: Whether `expected` is expected to be a subset of the returned code actions or whether it is
   ///     expected to exhaustively match all code actions.
   ///   - expected: A closure that returns the list of expected code actions, given the URI of the test document and the
@@ -1897,6 +3419,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
     _ markedText: String,
     markers: [String]? = nil,
     ranges: [(String, String)] = [],
+    ignoringCodeActions: [String] = [],
     exhaustive: Bool = true,
     expected: (_ uri: DocumentURI, _ positions: DocumentPositions) -> [CodeAction],
     testName: String = #function,
@@ -1922,18 +3445,28 @@ final class CodeActionTests: SourceKitLSPTestCase {
           textDocument: TextDocumentIdentifier(uri)
         )
       )
-      let codeActions = try XCTUnwrap(result?.codeActions, file: file, line: line)
+      let codeActions = try XCTUnwrap(result?.codeActions, file: file, line: line).filter {
+        !ignoringCodeActions.contains($0.title)
+      }
+      let expected = expected(uri, positions)
       if exhaustive {
         XCTAssertEqual(
           codeActions,
-          expected(uri, positions),
+          expected,
           "Found unexpected code actions at range \(startMarker)-\(endMarker)",
           file: file,
           line: line
         )
       } else {
+        if expected.isEmpty {
+          XCTFail(
+            "exhaustive: false is incompatible with an empty list of expected code actions",
+            file: file,
+            line: line
+          )
+        }
         XCTAssert(
-          codeActions.contains(expected(uri, positions)),
+          Set(codeActions).isSuperset(of: expected),
           """
           Code actions did not contain expected at range \(startMarker)-\(endMarker):
           \(codeActions)
@@ -1944,6 +3477,169 @@ final class CodeActionTests: SourceKitLSPTestCase {
       }
     }
   }
+
+  /// Assert that no code action with the given title is offered at the given marker.
+  private func assertNoCodeAction(
+    titled title: String,
+    in markedText: String,
+    atMarker marker: String,
+    testName: String = #function,
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) async throws {
+    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
+    let uri = DocumentURI(for: .swift, testName: testName)
+    let positions = testClient.openDocument(markedText, uri: uri)
+    let position = positions[marker]
+    let result = try await testClient.send(
+      CodeActionRequest(
+        range: position..<position,
+        context: .init(),
+        textDocument: TextDocumentIdentifier(uri)
+      )
+    )
+    let codeActions = result?.codeActions ?? []
+    XCTAssertFalse(
+      codeActions.contains(where: { $0.title == title }),
+      "did not expect code action titled '\(title)' at marker \(marker), got: \(codeActions.map(\.title))",
+      file: file,
+      line: line
+    )
+  }
+
+  func testConvertStoredPropertyToComputedWithTypeAnnotation() async throws {
+    try await assertCodeActions(
+      """
+      struct S {
+          1️⃣var x: Int = 252️⃣
+      }
+      """,
+      markers: ["1️⃣"],
+      ranges: [("1️⃣", "2️⃣")],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Convert Stored Property to Computed Property",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: Position(line: 0, utf16index: 10)..<Position(line: 1, utf16index: 19),
+                  newText: "\n    var x: Int { 25 }"
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testConvertStoredPropertyToComputedWithoutTypeAnnotationWithoutResolveSupport() async throws {
+    try await assertCodeActions(
+      """
+      struct S {1️⃣
+        2️⃣var x = 253️⃣
+      }
+      """,
+      markers: ["2️⃣"],
+      exhaustive: false,
+      expected: { uri, positions in
+        [
+          CodeAction(
+            title: "Convert Stored Property to Computed Property",
+            kind: .refactorInline,
+            edit: WorkspaceEdit(
+              changes: [
+                uri: [
+                  TextEdit(range: positions["1️⃣"]..<positions["3️⃣"], newText: "\n  var x: <#Type#>{ 25 }")
+                ]
+              ],
+            )
+          )
+        ]
+      }
+    )
+  }
+
+  func testConvertStoredPropertyToComputedWithoutTypeAnnotationWithResolveSupport() async throws {
+    var capabilities = clientCapabilitiesWithCodeActionSupport
+    capabilities.textDocument?.codeAction?.resolveSupport = .init(properties: ["edit"])
+    let testClient = try await TestSourceKitLSPClient(capabilities: capabilities)
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
+      """
+      struct S {1️⃣
+        2️⃣var x = 253️⃣
+      }
+      """,
+      uri: uri
+    )
+    let actions = try await testClient.send(
+      CodeActionRequest(
+        range: positions["2️⃣"]..<positions["3️⃣"],
+        context: CodeActionContext(),
+        textDocument: TextDocumentIdentifier(uri)
+      )
+    )
+    let convertAction = try XCTUnwrap(
+      actions?.codeActions?.filter { $0.title == "Convert Stored Property to Computed Property" }.only
+    )
+    XCTAssertNil(convertAction.edit)
+
+    let resolved = try await testClient.send(CodeActionResolveRequest(codeAction: convertAction))
+    XCTAssertEqual(
+      resolved.edit,
+      WorkspaceEdit(
+        changes: [
+          uri: [
+            TextEdit(range: positions["1️⃣"]..<positions["3️⃣"], newText: "\n  var x: Int{ 25 }")
+          ]
+        ],
+      )
+    )
+  }
+
+  func testConvertStoredPropertyToComputedWithoutTypeAnnotationButAmbiguousTypeAndResolveSupport() async throws {
+    var capabilities = clientCapabilitiesWithCodeActionSupport
+    capabilities.textDocument?.codeAction?.resolveSupport = .init(properties: ["edit"])
+    let testClient = try await TestSourceKitLSPClient(capabilities: capabilities)
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
+      """
+      struct S {1️⃣
+        2️⃣var x = invalid3️⃣
+      }
+      """,
+      uri: uri
+    )
+    let actions = try await testClient.send(
+      CodeActionRequest(
+        range: positions["2️⃣"]..<positions["3️⃣"],
+        context: CodeActionContext(),
+        textDocument: TextDocumentIdentifier(uri)
+      )
+    )
+    let convertAction = try XCTUnwrap(
+      actions?.codeActions?.filter { $0.title == "Convert Stored Property to Computed Property" }.only
+    )
+    XCTAssertNil(convertAction.edit)
+
+    let resolved = try await testClient.send(CodeActionResolveRequest(codeAction: convertAction))
+    XCTAssertEqual(
+      resolved.edit,
+      WorkspaceEdit(
+        changes: [
+          uri: [
+            TextEdit(range: positions["1️⃣"]..<positions["3️⃣"], newText: "\n  var x: <#Type#>{ invalid }")
+          ]
+        ],
+      )
+    )
+  }
+
 }
 
 private extension CodeActionRequestResponse {

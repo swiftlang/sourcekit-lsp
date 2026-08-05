@@ -16,6 +16,8 @@ package import Foundation
 @_spi(SourceKitLSP) package import LanguageServerProtocol
 @_spi(SourceKitLSP) import SKLogging
 import SwiftExtensions
+import Synchronization
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 /// Essentially a `DocumentManager` from the `SourceKitLSP` module.
 ///
@@ -296,6 +298,10 @@ package final class CheckedIndex {
     if containerSymbol.kind == .extension,
       let extendedSymbol = try self.occurrences(relatedToUSR: containerSymbol.usr, roles: .extendedBy).first?.symbol
     {
+      if let cached = containerNamesCache[extendedSymbol.usr] {
+        containerNamesCache[containerSymbol.usr] = cached
+        return cached
+      }
       containerSymbol = extendedSymbol
     }
     let result: [String]
@@ -325,11 +331,11 @@ package final class CheckedIndex {
 /// calling `underlyingIndexStoreDB`) and we don't accidentally call into the `IndexStoreDB` when we wanted a
 /// `CheckedIndex`.
 package final actor UncheckedIndex: Sendable {
-  // Ideally, this would be an isolated member instead of a `ThreadSafeBox`, but that causes issues with the workarounds
+  // Ideally, this would be an isolated member instead of a `Mutex`, but that causes issues with the workarounds
   // around https://github.com/swiftlang/swift/issues/75600 when all functions become async.
-  private nonisolated let _underlyingIndexStoreDB: ThreadSafeBox<IndexStoreDB?>
+  private nonisolated let _underlyingIndexStoreDB: Mutex<IndexStoreDB?>
   package nonisolated var underlyingIndexStoreDB: IndexStoreDB? {
-    _underlyingIndexStoreDB.value
+    _underlyingIndexStoreDB.withLock { $0 }
   }
 
   /// Whether the underlying `IndexStoreDB` uses has `useExplicitOutputUnits` enabled and thus needs to receive updates
@@ -339,19 +345,19 @@ package final actor UncheckedIndex: Sendable {
   /// The set of unit output paths that are currently registered in the underlying `IndexStoreDB`.
   private var unitOutputPaths: Set<String> = []
 
-  package init?(_ index: IndexStoreDB?, usesExplicitOutputPaths: Bool) {
+  package init?(_ index: sending IndexStoreDB?, usesExplicitOutputPaths: Bool) {
     guard let index else {
       return nil
     }
     self.usesExplicitOutputPaths = usesExplicitOutputPaths
-    self._underlyingIndexStoreDB = ThreadSafeBox(initialValue: index)
+    self._underlyingIndexStoreDB = Mutex(index)
   }
 
   /// Close the index store, writing it to the `saved` directory on disk.
   package func close() {
     // IndexStoreDB writes the index to disk when the retain count of the `IndexStoreDB` object hits zero. We hope that
     // nobody else still has a reference to `IndexStoreDB` here.
-    _underlyingIndexStoreDB.value = nil
+    _underlyingIndexStoreDB.withLock { $0 = nil }
   }
 
   /// Update the set of output paths that should be considered visible in the project. For example, if a source file is
@@ -373,6 +379,13 @@ package final actor UncheckedIndex: Sendable {
 
   package nonisolated func checked(for checkLevel: IndexCheckLevel) -> CheckedIndex {
     return CheckedIndex(unchecked: self, checkLevel: checkLevel)
+  }
+
+  package nonisolated func allSymbolNames() throws -> [String] {
+    guard let underlyingIndexStoreDB else {
+      throw IndexClosedError()
+    }
+    return underlyingIndexStoreDB.allSymbolNames()
   }
 
   /// Wait for IndexStoreDB to be updated based on new unit files written to disk.
@@ -409,20 +422,6 @@ private struct IndexOutOfDateChecker {
   enum ModificationTime {
     case fileDoesNotExist
     case date(Date)
-  }
-
-  private enum Error: Swift.Error, CustomStringConvertible {
-    case fileAttributesDontHaveModificationDate
-    case circularSymlink(URL)
-
-    var description: String {
-      switch self {
-      case .fileAttributesDontHaveModificationDate:
-        return "File attributes don't contain a modification date"
-      case .circularSymlink(let url):
-        return "Circular symlink at \(url)"
-      }
-    }
   }
 
   /// Caches whether a document has modifications in `documentManager` that haven't been saved to disk yet.
@@ -563,37 +562,12 @@ private struct IndexOutOfDateChecker {
     }
   }
 
-  private static func modificationDate(atPath path: String) throws -> Date {
-    let attributes = try FileManager.default.attributesOfItem(atPath: path)
-    guard let modificationDate = attributes[FileAttributeKey.modificationDate] as? Date else {
-      throw Error.fileAttributesDontHaveModificationDate
-    }
-    return modificationDate
-  }
-
   private func modificationDateUncached(of uri: DocumentURI) throws -> ModificationTime {
     do {
-      guard var fileURL = uri.fileURL else {
+      guard let fileURL = uri.fileURL else {
         return .fileDoesNotExist
       }
-      var modificationDate = try Self.modificationDate(atPath: fileURL.filePath)
-
-      var visited: Set<URL> = [fileURL]
-
-      // Get the maximum mtime in the symlink chain as the modification date of the URI. That way if either the symlink
-      // is changed to point to a different file or if the underlying file is modified, the modification time is
-      // updated.
-      while let relativeSymlinkDestination = try? FileManager.default.destinationOfSymbolicLink(
-        atPath: fileURL.filePath
-      ) {
-        fileURL = URL(fileURLWithPath: relativeSymlinkDestination, relativeTo: fileURL)
-        if !visited.insert(fileURL).inserted {
-          throw Error.circularSymlink(fileURL)
-        }
-        modificationDate = max(modificationDate, try Self.modificationDate(atPath: fileURL.filePath))
-      }
-
-      return .date(modificationDate)
+      return .date(try fileURL.fileModificationDate)
     } catch let error as NSError where error.domain == NSCocoaErrorDomain && error.code == NSFileReadNoSuchFileError {
       return .fileDoesNotExist
     }

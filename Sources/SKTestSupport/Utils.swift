@@ -13,6 +13,7 @@
 package import Foundation
 @_spi(SourceKitLSP) package import LanguageServerProtocol
 import SwiftExtensions
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 import struct TSCBasic.AbsolutePath
 

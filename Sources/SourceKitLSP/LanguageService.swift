@@ -29,8 +29,9 @@ package enum LanguageServerState {
   case semanticFunctionalityDisabled
 }
 
+/// Extends ``LanguageServerProtocol.TestItem`` with metadata for internal processing.
 package struct AnnotatedTestItem: Sendable {
-  /// The test item to be annotated
+  /// The test item to be annotated.
   package var testItem: TestItem
 
   /// Whether the `TestItem` is an extension.
@@ -45,12 +46,12 @@ package struct AnnotatedTestItem: Sendable {
   }
 }
 
-package struct RenameLocation: Sendable {
+package struct RenameLocation: Sendable, Hashable {
   /// How the identifier at a given location is being used.
   ///
   /// This is primarily used to influence how argument labels should be renamed in Swift and if a location should be
   /// rejected if argument labels don't match.
-  package enum Usage {
+  package enum Usage: Hashable {
     /// The definition of a function/subscript/variable/...
     case definition
 
@@ -114,11 +115,10 @@ package protocol LanguageService: AnyObject, Sendable {
     workspace: Workspace
   ) async throws
 
-  /// Returns `true` if this instance of the language server can handle documents in `workspace` using the given
-  /// toolchain.
+  /// Returns `true` if this instance can serve requests for the given toolchain.
   ///
-  /// If this returns `false`, a new language server will be started for `workspace`.
-  func canHandle(workspace: Workspace, toolchain: Toolchain) -> Bool
+  /// If this returns `false`, a new language server will be started for the toolchain.
+  func canHandle(toolchain: Toolchain) -> Bool
 
   /// Identifiers of the commands that this language service can handle.
   static var builtInCommands: [String] { get }
@@ -126,18 +126,7 @@ package protocol LanguageService: AnyObject, Sendable {
   /// Experimental capabilities that should be reported to the client if this language service is enabled.
   static var experimentalCapabilities: [String: LSPAny] { get }
 
-  /// Whether this language service should be kept alive when its workspace is closed.
-  ///
-  /// When `true`, the language service will not be shut down even if all workspaces referencing it are closed.
-  /// This is useful for language services that use global state (like sourcekitd) where shutting down and
-  /// restarting would cause unnecessary overhead since the new instance will just reinitialize the same
-  /// global state.
-  static var isImmortal: Bool { get }
-
   // MARK: - Lifetime
-
-  func initialize(_ initialize: InitializeRequest) async throws -> InitializeResult
-  func clientInitialized(_ initialized: InitializedNotification) async
 
   /// Shut the server down and return once the server has finished shutting down
   func shutdown() async
@@ -257,6 +246,7 @@ package protocol LanguageService: AnyObject, Sendable {
   ) async throws -> DocumentSemanticTokensResponse?
   func colorPresentation(_ req: ColorPresentationRequest) async throws -> [ColorPresentation]
   func codeAction(_ req: CodeActionRequest) async throws -> CodeActionRequestResponse?
+  func codeActionResolve(_ req: CodeActionResolveRequest) async throws -> CodeAction
   func inlayHint(_ req: InlayHintRequest) async throws -> [InlayHint]
   func inlayHintResolve(_ req: InlayHintResolveRequest) async throws -> InlayHint
   func codeLens(_ req: CodeLensRequest) async throws -> [CodeLens]
@@ -317,19 +307,14 @@ package protocol LanguageService: AnyObject, Sendable {
 
   func getReferenceDocument(_ req: GetReferenceDocumentRequest) async throws -> GetReferenceDocumentResponse
 
-  /// Perform a syntactic scan of the file at the given URI for test cases and test classes.
-  ///
-  /// This is used as a fallback to show the test cases in a file if the index for a given file is not up-to-date.
-  ///
-  /// A return value of `nil` indicates that this language service does not support syntactic test discovery.
-  func syntacticDocumentTests(for uri: DocumentURI, in workspace: Workspace) async throws -> [AnnotatedTestItem]?
-
-  /// Syntactically scans the file at the given URL for tests declared within it.
+  /// Syntactically scans the given snapshot for tests declared within it.
   ///
   /// Does not write the results to the index.
   ///
   /// The order of the returned tests is not defined. The results should be sorted before being returned to the editor.
-  func syntacticTestItems(for snapshot: DocumentSnapshot) async -> [AnnotatedTestItem]
+  ///
+  /// A return value of `nil` indicates that this language service does not support syntactic test discovery.
+  func syntacticTestItems(for snapshot: DocumentSnapshot) async -> [AnnotatedTestItem]?
 
   /// Returns the syntactically scanned playgrounds declared within the workspace.
   ///
@@ -351,6 +336,20 @@ package protocol LanguageService: AnyObject, Sendable {
 
   /// Crash the language server. Should be used for crash recovery testing only.
   func crash() async
+
+  /// Returns references for symbols within the current document using
+  /// language-specific semantic analysis.
+  ///
+  /// This is used by `textDocument/references` as a fallback to provide
+  /// references for local symbols (like local variables and parameters)
+  /// that are not available through the global index.
+  ///
+  /// - Parameters:
+  ///   - position: The position of the queried symbol.
+  ///   - uri: The document containing the symbol.
+  ///   - includeDeclaration: Whether the declaration occurrence should be included.
+  /// - Returns: The locations of matching references in the current document.
+  func localReferences(at position: Position, in uri: DocumentURI, includeDeclaration: Bool) async throws -> [Location]
 }
 
 /// Default implementations for methods that satisfy the following criteria:
@@ -361,10 +360,6 @@ package extension LanguageService {
   static var builtInCommands: [String] { [] }
 
   static var experimentalCapabilities: [String: LSPAny] { [:] }
-
-  static var isImmortal: Bool { false }
-
-  func clientInitialized(_ initialized: InitializedNotification) async {}
 
   func openOnDiskDocument(snapshot: DocumentSnapshot, buildSettings: FileBuildSettings) async throws {
     throw ResponseError.unknown("\(#function) not implemented in \(Self.self) for \(snapshot.uri)")
@@ -488,6 +483,10 @@ package extension LanguageService {
     throw ResponseError.requestNotImplemented(CodeActionRequest.self)
   }
 
+  func codeActionResolve(_ req: CodeActionResolveRequest) async throws -> CodeAction {
+    return req.codeAction
+  }
+
   func inlayHint(_ req: InlayHintRequest) async throws -> [InlayHint] {
     throw ResponseError.requestNotImplemented(InlayHintRequest.self)
   }
@@ -556,10 +555,6 @@ package extension LanguageService {
     throw ResponseError.requestNotImplemented(GetReferenceDocumentRequest.self)
   }
 
-  func syntacticDocumentTests(for uri: DocumentURI, in workspace: Workspace) async throws -> [AnnotatedTestItem]? {
-    throw ResponseError.internalError("syntacticDocumentTests not implemented in \(Self.self) for \(uri)")
-  }
-
   func canonicalDeclarationPosition(of position: Position, in uri: DocumentURI) async -> Position? {
     logger.error("\(#function) not implemented in \(Self.self) for \(uri)")
     return nil
@@ -567,5 +562,10 @@ package extension LanguageService {
 
   func crash() async {
     logger.error("\(Self.self) cannot be crashed")
+  }
+
+  func localReferences(at position: Position, in uri: DocumentURI, includeDeclaration: Bool) async throws -> [Location]
+  {
+    throw ResponseError.internalError("\(#function) not implemented in \(Self.self)")
   }
 }

@@ -226,25 +226,29 @@ final class TaskSchedulerTests: SourceKitLSPTestCase {
       lowPriorityTaskFinished2.fulfill()
     }
 
+    // In this test case use 'XCTWaiter.fulfillment(of:timeout:)' directly rather than 'fulfillmentOfOrThrow()'
+    // because 'fulfillmentOfOrThrow' records an 'XCTFail' when an expectation times out.
+
     // The high priority task should be able to finish because we have an execution slot for it.
-    try await fulfillmentOfOrThrow(highPriorityTaskFinished)
+    let highPriorityTaskFinishedFulfillment = await XCTWaiter.fulfillment(of: [highPriorityTaskFinished], timeout: 5)
+    XCTAssertEqual(highPriorityTaskFinishedFulfillment, .completed)
 
     // But we shouldn't be able to execute the low priority task because it doesn't have an execution slot.
-    await assertThrowsError(try await fulfillmentOfOrThrow(lowPriorityTaskFinished1, timeout: 1)) { error in
-      XCTAssert(error is ExpectationNotFulfilledError)
-    }
+    let lowPriorityTaskFinished1Fulfillment = await XCTWaiter.fulfillment(of: [lowPriorityTaskFinished1], timeout: 5)
+    XCTAssertEqual(lowPriorityTaskFinished1Fulfillment, .timedOut)
 
     await taskScheduler.setMaxConcurrentTasksByPriority([(.high, 1), (.low, 1)])
 
     // After increasing the number of execution slots, we should be able to execute the low-priority task
-    try await fulfillmentOfOrThrow(lowPriorityTaskFinished2)
+    let lowPriorityTaskFinished2Fulfillment = await XCTWaiter.fulfillment(of: [lowPriorityTaskFinished2], timeout: 5)
+    XCTAssertEqual(lowPriorityTaskFinished2Fulfillment, .completed)
   }
 
   func testDecreaseNumberOfExecutionSlots() async throws {
     let taskScheduler = TaskScheduler<ClosureTaskDescription>(maxConcurrentTasksByPriority: [(.low, 1)])
 
     /// True after the job was cancelled and is now being re-scheduled after increasing the number of execution slots.
-    let taskExecutedBefore = AtomicBool(initialValue: false)
+    let taskExecutedBefore = ThreadSafeBox<Bool>(initialValue: false)
 
     let taskStartedExecuting = self.expectation(description: "Task started executing")
     let executionSlotsReduced = self.expectation(description: "Execution slots reduced")
@@ -257,22 +261,18 @@ final class TaskSchedulerTests: SourceKitLSPTestCase {
         return
       }
 
-      taskExecutedBefore.value = true
+      taskExecutedBefore.withLock { $0 = true }
 
       taskStartedExecuting.fulfill()
 
+      try await fulfillmentOfOrThrow(executionSlotsReduced)
       do {
-        try await fulfillmentOfOrThrow(executionSlotsReduced)
-
         try await repeatUntilExpectedResult {
           try Task.checkCancellation()
           return false
         }
       } catch is CancellationError {
         taskCancelled.fulfill()
-      } catch {
-        XCTFail("Unexpectedly received error: \(error)")
-        return
       }
     }
 
@@ -515,7 +515,10 @@ fileprivate extension TaskScheduler<ClosureTaskDescription> {
     )
     // Make sure that we call `schedule` outside of the `Task` because the execution order of `Task`s is not guaranteed
     // and if we called `schedule` inside `Task`, Swift concurrency can re-order the order that we schedule tasks in.
-    let queuedTask = await self.schedule(priority: priority, taskDescription)
+    // The scheduler is never shut down before this call within these tests, so `schedule` always returns a value.
+    guard let queuedTask = await self.schedule(priority: priority, taskDescription) else {
+      preconditionFailure("Scheduler was unexpectedly shut down")
+    }
     return Task(priority: priority) {
       await queuedTask.waitToFinishPropagatingCancellation()
     }

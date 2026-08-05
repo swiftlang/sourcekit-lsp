@@ -11,10 +11,11 @@
 //===----------------------------------------------------------------------===//
 
 package import BuildServerIntegration
-import Foundation
+package import Foundation
 @_spi(SourceKitLSP) package import LanguageServerProtocol
 @_spi(SourceKitLSP) import LanguageServerProtocolExtensions
 package import SemanticIndex
+package import SourceKitD
 
 import struct TSCBasic.AbsolutePath
 import struct TSCBasic.RelativePath
@@ -35,6 +36,18 @@ public struct Hooks: Sendable {
   /// This allows tests to simulate a `clangd` process that's unresponsive.
   package var preForwardRequestToClangd: (@Sendable (any RequestType) async -> Void)?
 
+  /// If set, called by `SwiftLanguageService` instead of `SourceKitD.getOrCreate` to obtain a
+  /// pre-initialized sourcekitd connection, avoiding double-initialization when running in-process.
+  /// The URL passed is the toolchain root (`.xctoolchain` bundle path).
+  package var sourcekitdCoreInjector: (@Sendable (URL) throws -> (any SourceKitDCore)?)?
+
+  /// Closure that is executed by the background inlay hint refresh task right after it has computed updated hints
+  /// but before it writes them into the cache.
+  ///
+  /// This allows tests to deterministically pause the background refresh and inspect the cache contents written by
+  /// the synchronous position-shifting logic before the background task's write can race with it.
+  package var inlayHintRefreshWillUpdateCache: (@Sendable () async -> Void)?
+
   public init() {
     self.init(indexHooks: IndexHooks(), buildServerHooks: BuildServerHooks())
   }
@@ -43,11 +56,15 @@ public struct Hooks: Sendable {
     indexHooks: IndexHooks = IndexHooks(),
     buildServerHooks: BuildServerHooks = BuildServerHooks(),
     preHandleRequest: (@Sendable (any RequestType) async -> Void)? = nil,
-    preForwardRequestToClangd: (@Sendable (any RequestType) async -> Void)? = nil
+    preForwardRequestToClangd: (@Sendable (any RequestType) async -> Void)? = nil,
+    sourcekitdCoreInjector: (@Sendable (URL) throws -> (any SourceKitDCore)?)? = nil,
+    inlayHintRefreshWillUpdateCache: (@Sendable () async -> Void)? = nil
   ) {
     self.indexHooks = indexHooks
     self.buildServerHooks = buildServerHooks
     self.preHandleRequest = preHandleRequest
     self.preForwardRequestToClangd = preForwardRequestToClangd
+    self.sourcekitdCoreInjector = sourcekitdCoreInjector
+    self.inlayHintRefreshWillUpdateCache = inlayHintRefreshWillUpdateCache
   }
 }
