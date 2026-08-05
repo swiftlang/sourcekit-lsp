@@ -795,6 +795,32 @@ extension SwiftLanguageService {
   // MARK: - Language features
 
   package func definition(_ request: DefinitionRequest) async throws -> LocationsOrLocationLinksResponse? {
+
+    let snapshot = try await latestSnapshot(for: request.textDocument.uri)
+    let tree = await syntaxTreeManager.syntaxTree(for: snapshot)
+    let absolutePosition = snapshot.absolutePosition(of: request.position)
+
+    if let token = tree.token(at: absolutePosition) {
+      var offset = token.position.utf8Offset
+      var isInDocComment = false
+
+      for piece in token.leadingTrivia.pieces {
+        let pieceLength = piece.sourceLength.utf8Length
+        switch piece {
+        case .docLineComment, .docBlockComment:
+          if absolutePosition.utf8Offset >= offset && absolutePosition.utf8Offset < offset + pieceLength {
+            isInDocComment = true
+          }
+        default:
+          break
+        }
+        offset += pieceLength
+      }
+
+      if isInDocComment {
+        return nil
+      }
+    }
     throw ResponseError.unknown("unsupported method")
   }
 
