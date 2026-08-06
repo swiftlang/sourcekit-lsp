@@ -1674,7 +1674,10 @@ extension SourceKitLSPServer {
     guard fullModuleName.hasPrefix(swiftModulePrefix) else {
       return (fullModuleName, nil)
     }
-    return ("Swift", String(fullModuleName.dropFirst(swiftModulePrefix.count)))
+    // The index spells a group's levels with `.` (`Swift.Math.Integers`) but sourcekitd expects '/'
+    // separated group name.
+    let group = fullModuleName.dropFirst(swiftModulePrefix.count).replacing(".", with: "/")
+    return ("Swift", String(group))
   }
 
   /// For each distinct SDK interface (`.swiftinterface`/`.swiftmodule`) among `symbols`, resolve the main

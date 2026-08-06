@@ -13,6 +13,7 @@
 @_spi(SourceKitLSP) import LanguageServerProtocol
 import SKLogging
 import SKTestSupport
+import SKUtilities
 import XCTest
 
 class WorkspaceSymbolsTests: SourceKitLSPTestCase {
@@ -412,6 +413,7 @@ class WorkspaceSymbolsTests: SourceKitLSPTestCase {
     let project = try await IndexedSingleSwiftFileTestProject(
       """
       let x: String = ""
+      let y: Int = 0
       """,
       capabilities: ClientCapabilities(
         workspace: .init(symbol: .init(resolveSupport: .init(properties: ["location"]))),
@@ -435,6 +437,39 @@ class WorkspaceSymbolsTests: SourceKitLSPTestCase {
     XCTAssertFalse(
       generatedInterfaceMembers.isEmpty,
       "Expected `String` members as generated-interface reference documents, got \(String(describing: response))"
+    )
+
+    // `Int` lives in the stdlib's `Math/Integers` group, whose levels the index spells with `.` in the module
+    // name `Swift.Math.Integers` while sourcekitd matches `key.groupname` with `/`. A member of it is only
+    // resolvable if the group name is translated back on the way into the request.
+    let nestedGroupResponse = try await project.testClient.send(WorkspaceSymbolsRequest(query: "Int.bitWidth"))
+    let nestedGroupSymbol = try XCTUnwrap(
+      (nestedGroupResponse ?? []).compactMap { item -> WorkspaceSymbol? in
+        guard case .workspaceSymbol(let symbol) = item, symbol.name == "Int.bitWidth" else { return nil }
+        return symbol
+      }.first,
+      "Expected `Int.bitWidth` as a generated-interface symbol, got \(String(describing: nestedGroupResponse))"
+    )
+
+    // Resolving opens the group's interface and points at the declaration inside it.
+    let resolved = try await project.testClient.send(
+      WorkspaceSymbolResolveRequest(workspaceSymbol: nestedGroupSymbol)
+    )
+    guard case .location(let location) = resolved.location else {
+      XCTFail("Expected .location after resolve, got \(resolved.location)")
+      return
+    }
+    let referenceDocument = try await project.testClient.send(GetReferenceDocumentRequest(uri: location.uri))
+    XCTAssert(
+      referenceDocument.content.contains("struct Int"),
+      "Interface of the group containing `Int` should contain `struct Int`"
+    )
+    let resolvedLine = try XCTUnwrap(
+      LineTable(referenceDocument.content).line(at: location.range.lowerBound.line)
+    )
+    XCTAssert(
+      resolvedLine.contains("bitWidth"),
+      "Line at the resolved position should declare `bitWidth`, got: '\(resolvedLine)'"
     )
   }
 
