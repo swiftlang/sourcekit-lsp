@@ -18,6 +18,7 @@ import IndexStoreDB
 import SemanticIndex
 @_spi(Linkcompletion) @preconcurrency import SwiftDocC
 import SwiftExtensions
+import Synchronization
 
 final class DocCReferenceResolutionService: DocumentationService, Sendable {
   /// The message type that this service accepts.
@@ -28,20 +29,20 @@ final class DocCReferenceResolutionService: DocumentationService, Sendable {
 
   static let handlingTypes = [symbolResolutionMessageType]
 
-  private let contextMap = ThreadSafeBox<[String: DocCReferenceResolutionContext]>(initialValue: [:])
+  private let contextMap: Mutex<[String: DocCReferenceResolutionContext]> = Mutex([:])
 
   init() {}
 
   func addContext(_ context: DocCReferenceResolutionContext, withKey key: String) {
-    contextMap.value[key] = context
+    contextMap.withLock { $0[key] = context }
   }
 
   @discardableResult func removeContext(forKey key: String) -> DocCReferenceResolutionContext? {
-    contextMap.value.removeValue(forKey: key)
+    contextMap.withLock { $0.removeValue(forKey: key) }
   }
 
   func context(forKey key: String) -> DocCReferenceResolutionContext? {
-    contextMap.value[key]
+    contextMap.withLock { $0[key] }
   }
 
   func process(

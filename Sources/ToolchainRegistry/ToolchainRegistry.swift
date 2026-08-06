@@ -15,6 +15,7 @@ package import Foundation
 @_spi(SourceKitLSP) import SKLogging
 import SwiftExtensions
 import TSCExtensions
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 package import class TSCBasic.Process
 package import enum TSCBasic.ProcessEnv
@@ -170,6 +171,7 @@ package final actor ToolchainRegistry {
     xcodes: [URL] = [_currentXcodeDeveloperPath].compactMap({ $0 }),
     libraryDirectories: [URL] = FileManager.default.urls(for: .libraryDirectory, in: .allDomainsMask),
     pathEnvironmentVariables: [ProcessEnvironmentKey] = ["SOURCEKIT_PATH", "PATH"],
+    preferInProcessSourceKitD: Bool = ProcessEnv.block["SOURCEKIT_LSP_RUN_SOURCEKITD_IN_PROCESS"] != nil,
     darwinToolchainOverride: String? = ProcessEnv.block["TOOLCHAINS"]
   ) {
     // The paths at which we have found toolchains
@@ -222,7 +224,7 @@ package final actor ToolchainRegistry {
         try toolchainAndReason.path.realpath
       }
       if let resolvedPath,
-        let toolchain = Toolchain(resolvedPath)
+        let toolchain = Toolchain(resolvedPath, preferInProcessSourceKitD: preferInProcessSourceKitD)
       {
         return (toolchain, toolchainAndReason.reason)
       }

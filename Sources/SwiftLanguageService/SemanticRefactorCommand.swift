@@ -13,6 +13,7 @@
 import Csourcekitd
 @_spi(SourceKitLSP) package import LanguageServerProtocol
 import SourceKitD
+import SwiftSyntaxCodeActions
 
 package struct SemanticRefactorCommand: SwiftCommand {
   typealias Response = SemanticRefactoring

@@ -17,6 +17,7 @@ import Foundation
 @_spi(SourceKitLSP) import LanguageServerProtocolExtensions
 @_spi(SourceKitLSP) import SKLogging
 import SwiftExtensions
+import Synchronization
 import TSCExtensions
 import ToolchainRegistry
 @_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
@@ -30,7 +31,7 @@ import enum TSCBasic.SystemError
 import WinSDK
 #endif
 
-private let updateIndexStoreIDForLogging = AtomicUInt32(initialValue: 1)
+private let updateIndexStoreIDForLogging = Atomic<UInt32>(1)
 
 package enum FileToIndex: CustomLogStringConvertible, Hashable {
   /// A non-header file
@@ -89,22 +90,52 @@ package struct FileAndOutputPath: Sendable, Hashable {
   fileprivate var sourceFile: DocumentURI { file.sourceFile }
 }
 
-/// A single file or a list of files that should be indexed in a single compiler invocation.
-private enum UpdateIndexStorePartition {
-  case multipleFiles(filesAndOutputPaths: [(file: FileToIndex, outputPath: String)], buildSettings: FileBuildSettings)
-  case singleFile(file: FileAndOutputPath, buildSettings: FileBuildSettings)
-
-  var buildSettings: FileBuildSettings {
-    switch self {
-    case .multipleFiles(_, let buildSettings): return buildSettings
-    case .singleFile(_, let buildSettings): return buildSettings
-    }
+/// A set of files that should be indexed by a single compiler invocation.
+package struct UpdateIndexStorePartition {
+  /// The parts of a file's build settings that determine how the compiler is invoked, and thus whether two files can
+  /// be indexed by the same invocation.
+  package struct Invocation: Hashable {
+    package var language: Language
+    package var workingDirectory: String?
+    package var compilerArguments: [String]
   }
 
-  var files: [FileToIndex] {
-    switch self {
-    case .multipleFiles(let filesAndOutputPaths, _): return filesAndOutputPaths.map(\.file)
-    case .singleFile(let file, _): return [file.file]
+  /// The files to index, together with the index unit output path that should be recorded for it.
+  package enum Files {
+    /// Files indexed together, each with the index unit output path recorded via an `-output-file-map`.
+    case multipleFiles([(file: FileToIndex, indexUnitOutputPath: String)])
+
+    /// A single file for which no output path is known; indexed by its path without an `-output-file-map`.
+    case singleFile(FileToIndex)
+  }
+
+  package var invocation: Invocation
+  package var files: Files
+
+  /// The files this invocation indexes, regardless of how their output paths are handled.
+  package var indexedFiles: [FileToIndex] {
+    switch files {
+    case .multipleFiles(let filesAndOutputPaths): return filesAndOutputPaths.map(\.file)
+    case .singleFile(let file): return [file]
+    }
+  }
+}
+
+extension UpdateIndexStorePartition.Invocation {
+  fileprivate init(_ buildSettings: FileBuildSettings) {
+    self.init(
+      language: buildSettings.language,
+      workingDirectory: buildSettings.workingDirectory,
+      compilerArguments: buildSettings.compilerArguments
+    )
+  }
+
+  fileprivate var workingDirectoryPath: AbsolutePath? {
+    get throws {
+      guard let workingDirectory else {
+        return nil
+      }
+      return try AbsolutePath(validating: workingDirectory)
     }
   }
 }
@@ -114,7 +145,7 @@ private enum UpdateIndexStorePartition {
 /// This task description can be scheduled in a `TaskScheduler`.
 package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
   package static let idPrefix = "update-indexstore"
-  package let id = updateIndexStoreIDForLogging.fetchAndIncrement()
+  package let id = updateIndexStoreIDForLogging.wrappingAdd(1, ordering: .relaxed).oldValue
 
   /// The files that should be indexed.
   package let filesToIndex: [FileAndOutputPath]
@@ -281,14 +312,15 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     }
 
     // Compute the partitions within which we can perform multi-file indexing. For this we gather all the files that may
-    // only be indexed by themselves in `partitions` an collect all other files in `fileInfosByBuildSettings` so that we
+    // only be indexed by themselves in `partitions` an collect all other files in `swiftFilesByInvocation` so that we
     // can create a partition for all files that share the same build settings.
     // In most cases, we will only end up with a single partition for each `UpdateIndexStoreTaskDescription` since
     // `UpdateIndexStoreTaskDescription.batches(toIndex:)` tries to batch the files in a way such that all files within
     // the batch can be indexed by a single compiler invocation. However, we might discover that two Swift files within
     // the same target have different build settings in the build server. In that case, the best thing we can do is
     // trigger two compiler invocations.
-    var swiftFileInfosByBuildSettings: [FileBuildSettings: [(file: FileToIndex, outputPath: String)]] = [:]
+    var swiftFilesByInvocation:
+      [UpdateIndexStorePartition.Invocation: [(file: FileToIndex, indexUnitOutputPath: String)]] = [:]
     var partitions: [UpdateIndexStorePartition] = []
     for fileInfo in fileInfos {
       let buildSettings = await buildServerManager.buildSettings(
@@ -297,7 +329,7 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
         language: language,
         fallbackAfterTimeout: false
       )
-      guard var buildSettings else {
+      guard let buildSettings else {
         logger.error("Not indexing \(fileInfo.file.forLogging) because it has no compiler arguments")
         continue
       }
@@ -314,61 +346,63 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
         continue
       }
 
+      var invocation = UpdateIndexStorePartition.Invocation(buildSettings)
+
       guard buildSettings.language == .swift else {
         // We only support multi-file indexing for Swift files. Do not try to batch or normalize
         // `-index-unit-output-path` for clang files.
-        partitions.append(.singleFile(file: fileInfo, buildSettings: buildSettings))
+        partitions.append(UpdateIndexStorePartition(invocation: invocation, files: .singleFile(fileInfo.file)))
         continue
       }
 
-      guard
-        await buildServerManager.toolchain(for: target, language: language)?
-          .canIndexMultipleSwiftFilesInSingleInvocation ?? false
-      else {
-        partitions.append(.singleFile(file: fileInfo, buildSettings: buildSettings))
-        continue
-      }
-
-      // If the build settings contain `-index-unit-output-path`, remove it. We add the index unit output path back in
-      // using an `-output-file-map`. Removing it from the build settings allows us to index multiple Swift files in a
-      // single compiler invocation if they share all build settings and only differ in their `-index-unit-output-path`.
-      let indexUnitOutputPathFromSettings = removeIndexUnitOutputPath(
-        from: &buildSettings,
-        for: fileInfo.mainFile
-      )
+      // If the compiler arguments contain `-index-unit-output-path`, remove it. We add the index unit output path back
+      // in using an `-output-file-map`. Removing it allows us to index multiple Swift files in a single compiler
+      // invocation if they share all build settings and only differ in their `-index-unit-output-path`.
+      let indexUnitOutputPathFromSettings = removeIndexUnitOutputPath(from: &invocation, for: fileInfo.mainFile)
 
       switch (fileInfo.outputPath, indexUnitOutputPathFromSettings) {
       case (.notSupported, nil):
-        partitions.append(.singleFile(file: fileInfo, buildSettings: buildSettings))
-      case (.notSupported, let indexUnitOutputPathFromSettings?):
-        swiftFileInfosByBuildSettings[buildSettings, default: []].append(
-          (fileInfo.file, indexUnitOutputPathFromSettings)
+        // Without an output path we can't build an `-output-file-map`, so this file is indexed on its own.
+        partitions.append(
+          UpdateIndexStorePartition(invocation: invocation, files: .singleFile(fileInfo.file))
         )
+      case (.notSupported, let indexUnitOutputPathFromSettings?):
+        swiftFilesByInvocation[invocation, default: []].append((fileInfo.file, indexUnitOutputPathFromSettings))
       case (.path(let indexUnitOutputPath), nil):
-        swiftFileInfosByBuildSettings[buildSettings, default: []].append((fileInfo.file, indexUnitOutputPath))
+        swiftFilesByInvocation[invocation, default: []].append((fileInfo.file, indexUnitOutputPath))
       case (.path(let indexUnitOutputPath), let indexUnitOutputPathFromSettings?):
         if indexUnitOutputPathFromSettings != indexUnitOutputPath {
           logger.error(
             "Output path reported by BSP server does not match -index-unit-output path in compiler arguments: \(indexUnitOutputPathFromSettings) vs \(indexUnitOutputPath)"
           )
         }
-        swiftFileInfosByBuildSettings[buildSettings, default: []].append((fileInfo.file, indexUnitOutputPath))
+        swiftFilesByInvocation[invocation, default: []].append((fileInfo.file, indexUnitOutputPath))
       }
     }
-    for (buildSettings, fileInfos) in swiftFileInfosByBuildSettings {
-      partitions.append(.multipleFiles(filesAndOutputPaths: fileInfos, buildSettings: buildSettings))
+    // Sort the batches by their first file so that partitions are produced in a deterministic order. The files within
+    // a batch are already ordered because `filesToIndex` is sorted before we compute partitions.
+    let sortedSwiftFilesAndInvocation = swiftFilesByInvocation.sorted {
+      $0.value[0].file.sourceFile.stringValue < $1.value[0].file.sourceFile.stringValue
+    }
+    for (invocation, filesAndOutputPaths) in sortedSwiftFilesAndInvocation {
+      partitions.append(
+        UpdateIndexStorePartition(invocation: invocation, files: .multipleFiles(filesAndOutputPaths))
+      )
     }
 
+    await hooks.updateIndexStoreTaskDidComputePartitions?(partitions)
+
     for partition in partitions {
-      guard let toolchain = await buildServerManager.toolchain(for: target, language: partition.buildSettings.language)
+      let language = partition.invocation.language
+      guard let toolchain = await buildServerManager.toolchain(for: target, language: language)
       else {
         logger.fault(
-          "Unable to determine toolchain to index \(partition.buildSettings.language.description, privacy: .public) files in \(target.forLogging)"
+          "Unable to determine toolchain to index \(language.description, privacy: .public) files in \(target.forLogging)"
         )
         continue
       }
       let startDate = Date()
-      switch partition.buildSettings.language.semanticKind {
+      switch language.semanticKind {
       case .swift:
         do {
           try await updateIndexStore(
@@ -379,35 +413,35 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
           logger.error(
             """
             Updating index store failed: \(error.forLogging).
-            Files: \(partition.files)
+            Files: \(partition.indexedFiles)
             """
           )
-          BuildSettingsLogger.log(settings: partition.buildSettings, for: partition.files.map(\.mainFile))
+          BuildSettingsLogger.log(invocation: partition.invocation, for: partition.indexedFiles.map(\.mainFile))
         }
       case .clang:
-        for fileInfo in partition.files {
+        for indexFile in partition.indexedFiles {
           do {
             try await updateIndexStore(
-              forClangFile: fileInfo.mainFile,
-              buildSettings: partition.buildSettings,
+              forClangFile: indexFile.mainFile,
+              invocation: partition.invocation,
               toolchain: toolchain
             )
           } catch {
-            logger.error("Updating index store for \(fileInfo.mainFile.forLogging) failed: \(error.forLogging)")
-            BuildSettingsLogger.log(settings: partition.buildSettings, for: fileInfo.mainFile)
+            logger.error("Updating index store for \(indexFile.mainFile.forLogging) failed: \(error.forLogging)")
+            BuildSettingsLogger.log(invocation: partition.invocation, for: [indexFile.mainFile])
           }
         }
       case nil:
         logger.error(
           """
-          Not updating index store because \(partition.buildSettings.language.rawValue, privacy: .public) is not \
+          Not updating index store because \(language.rawValue, privacy: .public) is not \
           supported by background indexing.
-          Files: \(partition.files)
+          Files: \(partition.indexedFiles)
           """
         )
       }
       await indexStoreUpToDateTracker.markUpToDate(
-        partition.files.map { ($0.sourceFile, target) },
+        partition.indexedFiles.map { ($0.sourceFile, target) },
         updateOperationStartDate: startDate
       )
     }
@@ -440,19 +474,22 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     return args
   }
 
-  /// If the build settings contain an `-index-unit-output-path` argument, remove it and return the index unit output
-  /// path. Otherwise don't modify `buildSettings` and return `nil`.
-  private func removeIndexUnitOutputPath(from buildSettings: inout FileBuildSettings, for uri: DocumentURI) -> String? {
-    guard let indexUnitOutputPathIndex = buildSettings.compilerArguments.lastIndex(of: "-index-unit-output-path"),
-      indexUnitOutputPathIndex + 1 < buildSettings.compilerArguments.count
+  /// If the invocation's compiler arguments contain an `-index-unit-output-path` argument, remove it and return the
+  /// index unit output path. Otherwise don't modify `invocation` and return `nil`.
+  private func removeIndexUnitOutputPath(
+    from invocation: inout UpdateIndexStorePartition.Invocation,
+    for uri: DocumentURI
+  ) -> String? {
+    guard let indexUnitOutputPathIndex = invocation.compilerArguments.lastIndex(of: "-index-unit-output-path"),
+      indexUnitOutputPathIndex + 1 < invocation.compilerArguments.count
     else {
       return nil
     }
-    let indexUnitOutputPath = buildSettings.compilerArguments[indexUnitOutputPathIndex + 1]
-    buildSettings.compilerArguments.removeSubrange(indexUnitOutputPathIndex...(indexUnitOutputPathIndex + 1))
-    if buildSettings.compilerArguments.contains("-index-unit-output-path") {
+    let indexUnitOutputPath = invocation.compilerArguments[indexUnitOutputPathIndex + 1]
+    invocation.compilerArguments.removeSubrange(indexUnitOutputPathIndex...(indexUnitOutputPathIndex + 1))
+    if invocation.compilerArguments.contains("-index-unit-output-path") {
       logger.error("Build settings contained two -index-unit-output-path arguments")
-      BuildSettingsLogger.log(settings: buildSettings, for: uri)
+      BuildSettingsLogger.log(invocation: invocation, for: [uri])
     }
     return indexUnitOutputPath
   }
@@ -463,27 +500,32 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
   ) async throws {
     guard let swiftc = toolchain.swiftc else {
       logger.error(
-        "Not updating index store for \(partition.files) because toolchain \(toolchain.identifier) does not contain a Swift compiler"
+        "Not updating index store for \(partition.indexedFiles) because toolchain \(toolchain.identifier) does not contain a Swift compiler"
       )
       return
     }
 
+    let invocation = partition.invocation
     var args =
-      try [swiftc.filePath] + partition.buildSettings.compilerArguments + [
+      try [swiftc.filePath] + invocation.compilerArguments + [
         "-index-file",
         // batch mode is not compatible with -index-file
         "-disable-batch-mode",
       ]
-    args = try await addOrReplaceIndexStorePath(in: args, for: partition.files.map(\.mainFile))
+    let indexFiles = partition.indexedFiles.map(\.mainFile)
+    args = try await addOrReplaceIndexStorePath(in: args, for: indexFiles)
 
-    switch partition {
-    case .multipleFiles(let filesAndOutputPaths, let buildSettings):
-      if await !toolchain.canIndexMultipleSwiftFilesInSingleInvocation {
-        // We should never get here because we shouldn't create `multipleFiles` batches if the toolchain doesn't support
-        // indexing multiple files in a single compiler invocation.
-        logger.fault("Cannot index multiple files in a single compiler invocation.")
+    var outputFileMapPath: URL?
+    defer {
+      if let outputFileMapPath {
+        orLog("Delete output file map") {
+          try FileManager.default.removeItem(at: outputFileMapPath)
+        }
       }
+    }
 
+    switch partition.files {
+    case .multipleFiles(let filesAndOutputPaths):
       struct OutputFileMapEntry: Encodable {
         let indexUnitOutputPath: String
 
@@ -492,9 +534,9 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
         }
       }
       var outputFileMap: [String: OutputFileMapEntry] = [:]
-      for (fileInfo, outputPath) in filesAndOutputPaths {
-        guard let filePath = try? fileInfo.mainFile.fileURL?.filePath else {
-          logger.error("Failed to determine file path of file to index \(fileInfo.mainFile.forLogging)")
+      for (file, outputPath) in filesAndOutputPaths {
+        guard let filePath = try? file.mainFile.fileURL?.filePath else {
+          logger.error("Failed to determine file path of file to index \(file.mainFile.forLogging)")
           continue
         }
         outputFileMap[filePath] = .init(indexUnitOutputPath: outputPath)
@@ -502,13 +544,8 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
       let tempFileUri = FileManager.default.temporaryDirectory
         .appending(component: "sourcekit-lsp-output-file-map-\(UUID().uuidString).json")
       try JSONEncoder().encode(outputFileMap).write(to: tempFileUri)
-      defer {
-        orLog("Delete output file map") {
-          try FileManager.default.removeItem(at: tempFileUri)
-        }
-      }
+      outputFileMapPath = tempFileUri
 
-      let indexFiles = filesAndOutputPaths.map(\.file.mainFile)
       // If the compiler arguments already contain an `-output-file-map` argument, we override it by adding a second one
       // This is fine because we shouldn't be generating any outputs except for the index.
       args += ["-output-file-map", try tempFileUri.filePath]
@@ -519,30 +556,22 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
         }
         return ["-index-file-path", filePath]
       }
-
-      try await runIndexingProcess(
-        indexFiles: indexFiles,
-        buildSettings: buildSettings,
-        processArguments: args,
-        workingDirectory: buildSettings.workingDirectoryPath
-      )
-    case .singleFile(let file, let buildSettings):
+    case .singleFile(let file):
       // We only end up in this case if the file's build settings didn't contain `-index-unit-output-path` and the build
       // server is not a `outputPathsProvider`.
       args += ["-index-file-path", file.mainFile.pseudoPath]
-
-      try await runIndexingProcess(
-        indexFiles: [file.mainFile],
-        buildSettings: buildSettings,
-        processArguments: args,
-        workingDirectory: buildSettings.workingDirectoryPath
-      )
     }
+
+    try await runIndexingProcess(
+      indexFiles: indexFiles,
+      invocation: invocation,
+      processArguments: args
+    )
   }
 
   private func updateIndexStore(
     forClangFile uri: DocumentURI,
-    buildSettings: FileBuildSettings,
+    invocation: UpdateIndexStorePartition.Invocation,
     toolchain: Toolchain
   ) async throws {
     guard let clang = toolchain.clang else {
@@ -552,22 +581,20 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
       return
     }
 
-    var args = [try clang.filePath] + buildSettings.compilerArguments
+    var args = [try clang.filePath] + invocation.compilerArguments
     args = try await addOrReplaceIndexStorePath(in: args, for: [uri])
 
     try await runIndexingProcess(
       indexFiles: [uri],
-      buildSettings: buildSettings,
-      processArguments: args,
-      workingDirectory: buildSettings.workingDirectoryPath
+      invocation: invocation,
+      processArguments: args
     )
   }
 
   private func runIndexingProcess(
     indexFiles: [DocumentURI],
-    buildSettings: FileBuildSettings,
-    processArguments: [String],
-    workingDirectory: AbsolutePath?
+    invocation: UpdateIndexStorePartition.Invocation,
+    processArguments: [String]
   ) async throws {
     if Task.isCancelled {
       return
@@ -601,6 +628,7 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
 
     let result: ProcessResult
     do {
+      let workingDirectory = try invocation.workingDirectoryPath
       result = try await withTimeout(timeout) {
         try await Process.runUsingResponseFileIfTooManyArguments(
           arguments: processArguments,
@@ -642,19 +670,19 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
         \(stdout)
         """
       )
-      BuildSettingsLogger.log(level: .debug, settings: buildSettings, for: indexFiles)
+      BuildSettingsLogger.log(level: .debug, invocation: invocation, for: indexFiles)
     case .signalled(let signal):
       if !Task.isCancelled {
         // The indexing job finished with a signal. Could be because the compiler crashed.
         // Ignore signal exit codes if this task has been cancelled because the compiler exits with SIGINT if it gets
         // interrupted.
         logger.error("Updating index store signaled \(signal) for \(indexFiles)")
-        BuildSettingsLogger.log(level: .error, settings: buildSettings, for: indexFiles)
+        BuildSettingsLogger.log(level: .error, invocation: invocation, for: indexFiles)
       }
     case .abnormal(let exception):
       if !Task.isCancelled {
         logger.error("Updating index store exited abnormally \(exception) for \(indexFiles)")
-        BuildSettingsLogger.log(level: .error, settings: buildSettings, for: indexFiles)
+        BuildSettingsLogger.log(level: .error, invocation: invocation, for: indexFiles)
       }
     }
   }
@@ -687,10 +715,7 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     var partitions: [(target: BuildTargetIdentifier, language: Language, files: [FileIndexInfo])] = []
     var fileIndexInfosToBatch: [TargetAndLanguage: [FileIndexInfo]] = [:]
     for fileIndexInfo in fileIndexInfos {
-      guard fileIndexInfo.language == .swift,
-        await buildServerManager.toolchain(for: fileIndexInfo.target, language: fileIndexInfo.language)?
-          .canIndexMultipleSwiftFilesInSingleInvocation ?? false
-      else {
+      guard fileIndexInfo.language == .swift else {
         // Only Swift supports indexing multiple files in a single compiler invocation, so don't batch files of other
         // languages.
         partitions.append((fileIndexInfo.target, fileIndexInfo.language, [fileIndexInfo]))
@@ -784,13 +809,17 @@ fileprivate extension Process {
   }
 }
 
-fileprivate extension FileBuildSettings {
-  var workingDirectoryPath: AbsolutePath? {
-    get throws {
-      guard let workingDirectory else {
-        return nil
-      }
-      return try AbsolutePath(validating: workingDirectory)
-    }
+extension BuildSettingsLogger {
+  fileprivate static func log(
+    level: LogLevel = .default,
+    invocation: UpdateIndexStorePartition.Invocation,
+    for uris: [DocumentURI]
+  ) {
+    log(
+      level: level,
+      compilerArguments: invocation.compilerArguments,
+      workingDirectory: invocation.workingDirectory,
+      for: uris
+    )
   }
 }

@@ -4,7 +4,7 @@ SourceKit-LSP is an implementation of the [Language Server Protocol](https://mic
 
 ## Getting Started
 
-SourceKit-LSP is included in the the Swift toolchains available on [swift.org](http://swift.org/install/) and is bundled with [Xcode](http://developer.apple.com/xcode/).
+SourceKit-LSP is included in the Swift toolchains available on [swift.org](https://swift.org/install/) and is bundled with [Xcode](https://developer.apple.com/xcode/).
 
 [swift.org/tools](https://www.swift.org/tools) has a list of popular editors that support LSP and can thus be hooked up to SourceKit-LSP to provide intelligent editor functionality as well as set-up guides.
 

@@ -14,6 +14,7 @@ import Foundation
 import SKUtilities
 import SwiftExtensions
 import TSCExtensions
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process

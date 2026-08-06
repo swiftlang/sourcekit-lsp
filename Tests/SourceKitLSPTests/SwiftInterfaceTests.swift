@@ -18,6 +18,7 @@ import SKTestSupport
 import SKUtilities
 import SourceKitLSP
 import SwiftExtensions
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
 
 final class SwiftInterfaceTests: SourceKitLSPTestCase {
@@ -46,7 +47,7 @@ final class SwiftInterfaceTests: SourceKitLSPTestCase {
   func testSystemModuleInterfaceReferenceDocument() async throws {
     let testClient = try await TestSourceKitLSPClient(
       capabilities: ClientCapabilities(experimental: [
-        GetReferenceDocumentRequest.method: .dictionary(["supported": .bool(true)])
+        GetReferenceDocumentRequest.method: ["supported": true]
       ])
     )
     let uri = DocumentURI(for: .swift)
@@ -105,7 +106,7 @@ final class SwiftInterfaceTests: SourceKitLSPTestCase {
       uri: project.fileURI,
       position: project.positions["3️⃣"],
       testClient: project.testClient,
-      swiftInterfaceFiles: ["Swift.swiftinterface", "_Concurrency.swiftinterface", "TaskGroup.swift"],
+      swiftInterfaceFiles: ["Swift.swiftinterface", "TaskGroup.swift"],
       lineContains: "public func withTaskGroup"
     )
   }
@@ -121,7 +122,7 @@ final class SwiftInterfaceTests: SourceKitLSPTestCase {
       }
       """,
       capabilities: ClientCapabilities(experimental: [
-        GetReferenceDocumentRequest.method: .dictionary(["supported": .bool(true)])
+        GetReferenceDocumentRequest.method: ["supported": true]
       ]),
       indexSystemModules: true,
       extraCompilerArguments: Self.ignoreModuleSourceInfoFlags
@@ -215,7 +216,7 @@ final class SwiftInterfaceTests: SourceKitLSPTestCase {
         )
         """,
       capabilities: ClientCapabilities(experimental: [
-        GetReferenceDocumentRequest.method: .dictionary(["supported": .bool(true)])
+        GetReferenceDocumentRequest.method: ["supported": true]
       ]),
       enableBackgroundIndexing: true
     )
@@ -270,7 +271,7 @@ final class SwiftInterfaceTests: SourceKitLSPTestCase {
       uri: uri,
       position: positions["1️⃣"],
       testClient: testClient,
-      swiftInterfaceFile: "Swift.Collection.Array.swiftinterface",
+      swiftInterfaceFiles: ["Swift.Collection.Array.swiftinterface"],
       lineContains: "func filter<E>(_ isIncluded: (Element) throws(E) -> Bool) throws(E) -> [Element]"
     )
   }
@@ -289,7 +290,7 @@ final class SwiftInterfaceTests: SourceKitLSPTestCase {
       uri: project.fileURI,
       position: project.positions["1️⃣"],
       testClient: project.testClient,
-      swiftInterfaceFile: "Swift.Collection.Array.swiftinterface",
+      swiftInterfaceFiles: ["Swift.Collection.Array.swiftinterface"],
       lineContains: "func filter<E>(_ isIncluded: (Element) throws(E) -> Bool) throws(E) -> [Element]"
     )
   }
@@ -309,7 +310,7 @@ final class SwiftInterfaceTests: SourceKitLSPTestCase {
     let testClient = try await TestSourceKitLSPClient(
       options: options,
       capabilities: ClientCapabilities(experimental: [
-        GetReferenceDocumentRequest.method: .dictionary(["supported": .bool(true)])
+        GetReferenceDocumentRequest.method: ["supported": true]
       ])
     )
     let uri = DocumentURI(for: .swift)
@@ -340,7 +341,7 @@ final class SwiftInterfaceTests: SourceKitLSPTestCase {
   func testFoundationImportNavigation() async throws {
     let testClient = try await TestSourceKitLSPClient(
       capabilities: ClientCapabilities(experimental: [
-        GetReferenceDocumentRequest.method: .dictionary(["supported": .bool(true)])
+        GetReferenceDocumentRequest.method: ["supported": true]
       ])
     )
     let uri = DocumentURI(for: .swift)
@@ -367,7 +368,7 @@ final class SwiftInterfaceTests: SourceKitLSPTestCase {
 
     let testClient = try await TestSourceKitLSPClient(
       capabilities: ClientCapabilities(experimental: [
-        GetReferenceDocumentRequest.method: .dictionary(["supported": .bool(true)])
+        GetReferenceDocumentRequest.method: ["supported": true]
       ])
     )
     let uri = DocumentURI(for: .swift)
@@ -395,35 +396,45 @@ final class SwiftInterfaceTests: SourceKitLSPTestCase {
     XCTAssertEqual(transformLocation.uri.scheme, "sourcekit-lsp")
     assertContains(transformLocation.uri.pseudoPath, "Foundation.NSAffineTransform.swiftinterface")
   }
+
+  func testClosingGeneratedInterfacePreservesOriginatingLanguageService() async throws {
+    let project = try await IndexedSingleSwiftFileTestProject(
+      """
+      func test(x: 1️⃣String) {
+        let y: 2️⃣Int = 1
+      }
+      """,
+      capabilities: ClientCapabilities(experimental: [
+        GetReferenceDocumentRequest.method: .dictionary(["supported": true])
+      ]),
+      extraCompilerArguments: Self.ignoreModuleSourceInfoFlags
+    )
+
+    let definition = try await project.testClient.send(
+      DefinitionRequest(
+        textDocument: TextDocumentIdentifier(project.fileURI),
+        position: project.positions["1️⃣"]
+      )
+    )
+    let interfaceUri = try XCTUnwrap(definition?.locations?.only?.uri)
+    let interfaceContents = try await project.testClient.send(GetReferenceDocumentRequest(uri: interfaceUri))
+    project.testClient.send(
+      DidOpenTextDocumentNotification(
+        textDocument: TextDocumentItem(uri: interfaceUri, language: .swift, version: 1, text: interfaceContents.content)
+      )
+    )
+    project.testClient.send(DidCloseTextDocumentNotification(textDocument: TextDocumentIdentifier(interfaceUri)))
+
+    let hover = try await project.testClient.send(
+      HoverRequest(
+        textDocument: TextDocumentIdentifier(project.fileURI),
+        position: project.positions["2️⃣"]
+      )
+    )
+    XCTAssertNotNil(hover)
+  }
 }
 
-private func assertSystemSwiftInterface(
-  uri: DocumentURI,
-  position: Position,
-  testClient: TestSourceKitLSPClient,
-  swiftInterfaceFile: String,
-  linePrefix: String? = nil,
-  lineContains: String? = nil,
-  line: UInt = #line
-) async throws {
-  try await assertSystemSwiftInterface(
-    uri: uri,
-    position: position,
-    testClient: testClient,
-    swiftInterfaceFiles: [swiftInterfaceFile],
-    linePrefix: linePrefix,
-    lineContains: lineContains,
-    line: line
-  )
-}
-
-#if compiler(>=6.4)
-@available(
-  *,
-  deprecated,
-  message: "temporary workaround for '_Concurrency.swiftinterface' should no longer be necessary"
-)
-#endif
 private func assertSystemSwiftInterface(
   uri: DocumentURI,
   position: Position,

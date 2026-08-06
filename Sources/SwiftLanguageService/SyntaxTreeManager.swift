@@ -35,7 +35,7 @@ actor SyntaxTreeManager {
   ///
   /// When build settings are available for a file, the experimental features enabled in those build settings
   /// (via `-enable-experimental-feature` compiler flags) are stored here and passed to the Swift parser.
-  private var experimentalFeaturesPerDocument: [DocumentURI: Parser.ExperimentalFeatures] = [:]
+  private var experimentalFeaturesPerDocument: [DocumentURI: Parser.LanguageFeatures] = [:]
 
   /// - Important: For testing only
   private var reusedNodeCallback: ReusedNodeCallback?
@@ -51,7 +51,7 @@ actor SyntaxTreeManager {
   /// The features will be used for subsequent parse operations on that document.
   /// If the features differ from the previously stored ones, any cached syntax trees for the document are invalidated
   /// so that they will be re-parsed with the new features on next access.
-  func setExperimentalFeatures(_ features: Parser.ExperimentalFeatures, for uri: DocumentURI) {
+  func setExperimentalFeatures(_ features: Parser.LanguageFeatures, for uri: DocumentURI) {
     let previousFeatures = experimentalFeaturesPerDocument[uri] ?? []
     if previousFeatures != features {
       experimentalFeaturesPerDocument[uri] = features
@@ -61,7 +61,7 @@ actor SyntaxTreeManager {
   }
 
   /// Get the experimental features for the given document URI.
-  private func experimentalFeatures(for uri: DocumentURI) -> Parser.ExperimentalFeatures {
+  private func experimentalFeatures(for uri: DocumentURI) -> Parser.LanguageFeatures {
     return experimentalFeaturesPerDocument[uri] ?? []
   }
 
@@ -98,10 +98,10 @@ actor SyntaxTreeManager {
   /// Parse a source file incrementally, passing the given experimental features to the parser.
   private static func parseIncrementally(
     source: String,
-    experimentalFeatures: Parser.ExperimentalFeatures,
+    experimentalFeatures: Parser.LanguageFeatures,
     parseTransition: IncrementalParseTransition?
   ) -> IncrementalParseResult {
-    var parser = Parser(source, parseTransition: parseTransition, experimentalFeatures: experimentalFeatures)
+    var parser = Parser(source, parseTransition: parseTransition, languageFeatures: experimentalFeatures)
     return IncrementalParseResult(
       tree: SourceFileSyntax.parse(from: &parser),
       lookaheadRanges: parser.lookaheadRanges

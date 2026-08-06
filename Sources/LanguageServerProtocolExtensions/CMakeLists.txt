@@ -1,6 +1,5 @@
 
 add_library(LanguageServerProtocolExtensions STATIC
-  Connection+Send.swift
   DocumentURI+symlinkTarget.swift
   Language+Inference.swift
   ResponseError+Init.swift

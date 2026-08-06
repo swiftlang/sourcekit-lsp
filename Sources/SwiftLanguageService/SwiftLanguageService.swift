@@ -28,6 +28,7 @@ import SwiftExtensions
 @_spi(ExperimentalLanguageFeatures) package import SwiftParser
 import SwiftParserDiagnostics
 package import SwiftSyntax
+import SwiftSyntaxCodeActions
 package import ToolchainRegistry
 @_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
@@ -96,13 +97,13 @@ package struct SwiftCompileCommand: Sendable, Equatable, Hashable {
     self.isFallback = settings.isFallback
   }
 
-  /// Extract the `Parser.ExperimentalFeatures` from the compiler arguments.
+  /// Extract the `Parser.LanguageFeatures` from the compiler arguments.
   ///
   /// This scans the compiler arguments for `-enable-experimental-feature <name>` flags and maps them
-  /// to `Parser.ExperimentalFeatures` values so that the SwiftParser can parse the file correctly
+  /// to `Parser.LanguageFeatures` values so that the SwiftParser can parse the file correctly
   /// with the same experimental features that the compiler would use.
-  package var experimentalFeatures: Parser.ExperimentalFeatures {
-    var features: Parser.ExperimentalFeatures = []
+  package var experimentalFeatures: Parser.LanguageFeatures {
+    var features: Parser.LanguageFeatures = []
     var iterator = compilerArgs.makeIterator()
     while let arg = iterator.next() {
       if arg == "-enable-experimental-feature", let featureName = iterator.next() {
@@ -110,7 +111,7 @@ package struct SwiftCompileCommand: Sendable, Equatable, Hashable {
         // availability suffix (e.g. "FeatureName:adoption"). Strip it before
         // looking up the parser feature.
         let baseName = featureName.firstIndex(of: ":").map { String(featureName[..<$0]) } ?? featureName
-        if let feature = Parser.ExperimentalFeatures(name: baseName) {
+        if let feature = Parser.LanguageFeatures(name: baseName) {
           features.insert(feature)
         }
       }
@@ -121,7 +122,7 @@ package struct SwiftCompileCommand: Sendable, Equatable, Hashable {
 
 package actor SwiftLanguageService: LanguageService, Sendable {
   /// The ``SourceKitLSPServer`` instance that created this `SwiftLanguageService`.
-  private(set) weak var sourceKitLSPServer: SourceKitLSPServer?
+  weak let sourceKitLSPServer: SourceKitLSPServer?
 
   private let sourcekitdPath: URL
 
@@ -157,6 +158,8 @@ package actor SwiftLanguageService: LanguageService, Sendable {
   /// - Note: We only clear entries from the dictionary when a document is closed. The task that the document maps to
   ///   might have finished. This isn't an issue since the tasks do not retain `self`.
   private var inFlightPublishDiagnosticsTasks: [DocumentURI: Task<Void, Never>] = [:]
+
+  let inlayHintManager: InlayHintManager
 
   let syntaxTreeManager = SyntaxTreeManager()
 
@@ -249,10 +252,15 @@ package actor SwiftLanguageService: LanguageService, Sendable {
       logger.fault("Failed to find SourceKit plugin for toolchain at \(toolchain.path.path)")
       pluginPaths = nil
     }
-    self.sourcekitd = try await SourceKitD.getOrCreate(dylibPath: sourcekitd, pluginPaths: pluginPaths)
+    if let core = try hooks.sourcekitdCoreInjector?(toolchain.path) {
+      self.sourcekitd = try await SourceKitD.getOrCreate(core: core)
+    } else {
+      self.sourcekitd = try await SourceKitD.getOrCreate(dylibPath: sourcekitd, pluginPaths: pluginPaths)
+    }
     self.capabilityRegistry = workspace.capabilityRegistry
     self.semanticIndexManagerTask = workspace.semanticIndexManagerTask
     self.hooks = hooks
+    self.inlayHintManager = InlayHintManager(hooks: hooks)
     self.state = .connected
     self.options = options
 
@@ -288,7 +296,8 @@ package actor SwiftLanguageService: LanguageService, Sendable {
       options: options,
       syntaxTreeManager: syntaxTreeManager,
       documentManager: sourceKitLSPServer.documentManager,
-      clientHasDiagnosticsCodeDescriptionSupport: await capabilityRegistry.clientHasDiagnosticsCodeDescriptionSupport
+      clientHasDiagnosticsCodeDescriptionSupport: await capabilityRegistry.clientHasDiagnosticsCodeDescriptionSupport,
+      uncheckedIndexProvider: { await workspace.uncheckedIndex }
     )
 
     self.macroExpansionManager = MacroExpansionManager(swiftLanguageService: self)
@@ -297,6 +306,8 @@ package actor SwiftLanguageService: LanguageService, Sendable {
     // Create sub-directories for each type of generated file
     try FileManager.default.createDirectory(at: generatedInterfacesPath, withIntermediateDirectories: true)
     try FileManager.default.createDirectory(at: generatedMacroExpansionsPath, withIntermediateDirectories: true)
+
+    await self.initialize()
   }
 
   /// - Important: For testing only
@@ -309,7 +320,7 @@ package actor SwiftLanguageService: LanguageService, Sendable {
     switch try? ReferenceDocumentURL(from: uri) {
     case .macroExpansion(let data):
       let content = try await self.macroExpansionManager.macroExpansion(for: data)
-      return DocumentSnapshot(uri: uri, language: .swift, version: 0, lineTable: LineTable(content))
+      return DocumentSnapshot(uri: uri, language: .swift, version: 0, lineTable: LineTable(content), origin: .generated)
     case .generatedInterface(let data):
       return try await self.generatedInterfaceManager.snapshot(of: data)
     case nil:
@@ -352,7 +363,7 @@ package actor SwiftLanguageService: LanguageService, Sendable {
     )
   }
 
-  package nonisolated func canHandle(workspace: Workspace, toolchain: Toolchain) -> Bool {
+  package nonisolated func canHandle(toolchain: Toolchain) -> Bool {
     return self.sourcekitdPath == toolchain.sourcekitd
   }
 
@@ -391,12 +402,11 @@ package actor SwiftLanguageService: LanguageService, Sendable {
 }
 
 extension SwiftLanguageService {
-
-  package func initialize(_ initialize: InitializeRequest) async throws -> InitializeResult {
+  private func initialize() async {
     await sourcekitd.addNotificationHandler(self)
 
-    return InitializeResult(
-      capabilities: ServerCapabilities(
+    await sourceKitLSPServer?.registerCapabilities(
+      for: ServerCapabilities(
         textDocumentSync: .options(
           TextDocumentSyncOptions(
             openClose: true,
@@ -420,7 +430,7 @@ extension SwiftLanguageService {
         documentSymbolProvider: .bool(true),
         codeActionProvider: .value(
           CodeActionServerCapabilities(
-            clientCapabilities: initialize.capabilities.textDocument?.codeAction,
+            clientCapabilities: capabilityRegistry.clientCapabilities.textDocument?.codeAction,
             codeActionOptions: CodeActionOptions(codeActionKinds: [.quickFix, .refactor]),
             supportsCodeActions: true
           )
@@ -442,12 +452,17 @@ extension SwiftLanguageService {
           workspaceDiagnostics: false
         ),
         selectionRangeProvider: .bool(true)
-      )
+      ),
+      languages: [.swift],
+      registry: capabilityRegistry
     )
   }
 
   package func shutdown() async {
-    await self.sourcekitd.removeNotificationHandler(self)
+    await sourcekitd.removeNotificationHandler(self)
+    if state == .connectionInterrupted || state == .semanticFunctionalityDisabled {
+      await sourceKitLSPServer?.sourcekitdCrashedWorkDoneProgress.end()
+    }
   }
 
   package func canonicalDeclarationPosition(of position: Position, in uri: DocumentURI) async -> Position? {
@@ -582,6 +597,7 @@ extension SwiftLanguageService {
       }
     case nil:
       cancelInFlightPublishDiagnosticsTask(for: notification.textDocument.uri)
+      await inlayHintManager.removeCachedInlayHints(for: notification.textDocument.uri)
       await diagnosticReportManager.removeItemsFromCache(with: notification.textDocument.uri)
 
       let buildSettings = await self.compileCommand(for: snapshot.uri, fallbackAfterTimeout: true)
@@ -606,6 +622,7 @@ extension SwiftLanguageService {
     buildSettingsForOpenFiles[notification.textDocument.uri] = nil
     await syntaxTreeManager.clearSyntaxTrees(for: notification.textDocument.uri)
     await syntaxTreeManager.clearExperimentalFeatures(for: notification.textDocument.uri)
+    await inlayHintManager.removeCachedInlayHints(for: notification.textDocument.uri)
     switch try? ReferenceDocumentURL(from: notification.textDocument.uri) {
     case .macroExpansion:
       break
@@ -759,6 +776,19 @@ extension SwiftLanguageService {
       edits: concurrentEdits
     )
 
+    if await sourceKitLSPServer?.capabilityRegistry?.clientCapabilities.workspace?.inlayHint?.refreshSupport ?? false {
+      // Only process the edits if the client supports inlay hint refreshing
+      // If the client does not support refreshing, we have to calculate the inlay hints using SourceKit each time and
+      // cannot cache them. Thus, we also do not have to update any cached inlay hints.
+      await inlayHintManager.processEdits(
+        for: notification.textDocument.uri,
+        contentChanges: notification.contentChanges,
+        swiftLanguageService: self,
+        preEditSnapshot: preEditSnapshot,
+        postEditSnapshot: postEditSnapshot
+      )
+    }
+
     await publishDiagnosticsIfNeeded(for: notification.textDocument.uri)
   }
 
@@ -830,7 +860,7 @@ extension SwiftLanguageService {
     if let snapshot = try? await latestSnapshot(for: uri) {
       let tree = await syntaxTreeManager.syntaxTree(for: snapshot)
       if let token = tree.token(at: snapshot.absolutePosition(of: position)) {
-        tokenRange = snapshot.absolutePositionRange(of: token.trimmedRange)
+        tokenRange = snapshot.positionRange(of: token.trimmedRange)
       }
     }
 
@@ -880,7 +910,7 @@ extension SwiftLanguageService {
 
         result.append(
           ColorInformation(
-            range: snapshot.absolutePositionRange(of: node.position..<node.endPosition),
+            range: snapshot.positionRange(of: node.position..<node.endPosition),
             color: Color(red: red, green: green, blue: blue, alpha: alpha)
           )
         )
@@ -973,16 +1003,55 @@ extension SwiftLanguageService {
     let snapshot = try documentManager.latestSnapshot(uri)
 
     let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
-    guard let scope = SyntaxCodeActionScope(snapshot: snapshot, syntaxTree: syntaxTree, request: request) else {
+    guard
+      let scope = SyntaxCodeActionScope(
+        resolveSupport: capabilityRegistry.clientCapabilities.textDocument?.codeAction?.resolveSupport,
+        snapshot: snapshot,
+        syntaxTree: syntaxTree,
+        requestedRange: request.range
+      )
+    else {
       return []
     }
-    return await allSyntaxCodeActions.concurrentMap { provider in
+    return await allSyntaxCodeActionProviders.concurrentMap { provider in
       return provider.codeActions(in: scope)
     }.flatMap { $0 }
   }
 
   package func codeActionResolve(_ req: CodeActionResolveRequest) async throws -> CodeAction {
-    return req.codeAction
+    guard let data = UnresolvedCodeActionData(fromLSPAny: req.codeAction.data) else {
+      // We don't have any data to resolve the code action.
+      return req.codeAction
+    }
+    guard let provider = allSyntaxCodeActionProviders.filter({ "\($0)" == data.action }).only else {
+      throw ResponseError.unknown("Could not find syntax action '\(data.action)' to resolve code action")
+    }
+    let snapshot = try documentManager.latestSnapshot(data.document.uri)
+    guard snapshot.version == data.document.version else {
+      throw ResponseError.unknown("Document was modified since between code action and resolve request")
+    }
+    let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
+
+    guard
+      let scope = SyntaxCodeActionScope(
+        resolveSupport: capabilityRegistry.clientCapabilities.textDocument?.codeAction?.resolveSupport,
+        snapshot: snapshot,
+        syntaxTree: syntaxTree,
+        requestedRange: data.range
+      )
+    else {
+      throw ResponseError.unknown("Unable to re-create code action scope")
+    }
+    return try await provider.resolve(
+      req.codeAction,
+      in: scope,
+      unresolvedData: data.data,
+      symbolInfo: { position in
+        try await self.symbolInfo(
+          SymbolInfoRequest(textDocument: TextDocumentIdentifier(snapshot.uri), position: position)
+        )
+      }
+    )
   }
 
   func retrieveRefactorCodeActions(_ params: CodeActionRequest) async throws -> [CodeAction] {
@@ -1390,5 +1459,34 @@ extension SwiftLanguageService {
     }
 
     return false
+  }
+}
+
+extension SwiftLanguageService {
+  package func localReferences(
+    at position: Position,
+    in uri: DocumentURI,
+    includeDeclaration: Bool
+  ) async throws -> [Location] {
+    guard let snapshot = try? await latestSnapshot(for: uri) else {
+      return []
+    }
+
+    let response = try await self.relatedIdentifiers(
+      at: position,
+      in: snapshot,
+      includeNonEditableBaseNames: false
+    )
+
+    var identifiers = response.relatedIdentifiers
+
+    if !includeDeclaration {
+      // Remove declaration occurrences when `includeDeclaration` is false.
+      identifiers = identifiers.filter { $0.usage != .definition }
+    }
+
+    return identifiers.map {
+      Location(uri: uri, range: $0.range)
+    }
   }
 }

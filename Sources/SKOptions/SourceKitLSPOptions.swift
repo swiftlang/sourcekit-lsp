@@ -50,6 +50,9 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable, LSPAnyCodable {
     /// Equivalent to SwiftPM's `--toolset` option.
     public var toolsets: [String]?
 
+    /// Equivalent to SwiftPM's `--pkg-config-path` option.
+    public var pkgConfigPaths: [String]?
+
     /// Traits to enable for the package. Equivalent to SwiftPM's `--traits` option.
     public var traits: [String]?
 
@@ -83,6 +86,9 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable, LSPAnyCodable {
     ///   background indexing.
     public var skipPlugins: Bool?
 
+    /// Additional arguments appended to SwiftPM when starting or preparing the build server.
+    public var extraArguments: [String]?
+
     /// Which SwiftPM build system should be used when opening a package.
     public var buildSystem: SwiftPMBuildSystem?
 
@@ -94,6 +100,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable, LSPAnyCodable {
       triple: String? = nil,
       sdk: String? = nil,
       toolsets: [String]? = nil,
+      pkgConfigDirectories: [String]? = nil,
       traits: [String]? = nil,
       cCompilerFlags: [String]? = nil,
       cxxCompilerFlags: [String]? = nil,
@@ -103,6 +110,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable, LSPAnyCodable {
       forceResolvedVersions: Bool? = nil,
       disableSandbox: Bool? = nil,
       skipPlugins: Bool? = nil,
+      extraArguments: [String]? = nil,
       buildSystem: SwiftPMBuildSystem? = nil
     ) {
       self.configuration = configuration
@@ -112,6 +120,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable, LSPAnyCodable {
       self.triple = triple
       self.sdk = sdk
       self.toolsets = toolsets
+      self.pkgConfigPaths = pkgConfigDirectories
       self.traits = traits
       self.cCompilerFlags = cCompilerFlags
       self.cxxCompilerFlags = cxxCompilerFlags
@@ -120,6 +129,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable, LSPAnyCodable {
       self.buildToolsSwiftCompilerFlags = buildToolsSwiftCompilerFlags
       self.forceResolvedVersions = forceResolvedVersions
       self.disableSandbox = disableSandbox
+      self.extraArguments = extraArguments
       self.buildSystem = buildSystem
     }
 
@@ -132,6 +142,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable, LSPAnyCodable {
         triple: override?.triple ?? base.triple,
         sdk: override?.sdk ?? base.sdk,
         toolsets: override?.toolsets ?? base.toolsets,
+        pkgConfigDirectories: override?.pkgConfigPaths ?? base.pkgConfigPaths,
         traits: override?.traits ?? base.traits,
         cCompilerFlags: override?.cCompilerFlags ?? base.cCompilerFlags,
         cxxCompilerFlags: override?.cxxCompilerFlags ?? base.cxxCompilerFlags,
@@ -141,6 +152,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable, LSPAnyCodable {
         forceResolvedVersions: override?.forceResolvedVersions ?? base.forceResolvedVersions,
         disableSandbox: override?.disableSandbox ?? base.disableSandbox,
         skipPlugins: override?.skipPlugins ?? base.skipPlugins,
+        extraArguments: override?.extraArguments ?? base.extraArguments,
         buildSystem: override?.buildSystem ?? base.buildSystem
       )
     }

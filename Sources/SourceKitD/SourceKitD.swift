@@ -14,17 +14,20 @@ package import Csourcekitd
 package import Foundation
 @_spi(SourceKitLSP) import SKLogging
 import SwiftExtensions
+import Synchronization
 @_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 extension sourcekitd_api_keys: @unchecked Sendable {}
 extension sourcekitd_api_requests: @unchecked Sendable {}
 extension sourcekitd_api_values: @unchecked Sendable {}
 
-fileprivate extension ThreadSafeBox {
+fileprivate extension Mutex {
   /// If the wrapped value is `nil`, run `compute` and store the computed value. If it is not `nil`, return the stored
   /// value.
-  func computeIfNil<WrappedValue: Sendable>(compute: () -> WrappedValue) -> WrappedValue where T == WrappedValue? {
-    return withLock { (value: inout WrappedValue?) -> WrappedValue in
+  borrowing func computeIfNil<WrappedValue: Sendable>(
+    compute: () -> WrappedValue
+  ) -> WrappedValue where Value == WrappedValue? {
+    return withLock { value in
       if let value {
         return value
       }
@@ -94,19 +97,20 @@ package enum SKDError: Error, Equatable {
   case missingRequiredSymbol(String)
 }
 
-/// Wrapper for sourcekitd, taking care of initialization, shutdown, and notification handler
-/// multiplexing.
+/// Wrapper for sourcekitd that provides the high-level `send` API, notification handler
+/// multiplexing, and convenience UID accessors.
 ///
-/// Users of this class should not call the api functions `initialize`, `shutdown`, or
-/// `set_notification_handler`, which are global state managed internally by this class.
+/// Dylib lifecycle (`initialize`, `shutdown`, `set_notification_handler`) is managed by the
+/// underlying `SourceKitDCore` implementation, not by this type directly.
 package actor SourceKitD {
-  /// The path to the sourcekitd dylib.
-  nonisolated package let path: URL
+  /// The underlying dylib connection (owns the handle, initialize/shutdown, and raw notification
+  /// callback registration).
+  nonisolated package let core: any SourceKitDCore
 
-  /// The handle to the dylib.
-  private let dylib: DLHandle
+  /// Path to the sourcekitd dylib.
+  nonisolated package var path: URL { core.path }
 
-  /// The sourcekitd API functions.
+  /// The sourcekitd API functions loaded from `core.dlHandle`.
   nonisolated package let api: sourcekitd_api_functions_t
 
   /// General API for the SourceKit service and client framework, eg. for plugin initialization and to set up custom
@@ -139,7 +143,7 @@ package actor SourceKitD {
   ///
   /// These need to be computed dynamically so that a client has the chance to register a UID handler between the
   /// initialization of the SourceKit plugin and the first request being handled by it.
-  private let _keys: ThreadSafeBox<sourcekitd_api_keys?> = ThreadSafeBox(initialValue: nil)
+  private let _keys: Mutex<sourcekitd_api_keys?> = Mutex(nil)
   package nonisolated var keys: sourcekitd_api_keys {
     _keys.computeIfNil { sourcekitd_api_keys(api: self.api) }
   }
@@ -148,7 +152,7 @@ package actor SourceKitD {
   ///
   /// These need to be computed dynamically so that a client has the chance to register a UID handler between the
   /// initialization of the SourceKit plugin and the first request being handled by it.
-  private let _requests: ThreadSafeBox<sourcekitd_api_requests?> = ThreadSafeBox(initialValue: nil)
+  private let _requests: Mutex<sourcekitd_api_requests?> = Mutex(nil)
   package nonisolated var requests: sourcekitd_api_requests {
     _requests.computeIfNil { sourcekitd_api_requests(api: self.api) }
   }
@@ -157,7 +161,7 @@ package actor SourceKitD {
   ///
   /// These need to be computed dynamically so that a client has the chance to register a UID handler between the
   /// initialization of the SourceKit plugin and the first request being handled by it.
-  private let _values: ThreadSafeBox<sourcekitd_api_values?> = ThreadSafeBox(initialValue: nil)
+  private let _values: Mutex<sourcekitd_api_values?> = Mutex(nil)
   package nonisolated var values: sourcekitd_api_values {
     _values.computeIfNil { sourcekitd_api_values(api: self.api) }
   }
@@ -182,72 +186,42 @@ package actor SourceKitD {
     }
   }
 
-  package init(dylib path: URL, pluginPaths: PluginPaths?, initialize: Bool = true) throws {
-    #if os(Windows)
-    let dlopenModes: DLOpenFlags = []
-    #else
-    let dlopenModes: DLOpenFlags = [.lazy, .local, .first]
-    #endif
-    let dlhandle = try dlopen(path.filePath, mode: dlopenModes)
-    try self.init(
-      dlhandle: dlhandle,
-      path: path,
-      pluginPaths: pluginPaths,
-      initialize: initialize
-    )
+  package static func getOrCreate(core: any SourceKitDCore) async throws -> SourceKitD {
+    try await SourceKitDRegistry.shared.getOrAdd(core.path, pluginPaths: nil) {
+      return try SourceKitD(core: core)
+    }
   }
 
-  /// Create a `SourceKitD` instance from an existing `DLHandle`. `SourceKitD` takes over ownership of the `DLHandler`
-  /// and will close it when the `SourceKitD` instance gets deinitialized or if the initializer throws.
-  package init(dlhandle: DLHandle, path: URL, pluginPaths: PluginPaths?, initialize: Bool) throws {
-    do {
-      self.path = path
-      self.dylib = dlhandle
-      let api = try sourcekitd_api_functions_t(dlhandle)
-      self.api = api
+  /// Create a `SourceKitD` wrapping an existing `SourceKitDCore` connection.
+  package init(core: any SourceKitDCore) throws {
+    self.core = core
+    let api = try sourcekitd_api_functions_t(core.dlHandle)
+    self.api = api
+    // We load the plugin-related functions eagerly so the members are initialized and we don't have data races on first
+    // access to eg. `pluginApi`. But if one of the functions is missing, we will only emit that error when that family
+    // of functions is being used. For example, it is expected that the plugin functions are not available in
+    // SourceKit-LSP.
+    self.ideApiResult = Result(catching: { try sourcekitd_ide_api_functions_t(core.dlHandle) })
+    self.pluginApiResult = Result(catching: { try sourcekitd_plugin_api_functions_t(core.dlHandle) })
+    self.servicePluginApiResult = Result(catching: { try sourcekitd_service_plugin_api_functions_t(core.dlHandle) })
 
-      // We load the plugin-related functions eagerly so the members are initialized and we don't have data races on first
-      // access to eg. `pluginApi`. But if one of the functions is missing, we will only emit that error when that family
-      // of functions is being used. For example, it is expected that the plugin functions are not available in
-      // SourceKit-LSP.
-      self.ideApiResult = Result(catching: { try sourcekitd_ide_api_functions_t(dlhandle) })
-      self.pluginApiResult = Result(catching: { try sourcekitd_plugin_api_functions_t(dlhandle) })
-      self.servicePluginApiResult = Result(catching: { try sourcekitd_service_plugin_api_functions_t(dlhandle) })
-
-      if let pluginPaths {
-        api.register_plugin_path?(pluginPaths.clientPlugin.path, pluginPaths.servicePlugin.path)
-      }
-      if initialize {
-        self.api.initialize()
-      }
-
-      if initialize {
-        self.api.set_notification_handler { [weak self] rawResponse in
-          guard let self, let rawResponse else { return }
-          let response = SKDResponse(rawResponse, sourcekitd: self)
-          self.notificationHandlingQueue.async {
-            let handlers = await self.notificationHandlers.compactMap(\.value)
-
-            for handler in handlers {
-              handler.notification(response)
-            }
+    core.initializeService(
+      api: api,
+      notificationCallback: { [weak self] rawResponse in
+        guard let self else { return }
+        let response = SKDResponse(rawResponse, sourcekitd: self)
+        self.notificationHandlingQueue.async {
+          let handlers = await self.notificationHandlers.compactMap(\.value)
+          for handler in handlers {
+            handler.notification(response)
           }
         }
       }
-    } catch {
-      orLog("Closing dlhandle after opening sourcekitd failed") {
-        try? dlhandle.close()
-      }
-      throw error
-    }
+    )
   }
 
-  deinit {
-    self.api.set_notification_handler(nil)
-    self.api.shutdown()
-    Task.detached(priority: .background) { [dylib, path] in
-      orLog("Closing dylib \(path)") { try dylib.close() }
-    }
+  package init(dylib path: URL, pluginPaths: PluginPaths?) throws {
+    try self.init(core: SourceKitDCoreImpl(dylib: path, pluginPaths: pluginPaths))
   }
 
   /// Adds a new notification handler (referenced weakly).
@@ -470,17 +444,5 @@ package actor SourceKitD {
       documentUrl: nil,
       fileContents: nil
     )
-  }
-}
-
-/// A sourcekitd notification handler in a class to allow it to be uniquely referenced.
-package protocol SKDNotificationHandler: AnyObject, Sendable {
-  func notification(_: SKDResponse)
-}
-
-struct WeakSKDNotificationHandler: Sendable {
-  weak private(set) var value: (any SKDNotificationHandler)?
-  init(_ value: any SKDNotificationHandler) {
-    self.value = value
   }
 }

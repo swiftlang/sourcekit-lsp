@@ -428,7 +428,7 @@ final class ExternalBuildServerTests: SourceKitLSPTestCase {
         allowFallbackSettings: false
       )
     )
-    XCTAssertEqual(options.data, LSPAny.dictionary(["custom": .string("value")]))
+    XCTAssertEqual(options.data, ["custom": "value"])
   }
 
   func testBuildSettingsForFilePartOfMultipleTargets() async throws {

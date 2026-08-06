@@ -1,0 +1,53 @@
+//===----------------------------------------------------------------------===//
+//
+// This source file is part of the Swift.org open source project
+//
+// Copyright (c) 2014 - 2024 Apple Inc. and the Swift project authors
+// Licensed under Apache License v2.0 with Runtime Library Exception
+//
+// See https://swift.org/LICENSE.txt for license information
+// See https://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
+//
+//===----------------------------------------------------------------------===//
+
+import SwiftRefactor
+
+/// List of all of the syntactic code action providers, which can be used
+/// to produce code actions using only the swift-syntax tree of a file.
+package let allSyntaxCodeActionProviders: [any SyntaxCodeActionProvider.Type] = {
+  var result: [any SyntaxCodeActionProvider.Type] = [
+    AddDocumentation.self,
+    AddExplicitEnumRawValues.self,
+    AddSeparatorsToIntegerLiteral.self,
+    ApplyDeMorganLaw.self,
+    ConvertCommentToDocComment.self,
+    ConvertCommentToDocComment.self,
+    ConvertComputedPropertyToStored.self,
+    ConvertComputedPropertyToZeroParameterFunction.self,
+    ConvertIfLetToGuard.self,
+    ConvertIntegerLiteral.self,
+    ConvertJSONToCodableStruct.self,
+    ConvertStoredPropertyToComputed.self,
+    ConvertStringConcatenationToStringInterpolation.self,
+    ConvertZeroParameterFunctionToComputedProperty.self,
+    FormatRawStringLiteral.self,
+    GenerateEnumCaseAsAccessors.self,
+    GenerateEnumCaseIsAccessors.self,
+    MigrateToNewIfLetSyntax.self,
+    MoveMembersToExtension.self,
+    OpaqueParameterToGeneric.self,
+    RemoveRedundantParentheses.self,
+    RemoveSeparatorsFromIntegerLiteral.self,
+    SwapBinaryOperands.self,
+  ]
+  #if !NO_SWIFTPM_DEPENDENCY
+  result.append(PackageManifestEdits.self)
+  #endif
+  return result
+}()
+
+package let supersededSourcekitdRefactoringActions: Set<String> = [
+  "source.refactoring.kind.convert.to.computed.property",  // Superseded by ConvertStoredPropertyToComputed
+  "source.refactoring.kind.move.members.to.extension",  // Superseded by MoveMembersToExtension
+  "source.refactoring.kind.simplify.long.number.literal",  // Superseded by AddSeparatorsToIntegerLiteral
+]

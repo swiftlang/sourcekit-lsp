@@ -18,6 +18,7 @@ import SKTestSupport
 import SourceKitD
 import SwiftExtensions
 import ToolchainRegistry
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
 
 final class SwiftSourceKitPluginTests: SourceKitLSPTestCase {
@@ -1123,6 +1124,7 @@ final class SwiftSourceKitPluginTests: SourceKitLSPTestCase {
     #if !os(macOS)
     try XCTSkipIf(true, "AppKit is only defined on macOS")
     #endif
+    try XCTSkipIf(true, "Crashes sourcekitd with the macOS 27 SDK (rdar://184053015")
     try await SkipUnless.sourcekitdSupportsPlugin()
     let sourcekitd = try await getSourceKitD()
     let path = scratchFilePath()

@@ -556,7 +556,7 @@ final class WorkspacePlaygroundDiscoveryTests: SourceKitLSPTestCase {
         """
       ],
       capabilities: ClientCapabilities(experimental: [
-        WorkspacePlaygroundsRefreshRequest.method: .bool(true)
+        WorkspacePlaygroundsRefreshRequest.method: true
       ]),
       toolchainRegistry: toolchainRegistry,
       preInitialization: { testClient in
@@ -595,7 +595,7 @@ final class WorkspacePlaygroundDiscoveryTests: SourceKitLSPTestCase {
         """
       ],
       capabilities: ClientCapabilities(experimental: [
-        WorkspacePlaygroundsRefreshRequest.method: .bool(true)
+        WorkspacePlaygroundsRefreshRequest.method: true
       ]),
       toolchainRegistry: toolchainRegistry,
       preInitialization: { testClient in
@@ -651,7 +651,7 @@ final class WorkspacePlaygroundDiscoveryTests: SourceKitLSPTestCase {
         """
       ],
       capabilities: ClientCapabilities(experimental: [
-        WorkspacePlaygroundsRefreshRequest.method: .bool(true)
+        WorkspacePlaygroundsRefreshRequest.method: true
       ]),
       toolchainRegistry: toolchainRegistry,
       preInitialization: { testClient in
@@ -681,7 +681,7 @@ final class WorkspacePlaygroundDiscoveryTests: SourceKitLSPTestCase {
         "Sources/MyLibrary/Test.swift": ""
       ],
       capabilities: ClientCapabilities(experimental: [
-        WorkspacePlaygroundsRefreshRequest.method: .bool(true)
+        WorkspacePlaygroundsRefreshRequest.method: true
       ]),
       toolchainRegistry: toolchainRegistry
     )
@@ -732,7 +732,7 @@ final class WorkspacePlaygroundDiscoveryTests: SourceKitLSPTestCase {
         """,
       ],
       capabilities: ClientCapabilities(experimental: [
-        WorkspacePlaygroundsRefreshRequest.method: .bool(true)
+        WorkspacePlaygroundsRefreshRequest.method: true
       ]),
       toolchainRegistry: toolchainRegistry,
       preInitialization: { testClient in

@@ -16,10 +16,12 @@ import Foundation
 import IndexStoreDB
 @_spi(SourceKitLSP) package import LanguageServerProtocol
 @_spi(SourceKitLSP) import LanguageServerProtocolExtensions
+import LanguageServerProtocolTransport
 @_spi(SourceKitLSP) import SKLogging
 import SKOptions
 package import SemanticIndex
 import SwiftExtensions
+import Synchronization
 import TSCExtensions
 import ToolchainRegistry
 @_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
@@ -172,11 +174,16 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
   private let sourceFilesWithSameRealpathInferrer: SourceFilesWithSameRealpathInferrer
 
   let options: SourceKitLSPOptions
+  let hooks: Hooks
+  let languageServiceRegistry: LanguageServiceRegistry
+
+  /// Language service instances owned by this workspace, keyed by service type.
+  private let languageServiceInstances: Mutex<[LanguageServiceType: [any LanguageService]]> = Mutex([:])
 
   /// The source code index, if available.
   ///
   /// Usually a checked index (retrieved using `index(checkedFor:)`) should be used instead of the unchecked index.
-  private var uncheckedIndex: UncheckedIndex? {
+  package var uncheckedIndex: UncheckedIndex? {
     get async {
       return await buildServerManager.mainFilesProvider(as: UncheckedIndex.self)
     }
@@ -193,11 +200,11 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
   }
 
   /// Language service for an open document, if available.
-  private let languageServices: ThreadSafeBox<[DocumentURI: [any LanguageService]]> = ThreadSafeBox(initialValue: [:])
+  private let languageServicesForOpenDocument: Mutex<[DocumentURI: [any LanguageService]]> = Mutex([:])
 
   /// All language services that are registered with this workspace.
   var allLanguageServices: [any LanguageService] {
-    return languageServices.value.values.flatMap { $0 }
+    return languageServiceInstances.withLock { $0.values.flatMap { $0 } }
   }
 
   /// The task that constructs the `SemanticIndexManager`, which keeps track of whose file's index is up-to-date in the
@@ -229,6 +236,7 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
     capabilityRegistry: CapabilityRegistry,
     options: SourceKitLSPOptions,
     hooks: Hooks,
+    languageServiceRegistry: LanguageServiceRegistry,
     buildServerManager: BuildServerManager,
     indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>
   ) async {
@@ -236,11 +244,13 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
     self.rootUri = rootUri
     self.capabilityRegistry = capabilityRegistry
     self.options = options
+    self.hooks = hooks
+    self.languageServiceRegistry = languageServiceRegistry
     self.buildServerManager = buildServerManager
     self.sourceFilesWithSameRealpathInferrer = SourceFilesWithSameRealpathInferrer(
       buildServerManager: buildServerManager
     )
-    self.semanticIndexManagerTask = Task {
+    self.semanticIndexManagerTask = Task { [weak sourceKitLSPServer] in
       if options.backgroundIndexingOrDefault,
         let uncheckedIndex = await buildServerManager.mainFilesProvider(as: UncheckedIndex.self),
         await buildServerManager.initializationData?.prepareProvider ?? false
@@ -281,7 +291,7 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
         guard let self else {
           return []
         }
-        return await sourceKitLSPServer.languageServices(for: snapshot.uri, snapshot.language, in: self).asyncFlatMap {
+        return await self.languageServices(for: snapshot.uri, snapshot.language).asyncFlatMap {
           await $0.syntacticTestItems(for: snapshot) ?? []
         }
       },
@@ -292,7 +302,7 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
         else {
           return []
         }
-        return await sourceKitLSPServer.languageServices(for: snapshot.uri, snapshot.language, in: self).asyncFlatMap {
+        return await self.languageServices(for: snapshot.uri, snapshot.language).asyncFlatMap {
           await $0.syntacticPlaygrounds(for: snapshot, in: self)
         }
       }
@@ -314,6 +324,7 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
     toolchainRegistry: ToolchainRegistry,
     options: SourceKitLSPOptions,
     hooks: Hooks,
+    languageServiceRegistry: LanguageServiceRegistry,
     indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>
   ) async {
     struct ConnectionToClient: BuildServerManagerConnectionToClient {
@@ -340,6 +351,7 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
 
       func send<Request: RequestType>(
         _ request: Request,
+        method: String,
         id: RequestID,
         reply: @escaping @Sendable (LSPResult<Request.Response>) -> Void
       ) {
@@ -349,7 +361,7 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
           reply(.failure(ResponseError.unknown("Connection to the editor closed")))
           return
         }
-        sourceKitLSPServer.client.send(request, id: id, reply: reply)
+        sourceKitLSPServer.client.send(request, method: method, id: id, reply: reply)
       }
 
       /// Whether the client can handle `WorkDoneProgress` requests.
@@ -384,7 +396,8 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
       options: options,
       connectionToClient: ConnectionToClient(sourceKitLSPServer: sourceKitLSPServer),
       buildServerHooks: hooks.buildServerHooks,
-      createMainFilesProvider: { (initializationData, mainFilesChangedCallback) -> (any MainFilesProvider)? in
+      createMainFilesProvider: {
+        [weak sourceKitLSPServer] (initializationData, mainFilesChangedCallback) -> (any MainFilesProvider)? in
         await createIndex(
           initializationData: initializationData,
           indexChangedCallback: { [weak sourceKitLSPServer] in
@@ -413,6 +426,7 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
       capabilityRegistry: capabilityRegistry,
       options: options,
       hooks: hooks,
+      languageServiceRegistry: languageServiceRegistry,
       buildServerManager: buildServerManager,
       indexTaskScheduler: indexTaskScheduler
     )
@@ -449,37 +463,198 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
       return ($0, sourceFileInfo)
     }
 
-    async let updateSyntacticIndex: Void = await syntacticIndex.filesDidChange(eventsWithSourceFileInfo)
-    async let updateSemanticIndex: Void? = await semanticIndexManager?.filesDidChange(events)
-    _ = await (updateSyntacticIndex, updateSemanticIndex)
+    async let updateSyntacticIndex = syntacticIndex.filesDidChange(eventsWithSourceFileInfo)
+    async let updateSemanticIndex = semanticIndexManager?.filesDidChange(events)
+    async let updateLanguageServices = allLanguageServices.concurrentForEach { [events] in
+      await $0.filesDidChange(events)
+    }
+    _ = await (updateSyntacticIndex, updateSemanticIndex, updateLanguageServices)
   }
 
-  /// The language services that can handle the given document. Callers should try to merge the results from the
-  /// different language service or prefer results from language services that occur earlier in this array, whichever is
-  /// more suitable.
-  func languageServices(for uri: DocumentURI) -> [any LanguageService] {
-    return languageServices.value[uri.buildSettingsFile] ?? []
+  // MARK: - Language service management
+
+  /// Returns an existing service instance of the given type that can handle the given toolchain, or `nil`.
+  private func existingLanguageService(
+    _ serviceType: any LanguageService.Type,
+    toolchain: Toolchain
+  ) -> (any LanguageService)? {
+    languageServiceInstances.withLock { instances in
+      instances[LanguageServiceType(serviceType)]?.first {
+        $0.canHandle(toolchain: toolchain)
+      }
+    }
   }
 
-  /// The language service with the highest precedence that can handle the given document.
-  func primaryLanguageService(for uri: DocumentURI) -> (any LanguageService)? {
-    return languageServices(for: uri).first
+  /// Get or create service instances for the given toolchain and language.
+  ///
+  /// Within the workspace, one service instance is reused for all documents that share the same
+  /// toolchain, determined by `LanguageService.canHandle(toolchain:)`.
+  private func languageServicesForToolchain(
+    _ toolchain: Toolchain,
+    _ language: Language
+  ) async -> [any LanguageService] {
+    guard let sourceKitLSPServer else { return [] }
+    var result: [any LanguageService] = []
+    for serviceType in languageServiceRegistry.languageServices(for: language) {
+      if let service = existingLanguageService(serviceType, toolchain: toolchain) {
+        result.append(service)
+        continue
+      }
+
+      // Start a new service.
+      let service: (any LanguageService)? = await orLog("Failed to start language service") {
+        let svc = try await serviceType.init(
+          sourceKitLSPServer: sourceKitLSPServer,
+          toolchain: toolchain,
+          options: options,
+          hooks: hooks,
+          workspace: self
+        )
+
+        if let concurrent = existingLanguageService(serviceType, toolchain: toolchain) {
+          // Since we 'await' above, another call may have concurrently passed the
+          // `existingLanguageService` check and started the same service. Shut down the
+          // duplicate and return the one that won the race.
+          await svc.shutdown()
+          return concurrent
+        }
+
+        languageServiceInstances.withLock { $0[LanguageServiceType(serviceType), default: []].append(svc) }
+        return svc
+      }
+      guard let service else {
+        // If a language service fails to start, don't try starting language services with lower
+        // precedence. Otherwise we get into a situation where e.g. `SwiftLanguageService` fails
+        // to start (because the toolchain doesn't contain sourcekitd) and
+        // `DocumentationLanguageService` becomes the primary service for Swift documents.
+        break
+      }
+      result.append(service)
+    }
+    if result.isEmpty {
+      logger.error("Unable to infer language server type for language '\(language)'")
+    }
+    return result
+  }
+
+  /// Find or create language services for the given URI and language.
+  ///
+  /// Use this only when the document may not have been opened yet (e.g. in `openDocument` itself,
+  /// or for requests that can target non-open files). Do not use this as a substitute for the sync
+  /// overload in document-lifecycle handlers.
+  package func languageServices(
+    for uri: DocumentURI,
+    _ language: Language
+  ) async -> [any LanguageService] {
+    if let cached = languageServicesForOpenDocument.withLock({ $0[uri.buildSettingsFile] }) {
+      return cached
+    }
+
+    let toolchain = await buildServerManager.toolchain(
+      for: await buildServerManager.canonicalTarget(for: uri),
+      language: language
+    )
+    guard let toolchain else {
+      logger.error("Failed to determine toolchain for \(uri)")
+      return []
+    }
+
+    let services = await languageServicesForToolchain(toolchain, language)
+
+    if services.isEmpty {
+      logger.error("No language service found to handle \(uri.forLogging)")
+    } else {
+      logger.log(
+        """
+        Using toolchain at \(toolchain.path.description) (\(toolchain.identifier, privacy: .public)) \
+        for \(uri.forLogging)
+        """
+      )
+    }
+
+    return services
+  }
+
+  /// Find or create the primary language service for the given URI and language.
+  ///
+  /// Convenience wrapper around `languageServices(for:_:)` that throws if no service is available.
+  /// Use this only when the document may not have been opened yet.
+  package func primaryLanguageService(
+    for uri: DocumentURI,
+    _ language: Language
+  ) async throws -> any LanguageService {
+    guard let service = await languageServices(for: uri, language).first else {
+      throw ResponseError.unknown("No language service found for \(uri)")
+    }
+    return service
+  }
+
+  /// The language services for an open document.
+  ///
+  /// Returns the services established when the document was opened. Returns an empty array if the
+  /// document has not been opened or has already been closed. Use this for document-lifecycle
+  /// operations (change, save, close, diagnostics, etc.) where the document is known to be open.
+  ///
+  /// Callers should try to merge the results from the different language services or prefer results
+  /// from language services that occur earlier in this array, whichever is more suitable.
+  package func languageServices(forOpenDocument uri: DocumentURI) -> [any LanguageService] {
+    return languageServicesForOpenDocument.withLock { $0[uri.buildSettingsFile] } ?? []
+  }
+
+  /// The primary language service for an open document.
+  ///
+  /// Convenience wrapper around `languageServices(forOpenDocument:)`. Throws if the document has
+  /// not been opened or has already been closed.
+  package func primaryLanguageService(forOpenDocument uri: DocumentURI) throws -> any LanguageService {
+    let services = languageServices(forOpenDocument: uri)
+    if let first = services.first {
+      return first
+    }
+    throw ResponseError.unknown("No language service for '\(uri)' found")
   }
 
   /// Set the language services for a document URI.
   ///
   /// This should only be called from `openDocument` to ensure there are no race conditions.
-  func setLanguageServices(for uri: DocumentURI, _ newLanguageService: [any LanguageService]) {
-    languageServices.withLock { languageServices in
-      languageServices[uri.buildSettingsFile] = newLanguageService
+  func setLanguageServices(forOpenDocument uri: DocumentURI, _ services: [any LanguageService]) {
+    guard !services.isEmpty else { return }  // Don't cache empty value.
+    languageServicesForOpenDocument.withLock { languageServices in
+      languageServices[uri.buildSettingsFile] = services
     }
   }
 
   /// Remove the language services association for a document when it is closed.
-  func removeLanguageServices(for uri: DocumentURI) {
-    languageServices.withLock { languageServices in
-      languageServices[uri.buildSettingsFile] = nil
+  ///
+  /// If any other open document shares the same build-settings file as `uri`, the language service
+  /// is still in use and will not be removed.
+  func removeLanguageServices(forOpenDocument uri: DocumentURI) {
+    let key = uri.buildSettingsFile
+    let openDocuments = sourceKitLSPServer?.documentManager.openDocuments ?? []
+    guard !openDocuments.contains(where: { $0.buildSettingsFile == key }) else {
+      return
     }
+    languageServicesForOpenDocument.withLock { languageServices in
+      languageServices[key] = nil
+    }
+  }
+
+  func shutdown() async {
+    logger.info("Shutting down workspace \(self.rootUri.forLogging)")
+    async let languageServiceShutdown = shutdownAllLanguageServices()
+    async let buildServerShutdown = buildServerManager.shutdown()
+    async let semanticIndexShutdown = semanticIndexManager?.shutDown()
+    async let indexClose = uncheckedIndex?.close()
+    _ = await (languageServiceShutdown, buildServerShutdown, semanticIndexShutdown, indexClose)
+  }
+
+  /// Shut down all language service instances owned by this workspace.
+  private func shutdownAllLanguageServices() async {
+    let services = languageServiceInstances.withLock { instances in
+      let services = Array(instances.values.flatMap { $0 })
+      instances = [:]
+      return services
+    }
+    await services.concurrentForEach { await $0.shutdown() }
   }
 
   /// Handle a build settings change notification from the build server.
@@ -488,7 +663,7 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
   /// - Changed settings for an already open file
   package func fileBuildSettingsChanged(_ changedFiles: Set<DocumentURI>) async {
     for uri in changedFiles {
-      for languageService in languageServices(for: uri) {
+      for languageService in languageServices(forOpenDocument: uri) {
         await languageService.documentUpdatedBuildSettings(uri)
       }
     }
@@ -501,7 +676,7 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
     var documentsByService: [ObjectIdentifier: (Set<DocumentURI>, any LanguageService)] = [:]
     for uri in changedFiles {
       logger.log("Dependencies updated for file \(uri.forLogging)")
-      for languageService in languageServices(for: uri) {
+      for languageService in languageServices(forOpenDocument: uri) {
         documentsByService[ObjectIdentifier(languageService), default: ([], languageService)].0.insert(uri)
       }
     }

@@ -16,6 +16,8 @@ package import Foundation
 @_spi(SourceKitLSP) package import LanguageServerProtocol
 @_spi(SourceKitLSP) import SKLogging
 import SwiftExtensions
+import Synchronization
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 /// Essentially a `DocumentManager` from the `SourceKitLSP` module.
 ///
@@ -329,11 +331,11 @@ package final class CheckedIndex {
 /// calling `underlyingIndexStoreDB`) and we don't accidentally call into the `IndexStoreDB` when we wanted a
 /// `CheckedIndex`.
 package final actor UncheckedIndex: Sendable {
-  // Ideally, this would be an isolated member instead of a `ThreadSafeBox`, but that causes issues with the workarounds
+  // Ideally, this would be an isolated member instead of a `Mutex`, but that causes issues with the workarounds
   // around https://github.com/swiftlang/swift/issues/75600 when all functions become async.
-  private nonisolated let _underlyingIndexStoreDB: ThreadSafeBox<IndexStoreDB?>
+  private nonisolated let _underlyingIndexStoreDB: Mutex<IndexStoreDB?>
   package nonisolated var underlyingIndexStoreDB: IndexStoreDB? {
-    _underlyingIndexStoreDB.value
+    _underlyingIndexStoreDB.withLock { $0 }
   }
 
   /// Whether the underlying `IndexStoreDB` uses has `useExplicitOutputUnits` enabled and thus needs to receive updates
@@ -343,19 +345,19 @@ package final actor UncheckedIndex: Sendable {
   /// The set of unit output paths that are currently registered in the underlying `IndexStoreDB`.
   private var unitOutputPaths: Set<String> = []
 
-  package init?(_ index: IndexStoreDB?, usesExplicitOutputPaths: Bool) {
+  package init?(_ index: sending IndexStoreDB?, usesExplicitOutputPaths: Bool) {
     guard let index else {
       return nil
     }
     self.usesExplicitOutputPaths = usesExplicitOutputPaths
-    self._underlyingIndexStoreDB = ThreadSafeBox(initialValue: index)
+    self._underlyingIndexStoreDB = Mutex(index)
   }
 
   /// Close the index store, writing it to the `saved` directory on disk.
   package func close() {
     // IndexStoreDB writes the index to disk when the retain count of the `IndexStoreDB` object hits zero. We hope that
     // nobody else still has a reference to `IndexStoreDB` here.
-    _underlyingIndexStoreDB.value = nil
+    _underlyingIndexStoreDB.withLock { $0 = nil }
   }
 
   /// Update the set of output paths that should be considered visible in the project. For example, if a source file is
@@ -377,6 +379,13 @@ package final actor UncheckedIndex: Sendable {
 
   package nonisolated func checked(for checkLevel: IndexCheckLevel) -> CheckedIndex {
     return CheckedIndex(unchecked: self, checkLevel: checkLevel)
+  }
+
+  package nonisolated func allSymbolNames() throws -> [String] {
+    guard let underlyingIndexStoreDB else {
+      throw IndexClosedError()
+    }
+    return underlyingIndexStoreDB.allSymbolNames()
   }
 
   /// Wait for IndexStoreDB to be updated based on new unit files written to disk.

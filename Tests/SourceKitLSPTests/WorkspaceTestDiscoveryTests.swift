@@ -110,7 +110,7 @@ final class WorkspaceTestDiscoveryTests: SourceKitLSPTestCase {
   func testSyntacticOrIndexBasedXCTestsBasedOnWhetherFileIsIndexed() async throws {
     try SkipUnless.longTestsEnabled()
 
-    let initialIndexingFinished = AtomicBool(initialValue: false)
+    let initialIndexingFinished = ThreadSafeBox<Bool>(initialValue: false)
     let syntacticWorkspaceRequestSent = WrappedSemaphore(name: "Syntactic workspace request sent")
 
     let project = try await SwiftPMTestProject(
@@ -136,7 +136,7 @@ final class WorkspaceTestDiscoveryTests: SourceKitLSPTestCase {
       enableBackgroundIndexing: true
     )
 
-    initialIndexingFinished.value = true
+    initialIndexingFinished.withLock { $0 = true }
 
     let myTestsUri = try project.uri(for: "MyTests.swift")
 
@@ -1177,7 +1177,7 @@ final class WorkspaceTestDiscoveryTests: SourceKitLSPTestCase {
       ],
       manifest: packageManifestWithTestTarget,
       capabilities: ClientCapabilities(experimental: [
-        WorkspaceTestsRefreshRequest.method: .bool(true)
+        WorkspaceTestsRefreshRequest.method: true
       ]),
       preInitialization: { testClient in
         testClient.handleSingleRequest { (_: WorkspaceTestsRefreshRequest) in
@@ -1222,7 +1222,7 @@ final class WorkspaceTestDiscoveryTests: SourceKitLSPTestCase {
       ],
       manifest: packageManifestWithTestTarget,
       capabilities: ClientCapabilities(experimental: [
-        WorkspaceTestsRefreshRequest.method: .bool(true)
+        WorkspaceTestsRefreshRequest.method: true
       ]),
       preInitialization: { testClient in
         testClient.handleSingleRequest { (_: WorkspaceTestsRefreshRequest) in
@@ -1284,7 +1284,7 @@ final class WorkspaceTestDiscoveryTests: SourceKitLSPTestCase {
       ],
       manifest: packageManifestWithTestTarget,
       capabilities: ClientCapabilities(experimental: [
-        WorkspaceTestsRefreshRequest.method: .bool(true)
+        WorkspaceTestsRefreshRequest.method: true
       ]),
       preInitialization: { testClient in
         testClient.handleSingleRequest { (_: WorkspaceTestsRefreshRequest) in
@@ -1313,7 +1313,7 @@ final class WorkspaceTestDiscoveryTests: SourceKitLSPTestCase {
       ],
       manifest: packageManifestWithTestTarget,
       capabilities: ClientCapabilities(experimental: [
-        WorkspaceTestsRefreshRequest.method: .bool(true)
+        WorkspaceTestsRefreshRequest.method: true
       ])
     )
 
@@ -1370,7 +1370,7 @@ final class WorkspaceTestDiscoveryTests: SourceKitLSPTestCase {
       ],
       manifest: packageManifestWithTestTarget,
       capabilities: ClientCapabilities(experimental: [
-        WorkspaceTestsRefreshRequest.method: .bool(true)
+        WorkspaceTestsRefreshRequest.method: true
       ]),
       preInitialization: { testClient in
         testClient.handleSingleRequest { (_: WorkspaceTestsRefreshRequest) in

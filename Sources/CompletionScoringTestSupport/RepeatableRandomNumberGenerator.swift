@@ -13,6 +13,7 @@
 import CompletionScoring
 import Foundation
 import SwiftExtensions
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 package struct RepeatableRandomNumberGenerator: RandomNumberGenerator {
   private let seed: [UInt64]

@@ -1,4 +1,4 @@
-// swift-tools-version: 6.2
+// swift-tools-version: 6.3
 
 import Foundation
 import PackageDescription
@@ -430,7 +430,9 @@ var targets: [Target] = [
       "SKUtilities",
       "SourceKitD",
       "SourceKitLSP",
+      "SwiftExtensions",
       "SwiftLanguageService",
+      "SwiftSyntaxCodeActions",
       "ToolchainRegistry",
       .product(name: "BuildServerProtocol", package: "swift-tools-protocols"),
       .product(name: "IndexStoreDB", package: "indexstore-db"),
@@ -491,6 +493,7 @@ var targets: [Target] = [
       "SourceKitD",
       "SourceKitLSP",
       "SwiftExtensions",
+      "SwiftSyntaxCodeActions",
       "ToolchainRegistry",
       "TSCExtensions",
       .product(name: "BuildServerProtocol", package: "swift-tools-protocols"),
@@ -516,6 +519,40 @@ var targets: [Target] = [
     exclude: ["CMakeLists.txt"],
   ),
 
+  // MARK: SwiftSyntaxCodeActions
+
+  .target(
+    name: "SwiftSyntaxCodeActions",
+    dependencies: [
+      "SourceKitLSP",
+      "SwiftExtensions",
+      .product(name: "LanguageServerProtocol", package: "swift-tools-protocols"),
+      .product(name: "SKLogging", package: "swift-tools-protocols"),
+    ]
+      + swiftSyntaxDependencies([
+        "SwiftBasicFormat",
+        "SwiftOperators",
+        "SwiftParser",
+        "SwiftRefactor",
+        "SwiftSyntax",
+        "SwiftSyntaxBuilder",
+      ]),
+    exclude: ["CMakeLists.txt"],
+  ),
+
+  .testTarget(
+    name: "SwiftSyntaxCodeActionsTests",
+    dependencies: [
+      "SwiftSyntaxCodeActions"
+    ]
+      + swiftSyntaxDependencies([
+        "SwiftParser",
+        "SwiftRefactor",
+        "SwiftSyntax",
+        "SwiftSyntaxBuilder",
+      ]),
+  ),
+
   // MARK: SwiftSourceKitClientPlugin
 
   .target(
@@ -526,6 +563,7 @@ var targets: [Target] = [
       "SwiftExtensionsForPlugin",
       "SwiftSourceKitPluginCommon",
       .product(name: "_SKLoggingForPlugin", package: "swift-tools-protocols"),
+      .product(name: "_ToolsProtocolsSwiftExtensionsForPlugin", package: "swift-tools-protocols"),
     ],
     exclude: ["CMakeLists.txt"],
     swiftSettings: [
@@ -533,6 +571,7 @@ var targets: [Target] = [
         "-module-alias", "SKLogging=_SKLoggingForPlugin",
         "-module-alias", "SourceKitD=SourceKitDForPlugin",
         "-module-alias", "SwiftExtensions=SwiftExtensionsForPlugin",
+        "-module-alias", "ToolsProtocolsSwiftExtensions=_ToolsProtocolsSwiftExtensionsForPlugin",
       ])
     ],
     linkerSettings: sourcekitLSPLinkSettings
@@ -692,7 +731,7 @@ if buildOnlyTests {
 
 let package = Package(
   name: "SourceKitLSP",
-  platforms: [.macOS(.v14)],
+  platforms: [.macOS(.v15)],
   products: products,
   dependencies: dependencies,
   targets: targets,

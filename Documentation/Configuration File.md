@@ -24,6 +24,7 @@ The structure of the file is currently not guaranteed to be stable. Options may 
   - `triple: string`: Equivalent to SwiftPM's `--triple` option.
   - `sdk: string`: Equivalent to SwiftPM's `--sdk` option.
   - `toolsets: string[]`: Equivalent to SwiftPM's `--toolset` option.
+  - `pkgConfigPaths: string[]`: Equivalent to SwiftPM's `--pkg-config-path` option.
   - `traits: string[]`: Traits to enable for the package. Equivalent to SwiftPM's `--traits` option.
   - `cCompilerFlags: string[]`: Extra arguments passed to the compiler for C files. Equivalent to SwiftPM's `-Xcc` option.
   - `cxxCompilerFlags: string[]`: Extra arguments passed to the compiler for C++ files. Equivalent to SwiftPM's `-Xcxx` option.
@@ -32,6 +33,7 @@ The structure of the file is currently not guaranteed to be stable. Options may 
   - `buildToolsSwiftCompilerFlags: string[]`: Extra arguments passed to the compiler for Swift files or plugins. Equivalent to SwiftPM's `-Xbuild-tools-swiftc` option.
   - `forceResolvedVersions: boolean`: Equivalent to SwiftPM's `--force-resolved-versions` option. Makes all processes (including background indexing) treat Package.resolved as a lock file.
   - `disableSandbox: boolean`: Disables running subprocesses from SwiftPM in a sandbox. Equivalent to SwiftPM's `--disable-sandbox` option. Useful when running `sourcekit-lsp` in a sandbox because nested sandboxes are not supported.
+  - `extraArguments: string[]`: Additional arguments appended to SwiftPM when starting or preparing the build server.
   - `buildSystem: "native"|"swiftbuild"`: Which SwiftPM build system should be used when opening a package.
 - `compilationDatabase`: Dictionary with the following keys, defining options for workspaces with a compilation database.
   - `searchPaths: string[]`: Additional paths to search for a compilation database, relative to a workspace root.

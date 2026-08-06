@@ -13,6 +13,7 @@
 import Foundation
 import SwiftExtensions
 import TSCExtensions
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 #if os(macOS)
 import struct TSCBasic.RelativePath

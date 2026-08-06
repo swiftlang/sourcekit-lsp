@@ -27,6 +27,7 @@ package import SKOptions
 import SourceControl
 @preconcurrency package import SourceKitLSPAPI
 import SwiftExtensions
+import Synchronization
 @_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import TSCExtensions
 package import ToolchainRegistry
@@ -79,7 +80,7 @@ fileprivate extension TSCBasic.AbsolutePath {
   }
 }
 
-private let preparationTaskID: AtomicUInt32 = AtomicUInt32(initialValue: 0)
+private let preparationTaskID = Atomic<UInt32>(0)
 
 /// Swift Package Manager build server and workspace support.
 ///
@@ -130,6 +131,10 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
   /// root.
   private let toolsets: [AbsolutePath]
 
+  /// Paths to any pkg-config directories provided in `SourceKitLSPOptions`, with any relative paths resolved based on
+  /// the project root.
+  private let pkgConfigDirectories: [AbsolutePath]
+
   /// A `ObservabilitySystem` from `SwiftPM` that logs.
   private let observabilitySystem: ObservabilitySystem
 
@@ -166,7 +171,7 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
       let buildSystemFilePath = scratchPath.appending(".buildSystem_\(config)")
       if FileManager.default.fileExists(at: buildSystemFilePath.asURL) {
         do {
-          let buildSystem = try String(contentsOf: buildSystemFilePath.asURL)
+          let buildSystem = try String(contentsOf: buildSystemFilePath.asURL, encoding: .utf8)
           inferredBuildSystem = SwiftPMBuildSystem(rawValue: buildSystem)
         } catch {
           inferredBuildSystem = nil
@@ -278,6 +283,10 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
       try options.swiftPMOrDefault.toolsets?.map {
         try AbsolutePath(validating: $0, relativeTo: absProjectRoot)
       } ?? []
+    self.pkgConfigDirectories =
+      try options.swiftPMOrDefault.pkgConfigPaths?.map {
+        try AbsolutePath(validating: $0, relativeTo: absProjectRoot)
+      } ?? []
 
     let hostSDK = try SwiftSDK.hostSwiftSDK(AbsolutePath(validating: destinationToolchainBinDir.filePath))
     let hostSwiftPMToolchain = try UserToolchain(swiftSDK: hostSDK)
@@ -330,8 +339,17 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
       location.scratchDirectory = absProjectRoot.appending(components: ".build", "index-build")
     }
 
+    let enabledTraits: Set<String>? =
+      if let traits = options.swiftPMOrDefault.traits {
+        Set(traits)
+      } else {
+        nil
+      }
+    self.traitConfiguration = TraitConfiguration(enabledTraits: enabledTraits)
+
     var configuration = WorkspaceConfiguration.default
     configuration.skipDependenciesUpdates = !options.backgroundIndexingOrDefault
+    configuration.traitConfiguration = self.traitConfiguration
 
     self.swiftPMWorkspace = try Workspace(
       fileSystem: localFileSystem,
@@ -365,6 +383,7 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
       toolchain: hostSwiftPMToolchain,
       flags: buildFlags,
       buildSystemKind: .native,
+      pkgConfigDirectories: pkgConfigDirectories,
     )
 
     self.destinationBuildParameters = try BuildParameters(
@@ -377,6 +396,7 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
       triple: destinationSDK.targetTriple,
       flags: buildFlags,
       buildSystemKind: .native,
+      pkgConfigDirectories: pkgConfigDirectories,
       prepareForIndexing: options.backgroundPreparationModeOrDefault.toSwiftPMPreparation
     )
 
@@ -392,14 +412,6 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
       workDirectory: location.pluginWorkingDirectory,
       disableSandbox: options.swiftPMOrDefault.disableSandbox ?? false
     )
-
-    let enabledTraits: Set<String>? =
-      if let traits = options.swiftPMOrDefault.traits {
-        Set(traits)
-      } else {
-        nil
-      }
-    self.traitConfiguration = TraitConfiguration(enabledTraits: enabledTraits)
 
     packageLoadingQueue.async {
       await orLog("Initial package loading") {
@@ -498,7 +510,10 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
     }
 
     let modulesGraph = try await self.swiftPMWorkspace.loadPackageGraph(
-      rootInput: PackageGraphRootInput(packages: [AbsolutePath(validating: projectRoot.filePath)]),
+      rootInput: PackageGraphRootInput(
+        packages: [AbsolutePath(validating: projectRoot.filePath)],
+        traitConfiguration: self.traitConfiguration
+      ),
       forceResolvedVersions: options.swiftPMOrDefault.forceResolvedVersions ?? !isForIndexBuild,
       observabilityScope: observabilitySystem.topScope.makeChildScope(description: "Load package graph")
     )
@@ -592,19 +607,7 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
 
       throw NonFileURIError(uri: file)
     }
-    #if compiler(>=6.4)
-    #warning(
-      "Once we can guarantee that the toolchain can index multiple Swift files in a single invocation, we no longer need to set -index-unit-output-path since it's always set using an -output-file-map"
-    )
-    #endif
-    var compilerArguments = try buildTarget.compileArguments(for: fileURL)
-    if buildTarget.compiler == .swift {
-      compilerArguments += [
-        // Fake an output path so that we get a different unit file for every Swift file we background index
-        "-index-unit-output-path", indexUnitOutputPath(forSwiftFile: file),
-      ]
-    }
-    return compilerArguments
+    return try buildTarget.compileArguments(for: fileURL)
   }
 
   package func buildTargets(request: WorkspaceBuildTargetsRequest) async throws -> WorkspaceBuildTargetsResponse {
@@ -778,10 +781,15 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
 
   package func prepare(request: BuildTargetPrepareRequest) async throws -> BuildTargetPrepareResponse {
     // TODO: Support preparation of multiple targets at once. (https://github.com/swiftlang/sourcekit-lsp/issues/1262)
+    var implicitlyPreparedTargets: [BuildTargetIdentifier] = []
     for target in request.targets {
-      await orLog("Preparing") { try await prepare(singleTarget: target) }
+      await orLog("Preparing") {
+        try await prepare(singleTarget: target)
+        implicitlyPreparedTargets += transitiveClosure(of: [target], successors: { targetDependencies[$0] ?? [] })
+          .filter { !request.targets.contains($0) }
+      }
     }
-    return BuildTargetPrepareResponse()
+    return BuildTargetPrepareResponse(implicitlyPreparedTargets: implicitlyPreparedTargets)
   }
 
   private func prepare(singleTarget target: BuildTargetIdentifier) async throws {
@@ -827,6 +835,7 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
       arguments += ["--traits", traits.joined(separator: ",")]
     }
     arguments += toolsets.flatMap { ["--toolset", $0.pathString] }
+    arguments += pkgConfigDirectories.flatMap { ["--pkg-config-path", $0.pathString] }
     arguments += options.swiftPMOrDefault.cCompilerFlags?.flatMap { ["-Xcc", $0] } ?? []
     arguments += options.swiftPMOrDefault.cxxCompilerFlags?.flatMap { ["-Xcxx", $0] } ?? []
     arguments += options.swiftPMOrDefault.swiftCompilerFlags?.flatMap { ["-Xswiftc", $0] } ?? []
@@ -837,12 +846,16 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
     case .noLazy: arguments += ["--experimental-prepare-for-indexing", "--experimental-prepare-for-indexing-no-lazy"]
     case .enabled: arguments.append("--experimental-prepare-for-indexing")
     }
+    // Keep this last so extra arguments can override the options above.
+    arguments += options.swiftPMOrDefault.extraArguments ?? []
     if Task.isCancelled {
       return
     }
     let start = ContinuousClock.now
 
-    let taskID: TaskId = TaskId(id: "preparation-\(preparationTaskID.fetchAndIncrement())")
+    let taskID: TaskId = TaskId(
+      id: "preparation-\(preparationTaskID.wrappingAdd(1, ordering: .relaxed).oldValue)"
+    )
     connectionToSourceKitLSP.send(
       BuildServerProtocol.OnBuildLogMessageNotification(
         type: .info,
@@ -882,6 +895,7 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
         stderr: { @Sendable bytes in stderrHandler.handleDataFromPipe(Data(bytes)) }
       )
     )
+    logger.debug("'swift build' for target \(target.forLogging) returned")
     let exitStatus = result.exitStatus.exhaustivelySwitchable
     self.connectionToSourceKitLSP.send(
       BuildServerProtocol.OnBuildLogMessageNotification(

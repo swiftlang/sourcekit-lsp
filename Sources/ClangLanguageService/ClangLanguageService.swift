@@ -51,7 +51,7 @@ package actor ClangLanguageService: LanguageService, MessageHandler {
   /// The ``SourceKitLSPServer`` instance that created this `ClangLanguageService`.
   ///
   /// Used to send requests and notifications to the editor.
-  private weak var sourceKitLSPServer: SourceKitLSPServer?
+  private weak let sourceKitLSPServer: SourceKitLSPServer?
 
   /// The connection to the clangd LSP. `nil` until `startClangdProcesss` has been called.
   var clangd: (any Connection)!
@@ -86,10 +86,6 @@ package actor ClangLanguageService: LanguageService, MessageHandler {
   /// Whether or not a restart of `clangd` has been scheduled.
   /// Used to make sure we are not restarting `clangd` twice.
   private var clangRestartScheduled = false
-
-  /// The `InitializeRequest` with which `clangd` was originally initialized.
-  /// Stored so we can replay the initialization when clangd crashes.
-  private var initializeRequest: InitializeRequest?
 
   /// The workspace this `ClangLanguageServer` was opened for.
   ///
@@ -128,7 +124,8 @@ package actor ClangLanguageService: LanguageService, MessageHandler {
     self.workspace = WeakWorkspace(workspace)
     self.state = .connected
     self.sourceKitLSPServer = sourceKitLSPServer
-    try startClangdProcess()
+
+    try await self.initialize()
   }
 
   private func buildSettings(for document: DocumentURI, fallbackAfterTimeout: Bool) async -> ClangBuildSettings? {
@@ -147,9 +144,8 @@ package actor ClangLanguageService: LanguageService, MessageHandler {
     return ClangBuildSettings(settings, clangPath: clangPath)
   }
 
-  package nonisolated func canHandle(workspace: Workspace, toolchain: Toolchain) -> Bool {
-    // We launch different clangd instance for each workspace because clangd doesn't have multi-root workspace support.
-    return workspace === self.workspace.value && self.clangdPath == toolchain.clangd
+  package nonisolated func canHandle(toolchain: Toolchain) -> Bool {
+    return self.clangdPath == toolchain.clangd
   }
 
   package func addStateChangeHandler(handler: @escaping (LanguageServerState, LanguageServerState) -> Void) {
@@ -207,8 +203,8 @@ package actor ClangLanguageService: LanguageService, MessageHandler {
     precondition(self.clangRestartScheduled == false)
     self.clangRestartScheduled = true
 
-    guard let initializeRequest = self.initializeRequest else {
-      logger.error("clangd crashed before it was sent an InitializeRequest.")
+    guard self.capabilities != nil else {
+      logger.error("clangd crashed before initialization completed.")
       return
     }
 
@@ -222,21 +218,18 @@ package actor ClangLanguageService: LanguageService, MessageHandler {
     self.lastClangdRestart = Date()
 
     Task {
-      try await Task.sleep(for: restartDelay)
-      self.clangRestartScheduled = false
       do {
-        try self.startClangdProcess()
-        // We assume that clangd will return the same capabilities after restarting.
-        // Theoretically they could have changed and we would need to inform SourceKitLSPServer about them.
-        // But since SourceKitLSPServer more or less ignores them right now anyway, this should be fine for now.
-        _ = try await self.initialize(initializeRequest)
-        await self.clientInitialized(InitializedNotification())
+        try await Task.sleep(for: restartDelay)
+        self.clangRestartScheduled = false
+        try await self.initialize()
         if let sourceKitLSPServer {
           await sourceKitLSPServer.reopenDocuments(for: self)
         } else {
           logger.fault("Cannot reopen documents because SourceKitLSPServer is no longer alive")
         }
         self.state = .connected
+      } catch is CancellationError {
+        // ignore.
       } catch {
         logger.fault("Failed to restart clangd after a crash.")
       }
@@ -369,23 +362,56 @@ extension ClangLanguageService {
 
 extension ClangLanguageService {
 
-  package func initialize(_ initialize: InitializeRequest) async throws -> InitializeResult {
-    // Store the initialize request so we can replay it in case clangd crashes
-    self.initializeRequest = initialize
-
-    let result = try await clangd.send(initialize)
-    self.capabilities = result.capabilities
+  private func initialize() async throws {
+    guard let workspace = self.workspace.value else {
+      throw ResponseError.internalError("Workspace no longer exists")
+    }
+    try self.startClangdProcess()
+    let result = try await clangd.send(
+      InitializeRequest(
+        processId: Int(ProcessInfo.processInfo.processIdentifier),
+        rootPath: nil,
+        rootURI: workspace.rootUri,
+        initializationOptions: nil,
+        capabilities: workspace.capabilityRegistry.clientCapabilities,
+        trace: .off,
+        workspaceFolders: nil
+      )
+    )
+    var capabilities = result.capabilities
     if let legend = result.capabilities.semanticTokensProvider?.legend {
+      // Semantic token responses from clangd are translated to SourceKit-LSP's legend below before being sent to the
+      // client, so dynamic registrations must advertise SourceKit-LSP's legend instead of the clangd one.
+      capabilities.semanticTokensProvider?.legend = .sourceKitLSPLegend
       self.semanticTokensTranslator = SemanticTokensLegendTranslator(
         clangdLegend: legend,
         sourceKitLSPLegend: SemanticTokensLegend.sourceKitLSPLegend
       )
     }
-    return result
-  }
+    self.capabilities = capabilities
 
-  package func clientInitialized(_ initialized: InitializedNotification) async {
-    clangd.send(initialized)
+    if let sourceKitLSPServer {
+      // Since `ClangLanguageService` is created per toolchain, different clangd
+      // instances can report different capabilities. Calling `registerCapabilities`
+      // here means a later instance may overwrite capabilities registered by an
+      // earlier one. This is fine for now because SourceKitLSPServer more or less
+      // ignores the registered capabilities for clangd at the moment.
+      await sourceKitLSPServer.registerCapabilities(
+        for: capabilities,
+        languages: [.c, .cpp, .objective_c, .objective_cpp],
+        registry: workspace.capabilityRegistry
+      )
+    }
+    var syncKind: TextDocumentSyncKind
+    switch result.capabilities.textDocumentSync {
+    case .options(let options): syncKind = options.change ?? .incremental
+    case .kind(let kind): syncKind = kind
+    default: syncKind = .incremental
+    }
+    guard syncKind == .incremental else {
+      throw ResponseError.internalError("non-incremental update not implemented")
+    }
+    clangd.send(InitializedNotification())
   }
 
   package func shutdown() async {
@@ -487,7 +513,8 @@ extension ClangLanguageService {
     guard let workspace = self.workspace.value else {
       return result
     }
-    return await workspace.buildServerManager.locationsOrLocationLinksAdjustedForCopiedFiles(result)
+    let copiedFileMap = await workspace.buildServerManager.cachedCopiedFileMap
+    return result?.adjusted(for: copiedFileMap)
   }
 
   package func typeDefinition(_ req: TypeDefinitionRequest) async throws -> LocationsOrLocationLinksResponse? {
@@ -636,7 +663,8 @@ extension ClangLanguageService {
     guard let workspace = self.workspace.value else {
       return workspaceEdit
     }
-    return await workspace.buildServerManager.workspaceEditAdjustedForCopiedFiles(workspaceEdit)
+    let copiedFileMap = await workspace.buildServerManager.cachedCopiedFileMap
+    return workspaceEdit.map { $0.adjusted(for: copiedFileMap) }
   }
 
   // MARK: - Other
@@ -656,8 +684,9 @@ extension ClangLanguageService {
     guard let workspace = self.workspace.value else {
       return (workspaceEdit, symbolDetail?.usr)
     }
-    let remappedEdit = await workspace.buildServerManager.workspaceEditAdjustedForCopiedFiles(workspaceEdit)
-    return (remappedEdit ?? WorkspaceEdit(), symbolDetail?.usr)
+    let copiedFileMap = await workspace.buildServerManager.cachedCopiedFileMap
+    let remappedEdit = workspaceEdit.adjusted(for: copiedFileMap)
+    return (remappedEdit, symbolDetail?.usr)
   }
 
   package func syntacticTestItems(for snapshot: DocumentSnapshot) async -> [AnnotatedTestItem]? {

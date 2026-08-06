@@ -88,6 +88,10 @@ Implements the Swift language service which contains the main logic for handling
 
 Client-side sourcekitd plugin entry point that initializes SourceKit-LSP plugin support.
 
+### SwiftSyntaxCodeActions
+
+Syntactic code actions implemented on top of swift-syntax.
+
 ### SwiftSourceKitPlugin
 
 Main sourcekitd service plugin that intercepts and handles completion-related requests, providing SourceKit-LSP’s custom completion pipeline inside sourcekitd.

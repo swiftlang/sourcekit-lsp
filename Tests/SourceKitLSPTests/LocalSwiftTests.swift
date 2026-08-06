@@ -20,6 +20,7 @@ import SwiftExtensions
 @_spi(Testing) import SwiftLanguageService
 import SwiftParser
 import SwiftSyntax
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
 
 final class LocalSwiftTests: SourceKitLSPTestCase {
@@ -1358,18 +1359,6 @@ final class LocalSwiftTests: SourceKitLSPTestCase {
 
     let reusedNodeCallback = self.expectation(description: "reused node callback called")
     let reusedNodes = ThreadSafeBox<[Syntax]>(initialValue: [])
-    let swiftLanguageService =
-      try await unwrap(
-        testClient.server.primaryLanguageService(
-          for: uri,
-          .swift,
-          in: unwrap(testClient.server.workspaceForDocument(uri: uri))
-        ) as? SwiftLanguageService
-      )
-    await swiftLanguageService.setReusedNodeCallback {
-      reusedNodes.value.append($0)
-      reusedNodeCallback.fulfill()
-    }
 
     testClient.openDocument(
       """
@@ -1380,6 +1369,11 @@ final class LocalSwiftTests: SourceKitLSPTestCase {
       """,
       uri: uri
     )
+    let swiftLanguageService = try await unwrap(testClient.primaryLanguageService(for: uri) as? SwiftLanguageService)
+    await swiftLanguageService.setReusedNodeCallback { node in
+      reusedNodes.withLock { $0.append(node) }
+      reusedNodeCallback.fulfill()
+    }
 
     // Send a request that triggers a syntax tree to be built.
     _ = try await testClient.send(FoldingRangeRequest(textDocument: .init(uri)))
