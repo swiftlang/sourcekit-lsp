@@ -12,7 +12,7 @@
 
 @_spi(SourceKitLSP) import LanguageServerProtocol
 import SwiftRefactor
-import SwiftSyntax
+package import SwiftSyntax
 
 private enum ValidationResult: CustomStringConvertible {
   case accessor
@@ -51,16 +51,16 @@ private enum ValidationResult: CustomStringConvertible {
   }
 }
 
-struct MoveMembersToExtension: SyntaxRefactoringProvider {
-  struct Context {
+package struct MoveMembersToExtension: SyntaxRefactoringProvider {
+  package struct Context {
     let range: Range<AbsolutePosition>
 
-    init(range: Range<AbsolutePosition>) {
+    package init(range: Range<AbsolutePosition>) {
       self.range = range
     }
   }
 
-  static func refactor(syntax: SourceFileSyntax, in context: Context) throws -> SourceFileSyntax {
+  package static func refactor(syntax: SourceFileSyntax, in context: Context) throws -> SourceFileSyntax {
     guard
       let statement = syntax.statements.first(where: { $0.item.range.contains(context.range) }),
       let decl = statement.item.asProtocol((any NamedDeclSyntax).self),
@@ -125,27 +125,32 @@ struct MoveMembersToExtension: SyntaxRefactoringProvider {
   }
 }
 
-extension MoveMembersToExtension: SyntaxRefactoringCodeActionProvider {
-  static var title: String { "Move to extension" }
+extension MoveMembersToExtension: ResolvableSyntaxRefactoringCodeActionProvider {
+  static func refactoringContext(
+    for node: SwiftSyntax.SourceFileSyntax,
+    in scope: SyntaxCodeActionScope
+  ) -> RefactoringContext<Context, EmptyLSPCodable> {
+    .context(Context(range: scope.range))
+  }
 
-  static func refactoringContext(for scope: SyntaxCodeActionScope) -> Context {
+  static func resolveContext(
+    for data: UnresolvedData,
+    in scope: SyntaxCodeActionScope,
+    symbolInfo: (_ position: Position) async throws -> [SymbolDetails]
+  ) async throws -> Context {
     Context(range: scope.range)
   }
 
+  typealias UnresolvedData = EmptyLSPCodable
+
+  static var title: String { "Move to extension" }
+
   static func nodeToRefactor(in scope: SyntaxCodeActionScope) -> SourceFileSyntax? {
-    guard scope.request.range.lowerBound != scope.request.range.upperBound else {
+    guard scope.range.lowerBound != scope.range.upperBound else {
       return nil
     }
 
     return scope.file
-  }
-
-  static func textRefactor(syntax: SourceFileSyntax, in context: Context) throws -> [SourceEdit] {
-    let updatedSyntax = try self.refactor(syntax: syntax, in: context)
-
-    return [
-      .replace(syntax, with: updatedSyntax.description)
-    ]
   }
 }
 
