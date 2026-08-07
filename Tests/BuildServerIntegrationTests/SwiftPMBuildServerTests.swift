@@ -59,35 +59,16 @@ fileprivate extension SourceKitLSPOptions {
   }
 }
 
-let swiftPMHasExperimentalBuildServer: Bool = {
-  @Sendable func impl() async throws -> Bool {
-    if ProcessEnv.block["SWIFTCI_USE_LOCAL_DEPS"] != nil {
-      // In general, don't skip tests in CI. Toolchain should be up-to-date.
-      return false
-    }
-    let swift = try await unwrap(ToolchainRegistry.forTesting.default?.swift).deletingLastPathComponent()
-      .appending(component: "swift")
-    let output = try await Process.run(
-      arguments: [
-        try swift.filePath,
-        "package",
-        "experimental-build-server",
-        "--help",
-      ],
-      // "swift package experimental-build-server --help" times out without a working directory. Set a nonsensical
-      // working directory to make it finish faster.
-      workingDirectory: TSCBasic.AbsolutePath(validating: testScratchDir().filePath)
-    )
-    return try output.utf8stderrOutput().contains("Usage: swift package experimental-build-server")
-  }
-
-  // We need to decide whether to run the experimental build server tests synchronously. If more tests start relying on
-  // this, we need to find a better solution.
-  nonisolated(unsafe) var result: Result<Bool, any Error>!
-  let sema = WrappedSemaphore(name: "swiftPMHasExperimentalBuildServer")
-  let task = Task { @Sendable in
+/// Compute a value that is derived from the toolchain synchronously.
+///
+/// The build servers that a test runs against are listed in `@Test(arguments:)`, which is evaluated synchronously, so
+/// the toolchain queries that decide the list have to block.
+private func computedSynchronously<T: Sendable>(name: String, _ body: @Sendable @escaping () async throws -> T) -> T {
+  nonisolated(unsafe) var result: Result<T, any Error>!
+  let sema = WrappedSemaphore(name: name)
+  Task { @Sendable in
     do {
-      result = .success(try await impl())
+      result = .success(try await body())
     } catch {
       result = .failure(error)
     }
@@ -95,12 +76,56 @@ let swiftPMHasExperimentalBuildServer: Bool = {
   }
   try! sema.waitOrThrow()
   return try! result.get()
-}()
+}
 
-private let buildServerOptionsToTest: [SourceKitLSPOptions] =
-  swiftPMHasExperimentalBuildServer
-  ? [.forTestingNativeSwiftPMBuildServer, .forTestingExperimentalSwiftPMBuildServer]
-  : [.forTestingNativeSwiftPMBuildServer]
+let swiftPMHasExperimentalBuildServer: Bool = computedSynchronously(name: "swiftPMHasExperimentalBuildServer") {
+  if ProcessEnv.block["SWIFTCI_USE_LOCAL_DEPS"] != nil {
+    // In general, don't skip tests in CI. Toolchain should be up-to-date.
+    return false
+  }
+  let swift = try await unwrap(ToolchainRegistry.forTesting.default?.swift).deletingLastPathComponent()
+    .appending(component: "swift")
+  let output = try await Process.run(
+    arguments: [
+      try swift.filePath,
+      "package",
+      "experimental-build-server",
+      "--help",
+    ],
+    // "swift package experimental-build-server --help" times out without a working directory. Set a nonsensical
+    // working directory to make it finish faster.
+    workingDirectory: TSCBasic.AbsolutePath(validating: testScratchDir().filePath)
+  )
+  return try output.utf8stderrOutput().contains("Usage: swift package experimental-build-server")
+}
+
+/// The Swift version of the toolchain used for testing or `nil` if it could not be determined.
+private let testingToolchainSwiftVersion: SwiftVersion? = computedSynchronously(
+  name: "testingToolchainSwiftVersion"
+) {
+  try await ToolchainRegistry.forTesting.default?.swiftVersion
+}
+
+/// The build server configurations that a test should be run with.
+///
+/// The out-of-process build server is included if the toolchain used for testing has one. Tests that rely on build
+/// server behavior which was added during the development of a Swift version pass that version as
+/// `requiredSwiftVersion`, so that they only exercise the out-of-process build server with a toolchain that can have
+/// that behavior.
+private func buildServerOptionsToTest(
+  requiring requiredSwiftVersion: SwiftVersion? = nil
+) -> [SourceKitLSPOptions] {
+  let native: [SourceKitLSPOptions] = [.forTestingNativeSwiftPMBuildServer]
+  guard swiftPMHasExperimentalBuildServer else {
+    return native
+  }
+  if let requiredSwiftVersion {
+    guard let testingToolchainSwiftVersion, testingToolchainSwiftVersion >= requiredSwiftVersion else {
+      return native
+    }
+  }
+  return native + [.forTestingExperimentalSwiftPMBuildServer]
+}
 
 @Suite(.serialized, .configureLogging)
 struct SwiftPMBuildServerTests {
@@ -208,7 +233,7 @@ struct SwiftPMBuildServerTests {
     }
   }
 
-  @Test(arguments: buildServerOptionsToTest)
+  @Test(arguments: buildServerOptionsToTest())
   func testBasicSwiftArgs(options: SourceKitLSPOptions) async throws {
     try await withTestScratchDir { tempDir in
       try FileManager.default.createFiles(
@@ -354,7 +379,7 @@ struct SwiftPMBuildServerTests {
     }
   }
 
-  @Test(arguments: buildServerOptionsToTest)
+  @Test(arguments: buildServerOptionsToTest(requiring: SwiftVersion(6, 5)))
   func testBuildSetup(options: SourceKitLSPOptions) async throws {
     try await withTestScratchDir { tempDir in
       try FileManager.default.createFiles(
@@ -451,7 +476,7 @@ struct SwiftPMBuildServerTests {
     }
   }
 
-  @Test(arguments: buildServerOptionsToTest)
+  @Test(arguments: buildServerOptionsToTest())
   func testMultiFileSwift(options: SourceKitLSPOptions) async throws {
     try await withTestScratchDir { tempDir in
       try FileManager.default.createFiles(
@@ -507,7 +532,7 @@ struct SwiftPMBuildServerTests {
     }
   }
 
-  @Test(arguments: buildServerOptionsToTest)
+  @Test(arguments: buildServerOptionsToTest())
   func testMultiTargetSwift(options: SourceKitLSPOptions) async throws {
     try await withTestScratchDir { tempDir in
       try FileManager.default.createFiles(
@@ -579,7 +604,7 @@ struct SwiftPMBuildServerTests {
     }
   }
 
-  @Test(arguments: buildServerOptionsToTest)
+  @Test(arguments: buildServerOptionsToTest())
   func testUnknownFile(options: SourceKitLSPOptions) async throws {
     try await withTestScratchDir { tempDir in
       try FileManager.default.createFiles(
@@ -638,7 +663,7 @@ struct SwiftPMBuildServerTests {
     }
   }
 
-  @Test(arguments: buildServerOptionsToTest)
+  @Test(arguments: buildServerOptionsToTest())
   func testBasicCXXArgs(options: SourceKitLSPOptions) async throws {
     try await withTestScratchDir { tempDir in
       try FileManager.default.createFiles(
@@ -750,7 +775,7 @@ struct SwiftPMBuildServerTests {
     }
   }
 
-  @Test(arguments: buildServerOptionsToTest)
+  @Test(arguments: buildServerOptionsToTest())
   func testDeploymentTargetSwift(options: SourceKitLSPOptions) async throws {
     try await withTestScratchDir { tempDir in
       try FileManager.default.createFiles(
@@ -811,7 +836,7 @@ struct SwiftPMBuildServerTests {
     }
   }
 
-  @Test(arguments: buildServerOptionsToTest)
+  @Test(arguments: buildServerOptionsToTest(requiring: SwiftVersion(6, 5)))
   func testSymlinkInWorkspaceSwift(options: SourceKitLSPOptions) async throws {
     try await withTestScratchDir { tempDir in
       try FileManager.default.createFiles(
@@ -889,7 +914,7 @@ struct SwiftPMBuildServerTests {
     }
   }
 
-  @Test(arguments: buildServerOptionsToTest)
+  @Test(arguments: buildServerOptionsToTest(requiring: SwiftVersion(6, 5)))
   func testSymlinkInWorkspaceCXX(options: SourceKitLSPOptions) async throws {
     try await withTestScratchDir { tempDir in
       try FileManager.default.createFiles(
@@ -949,7 +974,7 @@ struct SwiftPMBuildServerTests {
     }
   }
 
-  @Test(arguments: buildServerOptionsToTest)
+  @Test(arguments: buildServerOptionsToTest())
   func testSwiftDerivedSources(options: SourceKitLSPOptions) async throws {
     try await withTestScratchDir { tempDir in
       try FileManager.default.createFiles(
@@ -1299,7 +1324,7 @@ struct SwiftPMBuildServerTests {
     #expect(diagnostics.isEmpty)
   }
 
-  @Test(arguments: buildServerOptionsToTest)
+  @Test(arguments: buildServerOptionsToTest())
   func testPkgConfigDirectories(options: SourceKitLSPOptions) async throws {
     var options = options
     options.experimentalFeatures = [.sourceKitOptionsRequest]
