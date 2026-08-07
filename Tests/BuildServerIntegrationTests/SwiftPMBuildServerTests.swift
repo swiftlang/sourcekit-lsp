@@ -1140,7 +1140,10 @@ struct SwiftPMBuildServerTests {
       }
     )
     let begin = try await project.testClient.nextNotification(ofType: WorkDoneProgress.self)
-    #expect(begin.value == .begin(WorkDoneProgressBegin(title: "SourceKit-LSP: Reloading Package")))
+    #expect(
+      begin.value == .begin(WorkDoneProgressBegin(title: "SourceKit-LSP: Reloading Package"))
+        || begin.value == .begin(WorkDoneProgressBegin(title: "SwiftPM: Reloading Package"))
+    )
     didReceiveWorkDoneProgressNotification.signal()
 
     let end = try await project.testClient.nextNotification(ofType: WorkDoneProgress.self)

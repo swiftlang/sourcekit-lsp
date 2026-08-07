@@ -1394,7 +1394,11 @@ final class WorkspaceTests: SourceKitLSPTestCase {
         workspace: DocumentURI(project.scratchDirectory)
       )
     )
-    XCTAssertEqual(outputPaths.outputPaths.map { $0.suffix(13) }.sorted(), ["FileA.swift.o", "FileB.swift.o"])
+    if project.testClient.server.options.swiftPMOrDefault.buildSystem == .swiftbuild {
+      XCTAssertEqual(outputPaths.outputPaths.map { $0.suffix(7) }.sorted(), ["FileA.o", "FileB.o"])
+    } else {
+      XCTAssertEqual(outputPaths.outputPaths.map { $0.suffix(13) }.sorted(), ["FileA.swift.o", "FileB.swift.o"])
+    }
   }
 
   func testOrphanedClangLanguageServiceShutdown() async throws {
