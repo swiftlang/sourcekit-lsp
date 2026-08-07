@@ -296,7 +296,7 @@ var targets: [Target] = [
     dependencies: [
       "SwiftExtensions",
       .product(name: "SKLogging", package: "swift-tools-protocols"),
-    ],
+    ] + swiftSyntaxDependencies(["SwiftSyntax"]),
     exclude: ["CMakeLists.txt"],
   ),
 
@@ -305,7 +305,7 @@ var targets: [Target] = [
     dependencies: [
       "SwiftExtensionsForPlugin",
       .product(name: "_SKLoggingForPlugin", package: "swift-tools-protocols"),
-    ],
+    ] + swiftSyntaxDependencies(["SwiftSyntax"]),
     exclude: ["CMakeLists.txt"],
     swiftSettings: [
       .unsafeFlags([
@@ -524,6 +524,7 @@ var targets: [Target] = [
   .target(
     name: "SwiftSyntaxCodeActions",
     dependencies: [
+      "SKUtilities",
       "SourceKitLSP",
       "SwiftExtensions",
       .product(name: "LanguageServerProtocol", package: "swift-tools-protocols"),

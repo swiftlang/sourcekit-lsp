@@ -12,9 +12,11 @@
 
 @_spi(SourceKitLSP) import LanguageServerProtocol
 @_spi(SourceKitLSP) import SKLogging
+import SKUtilities
 import SourceKitLSP
 import SwiftParser
 import SwiftSyntax
+import SwiftSyntaxCodeActions
 
 // MARK: - Attribute parsing
 
@@ -112,32 +114,7 @@ struct TestingAttributeData {
 
     self.isDisabled = traitArguments.lazy
       .compactMap { $0.as(FunctionCallExprSyntax.self) }
-      .filter { functionCall in
-        switch functionCall.calledExpression.as(MemberAccessExprSyntax.self)?.fullyQualifiedName {
-        case "disabled", "ConditionTrait.disabled", "Testing.ConditionTrait.disabled":
-          return true
-        default:
-          return false
-        }
-      }
-      .contains { functionCall in
-        // Ignore disabled traits which have an `if:` parameter since
-        // they're conditional.
-        let hasConditionParam = functionCall.arguments.lazy
-          .compactMap(\.label?.text)
-          .contains("if")
-        if hasConditionParam {
-          return false
-        }
-
-        // Ignore disabled traits which have a trailing closure since
-        // they're conditional.
-        if functionCall.trailingClosure != nil {
-          return false
-        }
-
-        return true
-      }
+      .contains { $0.swiftTestingDisabledTrait == .disabled }
 
     self.isHidden = traitArguments.lazy
       .compactMap { $0.as(MemberAccessExprSyntax.self) }
@@ -389,63 +366,6 @@ final class SyntacticSwiftTestingTestScanner: SyntaxVisitor {
 }
 
 // MARK: - SwiftSyntax Utilities
-
-fileprivate extension AttributeSyntax {
-  /// Check whether or not this attribute is named with the specified name and
-  /// module.
-  ///
-  /// The attribute's name is accepted either without or with the specified
-  /// module name as a prefix to allow for either syntax. The name of this
-  /// attribute must not include generic type parameters.
-  ///
-  /// - Parameters:
-  ///   - name: The `"."`-separated type name to compare against.
-  ///   - moduleName: The module the specified type is declared in.
-  ///
-  /// - Returns: Whether or not this type has the given name.
-  func isNamed(_ name: String, inModuleNamed moduleName: String) -> Bool {
-    if let identifierType = attributeName.as(IdentifierTypeSyntax.self) {
-      return identifierType.name.text == name
-    } else if let memberType = attributeName.as(MemberTypeSyntax.self),
-      let baseIdentifierType = memberType.baseType.as(IdentifierTypeSyntax.self),
-      baseIdentifierType.genericArgumentClause == nil
-    {
-      return memberType.name.text == name && baseIdentifierType.name.text == moduleName
-    }
-
-    return false
-  }
-}
-
-fileprivate extension MemberAccessExprSyntax {
-  /// The fully-qualified name of this instance (subject to available
-  /// information.)
-  ///
-  /// The value of this property are all the components of the based name
-  /// name joined together with `.`.
-  var fullyQualifiedName: String {
-    components.joined(separator: ".")
-  }
-
-  /// The name components of this instance (subject to available
-  /// information.)
-  ///
-  /// The value of this property is this base name of this instance,
-  /// i.e. the string value of `base` preceeded with any preceding base names
-  /// and followed by its `name` property.
-  ///
-  /// For example, if this instance represents
-  /// the expression `x.y.z(123)`, the value of this property is
-  /// `["x", "y", "z"]`.
-  var components: [String] {
-    if let declReferenceExpr = base?.as(DeclReferenceExprSyntax.self) {
-      return [declReferenceExpr.baseName.text, declName.baseName.text]
-    } else if let baseMemberAccessExpr = base?.as(MemberAccessExprSyntax.self) {
-      return baseMemberAccessExpr.components + [declName.baseName.text]
-    }
-    return [declName.baseName.text]
-  }
-}
 
 fileprivate extension TypeSyntax {
   /// If this type is a simple chain of `MemberTypeSyntax` and `IdentifierTypeSyntax`, return the components that make

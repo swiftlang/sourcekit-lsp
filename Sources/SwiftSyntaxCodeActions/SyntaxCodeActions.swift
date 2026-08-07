@@ -38,6 +38,7 @@ package let allSyntaxCodeActionProviders: [any SyntaxCodeActionProvider.Type] = 
     RemoveRedundantParentheses.self,
     RemoveSeparatorsFromIntegerLiteral.self,
     SwapBinaryOperands.self,
+    ToggleTestDisabled.self,
   ]
   #if !NO_SWIFTPM_DEPENDENCY
   result.append(PackageManifestEdits.self)
