@@ -135,6 +135,8 @@ package actor SourceKitLSPServer {
   /// the method of the request (ie. the value of `TextDocumentRequest.method`).
   private var inProgressTextDocumentRequests: [DocumentURI: [(id: RequestID, requestMethod: String)]] = [:]
 
+  private var diagnosticsByDocumentAndSource: [DocumentURI: [DiagnosticsSource: [Diagnostic]]] = [:]
+
   var onExit: () -> Void
 
   /// The files that we asked the client to watch.
@@ -392,7 +394,8 @@ package actor SourceKitLSPServer {
       @Sendable @escaping (
         RequestType, Workspace, any LanguageService
       ) async throws ->
-      RequestType.Response?
+      RequestType.Response?,
+    combine: (@Sendable ([RequestType.Response]) -> RequestType.Response)? = nil
   ) async {
     await request.reply {
       let request = request.params
@@ -404,18 +407,26 @@ package actor SourceKitLSPServer {
       if languageServices.isEmpty {
         throw ResponseError.unknown("No language service for '\(request.textDocument.uri)' found")
       }
-      // Return the results from the first language service that doesn't throw a `requestNotImplemented` error.
+
+      var responses: [RequestType.Response] = []
       for languageService in languageServices {
         do {
           guard let response = try await requestHandler(request, workspace, languageService) else {
             continue
           }
-          return response
+          guard let combine else {
+            // No `combine` supplied: first language service to answer wins,
+            return response
+          }
+          responses.append(response)
         } catch let error as ResponseError where error.code == .requestNotImplemented {
           continue
         }
       }
-      throw ResponseError.unknown("No language service implements \(type(of: request).method)")
+      guard let combine, !responses.isEmpty else {
+        throw ResponseError.unknown("No language service implements \(type(of: request).method)")
+      }
+      return combine(responses)
     }
   }
 
@@ -427,6 +438,25 @@ package actor SourceKitLSPServer {
   /// Send the given request to the editor.
   package func sendRequestToClient<R: RequestType>(_ request: R) async throws -> R.Response {
     return try await client.send(request)
+  }
+
+  package func publishDiagnostics(
+    _ diagnostics: [Diagnostic],
+    for uri: DocumentURI,
+    from source: DiagnosticsSource
+  ) {
+    diagnosticsByDocumentAndSource[uri, default: [:]][source] = diagnostics
+    let merged = diagnosticsByDocumentAndSource[uri]?.values.flatMap { $0 } ?? []
+    sendNotificationToClient(PublishDiagnosticsNotification(uri: uri, diagnostics: merged))
+  }
+
+  package func clearDiagnostics(for uri: DocumentURI, from source: DiagnosticsSource) {
+    guard diagnosticsByDocumentAndSource[uri]?.removeValue(forKey: source) != nil else { return }
+    let merged = diagnosticsByDocumentAndSource[uri]?.values.flatMap { $0 } ?? []
+    sendNotificationToClient(PublishDiagnosticsNotification(uri: uri, diagnostics: merged))
+    if diagnosticsByDocumentAndSource[uri]?.isEmpty == true {
+      diagnosticsByDocumentAndSource[uri] = nil
+    }
   }
 
   /// After the language service has crashed, send `DidOpenTextDocumentNotification`s to a newly instantiated language service for previously open documents.
@@ -664,7 +694,20 @@ extension SourceKitLSPServer: QueueBasedMessageHandler {
     case let request as RequestAndReply<DocumentColorRequest>:
       await self.handleRequest(for: request, requestHandler: self.documentColor)
     case let request as RequestAndReply<DocumentDiagnosticsRequest>:
-      await self.handleRequest(for: request, requestHandler: self.documentDiagnostic)
+      await self.handleRequest(
+        for: request,
+        requestHandler: self.documentDiagnostic,
+        combine: { responses in
+          .full(
+            RelatedFullDocumentDiagnosticReport(
+              items: responses.flatMap { report -> [Diagnostic] in
+                guard case .full(let full) = report else { return [] }
+                return full.items
+              }
+            )
+          )
+        }
+      )
     case let request as RequestAndReply<DocumentFormattingRequest>:
       await self.handleRequest(for: request, requestHandler: self.documentFormatting)
     case let request as RequestAndReply<DocumentRangeFormattingRequest>:
@@ -3015,6 +3058,11 @@ private let minWorkspaceSymbolPatternLength = 3
 private let maxWorkspaceSymbolResults = 4096
 
 package typealias Diagnostic = LanguageServerProtocol.Diagnostic
+
+package enum DiagnosticsSource: Hashable, Sendable {
+  case swift
+  case documentation
+}
 
 fileprivate extension CheckedIndex {
   /// Take the name of containers into account to form a fully-qualified name for the given symbol.
