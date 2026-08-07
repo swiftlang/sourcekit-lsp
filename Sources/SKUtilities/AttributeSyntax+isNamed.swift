@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SwiftSyntax
+package import SwiftSyntax
 
 package extension AttributeSyntax {
   /// Check whether or not this attribute is named with the specified name and
