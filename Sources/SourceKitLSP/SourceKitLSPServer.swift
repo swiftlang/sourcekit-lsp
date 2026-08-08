@@ -2451,18 +2451,52 @@ extension SourceKitLSPServer {
     guard let index = await workspaceForDocument(uri: req.textDocument.uri)?.index(checkedFor: .deletedFiles) else {
       return nil
     }
-    let locations = try symbols.flatMap { (symbol) -> [Location] in
-      guard let usr = symbol.usr else { return [] }
-      var occurrences = try index.occurrences(ofUSR: usr, roles: .baseOf)
-      if occurrences.isEmpty {
-        occurrences = try index.occurrences(relatedToUSR: usr, roles: .overrideOf)
-      }
 
-      return occurrences.compactMap { $0.location.lspLocation }
+    // Report baseOf locations used for type hierarchies (subclasses / protocol conformers). For overrideOf
+    // occurrences, keep explicit definition/declaration locations and remap pure-implicit sites to their primary
+    // definition when possible (e.g. a protocol requirement satisfied in a type body with a separate conformance
+    // extension). If no primary occurrence is indexed, report one representative implicit location.
+    // See https://github.com/swiftlang/sourcekit-lsp/issues/1600
+    var resultLocations: [Location] = []
+    var overrideOccurrences: [SymbolOccurrence] = []
+
+    for symbol in symbols {
+      guard let usr = symbol.usr else { continue }
+      let baseOccurrences = try index.occurrences(ofUSR: usr, roles: .baseOf)
+      resultLocations += baseOccurrences.compactMap { $0.location.lspLocation }
+      overrideOccurrences += try index.occurrences(relatedToUSR: usr, roles: .overrideOf)
     }
+
+    // Retain one deterministic fallback occurrence for each USR that needs primary-definition lookup.
+    var implicitOccurrencesNeedingLookup: [String: SymbolOccurrence] = [:]
+
+    for occurrence in overrideOccurrences {
+      if occurrence.roles.contains(.definition) || occurrence.roles.contains(.declaration) {
+        // Preserve every explicit declaration/definition location (important for C++ where
+        // in-class declaration and out-of-line definition share a USR).
+        if let location = occurrence.location.lspLocation {
+          resultLocations.append(location)
+        }
+      } else if occurrence.roles.contains(.implicit) {
+        let usr = occurrence.symbol.usr
+        implicitOccurrencesNeedingLookup[usr] = min(implicitOccurrencesNeedingLookup[usr] ?? occurrence, occurrence)
+      } else {
+        logger.fault(
+          "Ignoring override occurrence \(occurrence.symbol.usr) with unexpected roles \(occurrence.roles)"
+        )
+      }
+    }
+
+    for (implicitUSR, implicitOccurrence) in implicitOccurrencesNeedingLookup {
+      let occurrence = try index.primaryDefinitionOrDeclarationOccurrence(ofUSR: implicitUSR) ?? implicitOccurrence
+      if let location = occurrence.location.lspLocation {
+        resultLocations.append(location)
+      }
+    }
+
     let copiedFileMap = await workspace.buildServerManager.cachedCopiedFileMap
-    let remappedLocations = locations.adjusted(for: copiedFileMap)
-    return .locations(remappedLocations.sorted())
+    let remappedLocations = resultLocations.adjusted(for: copiedFileMap)
+    return .locations(remappedLocations.unique.sorted())
   }
 
   func references(
