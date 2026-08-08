@@ -19,7 +19,7 @@ extension SwiftLanguageService {
   /// The Objective-C selector of the declaration at `position`, or `nil` if it isn't exposed to Objective-C or the
   /// toolchain doesn't know the request.
   func objcSelector(_ uri: DocumentURI, at position: Position) async -> String? {
-    return await orLog("Getting Objective-C selector", level: .debug) {
+    return await orLog("Getting Objective-C selector") {
       let snapshot = try await self.latestSnapshot(for: uri)
       let skreq = sourcekitd.dictionary([
         keys.offset: snapshot.utf8Offset(of: position),
