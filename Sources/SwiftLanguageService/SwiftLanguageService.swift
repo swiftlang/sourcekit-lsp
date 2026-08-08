@@ -959,7 +959,7 @@ extension SwiftLanguageService {
     }
     let providersAndKinds: [(provider: CodeActionProvider, kind: CodeActionKind?)] = [
       (retrieveSyntaxCodeActions, nil),
-      (retrieveRefactorCodeActions, .refactor),
+      (retrieveCursorInfoBasedCodeActions, nil),
       (retrieveQuickFixCodeActions, .quickFix),
       (retrieveRemoveUnusedImportsCodeAction, .sourceOrganizeImports),
     ]
@@ -1054,7 +1054,19 @@ extension SwiftLanguageService {
     )
   }
 
-  func retrieveRefactorCodeActions(_ params: CodeActionRequest) async throws -> [CodeAction] {
+  private func codeActionKind(_ kind: CodeActionKind, matches requested: CodeActionKind) -> Bool {
+    return kind == requested || kind.rawValue.hasPrefix("\(requested.rawValue).")
+  }
+
+  func retrieveCursorInfoBasedCodeActions(_ params: CodeActionRequest) async throws -> [CodeAction] {
+    if let requestedKinds = params.context.only,
+      !requestedKinds.contains(where: {
+        codeActionKind($0, matches: .refactor) || codeActionKind(.refactor, matches: $0)
+      })
+    {
+      return []
+    }
+
     let additionalCursorInfoParameters: ((SKDRequestDictionary) -> Void) = { skreq in
       skreq.set(self.keys.retrieveRefactorActions, to: 1)
     }
@@ -1097,11 +1109,19 @@ extension SwiftLanguageService {
     if isOnObjCFunction, let selector = await objcSelector(params.textDocument.uri, at: params.range.lowerBound) {
       let showObjCSelectorCommand = ShowObjCSelectorCommand(selector: selector).asCommand()
       refactorActions.append(
-        CodeAction(title: showObjCSelectorCommand.title, kind: .refactor, command: showObjCSelectorCommand)
+        CodeAction(title: showObjCSelectorCommand.title, kind: .empty, command: showObjCSelectorCommand)
       )
     }
 
-    return refactorActions
+    guard let requestedKinds = params.context.only else {
+      return refactorActions
+    }
+    return refactorActions.filter { codeAction in
+      guard let kind = codeAction.kind else {
+        return false
+      }
+      return requestedKinds.contains { codeActionKind(kind, matches: $0) }
+    }
   }
 
   func retrieveQuickFixCodeActions(_ params: CodeActionRequest) async throws -> [CodeAction] {
