@@ -478,7 +478,7 @@ package actor SkipUnless {
         )
 
         let testURL = scratchDirectory.appending(component: "test.swift")
-        try source.write(to: testURL, atomically: false, encoding: .utf8)
+        try await source.writeWithRetry(to: testURL)
 
         let sourceFile = try testURL.filePath
 
