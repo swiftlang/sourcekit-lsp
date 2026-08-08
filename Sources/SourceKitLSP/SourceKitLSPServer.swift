@@ -2229,8 +2229,9 @@ extension SourceKitLSPServer {
     }
 
     // Report baseOf locations used for type hierarchies (subclasses / protocol conformers). For overrideOf
-    // occurrences, keep explicit definition/declaration locations and remap only pure-implicit sites to their primary
-    // definition (e.g. a protocol requirement satisfied in a type body with a separate conformance extension).
+    // occurrences, keep explicit definition/declaration locations and remap pure-implicit sites to their primary
+    // definition when possible (e.g. a protocol requirement satisfied in a type body with a separate conformance
+    // extension). If no primary occurrence is indexed, report one representative implicit location.
     // See https://github.com/swiftlang/sourcekit-lsp/issues/1600
     var resultLocations: [Location] = []
     var overrideOccurrences: [SymbolOccurrence] = []
@@ -2242,8 +2243,8 @@ extension SourceKitLSPServer {
       overrideOccurrences += try index.occurrences(relatedToUSR: usr, roles: .overrideOf)
     }
 
-    // Deduplicate USRs only for pure-implicit occurrences that need primary-definition lookup.
-    var implicitUSRsNeedingLookup = Set<String>()
+    // Retain one deterministic fallback occurrence for each USR that needs primary-definition lookup.
+    var implicitOccurrencesNeedingLookup: [String: SymbolOccurrence] = [:]
 
     for occurrence in overrideOccurrences {
       if occurrence.roles.contains(.definition) || occurrence.roles.contains(.declaration) {
@@ -2253,7 +2254,8 @@ extension SourceKitLSPServer {
           resultLocations.append(location)
         }
       } else if occurrence.roles.contains(.implicit) {
-        implicitUSRsNeedingLookup.insert(occurrence.symbol.usr)
+        let usr = occurrence.symbol.usr
+        implicitOccurrencesNeedingLookup[usr] = min(implicitOccurrencesNeedingLookup[usr] ?? occurrence, occurrence)
       } else {
         logger.fault(
           "Ignoring override occurrence \(occurrence.symbol.usr) with unexpected roles \(occurrence.roles)"
@@ -2261,13 +2263,11 @@ extension SourceKitLSPServer {
       }
     }
 
-    for implicitUSR in implicitUSRsNeedingLookup {
-      if let primary = try index.primaryDefinitionOrDeclarationOccurrence(ofUSR: implicitUSR),
-        let location = primary.location.lspLocation
-      {
+    for (implicitUSR, implicitOccurrence) in implicitOccurrencesNeedingLookup {
+      let occurrence = try index.primaryDefinitionOrDeclarationOccurrence(ofUSR: implicitUSR) ?? implicitOccurrence
+      if let location = occurrence.location.lspLocation {
         resultLocations.append(location)
       }
-      // Pure implicit with no resolvable primary: drop (avoids subclass / conformance sites).
     }
 
     let copiedFileMap = await workspace.buildServerManager.cachedCopiedFileMap

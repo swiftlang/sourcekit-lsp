@@ -10,10 +10,13 @@
 //
 //===----------------------------------------------------------------------===//
 
+import Foundation
 @_spi(SourceKitLSP) import LanguageServerProtocol
 import SKLogging
 import SKTestSupport
+import SwiftExtensions
 import TSCBasic
+import ToolchainRegistry
 import XCTest
 
 final class ImplementationTests: SourceKitLSPTestCase {
@@ -276,6 +279,71 @@ final class ImplementationTests: SourceKitLSPTestCase {
       """,
       expectedLocations: ["2️⃣", "3️⃣", "6️⃣", "8️⃣"]
     )
+  }
+
+  func testImplicitImplementationWithoutIndexedDefinitionIsReportedOnce() async throws {
+    guard let swiftc = await ToolchainRegistry.forTesting.default?.swiftc else {
+      throw XCTSkip("swiftc not found")
+    }
+
+    try await withTestScratchDir { binaryModuleDir in
+      let sourceFile = binaryModuleDir.appendingPathComponent("BinaryLib.swift")
+      try await """
+      open class BinaryType {
+        public init() {}
+        open func myFunc() {}
+      }
+      """.writeWithRetry(to: sourceFile)
+
+      var arguments = [
+        swiftc.path,
+        "-emit-module",
+        "-module-name", "BinaryLib",
+        "-emit-module-path", binaryModuleDir.appendingPathComponent("BinaryLib.swiftmodule").path,
+      ]
+      if let sdk = defaultSDKPath {
+        arguments += ["-sdk", sdk]
+      }
+      #if os(macOS)
+      #if arch(arm64)
+      arguments += ["-target", "arm64-apple-macosx10.13"]
+      #elseif arch(x86_64)
+      arguments += ["-target", "x86_64-apple-macosx10.13"]
+      #endif
+      #endif
+      arguments += [sourceFile.path]
+      try await Process.checkNonZeroExit(arguments: arguments)
+
+      let consumerDirectory = binaryModuleDir.appendingPathComponent("Consumer")
+      try FileManager.default.createDirectory(at: consumerDirectory, withIntermediateDirectories: true)
+      let project = try await IndexedSingleSwiftFileTestProject(
+        """
+        import BinaryLib
+
+        protocol MyProto {
+          func 1️⃣myFunc()
+        }
+
+        extension 2️⃣BinaryType: MyProto {}
+        class 3️⃣SubclassA: BinaryType {}
+        class 4️⃣SubclassB: BinaryType {}
+        """,
+        workspaceDirectory: consumerDirectory,
+        extraCompilerArguments: ["-I", binaryModuleDir.path]
+      )
+
+      let response = try await project.testClient.send(
+        ImplementationRequest(
+          textDocument: TextDocumentIdentifier(project.fileURI),
+          position: project.positions["1️⃣"]
+        )
+      )
+
+      XCTAssertEqual(
+        response?.locations,
+        [Location(uri: project.fileURI, range: Range(project.positions["2️⃣"]))]
+      )
+    }
   }
 
   func testCrossFile() async throws {
