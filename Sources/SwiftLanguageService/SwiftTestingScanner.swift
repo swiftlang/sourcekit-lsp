@@ -12,11 +12,11 @@
 
 @_spi(SourceKitLSP) import LanguageServerProtocol
 @_spi(SourceKitLSP) import SKLogging
-import SKUtilities
 import SourceKitLSP
 import SwiftParser
 import SwiftSyntax
 import SwiftSyntaxCodeActions
+import SwiftSyntaxExtensions
 
 // MARK: - Attribute parsing
 

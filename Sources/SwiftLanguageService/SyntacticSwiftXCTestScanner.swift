@@ -11,10 +11,10 @@
 //===----------------------------------------------------------------------===//
 
 @_spi(SourceKitLSP) import LanguageServerProtocol
-import SKUtilities
 import SourceKitLSP
 import SwiftSyntax
 import SwiftSyntaxCodeActions
+import SwiftSyntaxExtensions
 
 /// Scans a source file for `XCTestCase` classes and test methods.
 ///
