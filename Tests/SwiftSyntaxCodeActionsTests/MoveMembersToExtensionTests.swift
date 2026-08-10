@@ -10,14 +10,13 @@
 //
 //===----------------------------------------------------------------------===//
 
+import SKTestSupport
 import SwiftParser
 import SwiftRefactor
 import SwiftSyntax
 import SwiftSyntaxBuilder
 import SwiftSyntaxCodeActions
 import XCTest
-import SKTestSupport
-
 
 final class MoveMembersToExtensionTests: XCTestCase {
   func testMoveFunctionFromClass() throws {
@@ -34,19 +33,19 @@ final class MoveMembersToExtensionTests: XCTestCase {
       }
       """,
       expected:
-      """
-      class Foo {
-        func bar() {
-          print("Hello world!")
+        """
+        class Foo {
+          func bar() {
+            print("Hello world!")
+          }
         }
-      }
 
-      extension Foo {
-        func foo() {
-          print("Hello world!")
+        extension Foo {
+          func foo() {
+            print("Hello world!")
+          }
         }
-      }
-      """
+        """
     )
   }
 
@@ -57,7 +56,7 @@ final class MoveMembersToExtensionTests: XCTestCase {
         func foo() {
           1️⃣print("Hello world!")
         }2️⃣
-      
+
         func bar() {
           print("Hello world!")
         }
@@ -68,23 +67,23 @@ final class MoveMembersToExtensionTests: XCTestCase {
       }
       """,
       expected:
-      """
-      class Foo {
-        func bar() {
-          print("Hello world!")
+        """
+        class Foo {
+          func bar() {
+            print("Hello world!")
+          }
         }
-      }
 
-      extension Foo {
-        func foo() {
-          print("Hello world!")
+        extension Foo {
+          func foo() {
+            print("Hello world!")
+          }
         }
-      }
 
-      struct Bar {
-        func foo() {}
-      }
-      """
+        struct Bar {
+          func foo() {}
+        }
+        """
     )
   }
 
@@ -97,7 +96,7 @@ final class MoveMembersToExtensionTests: XCTestCase {
         }
 
         deinit() {}
-      
+
         func bar() {
           print("Hello world!")
         }2️⃣
@@ -108,25 +107,25 @@ final class MoveMembersToExtensionTests: XCTestCase {
       }
       """,
       expected:
-      """
-      class Foo {
-        deinit() {}
-      }
-
-      extension Foo {
-        func foo() {
-          print("Hello world!")
+        """
+        class Foo {
+          deinit() {}
         }
 
-        func bar() {
-          print("Hello world!")
-        }
-      }
+        extension Foo {
+          func foo() {
+            print("Hello world!")
+          }
 
-      struct Bar {
-        func foo() {}
-      }
-      """
+          func bar() {
+            print("Hello world!")
+          }
+        }
+
+        struct Bar {
+          func foo() {}
+        }
+        """
     )
   }
 
@@ -140,15 +139,15 @@ final class MoveMembersToExtensionTests: XCTestCase {
       }
       """,
       expected:
-      """
-      struct Outer {}
-      
-      extension Outer {
-        struct Inner {
+        """
+        struct Outer {
+          struct Inner {}
+        }
+
+        extension Outer.Inner {
           func moveThis() {}
         }
-      }
-      """
+        """
     )
   }
 
@@ -162,19 +161,19 @@ final class MoveMembersToExtensionTests: XCTestCase {
       }
       """,
       expected:
-      """
-      struct Outer<T> {}
-      
-      extension Outer {
-        struct Inner {
+        """
+        struct Outer<T> {
+          struct Inner {}
+        }
+
+        extension Outer.Inner {
           func moveThis() {}
         }
-      }
-      """
+        """
     )
   }
 
-  func testMoveSelectedFunctionName() throws {
+  func testMoveNestedFunctionNameFromGeneric() throws {
     try assertMoveMembersToExtension(
       """
       struct Outer<T> {
@@ -184,20 +183,85 @@ final class MoveMembersToExtensionTests: XCTestCase {
       }
       """,
       expected:
-      """
-      struct Outer<T> {}
+        """
+        struct Outer<T> {
+          struct Inner {}
+        }
 
-      extension Outer {
-        struct Inner {
+        extension Outer.Inner {
           func moveThis() {}
         }
-      }
+        """
+    )
+  }
+
+  func testMoveNestedFunctionName2() throws {
+    try assertMoveMembersToExtension(
       """
+      struct Outer<T> {
+        struct Middle {
+          struct Inner {
+            func 1️⃣moveThis()2️⃣ {}
+          }
+        }
+      }
+      """,
+      expected:
+        """
+        struct Outer<T> {
+          struct Middle {
+            struct Inner {}
+          }
+        }
+
+        extension Outer.Middle.Inner {
+          func moveThis() {}
+        }
+        """
+    )
+  }
+
+  func testNestedStoredPropertyIsNotMoved() throws {
+    try assertMoveMembersToExtension(
+      """
+      struct Outer {
+        struct Inner {
+          1️⃣var value = 12️⃣
+        }
+      }
+      """,
+      expected: nil
+    )
+  }
+
+  func testNestedInvalidMemberRemains() throws {
+    try assertMoveMembersToExtension(
+      """
+      struct Outer {
+        struct Inner {1️⃣
+          var value = 1
+
+          func moveThis() {}2️⃣
+        }
+      }
+      """,
+      expected:
+        """
+        struct Outer {
+          struct Inner {
+            var value = 1
+          }
+        }
+
+        extension Outer.Inner {
+          func moveThis() {}
+        }
+        """
     )
   }
 
   func testSelectedDeinitializerMember() async throws {
-    try assertMoveMembersToExtension (
+    try assertMoveMembersToExtension(
       """
       class Foo {
         func foo() {

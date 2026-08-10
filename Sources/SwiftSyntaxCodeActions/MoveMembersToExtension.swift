@@ -11,8 +11,41 @@
 //===----------------------------------------------------------------------===//
 
 @_spi(SourceKitLSP) import LanguageServerProtocol
+import SwiftBasicFormat
 import SwiftRefactor
 package import SwiftSyntax
+
+package struct MoveMembersToExtension: SyntaxRefactoringProvider {
+  package struct Context {
+    let range: Range<AbsolutePosition>
+
+    package init(range: Range<AbsolutePosition>) {
+      self.range = range
+    }
+  }
+
+  package static func refactor(syntax: SourceFileSyntax, in context: Context) throws -> SourceFileSyntax {
+    let sourceDecl = try findSourceDecl(syntax: syntax, range: context.range)
+    let selectedMembers = findSelectedMembers(declGroup: sourceDecl.declGroup, range: context.range)
+    let membersToMove = try validateMovableMembers(selectedMembers: selectedMembers)
+    let remainingMembers = updateRemainingMembers(declGroup: sourceDecl.declGroup, membersToMove: membersToMove)
+
+    var updatedDeclGroup = sourceDecl.declGroup
+    updatedDeclGroup.memberBlock = updateMemberBlock(
+      sourceDecl.declGroup.memberBlock,
+      members: remainingMembers
+    )
+
+    let extensionDecl = makeExtension(sourceDecl: sourceDecl, membersToMove: membersToMove)
+
+    return updateSyntax(
+      syntax,
+      sourceDecl: sourceDecl,
+      updatedDeclGroup: updatedDeclGroup,
+      extensionDecl: extensionDecl
+    )
+  }
+}
 
 private enum ValidationResult: CustomStringConvertible {
   case accessor
@@ -51,32 +84,93 @@ private enum ValidationResult: CustomStringConvertible {
   }
 }
 
-package struct MoveMembersToExtension: SyntaxRefactoringProvider {
-  package struct Context {
-    let range: Range<AbsolutePosition>
+private extension MoveMembersToExtension {
+  struct MemberToMove {
+    struct NestedMember: Equatable {
+      let updatedMember: MemberBlockItemSyntax
+      let partsToMove: [MemberBlockItemSyntax]
+      let validationResults: [ValidationResult]
+      let path: [String]
+      let indentationToRemove: Trivia
+    }
 
-    package init(range: Range<AbsolutePosition>) {
-      self.range = range
+    enum Scope: Equatable {
+      case inner
+      case nested(NestedMember)
+    }
+
+    let member: MemberBlockItemSyntax
+    let scope: Scope
+
+    var validationResults: [ValidationResult] {
+      switch scope {
+      case .inner:
+        return [ValidationResult(member)].compactMap { $0 }
+
+      case .nested(let nested):
+        return nested.validationResults
+      }
+    }
+
+    var hasMovableMembers: Bool {
+      switch scope {
+      case .inner:
+        return ValidationResult(member) == nil
+
+      case .nested(let nested):
+        return !nested.partsToMove.isEmpty
+      }
+    }
+
+    init(
+      member: MemberBlockItemSyntax,
+      scope: Scope = .inner
+    ) {
+      self.member = member
+      self.scope = scope
     }
   }
 
-  package static func refactor(syntax: SourceFileSyntax, in context: Context) throws -> SourceFileSyntax {
+  struct SourceDecl {
+    let statement: CodeBlockItemSyntax
+    let index: CodeBlockItemListSyntax.Index
+    let declGroup: any DeclGroupSyntax
+    let declName: TokenSyntax
+  }
+
+  static func findSourceDecl(syntax: SourceFileSyntax, range: Range<AbsolutePosition>) throws -> SourceDecl {
     guard
-      let statement = syntax.statements.first(where: { $0.item.range.contains(context.range) }),
+      let statement = syntax.statements.first(where: { $0.item.range.contains(range) }),
       let decl = statement.item.asProtocol((any NamedDeclSyntax).self),
       let declGroup = statement.item.asProtocol((any DeclGroupSyntax).self),
-      let statementIndex = syntax.statements.index(of: statement)
+      let index = syntax.statements.index(of: statement)
     else {
       throw RefactoringNotApplicableError("Type declaration not found")
     }
 
-    let selectedMembers = Array(declGroup.memberBlock.members).filter { context.range.overlaps($0.trimmedRange) }
-      .map { (member: $0, validationResult: ValidationResult($0)) }
+    return SourceDecl(statement: statement, index: index, declGroup: declGroup, declName: decl.name)
+  }
 
-    var membersToMove = selectedMembers.filter({ $0.validationResult == nil }).map(\.member)
+  static func findSelectedMembers(declGroup: any DeclGroupSyntax, range: Range<AbsolutePosition>) -> [MemberToMove] {
+    declGroup.memberBlock.members.compactMap { member in
+      guard range.overlaps(member.trimmedRange) else { return nil }
+
+      if let nestedMember = findNestedMovableMember(member: member, range: range) {
+        return MemberToMove(
+          member: member,
+          scope: .nested(nestedMember)
+        )
+      }
+
+      return MemberToMove(member: member)
+    }
+  }
+
+  static func validateMovableMembers(selectedMembers: [MemberToMove]) throws -> [MemberToMove] {
+    let membersToMove = selectedMembers.filter(\.hasMovableMembers)
 
     guard !membersToMove.isEmpty else {
-      let notMovedMembers = Set(selectedMembers.compactMap(\.validationResult))
+      let notMovedMembers = Set(selectedMembers.flatMap(\.validationResults))
         .map(\.description)
         .sorted().joined(separator: ", ")
       throw RefactoringNotApplicableError(
@@ -84,42 +178,241 @@ package struct MoveMembersToExtension: SyntaxRefactoringProvider {
       )
     }
 
-    var updatedDeclGroup = declGroup
-    var remainingMembers = Array(declGroup.memberBlock.members).filter { !membersToMove.contains($0) }
-    membersToMove[0].decl.leadingTrivia = membersToMove[0].decl.leadingTrivia.trimmingPrefix(while: \.isSpaceOrTab)
+    return membersToMove
+  }
 
-    if remainingMembers.isEmpty {
-      updatedDeclGroup.memberBlock.rightBrace.leadingTrivia = Trivia()
-    } else {
-      remainingMembers[0].leadingTrivia = .newline.merging(
-        remainingMembers[0].leadingTrivia.trimmingPrefix(while: \.isNewline)
-      )
-      remainingMembers[remainingMembers.count - 1].trailingTrivia = remainingMembers[remainingMembers.count - 1]
-        .trailingTrivia.trimmingSuffix(while: \.isNewline)
+  static func updateRemainingMembers(
+    declGroup: any DeclGroupSyntax,
+    membersToMove: [MemberToMove]
+  ) -> [MemberBlockItemSyntax] {
+
+    let wholeMembers = membersToMove.compactMap { move in
+      if case .inner = move.scope {
+        return move.member
+      }
+      return nil
     }
 
-    updatedDeclGroup.memberBlock.members = MemberBlockItemListSyntax(remainingMembers)
-    membersToMove[0].leadingTrivia = .newline.merging(membersToMove[0].leadingTrivia.trimmingPrefix(while: \.isNewline))
-    let extensionMemberBlockSyntax = declGroup.memberBlock.with(\.members, MemberBlockItemListSyntax(membersToMove))
+    var remainingMembers = Array(declGroup.memberBlock.members).filter { !wholeMembers.contains($0) }
 
-    var declName = decl.name
-    declName.trailingTrivia = declName.trailingTrivia.merging(.space)
+    for index in remainingMembers.indices {
+      guard let move = membersToMove.first(where: { $0.member == remainingMembers[index] }),
+        case .nested(let nested) = move.scope
+      else {
+        continue
+      }
 
-    let extensionDecl = ExtensionDeclSyntax(
-      leadingTrivia: .newlines(2),
-      extendedType: IdentifierTypeSyntax(
-        leadingTrivia: .space,
-        name: declName
-      ),
-      memberBlock: extensionMemberBlockSyntax
+      remainingMembers[index] = nested.updatedMember
+    }
+
+    return remainingMembers
+  }
+
+  static func updateMemberBlock(
+    _ memberBlock: MemberBlockSyntax,
+    members: [MemberBlockItemSyntax]
+  ) -> MemberBlockSyntax {
+    var memberBlock = memberBlock
+    var members = members
+
+    if members.isEmpty {
+      memberBlock.members = MemberBlockItemListSyntax()
+      memberBlock.rightBrace.leadingTrivia = Trivia()
+      return memberBlock
+    }
+
+    members[0].leadingTrivia = .newline.merging(
+      members[0]
+        .leadingTrivia
+        .trimmingPrefix(while: \.isNewline)
     )
 
+    let lastIndex = members.index(before: members.endIndex)
+
+    members[lastIndex].trailingTrivia =
+      members[lastIndex]
+      .trailingTrivia
+      .trimmingSuffix(while: \.isNewline)
+
+    memberBlock.members = MemberBlockItemListSyntax(members)
+    return memberBlock
+  }
+
+  static func findNestedMovableMember(
+    member: MemberBlockItemSyntax,
+    range: Range<AbsolutePosition>
+  ) -> MemberToMove.NestedMember? {
+    guard let memberGroup = member.decl.asProtocol((any DeclGroupSyntax).self),
+      let memberName = member.decl.asProtocol((any NamedDeclSyntax).self)?.name.text
+    else {
+      return nil
+    }
+
+    var currentGroup = memberGroup
+    var path = [memberName]
+    var declGroups = [(declGroup: any DeclGroupSyntax, index: Int)]()
+
+    while true {
+      let members = Array(currentGroup.memberBlock.members)
+
+      let selectedIndices = members.indices.filter { range.overlaps(members[$0].trimmedRange) }
+
+      guard selectedIndices.count == 1,
+        let selectedIndex = selectedIndices.first,
+        let childGroup = members[selectedIndex].decl.asProtocol((any DeclGroupSyntax).self),
+        let childName = members[selectedIndex].decl.asProtocol((any NamedDeclSyntax).self)?.name.text,
+        childGroup.memberBlock.members.contains(where: { range.overlaps($0.trimmedRange) })
+      else {
+        break
+      }
+
+      declGroups.append((currentGroup, selectedIndex))
+
+      currentGroup = childGroup
+      path.append(childName)
+    }
+
+    let selectedMembers = Array(currentGroup.memberBlock.members).filter { range.overlaps($0.trimmedRange) }
+
+    guard !selectedMembers.isEmpty else { return nil }
+
+    let partsToMove = selectedMembers.filter { ValidationResult($0) == nil }
+
+    let validationResults = selectedMembers.compactMap(ValidationResult.init)
+
+    let remainingMembers = selectedMembers.filter { !partsToMove.contains($0) }
+
+    var updatedGroup = currentGroup
+    updatedGroup.memberBlock = updateMemberBlock(currentGroup.memberBlock, members: remainingMembers)
+
+    for (declGroup, index) in declGroups.reversed() {
+      var parentMembers = Array(declGroup.memberBlock.members)
+
+      parentMembers[index].decl = DeclSyntax(updatedGroup)
+
+      var updatedParent = declGroup
+      updatedParent.memberBlock.members = MemberBlockItemListSyntax(parentMembers)
+      updatedGroup = updatedParent
+    }
+
+    var updatedMember = member
+    updatedMember.decl = DeclSyntax(updatedGroup)
+
+    let indentationToRemove =
+      currentGroup
+      .firstToken(viewMode: .sourceAccurate)?
+      .indentationOfLine
+      ?? Trivia()
+
+    return MemberToMove.NestedMember(
+      updatedMember: updatedMember,
+      partsToMove: partsToMove,
+      validationResults: validationResults,
+      path: path,
+      indentationToRemove: indentationToRemove
+    )
+  }
+
+  static func unindentExtensionMembers(
+    _ members: [MemberBlockItemSyntax],
+    by indentation: Trivia
+  ) -> [MemberBlockItemSyntax] {
+    members.map { member in
+      let remover = IndentationRemover(
+        indentation: indentation,
+        indentFirstLine: true
+      )
+
+      return
+        remover
+        .rewrite(member)
+        .as(MemberBlockItemSyntax.self)
+        ?? member
+    }
+  }
+
+  static func makeExtensionName(
+    rootName: TokenSyntax,
+    path: [String]
+  ) -> TypeSyntax {
+    var rootName = rootName
+    rootName.leadingTrivia = Trivia()
+    rootName.trailingTrivia = Trivia()
+
+    var type = TypeSyntax(
+      IdentifierTypeSyntax(
+        leadingTrivia: .space,
+        name: rootName
+      )
+    )
+
+    for component in path {
+      type = TypeSyntax(
+        MemberTypeSyntax(
+          baseType: type,
+          period: .periodToken(),
+          name: .identifier(component)
+        )
+      )
+    }
+
+    type.trailingTrivia = .space
+    return type
+  }
+
+  static func makeExtension(sourceDecl: SourceDecl, membersToMove: [MemberToMove]) -> ExtensionDeclSyntax {
+    var extensionMembers = [MemberBlockItemSyntax]()
+    var declName = sourceDecl.declName
+    declName.trailingTrivia = declName.trailingTrivia.merging(.space)
+
+    let extendedType: TypeSyntax
+
+    if membersToMove.count == 1,
+      case .nested(let nested) = membersToMove[0].scope
+    {
+      extensionMembers = unindentExtensionMembers(
+        nested.partsToMove,
+        by: nested.indentationToRemove
+      )
+
+      extendedType = makeExtensionName(
+        rootName: sourceDecl.declName,
+        path: nested.path
+      )
+    } else {
+      extensionMembers = membersToMove.map(\.member)
+
+      extendedType = makeExtensionName(
+        rootName: sourceDecl.declName,
+        path: []
+      )
+    }
+
+    extensionMembers[0].leadingTrivia = .newline.merging(
+      extensionMembers[0].leadingTrivia.trimmingPrefix(while: \.isNewline)
+    )
+
+    var memberBlock = sourceDecl.declGroup.memberBlock
+    memberBlock.members = MemberBlockItemListSyntax(extensionMembers)
+
+    return ExtensionDeclSyntax(
+      leadingTrivia: .newlines(2),
+      extendedType: extendedType,
+      memberBlock: memberBlock
+    )
+  }
+
+  static func updateSyntax(
+    _ syntax: SourceFileSyntax,
+    sourceDecl: SourceDecl,
+    updatedDeclGroup: any DeclGroupSyntax,
+    extensionDecl: ExtensionDeclSyntax
+  ) -> SourceFileSyntax {
     var syntax = syntax
-    let updatedStatement = statement.with(\.item, .decl(DeclSyntax(updatedDeclGroup)))
-    syntax.statements[statementIndex] = updatedStatement
+    syntax.statements[sourceDecl.index] = sourceDecl.statement.with(\.item, .decl(DeclSyntax(updatedDeclGroup)))
     syntax.statements.insert(
       CodeBlockItemSyntax(item: .decl(DeclSyntax(extensionDecl))),
-      at: syntax.statements.index(after: statementIndex)
+      at: syntax.statements.index(after: sourceDecl.index)
     )
     return syntax
   }
