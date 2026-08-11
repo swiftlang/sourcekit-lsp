@@ -47,6 +47,7 @@ package actor DocumentationLanguageService: LanguageService, Sendable {
   package static var experimentalCapabilities: [String: LSPAny] {
     return [
       DoccDocumentationRequest.method: ["version": 1],
+      DocCSymbolLinkDefinitionRequest.method: ["version": 1],
       "definitionProvider": .bool(true),
     ]
   }
@@ -686,5 +687,41 @@ package actor DocumentationLanguageService: LanguageService, Sendable {
 
     let diagnostics = await symbolLinkDiagnostics(for: snapshot) ?? []
     return .full(RelatedFullDocumentDiagnosticReport(items: diagnostics))
+  }
+
+  package func symbolLinkDefinitionInPreview(
+    _ req: DocCSymbolLinkDefinitionRequest
+  ) async throws -> LocationsOrLocationLinksResponse? {
+    guard let symbolLink = DocCSymbolLink(linkString: req.symbolLink) else {
+      logger.debug("Failed to parse DocC symbol link from '\(req.symbolLink)'")
+      return nil
+    }
+    guard let sourceKitLSPServer else {
+      logger.debug("sourceKit-LSP server could not be resolved")
+      return nil
+    }
+    guard let workspace = await sourceKitLSPServer.workspaceForDocument(uri: req.textDocument.uri) else {
+      logger.debug("No workspace found for document \(req.textDocument.uri)")
+      return nil
+    }
+    guard let index = await workspace.index(checkedFor: .deletedFiles) else {
+      logger.debug("No index available for workspace")
+      return nil
+    }
+
+    let occurrence = try await sourceKitLSPServer.withOnDiskDocumentManager { onDiskDocumentManager in
+      try await resolveOccurrence(
+        for: symbolLink,
+        workspace: workspace,
+        index: index,
+        onDiskDocumentManager: onDiskDocumentManager
+      )
+    }
+
+    guard let targetLocation = occurrence?.location.lspLocation else {
+      return nil
+    }
+    return .locations([targetLocation])
+
   }
 }
