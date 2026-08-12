@@ -310,8 +310,7 @@ private extension BuildServerSpec {
             projectRoot: projectRoot,
             toolchainRegistry: toolchainRegistry,
             options: options,
-            connectionToSourceKitLSP: connectionToSourceKitLSP,
-            testHooks: buildServerHooks.swiftPMTestHooks
+            connectionToSourceKitLSP: connectionToSourceKitLSP
           )
         }
         #else
@@ -397,6 +396,8 @@ package actor BuildServerManager: QueueBasedMessageHandler {
   )
 
   package let messageHandlingQueue = AsyncQueue<BuildServerMessageDependencyTracker>()
+
+  private let buildServerHooks: BuildServerHooks
 
   /// The path to the main configuration file (or directory) that this build server manages.
   ///
@@ -578,6 +579,7 @@ package actor BuildServerManager: QueueBasedMessageHandler {
     self.options = options
     self.connectionToClient = connectionToClient
     self.configPath = buildServerSpec?.configPath
+    self.buildServerHooks = buildServerHooks
     self.buildServerAdapter = await buildServerSpec?.createBuildServerAdapter(
       toolchainRegistry: toolchainRegistry,
       options: options,
@@ -762,6 +764,7 @@ package actor BuildServerManager: QueueBasedMessageHandler {
   // MARK: Handling messages from the build server
 
   package func handle(notification: some NotificationType) async {
+    await buildServerHooks.preHandleNotificationFromBuildServer?(notification)
     switch notification {
     case let notification as OnBuildTargetDidChangeNotification:
       await self.didChangeBuildTarget(notification: notification)

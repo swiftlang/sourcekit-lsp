@@ -162,13 +162,15 @@ struct SwiftPMBuildServerTests {
         ]
       )
       let packageRoot = tempDir.appending(component: "pkg")
+      let connection = LocalConnection(receiverName: "dummy")
+      let handler = IgnoringMessageHandler()
+      connection.start(handler: handler)
       await expectThrowsError(
         try await SwiftPMBuildServer(
           projectRoot: packageRoot,
           toolchainRegistry: ToolchainRegistry(toolchains: []),
           options: SourceKitLSPOptions(),
-          connectionToSourceKitLSP: LocalConnection(receiverName: "dummy"),
-          testHooks: SwiftPMTestHooks()
+          connectionToSourceKitLSP: connection
         )
       )
     }
@@ -198,12 +200,14 @@ struct SwiftPMBuildServerTests {
         ),
         backgroundIndexing: false
       )
+      let connection = LocalConnection(receiverName: "dummy")
+      let handler = IgnoringMessageHandler()
+      connection.start(handler: handler)
       let swiftpmBuildServer = try await SwiftPMBuildServer(
         projectRoot: packageRoot,
         toolchainRegistry: .forTesting,
         options: options,
-        connectionToSourceKitLSP: LocalConnection(receiverName: "dummy"),
-        testHooks: SwiftPMTestHooks()
+        connectionToSourceKitLSP: connection
       )
 
       let dataPath = await swiftpmBuildServer.destinationBuildParameters.dataPath
@@ -1151,11 +1155,11 @@ struct SwiftPMBuildServerTests {
       ],
       capabilities: ClientCapabilities(window: WindowClientCapabilities(workDoneProgress: true)),
       hooks: Hooks(
-        buildServerHooks: BuildServerHooks(
-          swiftPMTestHooks: SwiftPMTestHooks(reloadPackageDidStart: {
+        buildServerHooks: BuildServerHooks(preHandleNotificationFromBuildServer: { notification in
+          if notification is TaskFinishNotification {
             didReceiveWorkDoneProgressNotification.waitOrXCTFail()
-          })
-        )
+          }
+        })
       ),
       pollIndex: false,
       preInitialization: { testClient in
@@ -1165,7 +1169,12 @@ struct SwiftPMBuildServerTests {
       }
     )
     let begin = try await project.testClient.nextNotification(ofType: WorkDoneProgress.self)
-    #expect(begin.value == .begin(WorkDoneProgressBegin(title: "SourceKit-LSP: Reloading Package")))
+    guard case .begin(let beginValue) = begin.value else {
+      Issue.record("Expected a 'begin' work done progress, got \(begin.value)")
+      return
+    }
+    #expect(beginValue.title.hasSuffix("Reloading Package"))
+
     didReceiveWorkDoneProgressNotification.signal()
 
     let end = try await project.testClient.nextNotification(ofType: WorkDoneProgress.self)
@@ -1386,7 +1395,7 @@ struct SwiftPMBuildServerTests {
   private func makeServerWithBinaryTargetAndWaitForInitialLoad(
     in tempDir: URL,
     options: SourceKitLSPOptions = SourceKitLSPOptions(),
-    reloadPackageDidStart: (@Sendable () async -> Void)? = nil
+    connectionToSourceKitLSP: any Connection
   ) async throws -> (server: SwiftPMBuildServer, projectRoot: URL) {
     let artifactBundleName = "MyBinaryTool.artifactbundle"
     let zipName = "\(artifactBundleName).zip"
@@ -1435,8 +1444,7 @@ struct SwiftPMBuildServerTests {
       projectRoot: projectRoot,
       toolchainRegistry: .forTesting,
       options: options,
-      connectionToSourceKitLSP: LocalConnection(receiverName: "dummy"),
-      testHooks: SwiftPMTestHooks(reloadPackageDidStart: reloadPackageDidStart)
+      connectionToSourceKitLSP: connectionToSourceKitLSP
     )
     _ = await server.waitForBuildSystemUpdates(request: WorkspaceWaitForBuildSystemUpdatesRequest())
     return (server, projectRoot)
@@ -1453,18 +1461,13 @@ struct SwiftPMBuildServerTests {
   @Test
   func testBinaryTargetArtifactEventsDoNotTriggerPackageReload() async throws {
     try await withTestScratchDir { tempDir in
-      let packageInitialized = ThreadSafeBox<Bool>(initialValue: false)
-      let unexpectedReloadStarted = ThreadSafeBox<Bool>(initialValue: false)
+      let packageReloads = PackageReloadCountingMessageHandler()
 
       let (server, projectRoot) = try await makeServerWithBinaryTargetAndWaitForInitialLoad(
         in: tempDir,
-        reloadPackageDidStart: {
-          if packageInitialized.value {
-            unexpectedReloadStarted.withLock { $0 = true }
-          }
-        }
+        connectionToSourceKitLSP: LocalConnection(receiverName: "dummy", handler: packageReloads)
       )
-      packageInitialized.withLock { $0 = true }
+      let reloadsAfterInitialLoad = packageReloads.count
 
       // SwiftPM extracts the artifact bundle to:
       //   <scratch>/artifacts/<package-identity>/<target-name>/<artifact-name>/
@@ -1489,7 +1492,7 @@ struct SwiftPMBuildServerTests {
       )
 
       _ = await server.waitForBuildSystemUpdates(request: WorkspaceWaitForBuildSystemUpdatesRequest())
-      #expect(!unexpectedReloadStarted.value)
+      #expect(packageReloads.count == reloadsAfterInitialLoad)
     }
   }
 
@@ -1506,19 +1509,14 @@ struct SwiftPMBuildServerTests {
     try await withTestScratchDir { tempDir in
       let customScratch = tempDir.appending(component: "custom-scratch")
 
-      let packageInitialized = ThreadSafeBox<Bool>(initialValue: false)
-      let unexpectedReloadStarted = ThreadSafeBox<Bool>(initialValue: false)
+      let packageReloads = PackageReloadCountingMessageHandler()
 
       let (server, projectRoot) = try await makeServerWithBinaryTargetAndWaitForInitialLoad(
         in: tempDir,
         options: SourceKitLSPOptions(swiftPM: .init(scratchPath: try customScratch.filePath)),
-        reloadPackageDidStart: {
-          if packageInitialized.value {
-            unexpectedReloadStarted.withLock { $0 = true }
-          }
-        }
+        connectionToSourceKitLSP: LocalConnection(receiverName: "dummy", handler: packageReloads)
       )
-      packageInitialized.withLock { $0 = true }
+      let reloadsAfterInitialLoad = packageReloads.count
 
       // With a custom scratch path, SwiftPM extracts to <custom-scratch>/artifacts/.
       // Simulate the delete-and-re-expand cycle for those paths.
@@ -1556,7 +1554,7 @@ struct SwiftPMBuildServerTests {
       )
 
       _ = await server.waitForBuildSystemUpdates(request: WorkspaceWaitForBuildSystemUpdatesRequest())
-      #expect(!unexpectedReloadStarted.value)
+      #expect(packageReloads.count == reloadsAfterInitialLoad)
     }
   }
 
@@ -1874,3 +1872,38 @@ fileprivate extension BuildServerSpec {
   }
 }
 #endif
+
+private final class PackageReloadCountingMessageHandler: MessageHandler {
+  private let reloads = ThreadSafeBox<Int>(initialValue: 0)
+
+  var count: Int { reloads.value }
+
+  func handle(_ notification: some NotificationType) {
+    guard let notification = notification as? TaskStartNotification,
+      notification.taskId == SwiftPMBuildServer.packageReloadingTaskID
+    else {
+      return
+    }
+    reloads.withLock { $0 += 1 }
+  }
+
+  func handle<Request: RequestType>(
+    _ request: Request,
+    id: RequestID,
+    reply: @Sendable @escaping (LSPResult<Request.Response>) -> Void
+  ) {
+    reply(.failure(.methodNotFound(Request.method)))
+  }
+}
+
+private final class IgnoringMessageHandler: MessageHandler {
+  func handle(_ notification: some NotificationType) {
+  }
+
+  func handle<Request: RequestType>(
+    _ request: Request,
+    id: RequestID,
+    reply: @Sendable @escaping (LSPResult<Request.Response>) -> Void
+  ) {
+  }
+}

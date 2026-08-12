@@ -93,12 +93,12 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
     case cannotDetermineHostToolchain
   }
 
+  package static let packageReloadingTaskID = TaskId(id: "package-reloading")
+
   // MARK: Integration with SourceKit-LSP
 
   /// Options that allow the user to pass extra compiler flags.
   private let options: SourceKitLSPOptions
-
-  private let testHooks: SwiftPMTestHooks
 
   /// The queue on which we reload the package to ensure we don't reload it multiple times concurrently, which can cause
   /// issues in SwiftPM.
@@ -230,8 +230,7 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
     projectRoot: URL,
     toolchainRegistry: ToolchainRegistry,
     options: SourceKitLSPOptions,
-    connectionToSourceKitLSP: any Connection,
-    testHooks: SwiftPMTestHooks
+    connectionToSourceKitLSP: any Connection
   ) async throws {
     self.projectRoot = projectRoot
     self.options = options
@@ -247,7 +246,6 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
     }
 
     self.toolchain = toolchain
-    self.testHooks = testHooks
     self.connectionToSourceKitLSP = connectionToSourceKitLSP
 
     // Start an open-ended log for messages that we receive during package loading. We never end this log.
@@ -494,18 +492,16 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
 
     self.connectionToSourceKitLSP.send(
       TaskStartNotification(
-        taskId: TaskId(id: "package-reloading"),
+        taskId: Self.packageReloadingTaskID,
         data: WorkDoneProgressTask(title: "SourceKit-LSP: Reloading Package").encodeToLSPAny()
       )
     )
-    await testHooks.reloadPackageDidStart?()
     defer {
       signposter.endInterval("Reloading package", state)
       Task {
         self.connectionToSourceKitLSP.send(
-          TaskFinishNotification(taskId: TaskId(id: "package-reloading"), status: .ok)
+          TaskFinishNotification(taskId: Self.packageReloadingTaskID, status: .ok)
         )
-        await testHooks.reloadPackageDidFinish?()
       }
     }
 
