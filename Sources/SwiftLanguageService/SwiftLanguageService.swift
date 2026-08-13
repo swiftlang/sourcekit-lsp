@@ -818,7 +818,7 @@ extension SwiftLanguageService {
       }
 
       if isInDocComment {
-        return nil
+        throw FallThroughToNextLanguageService()
       }
     }
     throw ResponseError.unknown("unsupported method")
