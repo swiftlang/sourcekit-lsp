@@ -21,8 +21,25 @@ import SwiftExtensions
 @_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 extension SourceKitLSPServer {
-  /// The names of all the symbols in the indexes of all workspaces, sorted and de-duplicated.
-  func symbolNames() async -> [String] {
+  /// Whether a symbol whose only location is inside a generated interface may be reported.
+  ///
+  /// Emitting a generated-interface reference document requires both that the client can open it and
+  /// that it will call `workspaceSymbol/resolve` to fill in the range. Every path that reports symbols
+  /// derives the answer from here, so that `symbolNames(containerName:)` never offers a name that
+  /// `symbolItems(forNames:)` cannot resolve.
+  private var canUseGeneratedInterfaceReferenceDocument: Bool {
+    return (self.capabilityRegistry?.clientHasWorkspaceGetReferenceDocumentSupport ?? false)
+      && (self.capabilityRegistry?.clientSupportsWorkspaceSymbolResolve ?? false)
+  }
+
+  /// The names of the symbols in the indexes of all workspaces, sorted and de-duplicated.
+  ///
+  /// If `containerName` is set, the fully-qualified names of that container's members are returned
+  /// instead of every symbol name in the workspaces.
+  func symbolNames(containerName: String?) async -> [String] {
+    if let containerName {
+      return await memberNames(ofContainer: containerName)
+    }
     var symbols = await self.workspaces
       .concurrentMap { workspace in
         await orLog("Getting symbol names in workspace") {
@@ -34,6 +51,45 @@ extension SourceKitLSPServer {
       symbols.sortAndDedupe()
     }
     return symbols
+  }
+
+  /// The fully-qualified names of the members of the container(s) named by `containerName`, sorted and
+  /// de-duplicated.
+  ///
+  /// The names are qualified because `containerName` is matched as a suffix of a container's chain, so
+  /// more than one container can match and a bare member name would be ambiguous between them. Each
+  /// returned name can be passed to `symbolItems(forNames:)`, which matches it exactly.
+  private func memberNames(ofContainer containerName: String) async -> [String] {
+    guard let chain = QualifiedWorkspaceSymbolQuery.containerChain(containerName) else {
+      return []
+    }
+    let includeSystemSymbols = canUseGeneratedInterfaceReferenceDocument
+    var names = await workspaces.concurrentMap { workspace -> [String] in
+      // Checked for deleted files like the paths that produce items, rather than at the unchecked level
+      // that the workspace-wide mode uses, because the two stages have to agree.
+      guard let index = await workspace.index(checkedFor: .deletedFiles) else {
+        return []
+      }
+      return orLog("Getting member names of \(containerName)") {
+        let containerUSRs = try self.containerUSRs(
+          matching: .suffixIgnoringCase(chain),
+          includeSystemSymbols: includeSystemSymbols,
+          in: index
+        )
+        return try self.members(
+          ofContainerUSRs: containerUSRs,
+          matching: .all,
+          includeSystemSymbols: includeSystemSymbols,
+          in: index
+        )
+        .compactMap { try? self.qualifiedName(of: $0, in: index).qualified }
+      } ?? []
+    }
+    .flatMap { $0 }
+    if !names.isSortedAndUnique {
+      names.sortAndDedupe()
+    }
+    return names
   }
 
   /// For each name in `names`, look up all canonical occurrences in every workspace index and convert them to
@@ -48,12 +104,9 @@ extension SourceKitLSPServer {
   /// The results are ordered by the position of their name in `names`; a name with no occurrences contributes
   /// no items.
   func symbolItems(forNames names: [String]) async throws -> [WorkspaceSymbolItem] {
-    // Emitting a generated-interface reference document requires both that the client can open it and that
-    // it will call `workspaceSymbol/resolve` to fill in the range.
-    let canUseGeneratedInterfaceReferenceDocument =
-      (self.capabilityRegistry?.clientHasWorkspaceGetReferenceDocumentSupport ?? false)
-      && (self.capabilityRegistry?.clientSupportsWorkspaceSymbolResolve ?? false)
 
+    // Bound here rather than read inside the closure, which is not isolated to the server.
+    let canUseGeneratedInterfaceReferenceDocument = self.canUseGeneratedInterfaceReferenceDocument
     let groupedResultPerWorkspace = await workspaces.concurrentMap { workspace -> [String: [WorkspaceSymbolItem]] in
       guard let index = await workspace.index(checkedFor: .deletedFiles) else {
         return [:]
@@ -213,12 +266,8 @@ extension SourceKitLSPServer {
   private func qualifiedWorkspaceSymbols(
     _ query: QualifiedWorkspaceSymbolQuery
   ) async throws -> [WorkspaceSymbolItem] {
-    // Emitting a generated-interface reference document requires both that the client can open it and that
-    // it will call `workspaceSymbol/resolve` to fill in the range. Unlike `unqualifiedWorkspaceSymbols`,
-    // qualified queries can match SDK/stdlib members (e.g. `String.count`), so they need main files.
-    let canUseGeneratedInterfaceReferenceDocument =
-      (self.capabilityRegistry?.clientHasWorkspaceGetReferenceDocumentSupport ?? false)
-      && (self.capabilityRegistry?.clientSupportsWorkspaceSymbolResolve ?? false)
+    // Unlike `unqualifiedWorkspaceSymbols`, qualified queries can match SDK/stdlib members
+    // (e.g. `String.count`), so they need main files.
     var items: [WorkspaceSymbolItem] = []
     for workspace in workspaces {
       guard let index = await workspace.index(checkedFor: .deletedFiles) else {
@@ -629,14 +678,7 @@ package struct QualifiedWorkspaceSymbolQuery: Equatable {
   /// back to the unqualified search path). A trailing separator with an empty member (e.g. `Foo.`)
   /// is a valid qualified query that lists all members of the container.
   package init?(_ query: String) {
-    // Split the query into components on the `.` and `::` separators. The last component is the member
-    // being searched for; the preceding components are the container chain. A lone `:` is not a separator
-    // — it is a literal character, e.g. an argument label in `Collection.append(contentsOf:)`.
-    var components =
-      query
-      .replacing("::", with: ".")
-      .split(separator: ".", omittingEmptySubsequences: false)
-      .map(String.init)
+    var components = Self.split(query)
 
     // Without a separator the query isn't qualified; callers fall back to the unqualified search path.
     guard components.count >= 2 else { return nil }
@@ -648,6 +690,29 @@ package struct QualifiedWorkspaceSymbolQuery: Equatable {
 
     self.containerChain = containerChain
     self.member = member
+  }
+
+  /// Split a qualified name or query on its `.` and `::` separators.
+  ///
+  /// A lone `:` is not a separator — it is a literal character, e.g. an argument label in
+  /// `Collection.append(contentsOf:)`. Empty components are preserved so that callers can reject a
+  /// leading or doubled separator.
+  private static func split(_ string: String) -> [String] {
+    return
+      string
+      .replacing("::", with: ".")
+      .split(separator: ".", omittingEmptySubsequences: false)
+      .map(String.init)
+  }
+
+  /// Parse a chain of container names, e.g. `Outer.Inner` or `Outer::Inner`.
+  ///
+  /// Returns `nil` if any name in the chain is empty, which rejects the empty string as well as a
+  /// leading, trailing or doubled separator.
+  package static func containerChain(_ containerName: String) -> [String]? {
+    let chain = split(containerName)
+    guard !chain.contains(where: \.isEmpty) else { return nil }
+    return chain
   }
 }
 
