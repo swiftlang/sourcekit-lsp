@@ -11,12 +11,12 @@
 //===----------------------------------------------------------------------===//
 
 internal import LanguageServerProtocol
-import SwiftSyntaxExtensions
 internal import SourceKitLSP
 import SwiftBasicFormat
 import SwiftRefactor
 import SwiftSyntax
 import SwiftSyntaxBuilder
+import SwiftSyntaxExtensions
 
 /// A refactoring code action that toggles Swift Testing and XCTest tests
 /// between enabled and disabled states.
