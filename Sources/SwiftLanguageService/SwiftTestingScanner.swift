@@ -15,7 +15,6 @@
 import SourceKitLSP
 import SwiftParser
 import SwiftSyntax
-import SwiftSyntaxCodeActions
 import SwiftSyntaxExtensions
 
 // MARK: - Attribute parsing
