@@ -41,8 +41,7 @@ package actor DocumentationLanguageService: LanguageService, Sendable {
 
   package static var experimentalCapabilities: [String: LSPAny] {
     return [
-      DoccDocumentationRequest.method: ["version": 1],
-      "definitionProvider": .bool(true),
+      DoccDocumentationRequest.method: ["version": 1]
     ]
   }
 
@@ -54,7 +53,7 @@ package actor DocumentationLanguageService: LanguageService, Sendable {
     workspace: Workspace
   ) async throws {
     self.sourceKitLSPServer = sourceKitLSPServer
-    self.documentationManager = DocCDocumentationManager(buildServerManager: workspace.buildServerManager);
+    self.documentationManager = DocCDocumentationManager(buildServerManager: workspace.buildServerManager)
   }
 
   package nonisolated func canHandle(toolchain: Toolchain) -> Bool {
