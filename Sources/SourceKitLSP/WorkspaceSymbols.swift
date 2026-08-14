@@ -112,8 +112,16 @@ extension SourceKitLSPServer {
         return [:]
       }
       var occurrencesByName: [String: [SymbolOccurrence]] = [:]
+      // Qualified names are resolved per container chain rather than per name, so that names sharing a
+      // container resolve it and walk its members once. The walk visits every member of the container and
+      // of each of its extensions, which for a type like `String` is most of the cost of the request.
+      var qualifiedNamesByChain: [[String]: [(name: String, member: String)]] = [:]
       for name in names {
         if Task.isCancelled { return [:] }
+        if let query = QualifiedWorkspaceSymbolQuery(name) {
+          qualifiedNamesByChain[query.containerChain, default: []].append((name, query.member))
+          continue
+        }
         var symbols: [SymbolOccurrence] = []
         _ = orLog("Getting symbol occurrences") {
           try index.forEachCanonicalSymbolOccurrence(byName: name) { symbolOccurrence in
@@ -123,6 +131,34 @@ extension SourceKitLSPServer {
         }
         occurrencesByName[name] = symbols
       }
+      for (chain, requested) in qualifiedNamesByChain {
+        if Task.isCancelled { return [:] }
+        let membersByName: [String: [SymbolOccurrence]] =
+          orLog("Getting members of \(chain.joined(separator: "."))") {
+            let containerUSRs = try self.containerUSRs(
+              matching: .exact(chain),
+              includeSystemSymbols: canUseGeneratedInterfaceReferenceDocument,
+              in: index
+            )
+            let members = try self.members(
+              ofContainerUSRs: containerUSRs,
+              matching: .exact(Set(requested.map(\.member))),
+              includeSystemSymbols: canUseGeneratedInterfaceReferenceDocument,
+              in: index
+            )
+            return Dictionary(grouping: members, by: \.symbol.name)
+          } ?? [:]
+        for (name, member) in requested {
+          // The chain is parsed after normalizing `::` to `.`, so which separator the client used is not
+          // recoverable from it. Comparing the rebuilt name keeps a request for a C++ `Foo::bar` from also
+          // matching a Swift `Foo.bar`.
+          occurrencesByName[name] = (membersByName[member] ?? []).filter {
+            (try? self.qualifiedName(of: $0, in: index).qualified) == name
+          }
+        }
+      }
+      // Items for these are labelled with their qualified name, so the client gets back the name it asked for.
+      let qualifiedNames = Set(qualifiedNamesByChain.values.joined().map(\.name))
 
       var mainFiles: [DocumentURI: DocumentURI] = [:]
       if canUseGeneratedInterfaceReferenceDocument {
@@ -143,7 +179,8 @@ extension SourceKitLSPServer {
               for: symbol,
               in: index,
               copiedFileMap: copiedFileMap,
-              referenceDocumentMainFile: symbol.location.uri.flatMap { mainFiles[$0] }
+              referenceDocumentMainFile: symbol.location.uri.flatMap { mainFiles[$0] },
+              useQualifiedName: qualifiedNames.contains(name)
             )
           }
         }
@@ -643,14 +680,14 @@ enum MemberFilter {
   /// The members whose name contains the string as a case-insensitive subsequence.
   case fuzzy(String)
 
-  /// The members whose name equals the string.
-  case exact(String)
+  /// The members whose name equals one of the strings.
+  case exact(Set<String>)
 
   func matches(memberName: String) -> Bool {
     switch self {
     case .all: return true
     case .fuzzy(let pattern): return memberName.fuzzilyContains(subsequence: pattern)
-    case .exact(let name): return memberName == name
+    case .exact(let names): return names.contains(memberName)
     }
   }
 }
