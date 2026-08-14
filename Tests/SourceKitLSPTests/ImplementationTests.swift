@@ -324,8 +324,9 @@ final class ImplementationTests: SourceKitLSPTestCase {
           func 1️⃣myFunc()
         }
 
-        extension 2️⃣BinaryType: MyProto {}
         class 3️⃣SubclassA: BinaryType {}
+        // Keep the extension between the subclasses to verify that the result doesn't depend on source order.
+        extension 2️⃣BinaryType: MyProto {}
         class 4️⃣SubclassB: BinaryType {}
         """,
         workspaceDirectory: consumerDirectory,

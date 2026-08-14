@@ -2243,6 +2243,19 @@ extension SourceKitLSPServer {
       overrideOccurrences += try index.occurrences(relatedToUSR: usr, roles: .overrideOf)
     }
 
+    func preferredImplicitOccurrence(_ lhs: SymbolOccurrence, _ rhs: SymbolOccurrence) -> SymbolOccurrence {
+      let lhsIsContainedByExtension = lhs.relations.contains {
+        $0.roles.contains(.containedBy) && $0.symbol.kind == .extension
+      }
+      let rhsIsContainedByExtension = rhs.relations.contains {
+        $0.roles.contains(.containedBy) && $0.symbol.kind == .extension
+      }
+      if lhsIsContainedByExtension != rhsIsContainedByExtension {
+        return lhsIsContainedByExtension ? lhs : rhs
+      }
+      return min(lhs, rhs)
+    }
+
     // Retain one deterministic fallback occurrence for each USR that needs primary-definition lookup.
     var implicitOccurrencesNeedingLookup: [String: SymbolOccurrence] = [:]
 
@@ -2255,7 +2268,10 @@ extension SourceKitLSPServer {
         }
       } else if occurrence.roles.contains(.implicit) {
         let usr = occurrence.symbol.usr
-        implicitOccurrencesNeedingLookup[usr] = min(implicitOccurrencesNeedingLookup[usr] ?? occurrence, occurrence)
+        implicitOccurrencesNeedingLookup[usr] = preferredImplicitOccurrence(
+          implicitOccurrencesNeedingLookup[usr] ?? occurrence,
+          occurrence
+        )
       } else {
         logger.fault(
           "Ignoring override occurrence \(occurrence.symbol.usr) with unexpected roles \(occurrence.roles)"
