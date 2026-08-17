@@ -2002,9 +2002,9 @@ extension SourceKitLSPServer {
       } catch let error as ResponseError where error.code == .requestNotImplemented {
         // Signal to handleRequest's loop to try the next language service
         throw error
-      } catch is FallThroughToNextLanguageService {
+      } catch let error as FallThroughToNextLanguageService {
         // Signal to handleRequest's loop to try the next language service
-        throw FallThroughToNextLanguageService()
+        throw error
       } catch {
         logger.info("Fallback definition request failed: \(error.forLogging)")
         return nil

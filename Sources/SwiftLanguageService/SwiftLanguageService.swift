@@ -795,7 +795,6 @@ extension SwiftLanguageService {
   // MARK: - Language features
 
   package func definition(_ request: DefinitionRequest) async throws -> LocationsOrLocationLinksResponse? {
-
     let snapshot = try await latestSnapshot(for: request.textDocument.uri)
     let tree = await syntaxTreeManager.syntaxTree(for: snapshot)
     let absolutePosition = snapshot.absolutePosition(of: request.position)
