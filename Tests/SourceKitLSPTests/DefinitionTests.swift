@@ -232,7 +232,7 @@ class DefinitionTests: SourceKitLSPTestCase {
     let project = try await SwiftPMTestProject(
       files: [
         "LibA/include/LibA.h": """
-        @interface 1️⃣LibAClass2️⃣
+        @interface 1️⃣LibAClass
         - (void)doSomething;
         @end
         """,
@@ -243,7 +243,7 @@ class DefinitionTests: SourceKitLSPTestCase {
         @end
 
         @implementation Test
-        - (void)test:(3️⃣LibAClass *)libAClass {
+        - (void)test:(2️⃣LibAClass *)libAClass {
           [libAClass doSomething];
         }
         @end
@@ -257,15 +257,20 @@ class DefinitionTests: SourceKitLSPTestCase {
             .target(name: "LibB", dependencies: ["LibA"]),
           ]
         )
-        """
+        """,
+      enableBackgroundIndexing: true
     )
     let (uri, positions) = try project.openDocument("LibB.m")
     let response = try await project.testClient.send(
-      DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["3️⃣"])
+      DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
     )
 
+    // Only check the lower bound of the range. If the definition request uses index data, it will return a
+    // zero length range, and if it uses clangd it will return the full range. SwiftPM's older native build system
+    // writes module maps to disk as a side effect of requesting compiler args, while the newer Swift build backend
+    // models them as proper tasks in the build graph, causing them to have slightly different behavior in this case.
     let location = try XCTUnwrap(response?.locations?.only)
-    XCTAssertEqual(location, try project.location(from: "1️⃣", to: "2️⃣", in: "LibA.h"))
+    XCTAssertEqual(location.range.lowerBound, try project.position(of: "1️⃣", in: "LibA.h"))
   }
 
   func testDefinitionOfMethodBetweenModulesObjC() async throws {
@@ -274,7 +279,7 @@ class DefinitionTests: SourceKitLSPTestCase {
       files: [
         "LibA/include/LibA.h": """
         @interface LibAClass
-        - (void)1️⃣doSomething2️⃣;
+        - (void)1️⃣doSomething;
         @end
         """,
         "LibB/include/dummy.h": "",
@@ -285,7 +290,7 @@ class DefinitionTests: SourceKitLSPTestCase {
 
         @implementation Test
         - (void)test:(LibAClass *)libAClass {
-          [libAClass 3️⃣doSomething];
+          [libAClass 2️⃣doSomething];
         }
         @end
         """,
@@ -298,15 +303,20 @@ class DefinitionTests: SourceKitLSPTestCase {
             .target(name: "LibB", dependencies: ["LibA"]),
           ]
         )
-        """
+        """,
+      enableBackgroundIndexing: true
     )
     let (uri, positions) = try project.openDocument("LibB.m")
     let response = try await project.testClient.send(
-      DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["3️⃣"])
+      DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
     )
 
+    // Only check the lower bound of the range. If the definition request uses index data, it will return a
+    // zero length range, and if it uses clangd it will return the full range. SwiftPM's older native build system
+    // writes module maps to disk as a side effect of requesting compiler args, while the newer Swift build backend
+    // models them as proper tasks in the build graph, causing them to have slightly different behavior in this case.
     let location = try XCTUnwrap(response?.locations?.only)
-    XCTAssertEqual(location, try project.location(from: "1️⃣", to: "2️⃣", in: "LibA.h"))
+    XCTAssertEqual(location.range.lowerBound, try project.position(of: "1️⃣", in: "LibA.h"))
   }
 
   func testDefinitionOfImplicitInitializer() async throws {
