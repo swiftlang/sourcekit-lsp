@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import ClangLanguageService
 @_spi(SourceKitLSP) import LanguageServerProtocol
 import SKLogging
 import SKTestSupport
@@ -390,5 +391,47 @@ final class LocalClangTests: SourceKitLSPTestCase {
     // Now we should get a diagnostic in main.c file because `Object` is no longer defined.
     let editedDiags = try await project.testClient.nextDiagnosticsNotification()
     XCTAssertFalse(editedDiags.diagnostics.isEmpty)
+  }
+
+  func testContainsInvalidDeltaLine() {
+    let validTokens: [UInt32] = [
+      0, 5, 3, 0, 0,
+      1, 0, 4, 1, 0,
+    ]
+    XCTAssertFalse(validTokens.containsInvalidDeltaLine, "Valid arrays should not flag as invalid.")
+
+    let invalidDeltaLineFirst: [UInt32] = [
+      UInt32.max, 5, 3, 0, 0,
+    ]
+    XCTAssertTrue(
+      invalidDeltaLineFirst.containsInvalidDeltaLine,
+      "Should detect UInt32.max at the 0th index of a tuple."
+    )
+
+    let invalidDeltaLineSecond: [UInt32] = [
+      0, 5, 3, 0, 0,
+      UInt32.max, 0, 4, 1, 0,
+    ]
+    XCTAssertTrue(
+      invalidDeltaLineSecond.containsInvalidDeltaLine,
+      "Should detect UInt32.max at subsequent deltaLine positions."
+    )
+
+    let safeDeltaStart: [UInt32] = [0, UInt32.max, 3, 0, 0]
+    XCTAssertFalse(safeDeltaStart.containsInvalidDeltaLine, "Should ignore UInt32.max if it occupies deltaStart.")
+
+    let safeLength: [UInt32] = [0, 5, UInt32.max, 0, 0]
+    XCTAssertFalse(safeLength.containsInvalidDeltaLine, "Should ignore UInt32.max if it occupies length.")
+
+    let safeModifier: [UInt32] = [0, 5, 3, 0, UInt32.max]
+    XCTAssertFalse(safeModifier.containsInvalidDeltaLine, "Should ignore UInt32.max if it occupies tokenModifiers.")
+
+    let malformedTokens: [UInt32] = [
+      0, 5, 3, 0,
+    ]
+    XCTAssertTrue(
+      malformedTokens.containsInvalidDeltaLine,
+      "Semantic token data must contain complete 5-element token entries."
+    )
   }
 }

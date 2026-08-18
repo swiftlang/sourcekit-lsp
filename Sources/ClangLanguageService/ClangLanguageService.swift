@@ -569,6 +569,9 @@ extension ClangLanguageService {
     guard var response = try await forwardRequestToClangd(req) else {
       return nil
     }
+    guard !response.data.containsInvalidDeltaLine else {
+      return nil
+    }
     if let semanticTokensTranslator {
       response.data = semanticTokensTranslator.translate(response.data)
     }
@@ -584,16 +587,24 @@ extension ClangLanguageService {
     if let semanticTokensTranslator {
       switch response {
       case .tokens(var tokens):
+        guard !tokens.data.containsInvalidDeltaLine else {
+          return nil
+        }
         tokens.data = semanticTokensTranslator.translate(tokens.data)
         response = .tokens(tokens)
       case .delta(var delta):
-        delta.edits = delta.edits.map {
-          var edit = $0
+        var translatedEdits: [SemanticTokensEdit] = []
+        translatedEdits.reserveCapacity(delta.edits.count)
+        for var edit in delta.edits {
           if let data = edit.data {
+            guard !data.containsInvalidDeltaLine else {
+              return nil
+            }
             edit.data = semanticTokensTranslator.translate(data)
           }
-          return edit
+          translatedEdits.append(edit)
         }
+        delta.edits = translatedEdits
         response = .delta(delta)
       }
     }
@@ -604,6 +615,9 @@ extension ClangLanguageService {
     _ req: DocumentSemanticTokensRangeRequest
   ) async throws -> DocumentSemanticTokensResponse? {
     guard var response = try await forwardRequestToClangd(req) else {
+      return nil
+    }
+    guard !response.data.containsInvalidDeltaLine else {
       return nil
     }
     if let semanticTokensTranslator {
@@ -793,5 +807,22 @@ private struct ClangBuildSettings: Equatable {
       compilationCommand: self.compilerArgs,
       workingDirectory: self.workingDirectory
     )
+  }
+}
+
+package extension Array where Element == UInt32 {
+  var containsInvalidDeltaLine: Bool {
+    guard count.isMultiple(of: 5) else {
+      return true
+    }
+
+    var i = 0
+    while i < count {
+      if self[i] == UInt32.max {
+        return true
+      }
+      i += 5
+    }
+    return false
   }
 }
