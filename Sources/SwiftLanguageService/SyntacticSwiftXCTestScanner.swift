@@ -13,6 +13,7 @@
 @_spi(SourceKitLSP) import LanguageServerProtocol
 import SourceKitLSP
 import SwiftSyntax
+import SwiftSyntaxExtensions
 
 /// Scans a source file for `XCTestCase` classes and test methods.
 ///
@@ -51,18 +52,7 @@ final class SyntacticSwiftXCTestScanner: SyntaxVisitor {
       guard let function = member.decl.as(FunctionDeclSyntax.self) else {
         return nil
       }
-      guard function.name.text.starts(with: "test") else {
-        return nil
-      }
-      guard function.modifiers.map(\.name.tokenKind).allSatisfy({ $0 != .keyword(.static) && $0 != .keyword(.class) })
-      else {
-        // Test methods can't be static.
-        return nil
-      }
-      guard function.signature.returnClause == nil, function.signature.parameterClause.parameters.isEmpty else {
-        // Test methods can't have a return type or have parameters.
-        // Technically we are also filtering out functions that have an explicit `Void` return type here but such
-        // declarations are probably less common than helper functions that start with `test` and have a return type.
+      guard function.isXCTestFunction else {
         return nil
       }
       let range = snapshot.positionRange(

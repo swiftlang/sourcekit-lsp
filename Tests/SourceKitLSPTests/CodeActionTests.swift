@@ -3356,6 +3356,440 @@ final class CodeActionTests: SourceKitLSPTestCase {
     }
   }
 
+  func testToggleSwiftTestingTestEnabledToDisabled() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣@Test2️⃣
+      func testExample() {
+        #expect(2 + 2 == 4)
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Toggle Test Enabled/Disabled",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: "@Test(.disabled())"
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testToggleSwiftTestingTestDisabledToEnabled() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣@Test(.disabled())2️⃣
+      func testExample() {
+        #expect(2 + 2 == 4)
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Toggle Test Enabled/Disabled",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: "@Test"
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testToggleXCTestEnabledToDisabled() async throws {
+    try await assertCodeActions(
+      """
+      class MyTests {
+      1️⃣func testExample()2️⃣ {
+          3️⃣XCTAssertEqual(2 + 2, 4)
+      }
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Toggle Test Enabled/Disabled",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["2️⃣"]..<positions["2️⃣"],
+                  newText: " throws"
+                ),
+                TextEdit(
+                  range: positions["3️⃣"]..<positions["3️⃣"],
+                  newText: "throw XCTSkip(\"Disabled\")\n    "
+                ),
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testToggleXCTestDisabledToEnabled() async throws {
+    try await assertCodeActions(
+      """
+      class MyTests {
+      1️⃣func testExample() throws {2️⃣
+          throw XCTSkip("Disabled")3️⃣
+          XCTAssertEqual(2 + 2, 4)
+      }
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Toggle Test Enabled/Disabled",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["2️⃣"]..<positions["3️⃣"],
+                  newText: ""
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testToggleXCTestDisabledToEnabledPreservesComments() async throws {
+    try await assertCodeActions(
+      """
+      class MyTests {
+      1️⃣func testExample() throws {2️⃣
+          throw XCTSkip("Disabled")3️⃣
+          // We shouldn't delete this comment
+          XCTAssertEqual(2 + 2, 4)
+      }
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Toggle Test Enabled/Disabled",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["2️⃣"]..<positions["3️⃣"],
+                  newText: ""
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testToggleTestNotOfferedForNonTestFunction() async throws {
+    try await assertNoCodeAction(
+      titled: "Toggle Test Enabled/Disabled",
+      in: """
+        1️⃣func helper() {
+          print("hi")
+        }2️⃣
+        """,
+      atMarker: "1️⃣"
+    )
+  }
+
+  func testToggleTestNotOfferedForConditionallyDisabledTest() async throws {
+    try await assertNoCodeAction(
+      titled: "Toggle Test Enabled/Disabled",
+      in: """
+        1️⃣@Test(.disabled(if: someCondition, "Waiting on backend API"))
+        func testExample() {
+          #expect(2 + 2 == 4)
+        }2️⃣
+        """,
+      atMarker: "1️⃣"
+    )
+  }
+
+  func testToggleTestNotOfferedForTrailingClosureDisabledSwiftTestingTest() async throws {
+    try await assertNoCodeAction(
+      titled: "Toggle Test Enabled/Disabled",
+      in: """
+        1️⃣@Test(.disabled("Waiting on backend API") { someCondition() })
+        func testExample() {
+          #expect(2 + 2 == 4)
+        }2️⃣
+        """,
+      atMarker: "1️⃣"
+    )
+  }
+
+  func testToggleSwiftTestingTestEnabledToDisabledWithExistingTraits() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣@Test("Custom Name", .bug("123"))2️⃣
+      func testExample() {
+          #expect(2 + 2 == 4)
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Toggle Test Enabled/Disabled",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: "@Test(\"Custom Name\", .bug(\"123\"), .disabled())"
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testToggleSwiftTestingTestDisabledToEnabledWithDisabledReason() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣@Test(.disabled("Waiting on backend API"))2️⃣
+      func testExample() {
+          #expect(2 + 2 == 4)
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Toggle Test Enabled/Disabled",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: "@Test"
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testToggleXCTestEnabledToDisabledEmptyBody() async throws {
+    try await assertCodeActions(
+      """
+      class MyTests {
+      1️⃣func testExample()2️⃣ {
+      3️⃣}
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Toggle Test Enabled/Disabled",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["2️⃣"]..<positions["2️⃣"],
+                  newText: " throws"
+                ),
+                TextEdit(
+                  range: positions["3️⃣"]..<positions["3️⃣"],
+                  newText: "    throw XCTSkip(\"Disabled\")\n"
+                ),
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testToggleXCTestEnabledToDisabledSingleLineEmptyBody() async throws {
+    try await assertCodeActions(
+      """
+      class MyTests {
+      1️⃣func testExample()2️⃣ {3️⃣}
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Toggle Test Enabled/Disabled",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["2️⃣"]..<positions["2️⃣"],
+                  newText: " throws"
+                ),
+                TextEdit(
+                  range: positions["3️⃣"]..<positions["3️⃣"],
+                  newText: "\n    throw XCTSkip(\"Disabled\")\n"
+                ),
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testToggleXCTestEnabledToDisabledIndentedEmptyBody() async throws {
+    try await assertCodeActions(
+      """
+      class MyTests: XCTestCase {
+          1️⃣func testExample()2️⃣ {
+          3️⃣}
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Toggle Test Enabled/Disabled",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["2️⃣"]..<positions["2️⃣"],
+                  newText: " throws"
+                ),
+                TextEdit(
+                  range: positions["3️⃣"]..<positions["3️⃣"],
+                  newText: "    throw XCTSkip(\"Disabled\")\n    "
+                ),
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testToggleSwiftTestingTestEnabledToDisabledWithLabeledArguments() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣@Test(arguments: [1, 2])2️⃣
+      func testExample() {}
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Toggle Test Enabled/Disabled",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: "@Test(.disabled(), arguments: [1, 2])"
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testToggleXCTestEnabledToDisabledAsyncMethod() async throws {
+    try await assertCodeActions(
+      """
+      class MyTests {
+      1️⃣func testExample() async2️⃣ {
+          3️⃣XCTAssertEqual(2 + 2, 4)
+      }
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Toggle Test Enabled/Disabled",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["2️⃣"]..<positions["2️⃣"],
+                  newText: " throws"
+                ),
+                TextEdit(
+                  range: positions["3️⃣"]..<positions["3️⃣"],
+                  newText: "throw XCTSkip(\"Disabled\")\n    "
+                ),
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
   /// Retrieves the code action at a set of markers and asserts that it matches a list of expected code actions.
   ///
   /// - Parameters:

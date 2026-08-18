@@ -406,6 +406,7 @@ var targets: [Target] = [
       "SKUtilities",
       "SourceKitD",
       "SwiftExtensions",
+      "SwiftSyntaxExtensions",
       "ToolchainRegistry",
       "TSCExtensions",
       .product(name: "BuildServerProtocol", package: "swift-tools-protocols"),
@@ -494,6 +495,7 @@ var targets: [Target] = [
       "SourceKitLSP",
       "SwiftExtensions",
       "SwiftSyntaxCodeActions",
+      "SwiftSyntaxExtensions",
       "ToolchainRegistry",
       "TSCExtensions",
       .product(name: "BuildServerProtocol", package: "swift-tools-protocols"),
@@ -519,13 +521,26 @@ var targets: [Target] = [
     exclude: ["CMakeLists.txt"],
   ),
 
+  // MARK: SwiftSyntaxExtensions
+
+  .target(
+    name: "SwiftSyntaxExtensions",
+    dependencies: [
+      "SwiftExtensions",
+      .product(name: "SKLogging", package: "swift-tools-protocols"),
+    ] + swiftSyntaxDependencies(["SwiftSyntax"]),
+    exclude: ["CMakeLists.txt"]
+  ),
+
   // MARK: SwiftSyntaxCodeActions
 
   .target(
     name: "SwiftSyntaxCodeActions",
     dependencies: [
+      "SKUtilities",
       "SourceKitLSP",
       "SwiftExtensions",
+      "SwiftSyntaxExtensions",
       .product(name: "LanguageServerProtocol", package: "swift-tools-protocols"),
       .product(name: "SKLogging", package: "swift-tools-protocols"),
     ]
