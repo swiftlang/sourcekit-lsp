@@ -2243,6 +2243,11 @@ extension SourceKitLSPServer {
       overrideOccurrences += try index.occurrences(relatedToUSR: usr, roles: .overrideOf)
     }
 
+    /// Prefer implicit occurrences in extensions because they identify where a conformance is introduced.
+    ///
+    /// For example, when a class conforms to a protocol in an extension, subclasses inherit that conformance and can
+    /// produce implicit occurrences for the same requirement. If no indexed definition or declaration is available,
+    /// reporting the extension is more useful than reporting one of those subclasses.
     func preferredImplicitOccurrence(_ lhs: SymbolOccurrence, _ rhs: SymbolOccurrence) -> SymbolOccurrence {
       let lhsIsContainedByExtension = lhs.relations.contains {
         $0.roles.contains(.containedBy) && $0.symbol.kind == .extension
