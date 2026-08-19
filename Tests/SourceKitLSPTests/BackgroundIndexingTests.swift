@@ -737,7 +737,7 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
     _ = try await project.testClient.nextNotification(
       ofType: LogMessageNotification.self,
       satisfying: { notification in
-        notification.message.contains("Indexing \(try project.uri(for: "MyFile.swift").pseudoPath)")
+        notification.message.contains("Indexing MyFile.swift")
       }
     )
     didReceiveIndexingLogMessage.signal()
