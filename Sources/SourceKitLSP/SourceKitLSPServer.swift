@@ -635,7 +635,7 @@ extension SourceKitLSPServer: QueueBasedMessageHandler {
     case let request as RequestAndReply<CallHierarchyOutgoingCallsRequest>:
       await request.reply { try await outgoingCalls(request.params) }
     case let request as RequestAndReply<CallHierarchyPrepareRequest>:
-      await self.handleRequest(for: request, requestHandler: self.prepareCallHierarchy)
+      await request.reply { try await prepareCallHierarchy(request.params) }
     case let request as RequestAndReply<CodeActionRequest>:
       await self.handleRequest(for: request, requestHandler: self.codeAction)
     case let request as RequestAndReply<CodeActionResolveRequest>:
@@ -691,7 +691,7 @@ extension SourceKitLSPServer: QueueBasedMessageHandler {
     case let request as RequestAndReply<HoverRequest>:
       await self.handleRequest(for: request, requestHandler: self.hover)
     case let request as RequestAndReply<ImplementationRequest>:
-      await self.handleRequest(for: request, requestHandler: self.implementation)
+      await request.reply { try await self.implementation(request.params) }
     case let request as RequestAndReply<IndexedRenameRequest>:
       await self.handleRequest(for: request, requestHandler: self.indexedRename)
     case let request as RequestAndReply<InitializeRequest>:
@@ -709,7 +709,7 @@ extension SourceKitLSPServer: QueueBasedMessageHandler {
     case let request as RequestAndReply<PrepareRenameRequest>:
       await self.handleRequest(for: request, requestHandler: self.prepareRename)
     case let request as RequestAndReply<ReferencesRequest>:
-      await self.handleRequest(for: request, requestHandler: self.references)
+      await request.reply { try await self.references(request.params) }
     case let request as RequestAndReply<RenameRequest>:
       await request.reply { try await rename(request.params) }
     case let request as RequestAndReply<SetOptionsRequest>:
@@ -725,7 +725,7 @@ extension SourceKitLSPServer: QueueBasedMessageHandler {
     case let request as RequestAndReply<TriggerReindexRequest>:
       await request.reply { try await triggerReindex(request.params) }
     case let request as RequestAndReply<TypeHierarchyPrepareRequest>:
-      await self.handleRequest(for: request, requestHandler: self.prepareTypeHierarchy)
+      await request.reply { try await self.prepareTypeHierarchy(request.params) }
     case let request as RequestAndReply<TypeHierarchySubtypesRequest>:
       await request.reply { try await subtypes(request.params) }
     case let request as RequestAndReply<TypeHierarchySupertypesRequest>:
@@ -1984,22 +1984,58 @@ extension SourceKitLSPServer {
     return .locations(remappedLocations)
   }
 
-  func implementation(
-    _ req: ImplementationRequest,
+  /// Resolve the USR(s) of the symbol at `position` in `uri`.
+  ///
+  /// - If the editor has the document open, use cursor info from the live buffer. This is the most
+  ///   precise option and also resolves local, non-indexed symbols.
+  /// - Otherwise, resolve the symbol from `index` by finding the occurrence recorded at the requested
+  ///   position, mapping its location to an LSP position using the file's on-disk contents. This avoids
+  ///   opening the document (no language service, no sourcekitd cursor info) and lets these requests
+  ///   work for symbols whose definition lives in a file the editor hasn't opened.
+  ///
+  /// The returned USRs are sorted and de-duplicated so that results are deterministic.
+  private func usrsOfSymbol(
+    at position: Position,
+    in uri: DocumentURI,
     workspace: Workspace,
-    languageService: any LanguageService
-  ) async throws -> LocationsOrLocationLinksResponse? {
-    let symbols = try await languageService.symbolInfo(
-      SymbolInfoRequest(
-        textDocument: req.textDocument,
-        position: req.position
+    index: CheckedIndex?
+  ) async throws -> [String] {
+    var usrs: [String]
+    if let openLanguageService = workspace.languageServices(forOpenDocument: uri).first {
+      let symbols = try await openLanguageService.symbolInfo(
+        SymbolInfoRequest(textDocument: TextDocumentIdentifier(uri), position: position)
       )
-    )
-    guard let index = await workspaceForDocument(uri: req.textDocument.uri)?.index(checkedFor: .deletedFiles) else {
+      usrs = symbols.compactMap(\.usr)
+    } else {
+      guard let index, let filePath = uri.fileURL?.path else {
+        return []
+      }
+      let language = Language(inferredFromFileExtension: uri) ?? .swift
+      guard let snapshot = documentManager.latestSnapshotOrDisk(uri, language: language) else {
+        return []
+      }
+      usrs = try index.symbolOccurrences(inFilePath: filePath)
+        .filter { snapshot.position(of: $0.location) == position }
+        .map { $0.symbol.usr }
+    }
+    usrs.sortAndDedupe()
+    return usrs
+  }
+
+  func implementation(
+    _ req: ImplementationRequest
+  ) async throws -> LocationsOrLocationLinksResponse? {
+    let uri = req.textDocument.uri
+    guard let workspace = await self.workspaceForDocument(uri: uri) else {
+      throw ResponseError.workspaceNotOpen(uri)
+    }
+    guard let index = await workspace.index(checkedFor: .deletedFiles) else {
       return nil
     }
-    let locations = try symbols.flatMap { (symbol) -> [Location] in
-      guard let usr = symbol.usr else { return [] }
+
+    let usrs = try await self.usrsOfSymbol(at: req.position, in: uri, workspace: workspace, index: index)
+
+    let locations = try usrs.flatMap { (usr) -> [Location] in
       var occurrences = try index.occurrences(ofUSR: usr, roles: .baseOf)
       if occurrences.isEmpty {
         occurrences = try index.occurrences(relatedToUSR: usr, roles: .overrideOf)
@@ -2013,19 +2049,18 @@ extension SourceKitLSPServer {
   }
 
   func references(
-    _ req: ReferencesRequest,
-    workspace: Workspace,
-    languageService: any LanguageService
+    _ req: ReferencesRequest
   ) async throws -> [Location] {
-    let symbols = try await languageService.symbolInfo(
-      SymbolInfoRequest(
-        textDocument: req.textDocument,
-        position: req.position
-      )
-    )
-    let index = await workspaceForDocument(uri: req.textDocument.uri)?.index(checkedFor: .deletedFiles)
-    let indexLocations = try symbols.flatMap { symbol -> [Location] in
-      guard let usr = symbol.usr, let index else { return [] }
+    let uri = req.textDocument.uri
+    guard let workspace = await self.workspaceForDocument(uri: uri) else {
+      throw ResponseError.workspaceNotOpen(uri)
+    }
+    let index = await workspace.index(checkedFor: .deletedFiles)
+
+    let usrs = try await self.usrsOfSymbol(at: req.position, in: uri, workspace: workspace, index: index)
+
+    let indexLocations = try usrs.flatMap { usr -> [Location] in
+      guard let index else { return [] }
       logger.info("Finding references for USR \(usr)")
       var roles: SymbolRole = [.reference]
       if req.context.includeDeclaration {
@@ -2036,17 +2071,20 @@ extension SourceKitLSPServer {
 
     var locations = indexLocations
 
-    let hasCurrentFileIndexResults = indexLocations.contains { $0.uri == req.textDocument.uri }
+    let hasCurrentFileIndexResults = indexLocations.contains { $0.uri == uri }
 
-    if !hasCurrentFileIndexResults {
+    // `localReferences` handles symbols that aren't in the index (e.g. local variables). Those are
+    // always in the current file, which the user must have open to invoke on, so this only applies
+    // to the open-document path.
+    if !hasCurrentFileIndexResults, let openLanguageService = workspace.languageServices(forOpenDocument: uri).first {
       do {
-        let localLocations = try await languageService.localReferences(
+        let localLocations = try await openLanguageService.localReferences(
           at: req.position,
-          in: req.textDocument.uri,
+          in: uri,
           includeDeclaration: req.context.includeDeclaration
         )
         locations += localLocations
-      } catch let error as ResponseError {
+      } catch is ResponseError {
         logger.debug("localReferences not supported for this language service")
       } catch {
         logger.error("Unexpected error computing local references: \(String(describing: error))")
@@ -2081,21 +2119,17 @@ extension SourceKitLSPServer {
   }
 
   func prepareCallHierarchy(
-    _ req: CallHierarchyPrepareRequest,
-    workspace: Workspace,
-    languageService: any LanguageService
+    _ req: CallHierarchyPrepareRequest
   ) async throws -> [CallHierarchyItem]? {
-    let symbols = try await languageService.symbolInfo(
-      SymbolInfoRequest(
-        textDocument: req.textDocument,
-        position: req.position
-      )
-    )
-    guard let index = await workspaceForDocument(uri: req.textDocument.uri)?.index(checkedFor: .deletedFiles) else {
+    let uri = req.textDocument.uri
+    guard let workspace = await self.workspaceForDocument(uri: uri) else {
+      throw ResponseError.workspaceNotOpen(uri)
+    }
+    guard let index = await workspace.index(checkedFor: .deletedFiles) else {
       return nil
     }
-    // For call hierarchy preparation we only locate the definition
-    let usrs = symbols.compactMap(\.usr)
+
+    let usrs = try await self.usrsOfSymbol(at: req.position, in: uri, workspace: workspace, index: index)
 
     // TODO: Remove this workaround once https://github.com/swiftlang/swift/issues/75600 is fixed
     func indexToLSPCallHierarchyItem2(
@@ -2286,32 +2320,19 @@ extension SourceKitLSPServer {
   }
 
   func prepareTypeHierarchy(
-    _ req: TypeHierarchyPrepareRequest,
-    workspace: Workspace,
-    languageService: any LanguageService
+    _ req: TypeHierarchyPrepareRequest
   ) async throws -> [TypeHierarchyItem]? {
-    let symbols = try await languageService.symbolInfo(
-      SymbolInfoRequest(
-        textDocument: req.textDocument,
-        position: req.position
-      )
-    )
-    guard !symbols.isEmpty else {
+    let uri = req.textDocument.uri
+    guard let workspace = await self.workspaceForDocument(uri: uri) else {
+      throw ResponseError.workspaceNotOpen(uri)
+    }
+    guard let index = await workspace.index(checkedFor: .deletedFiles) else {
       return nil
     }
-    guard let index = await workspaceForDocument(uri: req.textDocument.uri)?.index(checkedFor: .deletedFiles) else {
-      return nil
-    }
-    let usrs = symbols.filter {
-      // Only include references to type. For example, we don't want to find the type hierarchy of a constructor when
-      // starting the type hierarchy on `Foo()`.
-      // Consider a symbol a class if its kind is `nil`, eg. for a symbol returned by clang's SymbolInfo, which
-      // doesn't support the `kind` field.
-      switch $0.kind {
-      case .class, .enum, .interface, .struct, nil: return true
-      default: return false
-      }
-    }.compactMap(\.usr)
+
+    // The resolved symbols are filtered to types below based on their kind in the index, so there's no
+    // need to pre-filter by kind here.
+    let usrs = try await self.usrsOfSymbol(at: req.position, in: uri, workspace: workspace, index: index)
 
     // TODO: Remove this workaround once https://github.com/swiftlang/swift/issues/75600 is fixed
     func indexToLSPTypeHierarchyItem2(
