@@ -602,10 +602,11 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     let start = ContinuousClock.now
     let signposter = Logger(subsystem: LoggingScope.subsystem, category: "indexing").makeSignposter()
     let signpostID = signposter.makeSignpostID()
+    let indexFileNames = indexFiles.map { $0.fileURL?.lastPathComponent ?? $0.pseudoPath }
     let state = signposter.beginInterval(
       "Indexing",
       id: signpostID,
-      "Indexing \(indexFiles.map { $0.fileURL?.lastPathComponent ?? $0.pseudoPath })"
+      "Indexing \(indexFileNames)"
     )
     defer {
       signposter.endInterval("Indexing", state)
@@ -615,7 +616,7 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
       processArguments.joined(separator: " "),
       .info,
       .begin(
-        StructuredLogBegin(title: "Indexing \(indexFiles.map(\.pseudoPath).joined(separator: ", "))", taskID: taskId)
+        StructuredLogBegin(title: "Indexing \(indexFileNames.joined(separator: ", "))", taskID: taskId)
       )
     )
 
