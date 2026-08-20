@@ -4027,6 +4027,625 @@ final class CodeActionTests: SourceKitLSPTestCase {
     )
   }
 
+  func testInlineVariableBasic() async throws {
+    try await assertCodeActions(
+      """
+      func doSomething() {1️⃣
+        let 0️⃣x = 422️⃣
+        print(3️⃣x4️⃣)
+      }
+      """,
+      markers: ["0️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Inline variable",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(range: positions["3️⃣"]..<positions["4️⃣"], newText: "42"),
+                TextEdit(range: positions["1️⃣"]..<positions["2️⃣"], newText: ""),
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testInlineVariableRequiresParens() async throws {
+    try await assertCodeActions(
+      """
+      func calculate() {1️⃣
+        let 0️⃣x = 1 + 22️⃣
+        let y = 3️⃣x4️⃣ * 3
+      }
+      """,
+      markers: ["0️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Inline variable",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(range: positions["3️⃣"]..<positions["4️⃣"], newText: "(1 + 2)"),
+                TextEdit(range: positions["1️⃣"]..<positions["2️⃣"], newText: ""),
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testInlineVariableDoesNotRequireParensForPrimaryExpressions() async throws {
+    try await assertCodeActions(
+      """
+      func calculate() {1️⃣
+        let 0️⃣x = [1, 2, 3]2️⃣
+        let y = 3️⃣x4️⃣.count
+      }
+      """,
+      markers: ["0️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Inline variable",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(range: positions["3️⃣"]..<positions["4️⃣"], newText: "[1, 2, 3]"),
+                TextEdit(range: positions["1️⃣"]..<positions["2️⃣"], newText: ""),
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testInlineVariableMultipleUsages() async throws {
+    try await assertCodeActions(
+      """
+      func printThings() {1️⃣
+        let 0️⃣msg = "Hello"2️⃣
+        print(3️⃣msg4️⃣)
+        print(5️⃣msg6️⃣)
+      }
+      """,
+      markers: ["0️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Inline variable",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(range: positions["3️⃣"]..<positions["4️⃣"], newText: "\"Hello\""),
+                TextEdit(range: positions["5️⃣"]..<positions["6️⃣"], newText: "\"Hello\""),
+                TextEdit(range: positions["1️⃣"]..<positions["2️⃣"], newText: ""),
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testInlineVariableMultipleBindingsInDeclaration() async throws {
+    try await assertCodeActions(
+      """
+      func test() {
+        1️⃣let y = 1, 0️⃣x = 422️⃣
+        print(3️⃣x4️⃣)
+      }
+      """,
+      markers: ["0️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Inline variable",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(range: positions["3️⃣"]..<positions["4️⃣"], newText: "42"),
+                TextEdit(range: positions["1️⃣"]..<positions["2️⃣"], newText: "let y = 1"),
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testInlineVariableNotOfferedForVar() async throws {
+    try await assertNoCodeAction(
+      titled: "Inline variable",
+      in: """
+        func test() {
+          var 0️⃣x = 42
+          print(x)
+        }
+        """,
+      atMarker: "0️⃣"
+    )
+  }
+
+  func testInlineVariableNotOfferedForUnusedVariable() async throws {
+    try await assertNoCodeAction(
+      titled: "Inline variable",
+      in: """
+        func test() {
+          let 0️⃣x = 42
+        }
+        """,
+      atMarker: "0️⃣"
+    )
+  }
+
+  func testInlineVariableRespectsShadowing() async throws {
+    try await assertCodeActions(
+      """
+      func test() {1️⃣
+        let 0️⃣x = 422️⃣
+
+        if condition {
+          let x = 100
+          print(x)
+        }
+
+        print(3️⃣x4️⃣)
+      }
+      """,
+      markers: ["0️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Inline variable",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(range: positions["3️⃣"]..<positions["4️⃣"], newText: "42"),
+                TextEdit(range: positions["1️⃣"]..<positions["2️⃣"], newText: ""),
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testInlineVariableRespectsShadowingWithMultipleReferences() async throws {
+    try await assertCodeActions(
+      """
+      func test() {1️⃣
+        let 0️⃣x = 422️⃣
+
+        print(3️⃣x4️⃣)
+
+        if condition {
+          let x = 100
+          print(x)
+        }
+
+        print(5️⃣x6️⃣)
+      }
+      """,
+      markers: ["0️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Inline variable",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(range: positions["3️⃣"]..<positions["4️⃣"], newText: "42"),
+                TextEdit(range: positions["5️⃣"]..<positions["6️⃣"], newText: "42"),
+                TextEdit(range: positions["1️⃣"]..<positions["2️⃣"], newText: ""),
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testInlineVariableUsedInInitializer() async throws {
+    try await assertCodeActions(
+      """
+      func test() {
+        let value = 421️⃣
+        let 0️⃣x = value + 12️⃣
+        print(3️⃣x4️⃣)
+      }
+      """,
+      markers: ["0️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Inline variable",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(range: positions["3️⃣"]..<positions["4️⃣"], newText: "(value + 1)"),
+                TextEdit(range: positions["1️⃣"]..<positions["2️⃣"], newText: ""),
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testInlineVariableAllowsDuplicatingPureArrayInitializer() async throws {
+    try await assertCodeActions(
+      """
+      func test() {1️⃣
+        let 0️⃣x = [1, 2, 3]2️⃣
+        print(3️⃣x4️⃣)
+        print(5️⃣x6️⃣)
+      }
+      """,
+      markers: ["0️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Inline variable",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["3️⃣"]..<positions["4️⃣"],
+                  newText: "[1, 2, 3]"
+                ),
+                TextEdit(
+                  range: positions["5️⃣"]..<positions["6️⃣"],
+                  newText: "[1, 2, 3]"
+                ),
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: ""
+                ),
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testInlineVariableAllowsSingleSideEffect() async throws {
+    try await assertCodeActions(
+      """
+      func test() {1️⃣
+        let 0️⃣x = makeValue()2️⃣
+        print(3️⃣x4️⃣)
+      }
+      """,
+      markers: ["0️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Inline variable",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(range: positions["3️⃣"]..<positions["4️⃣"], newText: "makeValue()"),
+                TextEdit(range: positions["1️⃣"]..<positions["2️⃣"], newText: ""),
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testInlineVariableForbidsDuplicatingSideEffects() async throws {
+    try await assertNoCodeAction(
+      titled: "Inline variable",
+      in: """
+        func test() {
+          let 0️⃣x = makeValue()
+          print(x)
+          print(x)
+        }
+        """,
+      atMarker: "0️⃣"
+    )
+  }
+
+  func testInlineVariableIgnoresShadowedReferences() async throws {
+    try await assertNoCodeAction(
+      titled: "Inline variable",
+      in: """
+        func test() {
+          let 0️⃣x = 42
+          
+          if condition {
+            let x = 100
+            print(x)
+          }
+        }
+        """,
+      atMarker: "0️⃣"
+    )
+  }
+
+  func testInlineVariableForbidsDuplicatingSideEffectsInsideArray() async throws {
+    try await assertNoCodeAction(
+      titled: "Inline variable",
+      in: """
+        func test() {
+          let 0️⃣x = [makeValue()]
+          print(x)
+          print(x)
+        }
+        """,
+      atMarker: "0️⃣"
+    )
+  }
+
+  func testInlineVariableAllowsDuplicatingPureInitializer() async throws {
+    try await assertCodeActions(
+      """
+      func test() {1️⃣
+        let 0️⃣x = 422️⃣
+        print(3️⃣x4️⃣)
+        print(5️⃣x6️⃣)
+      }
+      """,
+      markers: ["0️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Inline variable",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(range: positions["3️⃣"]..<positions["4️⃣"], newText: "42"),
+                TextEdit(range: positions["5️⃣"]..<positions["6️⃣"], newText: "42"),
+                TextEdit(range: positions["1️⃣"]..<positions["2️⃣"], newText: ""),
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testInlineVariableAllowsDuplicatingPureTupleInitializer() async throws {
+    try await assertCodeActions(
+      """
+      func test() {1️⃣
+        let 0️⃣x = (1, 2, 3)2️⃣
+        print(3️⃣x4️⃣)
+        print(5️⃣x6️⃣)
+      }
+      """,
+      markers: ["0️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Inline variable",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["3️⃣"]..<positions["4️⃣"],
+                  newText: "(1, 2, 3)"
+                ),
+                TextEdit(
+                  range: positions["5️⃣"]..<positions["6️⃣"],
+                  newText: "(1, 2, 3)"
+                ),
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: ""
+                ),
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testInlineVariableForbidsDuplicatingSideEffectsInsideTuple() async throws {
+    try await assertNoCodeAction(
+      titled: "Inline variable",
+      in: """
+        func test() {
+          let 0️⃣x = (makeValue(), 42)
+          print(x)
+          print(x)
+        }
+        """,
+      atMarker: "0️⃣"
+    )
+  }
+
+  func testInlineVariableAllowsDuplicatingPureDictionaryInitializer() async throws {
+    try await assertCodeActions(
+      """
+      func test() {1️⃣
+        let 0️⃣x = ["a": 1, "b": 2]2️⃣
+        print(3️⃣x4️⃣)
+        print(5️⃣x6️⃣)
+      }
+      """,
+      markers: ["0️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Inline variable",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["3️⃣"]..<positions["4️⃣"],
+                  newText: "[\"a\": 1, \"b\": 2]"
+                ),
+                TextEdit(
+                  range: positions["5️⃣"]..<positions["6️⃣"],
+                  newText: "[\"a\": 1, \"b\": 2]"
+                ),
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: ""
+                ),
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testInlineVariableForbidsDuplicatingSideEffectsInsideDictionary() async throws {
+    try await assertNoCodeAction(
+      titled: "Inline variable",
+      in: """
+        func test() {
+          let 0️⃣x = ["a": makeValue()]
+          print(x)
+          print(x)
+        }
+        """,
+      atMarker: "0️⃣"
+    )
+  }
+
+  func testInlineVariableRespectsShadowingBetweenValidReferences() async throws {
+    try await assertCodeActions(
+      """
+      func test() {1️⃣
+        let 0️⃣x = 422️⃣
+
+        print(3️⃣x4️⃣)
+
+        if condition {
+          let x = 100
+          print(x)
+        }
+
+        print(5️⃣x6️⃣)
+      }
+      """,
+      markers: ["0️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Inline variable",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["3️⃣"]..<positions["4️⃣"],
+                  newText: "42"
+                ),
+                TextEdit(
+                  range: positions["5️⃣"]..<positions["6️⃣"],
+                  newText: "42"
+                ),
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: ""
+                ),
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testInlineVariableShadowingStartsAfterOuterReference() async throws {
+    try await assertCodeActions(
+      """
+      func test() {1️⃣
+        let 0️⃣x = 422️⃣
+        print(3️⃣x4️⃣)
+
+        if condition {
+          print(5️⃣x6️⃣)
+          let x = 100
+          print(x)
+        }
+      }
+      """,
+      markers: ["0️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Inline variable",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["3️⃣"]..<positions["4️⃣"],
+                  newText: "42"
+                ),
+                TextEdit(
+                  range: positions["5️⃣"]..<positions["6️⃣"],
+                  newText: "42"
+                ),
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: ""
+                ),
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
 }
 
 private extension CodeActionRequestResponse {
