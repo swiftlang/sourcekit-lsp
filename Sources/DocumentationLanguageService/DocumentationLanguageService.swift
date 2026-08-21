@@ -163,8 +163,10 @@ package actor DocumentationLanguageService: LanguageService, Sendable {
     return .locations([targetLocation])
   }
 
-  /// Walks the Markdown/DocC AST looking for symbol link
-  /// that contains a given source position.
+  /// Walks the Markdown/DocC AST looking for a symbol link that contains a
+  /// given source position, and sets `found` to the link's destination
+  /// truncated to the component under the cursor (e.g. `Foo/bar/baz` with
+  /// the cursor on `bar` sets `found` to `"Foo/bar"`), not the full destination.
   private struct SymbolLocator: MarkupWalker {
     let target: Markdown.SourceLocation
     var found: String?
@@ -239,13 +241,12 @@ package actor DocumentationLanguageService: LanguageService, Sendable {
 
   private struct DocCCommentLine {
     let text: String
-    let startLine: Int
-    let startColumn: Int
+    let start: Position
   }
 
   private enum DocTriviaGroup {
-    case lines(lines: [DocCCommentLine])
-    case block(text: String, startLine: Int, startColumn: Int)
+    case lines([DocCCommentLine])
+    case block(text: String, start: Position)
   }
 
   /// Converts a UTF-16 offset within `line` into the corresponding UTF-8 byte offset.
@@ -274,7 +275,7 @@ package actor DocumentationLanguageService: LanguageService, Sendable {
 
     func flushPendingLines() {
       guard !pendingLines.isEmpty else { return }
-      groups.append(.lines(lines: pendingLines))
+      groups.append(.lines(pendingLines))
       pendingLines.removeAll()
     }
 
@@ -284,12 +285,12 @@ package actor DocumentationLanguageService: LanguageService, Sendable {
       case .docLineComment(let text):
         if newlinesSinceLastDoc > 1 { flushPendingLines() }
         let position = snapshot.positionOf(utf8Offset: offset)
-        pendingLines.append(DocCCommentLine(text: text, startLine: position.line, startColumn: position.utf16index))
+        pendingLines.append(DocCCommentLine(text: text, start: position))
         newlinesSinceLastDoc = 0
       case .docBlockComment(let text):
         flushPendingLines()
         let position = snapshot.positionOf(utf8Offset: offset)
-        groups.append(.block(text: text, startLine: position.line, startColumn: position.utf16index))
+        groups.append(.block(text: text, start: position))
         newlinesSinceLastDoc = 0
       case .newlines(let n), .carriageReturns(let n), .carriageReturnLineFeeds(let n):
         newlinesSinceLastDoc += n
@@ -303,7 +304,10 @@ package actor DocumentationLanguageService: LanguageService, Sendable {
     flushPendingLines()
     return groups
   }
-
+  
+  /// A line of documentation text after stripping its comment delimiters/prefix.
+  /// `strippedPrefixCount` is the number of UTF-16 code units removed from the
+  /// beginning of the original line to produce `text`.
   private struct StrippedLine {
     let text: String
     let strippedPrefixCount: Int
@@ -328,6 +332,7 @@ package actor DocumentationLanguageService: LanguageService, Sendable {
       return StrippedLine(text: String(text), strippedPrefixCount: stripped)
     }
   }
+
   /// Strips `/**`, `*/`, and per-line leading `*`/whitespace from a block comment.
   private func stripBlockCommentDelimiters(_ text: String) -> [StrippedLine] {
     let lines = text.components(separatedBy: "\n")
@@ -361,59 +366,49 @@ package actor DocumentationLanguageService: LanguageService, Sendable {
   private func resolveTarget(
     for group: DocTriviaGroup,
     cursorPosition: Position
-  ) -> (strippedLines: [StrippedLine], lineIndex: Int, targetColumn: Int)? {
+  ) -> (strippedLines: [StrippedLine], target: Position)? {
     switch group {
     case .lines(let lines):
-      guard let lineIndex = lines.firstIndex(where: { $0.startLine == cursorPosition.line }) else {
+      guard let lineIndex = lines.firstIndex(where: { $0.start.line == cursorPosition.line }) else {
         return nil
       }
       let strippedLines = stripLineCommentDelimiters(lines)
-      let rawLine = lines[lineIndex].text
-      let relativeUTF16 = cursorPosition.utf16index - lines[lineIndex].startColumn
-      let utf8Rel = utf8Offset(inLine: rawLine, forUTF16Offset: relativeUTF16)
-      let targetColumn = max(1, utf8Rel - strippedLines[lineIndex].strippedPrefixCount + 1)
+      let relativeUTF16 = cursorPosition.utf16index - lines[lineIndex].start.utf16index
+      let localColumn = max(0, relativeUTF16 - strippedLines[lineIndex].strippedPrefixCount)
+      return (strippedLines, Position(line: lineIndex, utf16index: localColumn))
 
-      return (strippedLines, lineIndex, targetColumn)
-
-    case .block(let text, let startLine, let startColumn):
+    case .block(let text, let start):
       let strippedLines = stripBlockCommentDelimiters(text)
-      let lineIndex = cursorPosition.line - startLine
-      guard strippedLines.indices.contains(lineIndex) else {
-        return nil
-      }
-
-      let rawLines = text.components(separatedBy: "\n")
-      let rawLine = rawLines[lineIndex]
-      let columnBase = lineIndex == 0 ? startColumn : 0
+      let lineIndex = cursorPosition.line - start.line
+      guard strippedLines.indices.contains(lineIndex) else { return nil }
+      let columnBase = lineIndex == 0 ? start.utf16index : 0
       let relativeUTF16 = cursorPosition.utf16index - columnBase
-      let utf8Rel = utf8Offset(inLine: rawLine, forUTF16Offset: relativeUTF16)
-      let targetColumn = max(1, utf8Rel - strippedLines[lineIndex].strippedPrefixCount + 1)
-
-      return (strippedLines, lineIndex, targetColumn)
+      let localColumn = max(0, relativeUTF16 - strippedLines[lineIndex].strippedPrefixCount)
+      return (strippedLines, Position(line: lineIndex, utf16index: localColumn))
     }
   }
 
   private func extractSymbolFromDocComment(snapshot: DocumentSnapshot, at position: Position) -> String? {
     let sourceFile = SwiftParser.Parser.parse(source: snapshot.text)
     let absolutePosition = snapshot.absolutePosition(of: position)
+    guard let token = sourceFile.token(at: absolutePosition) else { return nil }
 
-    guard let token = sourceFile.token(at: absolutePosition) else {
-      return nil
-    }
+    let leadingGroups = docCommentGroups(in: token.leadingTrivia, tokenStart: token.position, snapshot: snapshot)
+    let trailingGroups = docCommentGroups(
+      in: token.trailingTrivia,
+      tokenStart: token.endPositionBeforeTrailingTrivia,
+      snapshot: snapshot
+    )
 
-    let cursorPosition = snapshot.positionOf(utf8Offset: absolutePosition.utf8Offset)
-    let groups = docCommentGroups(in: token.leadingTrivia, tokenStart: token.position, snapshot: snapshot)
-
-    for group in groups {
-      guard let (strippedLines, lineIndex, targetColumn) = resolveTarget(for: group, cursorPosition: cursorPosition)
-      else {
-        continue
-      }
+    for group in leadingGroups + trailingGroups {
+      guard let (strippedLines, target) = resolveTarget(for: group, cursorPosition: position) else { continue }
 
       let combinedText = strippedLines.map(\.text).joined(separator: "\n")
-      let target = Markdown.SourceLocation(line: lineIndex + 1, column: targetColumn, source: nil)
+      let utf8Column = utf8Offset(inLine: strippedLines[target.line].text, forUTF16Offset: target.utf16index) + 1
+      let markdownTarget = Markdown.SourceLocation(line: target.line + 1, column: utf8Column, source: nil)
+
       let document = Markdown.Document(parsing: combinedText, options: [.parseSymbolLinks])
-      var locator = SymbolLocator(target: target)
+      var locator = SymbolLocator(target: markdownTarget)
       locator.visit(document)
       return locator.found
     }
