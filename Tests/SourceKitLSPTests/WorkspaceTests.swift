@@ -1194,12 +1194,12 @@ final class WorkspaceTests: SourceKitLSPTestCase {
   func testSourceKitOptionsAllowingFallback() async throws {
     let hooks = Hooks(
       buildServerHooks: BuildServerHooks(
-        swiftPMTestHooks: SwiftPMTestHooks(
-          reloadPackageDidStart: {
-            // Essentially make sure that the package never loads, so we are forced to return fallback arguments.
+        preHandleRequest: { request in
+          if request is TextDocumentSourceKitOptionsRequest {
+            // Essentially make sure that build settings never arrive, so we are forced to return fallback arguments.
             try? await Task.sleep(for: .seconds(defaultTimeout * 2))
           }
-        )
+        }
       )
     )
     let project = try await SwiftPMTestProject(

@@ -1374,8 +1374,11 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
     let packageInitialized = ThreadSafeBox<Bool>(initialValue: false)
 
     var testHooks = Hooks()
-    testHooks.buildServerHooks.swiftPMTestHooks.reloadPackageDidStart = {
-      if packageInitialized.value {
+    testHooks.buildServerHooks.preHandleNotificationFromBuildServer = { notification in
+      if let notification = notification as? TaskStartNotification,
+        notification.taskId == SwiftPMBuildServer.packageReloadingTaskID,
+        packageInitialized.value
+      {
         XCTFail("Build graph should not get reloaded when random file gets added")
       }
     }
@@ -1762,16 +1765,6 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
 
   func testPauseBackgroundIndexing() async throws {
     try SkipUnless.longTestsEnabled()
-    let backgroundIndexingPaused = WrappedSemaphore(name: "Background indexing was paused")
-    let hooks = Hooks(
-      buildServerHooks: BuildServerHooks(
-        swiftPMTestHooks: SwiftPMTestHooks(
-          reloadPackageDidFinish: {
-            backgroundIndexingPaused.waitOrXCTFail()
-          }
-        )
-      )
-    )
     let project = try await SwiftPMTestProject(
       files: [
         "Test.swift": """
@@ -1779,14 +1772,12 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
         """
       ],
       options: .testDefault(experimentalFeatures: [.setOptionsRequest]),
-      hooks: hooks,
       enableBackgroundIndexing: true,
       // pollIndex increases the background indexing priority from `low` to `medium`, which thus won't be affected by
       // `workspace/_setBackgroundIndexingPaused` anymore
       pollIndex: false
     )
     try await project.testClient.send(SetOptionsRequest(backgroundIndexingPaused: true))
-    backgroundIndexingPaused.signal()
 
     // Give SwiftPM sufficient time to run background indexing if it was not paused.
     try await Task.sleep(for: .seconds(5))
@@ -1804,16 +1795,6 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
   }
 
   func testBackgroundIndexingRunsOnSynchronizeRequestEvenIfPaused() async throws {
-    let backgroundIndexingPaused = WrappedSemaphore(name: "Background indexing was paused")
-    let hooks = Hooks(
-      buildServerHooks: BuildServerHooks(
-        swiftPMTestHooks: SwiftPMTestHooks(
-          reloadPackageDidFinish: {
-            backgroundIndexingPaused.waitOrXCTFail()
-          }
-        )
-      )
-    )
     let project = try await SwiftPMTestProject(
       files: [
         "Test.swift": """
@@ -1821,14 +1802,12 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
         """
       ],
       options: .testDefault(experimentalFeatures: [.setOptionsRequest]),
-      hooks: hooks,
       enableBackgroundIndexing: true,
       // pollIndex increases the background indexing priority from `low` to `medium`, which thus won't be affected by
       // `workspace/_setBackgroundIndexingPaused` anymore
       pollIndex: false
     )
     try await project.testClient.send(SetOptionsRequest(backgroundIndexingPaused: true))
-    backgroundIndexingPaused.signal()
 
     // Running a `SynchronizeRequest` elevates the background indexing tasks to `medium` priority. We thus no longer
     // consider the indexing to happen in the background and hence it is not affected by the paused background indexing
@@ -1840,16 +1819,6 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
   }
 
   func testPausingBackgroundIndexingDoesNotStopPreparation() async throws {
-    let backgroundIndexingPaused = WrappedSemaphore(name: "Background indexing was paused")
-    let hooks = Hooks(
-      buildServerHooks: BuildServerHooks(
-        swiftPMTestHooks: SwiftPMTestHooks(
-          reloadPackageDidFinish: {
-            backgroundIndexingPaused.waitOrXCTFail()
-          }
-        )
-      )
-    )
     let project = try await SwiftPMTestProject(
       files: [
         "LibA/LibA.swift": """
@@ -1875,14 +1844,12 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
         )
         """,
       options: .testDefault(experimentalFeatures: [.setOptionsRequest]),
-      hooks: hooks,
       enableBackgroundIndexing: true,
       // pollIndex increases the background indexing priority from `low` to `medium`, which thus won't be affected by
       // `workspace/_setBackgroundIndexingPaused` anymore
       pollIndex: false
     )
     try await project.testClient.send(SetOptionsRequest(backgroundIndexingPaused: true))
-    backgroundIndexingPaused.signal()
 
     let (uri, positions) = try project.openDocument("LibB.swift")
 
