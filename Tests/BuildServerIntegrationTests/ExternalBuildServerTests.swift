@@ -428,7 +428,7 @@ final class ExternalBuildServerTests: SourceKitLSPTestCase {
         allowFallbackSettings: false
       )
     )
-    XCTAssertEqual(options.data, LSPAny.dictionary(["custom": .string("value")]))
+    XCTAssertEqual(options.data, ["custom": "value"])
   }
 
   func testBuildSettingsForFilePartOfMultipleTargets() async throws {
@@ -621,13 +621,13 @@ final class ExternalBuildServerTests: SourceKitLSPTestCase {
         return TextDocumentSourceKitOptionsResponse(compilerArguments: [request.textDocument.uri.pseudoPath])
       }
 
-      func prepareTarget(_ request: BuildTargetPrepareRequest) async throws -> VoidResponse {
+      func prepareTarget(_ request: BuildTargetPrepareRequest) async throws -> BuildTargetPrepareResponse {
         preparationStarted.fulfill()
         await assertThrowsError(try await Task.sleep(for: .seconds(defaultTimeout))) { error in
           XCTAssert(error is CancellationError)
         }
         preparationFinished.fulfill()
-        return VoidResponse()
+        return BuildTargetPrepareResponse()
       }
     }
 

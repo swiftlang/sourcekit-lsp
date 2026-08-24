@@ -69,10 +69,10 @@ private enum TaskMetadata: DependencyTracker, Equatable {
 /// Data from a syntactic scan of a source file for tests or playgrounds.
 private struct IndexedSourceFile {
   /// The tests within the source file.
-  let tests: [AnnotatedTestItem]
+  let tests: [AnnotatedTestItem]?
 
   /// The playgrounds within the source file.
-  let playgrounds: [TextDocumentPlayground]
+  let playgrounds: [TextDocumentPlayground]?
 
   /// The modification date of the source file when it was scanned. A file won't get re-scanned if its modification date
   /// is older or the same as this date.
@@ -106,16 +106,16 @@ package actor SyntacticIndex: Sendable {
     @Sendable (Set<BuildTargetIdentifier>?) async -> [(uri: DocumentURI, info: SourceFileInfo)]
 
   /// Syntactically parse tests from the given snapshot
-  private let syntacticTests: @Sendable (DocumentSnapshot) async -> [AnnotatedTestItem]
+  private let syntacticTests: @Sendable (DocumentSnapshot) async -> [AnnotatedTestItem]?
 
   /// Syntactically parse playgrounds from the given snapshot
-  private let syntacticPlaygrounds: @Sendable (DocumentSnapshot) async -> [TextDocumentPlayground]
+  private let syntacticPlaygrounds: @Sendable (DocumentSnapshot) async -> [TextDocumentPlayground]?
 
   package init(
     determineFilesToScan:
       @Sendable @escaping (Set<BuildTargetIdentifier>?) async -> [(uri: DocumentURI, info: SourceFileInfo)],
-    syntacticTests: @Sendable @escaping (DocumentSnapshot) async -> [AnnotatedTestItem],
-    syntacticPlaygrounds: @Sendable @escaping (DocumentSnapshot) async -> [TextDocumentPlayground]
+    syntacticTests: @Sendable @escaping (DocumentSnapshot) async -> [AnnotatedTestItem]?,
+    syntacticPlaygrounds: @Sendable @escaping (DocumentSnapshot) async -> [TextDocumentPlayground]?
   ) {
     self.determineFilesToScan = determineFilesToScan
     self.syntacticTests = syntacticTests
@@ -266,7 +266,7 @@ package actor SyntacticIndex: Sendable {
       return
     }
 
-    async let asyncTestItems = scanForTests ? syntacticTests(snapshot) : []
+    async let asyncTestItems = scanForTests ? syntacticTests(snapshot) : nil
     async let asyncPlaygrounds = syntacticPlaygrounds(snapshot)
 
     let testItems = await asyncTestItems
@@ -285,12 +285,18 @@ package actor SyntacticIndex: Sendable {
     )
   }
 
-  /// Gets all the tests in the syntactic index.
+  /// Gets the syntactically indexed tests keyed by document URI.
+  ///
+  /// Only files for which syntactic test discovery is supported are included in the result.
+  /// Files not present in the returned dictionary either have not been scanned yet or do not
+  /// support syntactic test discovery.
   ///
   /// This waits for any pending document updates to be indexed before returning a result.
-  nonisolated package func tests() async -> [AnnotatedTestItem] {
-    let readTask = indexingQueue.async(metadata: .read) {
-      return await self.indexedSources.values.flatMap(\.tests)
+  nonisolated package func tests() async -> [DocumentURI: [AnnotatedTestItem]] {
+    let readTask = indexingQueue.async(metadata: .read) { () -> [DocumentURI: [AnnotatedTestItem]] in
+      await self.indexedSources.reduce(into: [:]) { result, element in
+        result[element.key] = element.value.tests
+      }
     }
     return await readTask.value
   }
@@ -301,9 +307,9 @@ package actor SyntacticIndex: Sendable {
   nonisolated package func playgrounds() async -> [Playground] {
     let readTask = indexingQueue.async(metadata: .read) {
       return await self.indexedSources.flatMap { (uri, indexedFile) in
-        indexedFile.playgrounds.map {
+        indexedFile.playgrounds?.map {
           Playground(id: $0.id, label: $0.label, location: Location(uri: uri, range: $0.range))
-        }
+        } ?? []
       }
     }
     return await readTask.value

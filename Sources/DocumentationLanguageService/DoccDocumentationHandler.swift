@@ -109,10 +109,10 @@ extension DocumentationLanguageService {
           let symbolOccurrence = try await index.primaryDefinitionOrDeclarationOccurrence(
             ofDocCSymbolLink: symbolLink,
             fetchSymbolGraph: { location in
-              return try await sourceKitLSPServer.primaryLanguageService(
-                for: location.documentUri,
-                workspace.buildServerManager.defaultLanguageInCanonicalTarget(for: location.documentUri),
-                in: workspace
+              guard let uri = location.uri else { return nil }
+              return try await workspace.primaryLanguageService(
+                for: uri,
+                workspace.buildServerManager.defaultLanguageInCanonicalTarget(for: uri)
               )
               .symbolGraph(forOnDiskContentsAt: location, in: workspace, manager: onDiskDocumentManager)
             }
@@ -120,10 +120,12 @@ extension DocumentationLanguageService {
         else {
           throw ResponseError.requestFailed(doccDocumentationError: .symbolNotFound(symbolName))
         }
-        let symbolGraph = try await sourceKitLSPServer.primaryLanguageService(
-          for: symbolOccurrence.location.documentUri,
-          workspace.buildServerManager.defaultLanguageInCanonicalTarget(for: symbolOccurrence.location.documentUri),
-          in: workspace
+        guard let uri = symbolOccurrence.location.uri else {
+          throw ResponseError.unknown("Symbol location has no file path")
+        }
+        let symbolGraph = try await workspace.primaryLanguageService(
+          for: uri,
+          workspace.buildServerManager.defaultLanguageInCanonicalTarget(for: uri)
         ).symbolGraph(forOnDiskContentsAt: symbolOccurrence.location, in: workspace, manager: onDiskDocumentManager)
         return try await documentationManager.renderDocCDocumentation(
           symbolUSR: symbolOccurrence.symbol.usr,
@@ -157,10 +159,9 @@ extension DocumentationLanguageService {
     guard let sourceKitLSPServer else {
       throw ResponseError.internalError("SourceKit-LSP is shutting down")
     }
-    let (symbolGraph, symbolUSR, overrideDocComments) = try await sourceKitLSPServer.primaryLanguageService(
+    let (symbolGraph, symbolUSR, overrideDocComments) = try await workspace.primaryLanguageService(
       for: snapshot.uri,
-      snapshot.language,
-      in: workspace
+      snapshot.language
     ).symbolGraph(for: snapshot, at: position)
     // Locate the documentation extension and include it in the request if one exists
     let markupExtensionFile = await sourceKitLSPServer.withOnDiskDocumentManager {
@@ -173,13 +174,12 @@ extension DocumentationLanguageService {
           catalogURL: catalogURL,
           for: symbolUSR,
           fetchSymbolGraph: { location in
-            try await sourceKitLSPServer.primaryLanguageService(
-              for: location.documentUri,
-              snapshot.language,
-              in: workspace
+            guard let uri = location.uri else { return nil }
+            return try await workspace.primaryLanguageService(
+              for: uri,
+              snapshot.language
             )
             .symbolGraph(forOnDiskContentsAt: location, in: workspace, manager: onDiskDocumentManager)
-
           }
         )
       }
@@ -249,17 +249,7 @@ struct MarkdownTitleFinder: MarkupVisitor {
       return nil
     }
     if let symbolLink = heading.child(at: 0) as? SymbolLink {
-      // Remove the surrounding backticks to find the symbol name
-      let plainText = symbolLink.plainText
-      var startIndex = plainText.startIndex
-      if plainText.hasPrefix("``") {
-        startIndex = plainText.index(plainText.startIndex, offsetBy: 2)
-      }
-      var endIndex = plainText.endIndex
-      if plainText.hasSuffix("``") {
-        endIndex = plainText.index(plainText.endIndex, offsetBy: -2)
-      }
-      return .symbol(String(plainText[startIndex..<endIndex]))
+      return .symbol(symbolLink.destination ?? "")
     }
     return .plainText(heading.plainText)
   }

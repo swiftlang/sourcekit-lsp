@@ -13,6 +13,7 @@
 @_spi(SourceKitLSP) import LanguageServerProtocol
 import SKTestSupport
 import SwiftExtensions
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
 
 final class TypeDefinitionTests: SourceKitLSPTestCase {
@@ -22,7 +23,7 @@ final class TypeDefinitionTests: SourceKitLSPTestCase {
 
     let positions = testClient.openDocument(
       """
-      struct 1️⃣MyType {}
+      struct 1️⃣MyType3️⃣ {}
       let 2️⃣x = MyType()
       """,
       uri: uri
@@ -41,7 +42,7 @@ final class TypeDefinitionTests: SourceKitLSPTestCase {
     }
 
     XCTAssertEqual(location.uri, uri)
-    XCTAssertEqual(location.range, Range(positions["1️⃣"]))
+    XCTAssertEqual(location.range, positions["1️⃣"]..<positions["3️⃣"])
   }
 
   func testTypeDefinitionCrossModule() async throws {
@@ -93,7 +94,7 @@ final class TypeDefinitionTests: SourceKitLSPTestCase {
 
     let positions = testClient.openDocument(
       """
-      struct 1️⃣Container<T> {
+      struct 1️⃣Container3️⃣<T> {
         var value: T
       }
       let 2️⃣x = Container(value: 42)
@@ -114,7 +115,7 @@ final class TypeDefinitionTests: SourceKitLSPTestCase {
     }
 
     XCTAssertEqual(location.uri, uri)
-    XCTAssertEqual(location.range, Range(positions["1️⃣"]))
+    XCTAssertEqual(location.range, positions["1️⃣"]..<positions["3️⃣"])
   }
 
   func testTypeDefinitionOnTypeAnnotation() async throws {
@@ -123,7 +124,7 @@ final class TypeDefinitionTests: SourceKitLSPTestCase {
 
     let positions = testClient.openDocument(
       """
-      struct 1️⃣MyType {}
+      struct 1️⃣MyType3️⃣ {}
       let x: 2️⃣MyType = MyType()
       """,
       uri: uri
@@ -142,7 +143,7 @@ final class TypeDefinitionTests: SourceKitLSPTestCase {
     }
 
     XCTAssertEqual(location.uri, uri)
-    XCTAssertEqual(location.range, Range(positions["1️⃣"]))
+    XCTAssertEqual(location.range, positions["1️⃣"]..<positions["3️⃣"])
   }
 
   func testTypeDefinitionFunctionParameter() async throws {
@@ -151,7 +152,7 @@ final class TypeDefinitionTests: SourceKitLSPTestCase {
 
     let positions = testClient.openDocument(
       """
-      struct 1️⃣MyType {}
+      struct 1️⃣MyType3️⃣ {}
       func process(_ 2️⃣value: MyType) {}
       """,
       uri: uri
@@ -170,7 +171,7 @@ final class TypeDefinitionTests: SourceKitLSPTestCase {
     }
 
     XCTAssertEqual(location.uri, uri)
-    XCTAssertEqual(location.range, Range(positions["1️⃣"]))
+    XCTAssertEqual(location.range, positions["1️⃣"]..<positions["3️⃣"])
   }
 
   func testTypeDefinitionGeneratedInterface() async throws {

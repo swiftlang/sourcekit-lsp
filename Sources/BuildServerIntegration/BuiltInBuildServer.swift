@@ -51,7 +51,7 @@ package protocol BuiltInBuildServer: AnyObject, Sendable {
 
   /// Prepare the given targets for indexing and semantic functionality. This should build all swift modules of target
   /// dependencies.
-  func prepare(request: BuildTargetPrepareRequest) async throws -> VoidResponse
+  func prepare(request: BuildTargetPrepareRequest) async throws -> BuildTargetPrepareResponse
 
   /// Retrieve build settings for the given document.
   ///

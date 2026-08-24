@@ -13,6 +13,7 @@
 import Foundation
 @_spi(SourceKitLSP) package import LanguageServerProtocol
 import SwiftExtensions
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 extension DocumentURI {
   /// If this is a file URI pointing to a symlink, return the realpath of the URI, otherwise return `nil`.

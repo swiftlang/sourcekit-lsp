@@ -12,6 +12,7 @@
 
 @_spi(SourceKitLSP) package import LanguageServerProtocol
 @_spi(SourceKitLSP) import LanguageServerProtocolExtensions
+import LanguageServerProtocolTransport
 @_spi(SourceKitLSP) import SKLogging
 import SwiftExtensions
 
@@ -104,6 +105,38 @@ package final actor CapabilityRegistry {
 
   package nonisolated var clientSupportsActiveDocumentNotification: Bool {
     return clientHasExperimentalCapability(DidChangeActiveDocumentNotification.method)
+      || MessageRegistry.lspLegacyNames[DidChangeActiveDocumentNotification.method].map {
+        clientHasExperimentalCapability($0)
+      } ?? false
+  }
+
+  package nonisolated var clientHasWorkspaceTestsRefreshSupport: Bool {
+    return clientHasExperimentalCapability(WorkspaceTestsRefreshRequest.method)
+      || MessageRegistry.lspLegacyNames[WorkspaceTestsRefreshRequest.method].map {
+        clientHasExperimentalCapability($0)
+      } ?? false
+  }
+
+  package nonisolated var clientHasWorkspacePlaygroundsRefreshSupport: Bool {
+    return clientHasExperimentalCapability(WorkspacePlaygroundsRefreshRequest.method)
+      || MessageRegistry.lspLegacyNames[WorkspacePlaygroundsRefreshRequest.method].map {
+        clientHasExperimentalCapability($0)
+      } ?? false
+  }
+
+  package nonisolated var clientHasWorkspaceGetReferenceDocumentSupport: Bool {
+    return clientHasExperimentalCapability(GetReferenceDocumentRequest.method)
+      || MessageRegistry.lspLegacyNames[GetReferenceDocumentRequest.method].map {
+        clientHasExperimentalCapability($0)
+      } ?? false
+  }
+
+  /// Whether the client supports `workspaceSymbol/resolve` and will resolve `location` or `location.range`.
+  package nonisolated var clientSupportsWorkspaceSymbolResolve: Bool {
+    guard let properties = clientCapabilities.workspace?.symbol?.resolveSupport?.properties else {
+      return false
+    }
+    return properties.contains("location") || properties.contains("location.range")
   }
 
   package nonisolated func clientHasExperimentalCapability(_ name: String) -> Bool {

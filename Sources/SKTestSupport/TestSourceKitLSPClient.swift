@@ -22,6 +22,7 @@ import SourceKitD
 package import SourceKitLSP
 import SwiftExtensions
 package import SwiftSyntax
+import Synchronization
 package import ToolchainRegistry
 @_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
@@ -29,15 +30,26 @@ import XCTest
 extension SourceKitLSPOptions {
   package static func testDefault(
     backgroundIndexing: Bool = true,
+    buildSettingsTimeout: Duration? = nil,
     experimentalFeatures: Set<ExperimentalFeature> = [.synchronizeCopyFileMap]
   ) async throws -> SourceKitLSPOptions {
     let pluginPaths = try await sourceKitPluginPaths
+
+    let buildSettingsTimeoutMilliseconds: Int? =
+      if let buildSettingsTimeout {
+        Int(buildSettingsTimeout.seconds * 1000)
+      } else {
+        nil
+      }
+
     return SourceKitLSPOptions(
+      buildSettingsTimeout: buildSettingsTimeoutMilliseconds,
       sourcekitd: SourceKitDOptions(
         clientPlugin: try pluginPaths.clientPlugin.filePath,
         servicePlugin: try pluginPaths.servicePlugin.filePath
       ),
       backgroundIndexing: backgroundIndexing,
+      reportSyntacticHighlightInSemanticTokens: true,
       experimentalFeatures: experimentalFeatures,
       swiftPublishDiagnosticsDebounceDuration: 0,
       workDoneProgressDebounceDuration: 0
@@ -55,15 +67,15 @@ private struct NotificationTimeoutError: Error, CustomStringConvertible {
 /// `AsyncStream.Iterator.next` is cancelled and we want to be able to wait for new notifications even if waiting for a
 /// a previous notification timed out.
 final class PendingNotifications: Sendable {
-  private let values = ThreadSafeBox<[any NotificationType]>(initialValue: [])
+  private let values: Mutex<[any NotificationType]> = Mutex([])
 
   nonisolated func add(_ value: any NotificationType) {
-    values.value.insert(value, at: 0)
+    values.withLock { $0.insert(value, at: 0) }
   }
 
   func next(timeout: Duration, pollingInterval: Duration = .milliseconds(10)) async throws -> any NotificationType {
     for _ in 0..<Int(timeout.seconds / pollingInterval.seconds) {
-      if let value = values.value.popLast() {
+      if let value = values.withLock({ $0.popLast() }) {
         return value
       }
       try await Task.sleep(for: pollingInterval)
@@ -82,7 +94,7 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
   package typealias RequestHandler<Request: RequestType> = @Sendable (Request) -> Request.Response
 
   /// The ID that should be assigned to the next request sent to the `server`.
-  private let nextRequestID = AtomicUInt32(initialValue: 0)
+  private let nextRequestID = Atomic<UInt32>(0)
 
   /// The server that handles the requests.
   package let server: SourceKitLSPServer
@@ -112,8 +124,7 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
   ///
   /// `isOneShort` if the request handler should only serve a single request and should be removed from
   /// `requestHandlers` after it has been called.
-  private let requestHandlers: ThreadSafeBox<[(requestHandler: any Sendable, isOneShot: Bool)]> =
-    ThreadSafeBox(initialValue: [])
+  private let requestHandlers: Mutex<[(requestHandler: any Sendable, isOneShot: Bool)]> = Mutex([])
 
   /// A closure that is called when the `TestSourceKitLSPClient` is destructed.
   ///
@@ -231,7 +242,10 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
     // It's really unfortunate that there are no async deinits. If we had async
     // deinits, we could await the sending of a ShutdownRequest.
     let shutdownSemaphore = WrappedSemaphore(name: "Shutdown")
-    server.handle(ShutdownRequest(), id: .number(Int(nextRequestID.fetchAndIncrement()))) { result in
+    server.handle(
+      ShutdownRequest(),
+      id: .number(Int(nextRequestID.wrappingAdd(1, ordering: .relaxed).oldValue))
+    ) { result in
       shutdownSemaphore.signal()
     }
     shutdownSemaphore.waitOrXCTFail()
@@ -278,7 +292,7 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
     _ request: R,
     completionHandler: @Sendable @escaping (LSPResult<R.Response>) -> Void
   ) -> RequestID {
-    let requestID = RequestID.number(Int(nextRequestID.fetchAndIncrement()))
+    let requestID = RequestID.number(Int(nextRequestID.wrappingAdd(1, ordering: .relaxed).oldValue))
     let replyOutstanding = ThreadSafeBox<Bool?>(initialValue: true)
     let timeoutTask = Task {
       try await Task.sleep(for: defaultTimeoutDuration)
@@ -372,12 +386,39 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
   /// The request handler will only handle a single request. If the request is called again, the request handler won't
   /// call again
   package func handleSingleRequest<R: RequestType>(_ requestHandler: @escaping RequestHandler<R>) {
-    requestHandlers.value.append((requestHandler: requestHandler, isOneShot: true))
+    requestHandlers.withLock { $0.append((requestHandler: requestHandler, isOneShot: true)) }
   }
 
   /// Handle all requests of the given type that are sent to the client.
   package func handleMultipleRequests<R: RequestType>(_ requestHandler: @escaping RequestHandler<R>) {
-    requestHandlers.value.append((requestHandler: requestHandler, isOneShot: false))
+    requestHandlers.withLock { $0.append((requestHandler: requestHandler, isOneShot: false)) }
+  }
+
+  /// Executes `operation` and waits until a request of the specified type is received from the server.
+  package func withWaitingFor<R: RequestType, Value>(
+    _: R.Type,
+    timeout: Duration = defaultTimeoutDuration,
+    pollingInterval: Duration = .milliseconds(10),
+    operation: () async throws -> Value,
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) async throws -> Value where R.Response == VoidResponse {
+    // Register a one-shot handler that records when the request arrives.
+    let received = ThreadSafeBox<Bool>(initialValue: false)
+    self.handleSingleRequest { (_: R) in
+      received.withLock { $0 = true }
+      return VoidResponse()
+    }
+
+    let result = try await operation()
+    try await repeatUntilExpectedResult(
+      timeout: timeout,
+      sleepInterval: pollingInterval,
+      { received.value },
+      file: file,
+      line: line
+    )
+    return result
   }
 
   // MARK: - Conformance to MessageHandler
@@ -450,6 +491,15 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
     )
 
     return DocumentPositions(markers: markers, textWithoutMarkers: textWithoutMarkers)
+  }
+
+  /// Returns the primary language service for the given document URI.
+  ///
+  /// Sends a `SynchronizeRequest` first so that any pending `DidOpenTextDocumentNotification`
+  /// for `uri` is fully processed (and `setLanguageServices` called) before the cache is read.
+  package func primaryLanguageService(for uri: DocumentURI) async throws -> (any LanguageService)? {
+    _ = try await send(SynchronizeRequest())
+    return try await unwrap(server.workspaceForDocument(uri: uri)).primaryLanguageService(forOpenDocument: uri)
   }
 }
 

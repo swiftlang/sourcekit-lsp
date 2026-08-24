@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 package import Foundation
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 extension Foundation.Process {
   /// If the process has not exited after `duration`, terminate it.

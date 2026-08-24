@@ -17,6 +17,7 @@ import SemanticIndex
 import SourceKitD
 import SourceKitLSP
 import SwiftExtensions
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 extension SwiftLanguageService {
   /// Resolves an inlay hint by looking up the type definition location.

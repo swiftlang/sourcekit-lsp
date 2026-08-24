@@ -53,11 +53,13 @@ package actor Debouncer<Parameter: Sendable> {
   /// `debounceDuration` after the second `scheduleCall` call.
   package func scheduleCall(_ parameter: Parameter) {
     var parameter = parameter
-    var targetDate = ContinuousClock.now + debounceDuration
+    let targetDate: ContinuousClock.Instant
     if let (inProgressParameter, inProgressTargetDate, inProgressTask) = inProgressData {
       inProgressTask.cancel()
       parameter = combineParameters(inProgressParameter, parameter)
       targetDate = inProgressTargetDate
+    } else {
+      targetDate = ContinuousClock.now + debounceDuration
     }
     let task = Task {
       do {
@@ -68,7 +70,7 @@ package actor Debouncer<Parameter: Sendable> {
       }
       await self.flush()
     }
-    inProgressData = (parameter, ContinuousClock.now + debounceDuration, task)
+    inProgressData = (parameter, targetDate, task)
   }
 
   /// If any debounced calls are in progress, make them now, even if the debounce duration hasn't expired yet.

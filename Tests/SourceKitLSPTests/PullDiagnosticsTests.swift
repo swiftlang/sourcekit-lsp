@@ -19,6 +19,7 @@ import SKTestSupport
 import SemanticIndex
 import SourceKitLSP
 import SwiftExtensions
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
 
 #if os(Windows)
@@ -373,12 +374,11 @@ final class PullDiagnosticsTests: SourceKitLSPTestCase {
   func testNoteInSecondaryFile() async throws {
     let project = try await SwiftPMTestProject(files: [
       "FileA.swift": """
-      @available(*, unavailable)
-      struct 1️⃣Test {}
+      func 1️⃣foo(bar: Int) {}
       """,
       "FileB.swift": """
       func test() {
-          _ = Test()
+          foo()
       }
       """,
     ])

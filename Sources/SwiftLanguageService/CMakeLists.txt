@@ -2,18 +2,8 @@ add_library(SwiftLanguageService STATIC
   AdjustPositionToStartOfArgument.swift
   AdjustPositionToStartOfIdentifier.swift
   ClosureCompletionFormat.swift
-  CodeActions/AddDocumentation.swift
-  CodeActions/ApplyDeMorganLaw.swift
-  CodeActions/ConvertIfLetToGuard.swift
-  CodeActions/ConvertIntegerLiteral.swift
-  CodeActions/ConvertJSONToCodableStruct.swift
-  CodeActions/ConvertStringConcatenationToStringInterpolation.swift
-  CodeActions/PackageManifestEdits.swift
-  CodeActions/RemoveUnusedImports.swift
-  CodeActions/SyntaxCodeActionProvider.swift
-  CodeActions/SyntaxCodeActions.swift
-  CodeActions/SyntaxRefactoringCodeActionProvider.swift
   CodeCompletion.swift
+  CodeCompletionContext.swift
   CodeCompletionSession.swift
   CommentXML.swift
   CursorInfo.swift
@@ -24,8 +14,8 @@ add_library(SwiftLanguageService STATIC
   ExpandMacroCommand.swift
   FoldingRange.swift
   GeneratedInterfaceManager.swift
-  IndentationRemover.swift
   InlayHints.swift
+  InlayHintManager.swift
   InlayHintResolve.swift
   MacroExpansion.swift
   OpenInterface.swift
@@ -34,6 +24,7 @@ add_library(SwiftLanguageService STATIC
   RefactoringEdit.swift
   RefactoringResponse.swift
   RelatedIdentifiers.swift
+  RemoveUnusedImports.swift
   Rename.swift
   RewriteSourceKitPlaceholders.swift
   SelectionRange.swift
@@ -80,6 +71,7 @@ target_link_libraries(SwiftLanguageService PRIVATE
   SwiftToolsProtocols::SKLogging
   SKUtilities
   SwiftExtensions
+  SwiftSyntaxCodeActions
   SwiftToolsProtocols::ToolsProtocolsSwiftExtensions
   TSCExtensions
   TSCBasic

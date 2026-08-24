@@ -47,7 +47,7 @@ extension WorkDoneProgressManager {
 /// doesn't show multiple work done progress in the client. For example, we only want to show one progress indicator
 /// when sourcekitd has crashed, not one per `SwiftLanguageService`.
 package actor SharedWorkDoneProgressManager {
-  private weak var sourceKitLSPServer: SourceKitLSPServer?
+  private weak let sourceKitLSPServer: SourceKitLSPServer?
 
   /// The number of in-progress operations. When greater than 0 `workDoneProgress` is non-nil and a work done progress
   /// is displayed to the user.

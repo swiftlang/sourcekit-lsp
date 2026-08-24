@@ -38,7 +38,7 @@ actor GeneratedInterfaceManager {
     var refCount: Int
   }
 
-  private weak var swiftLanguageService: SwiftLanguageService?
+  private weak let swiftLanguageService: SwiftLanguageService?
 
   /// The number of generated interface documents that are not in editor but should still be cached.
   private let cacheSize = 2
@@ -151,7 +151,8 @@ actor GeneratedInterfaceManager {
         uri: try document.uri,
         language: .swift,
         version: 0,
-        lineTable: LineTable(contents)
+        lineTable: LineTable(contents),
+        origin: .generated
       ),
       refCount: incrementingRefCount ? 1 : 0
     )

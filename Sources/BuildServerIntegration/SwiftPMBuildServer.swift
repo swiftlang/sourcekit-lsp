@@ -27,6 +27,7 @@ package import SKOptions
 import SourceControl
 @preconcurrency package import SourceKitLSPAPI
 import SwiftExtensions
+import Synchronization
 @_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import TSCExtensions
 package import ToolchainRegistry
@@ -37,7 +38,6 @@ import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
 package import class ToolchainRegistry.Toolchain
 import struct TSCBasic.FileSystemError
-
 private typealias AbsolutePath = Basics.AbsolutePath
 
 /// A build target in SwiftPM
@@ -80,7 +80,7 @@ fileprivate extension TSCBasic.AbsolutePath {
   }
 }
 
-private let preparationTaskID: AtomicUInt32 = AtomicUInt32(initialValue: 0)
+private let preparationTaskID = Atomic<UInt32>(0)
 
 /// Swift Package Manager build server and workspace support.
 ///
@@ -93,12 +93,12 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
     case cannotDetermineHostToolchain
   }
 
+  package static let packageReloadingTaskID = TaskId(id: "package-reloading")
+
   // MARK: Integration with SourceKit-LSP
 
   /// Options that allow the user to pass extra compiler flags.
   private let options: SourceKitLSPOptions
-
-  private let testHooks: SwiftPMTestHooks
 
   /// The queue on which we reload the package to ensure we don't reload it multiple times concurrently, which can cause
   /// issues in SwiftPM.
@@ -122,6 +122,7 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
 
   private let toolchain: Toolchain
   private let swiftPMWorkspace: Workspace
+  private let defaultScratchDirectory: AbsolutePath
 
   private let pluginConfiguration: PluginConfiguration
   private let traitConfiguration: TraitConfiguration
@@ -129,6 +130,10 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
   /// Paths to any toolsets provided in `SourceKitLSPOptions`, with any relative paths resolved based on the project
   /// root.
   private let toolsets: [AbsolutePath]
+
+  /// Paths to any pkg-config directories provided in `SourceKitLSPOptions`, with any relative paths resolved based on
+  /// the project root.
+  private let pkgConfigDirectories: [AbsolutePath]
 
   /// A `ObservabilitySystem` from `SwiftPM` that logs.
   private let observabilitySystem: ObservabilitySystem
@@ -150,11 +155,68 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
 
   static package func searchForConfig(in path: URL, options: SourceKitLSPOptions) -> BuildServerSpec? {
     let packagePath = path.appending(component: "Package.swift")
-    if (try? String(contentsOf: packagePath, encoding: .utf8))?.contains("PackageDescription") ?? false {
-      return BuildServerSpec(kind: .swiftPM, projectRoot: path, configPath: packagePath)
+    guard (try? String(contentsOf: packagePath, encoding: .utf8))?.contains("PackageDescription") ?? false else {
+      return nil
     }
+    // We found a Swift package. Attempt to infer which build system is in use.
+    let scratchPath: AbsolutePath?
+    if let scratchPathOption = options.swiftPMOrDefault.scratchPath {
+      scratchPath = try? AbsolutePath(validating: scratchPathOption, relativeTo: path.filePath)
+    } else {
+      scratchPath = try? AbsolutePath(validating: path.filePath).appending(component: ".build")
+    }
+    let inferredBuildSystem: SwiftPMBuildSystem?
+    if let scratchPath: AbsolutePath {
+      let config = Self.getSwiftPMBuildConfiguration(options: options)
+      let buildSystemFilePath = scratchPath.appending(".buildSystem_\(config)")
+      if FileManager.default.fileExists(at: buildSystemFilePath.asURL) {
+        do {
+          let buildSystem = try String(contentsOf: buildSystemFilePath.asURL, encoding: .utf8)
+          inferredBuildSystem = SwiftPMBuildSystem(rawValue: buildSystem)
+        } catch {
+          inferredBuildSystem = nil
+        }
+      } else {
+        let existingScratchContents = try? FileManager.default.contentsOfDirectory(
+          at: scratchPath.asURL,
+          includingPropertiesForKeys: nil
+        )
+        let foundSwiftBuildOutputs = (existingScratchContents ?? []).contains(where: { $0.lastPathComponent == "out" })
+        let foundNativeOutputs = (existingScratchContents ?? []).contains(where: {
+          $0.lastPathComponent == "debug" || $0.lastPathComponent == "release"
+        })
+        if foundNativeOutputs && foundSwiftBuildOutputs {
+          inferredBuildSystem = .swiftbuild
+        } else if foundNativeOutputs {
+          inferredBuildSystem = .native
+        } else if foundSwiftBuildOutputs {
+          inferredBuildSystem = .swiftbuild
+        } else {
+          inferredBuildSystem = nil
+        }
+      }
+    } else {
+      inferredBuildSystem = nil
+    }
+    return BuildServerSpec(
+      kind: .swiftPM(inferredBuildSystem: inferredBuildSystem),
+      projectRoot: path,
+      configPath: packagePath
+    )
+  }
 
-    return nil
+  /// Converts the SourceKit LSP SwiftPM build configuration value to a SwiftPM API equivalent
+  ///
+  /// -Parameters:
+  ///   - options: The `SourceKitLSPOptions` to use to determine the build configuration.
+  /// - Returns: The `PackageModel.BuildConfiguration` equivalent of the SourceKit `SKOptions.Configuration`.
+  static func getSwiftPMBuildConfiguration(options: SourceKitLSPOptions) -> PackageModel.BuildConfiguration {
+    return switch options.swiftPMOrDefault.configuration {
+    case .debug, nil:
+      .debug
+    case .release:
+      .release
+    }
   }
 
   /// Creates a build server using the Swift Package Manager, if this workspace is a package.
@@ -168,8 +230,7 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
     projectRoot: URL,
     toolchainRegistry: ToolchainRegistry,
     options: SourceKitLSPOptions,
-    connectionToSourceKitLSP: any Connection,
-    testHooks: SwiftPMTestHooks
+    connectionToSourceKitLSP: any Connection
   ) async throws {
     self.projectRoot = projectRoot
     self.options = options
@@ -185,7 +246,6 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
     }
 
     self.toolchain = toolchain
-    self.testHooks = testHooks
     self.connectionToSourceKitLSP = connectionToSourceKitLSP
 
     // Start an open-ended log for messages that we receive during package loading. We never end this log.
@@ -216,8 +276,13 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
     }
 
     let absProjectRoot = try AbsolutePath(validating: projectRoot.filePath)
+    self.defaultScratchDirectory = Workspace.DefaultLocations.scratchDirectory(forRootPackage: absProjectRoot)
     self.toolsets =
       try options.swiftPMOrDefault.toolsets?.map {
+        try AbsolutePath(validating: $0, relativeTo: absProjectRoot)
+      } ?? []
+    self.pkgConfigDirectories =
+      try options.swiftPMOrDefault.pkgConfigPaths?.map {
         try AbsolutePath(validating: $0, relativeTo: absProjectRoot)
       } ?? []
 
@@ -236,7 +301,7 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
       } else {
         nil
       }
-    let destinationSDK = try SwiftSDK.deriveTargetSwiftSDK(
+    var destinationSDK = try SwiftSDK.deriveTargetSwiftSDK(
       hostSwiftSDK: hostSDK,
       hostTriple: hostSwiftPMToolchain.targetTriple,
       customToolsets: toolsets,
@@ -255,6 +320,10 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
       fileSystem: localFileSystem
     )
 
+    if let sdk = options.swiftPMOrDefault.sdk {
+      destinationSDK.pathsConfiguration.sdkRootPath = try AbsolutePath(validating: sdk, relativeTo: absProjectRoot)
+    }
+
     let destinationSwiftPMToolchain = try UserToolchain(swiftSDK: destinationSDK)
 
     var location = try Workspace.Location(
@@ -268,8 +337,17 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
       location.scratchDirectory = absProjectRoot.appending(components: ".build", "index-build")
     }
 
+    let enabledTraits: Set<String>? =
+      if let traits = options.swiftPMOrDefault.traits {
+        Set(traits)
+      } else {
+        nil
+      }
+    self.traitConfiguration = TraitConfiguration(enabledTraits: enabledTraits)
+
     var configuration = WorkspaceConfiguration.default
     configuration.skipDependenciesUpdates = !options.backgroundIndexingOrDefault
+    configuration.traitConfiguration = self.traitConfiguration
 
     self.swiftPMWorkspace = try Workspace(
       fileSystem: localFileSystem,
@@ -285,19 +363,13 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
       )
     )
 
-    let buildConfiguration: PackageModel.BuildConfiguration
-    switch options.swiftPMOrDefault.configuration {
-    case .debug, nil:
-      buildConfiguration = .debug
-    case .release:
-      buildConfiguration = .release
-    }
+    let buildConfiguration = Self.getSwiftPMBuildConfiguration(options: options)
 
     let buildFlags = BuildFlags(
-      cCompilerFlags: options.swiftPMOrDefault.cCompilerFlags ?? [],
-      cxxCompilerFlags: options.swiftPMOrDefault.cxxCompilerFlags ?? [],
-      swiftCompilerFlags: options.swiftPMOrDefault.swiftCompilerFlags ?? [],
-      linkerFlags: options.swiftPMOrDefault.linkerFlags ?? []
+      cCompilerFlags: (options.swiftPMOrDefault.cCompilerFlags ?? []).map { BuildFlag(value: $0, source: nil) },
+      cxxCompilerFlags: (options.swiftPMOrDefault.cxxCompilerFlags ?? []).map { BuildFlag(value: $0, source: nil) },
+      swiftCompilerFlags: (options.swiftPMOrDefault.swiftCompilerFlags ?? []).map { BuildFlag(value: $0, source: nil) },
+      linkerFlags: (options.swiftPMOrDefault.linkerFlags ?? []).map { BuildFlag(value: $0, source: nil) },
     )
 
     self.toolsBuildParameters = try BuildParameters(
@@ -309,6 +381,7 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
       toolchain: hostSwiftPMToolchain,
       flags: buildFlags,
       buildSystemKind: .native,
+      pkgConfigDirectories: pkgConfigDirectories,
     )
 
     self.destinationBuildParameters = try BuildParameters(
@@ -321,6 +394,7 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
       triple: destinationSDK.targetTriple,
       flags: buildFlags,
       buildSystemKind: .native,
+      pkgConfigDirectories: pkgConfigDirectories,
       prepareForIndexing: options.backgroundPreparationModeOrDefault.toSwiftPMPreparation
     )
 
@@ -336,14 +410,6 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
       workDirectory: location.pluginWorkingDirectory,
       disableSandbox: options.swiftPMOrDefault.disableSandbox ?? false
     )
-
-    let enabledTraits: Set<String>? =
-      if let traits = options.swiftPMOrDefault.traits {
-        Set(traits)
-      } else {
-        nil
-      }
-    self.traitConfiguration = TraitConfiguration(enabledTraits: enabledTraits)
 
     packageLoadingQueue.async {
       await orLog("Initial package loading") {
@@ -426,24 +492,25 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
 
     self.connectionToSourceKitLSP.send(
       TaskStartNotification(
-        taskId: TaskId(id: "package-reloading"),
+        taskId: Self.packageReloadingTaskID,
         data: WorkDoneProgressTask(title: "SourceKit-LSP: Reloading Package").encodeToLSPAny()
       )
     )
-    await testHooks.reloadPackageDidStart?()
     defer {
       signposter.endInterval("Reloading package", state)
       Task {
         self.connectionToSourceKitLSP.send(
-          TaskFinishNotification(taskId: TaskId(id: "package-reloading"), status: .ok)
+          TaskFinishNotification(taskId: Self.packageReloadingTaskID, status: .ok)
         )
-        await testHooks.reloadPackageDidFinish?()
       }
     }
 
     let modulesGraph = try await self.swiftPMWorkspace.loadPackageGraph(
-      rootInput: PackageGraphRootInput(packages: [AbsolutePath(validating: projectRoot.filePath)]),
-      forceResolvedVersions: !isForIndexBuild,
+      rootInput: PackageGraphRootInput(
+        packages: [AbsolutePath(validating: projectRoot.filePath)],
+        traitConfiguration: self.traitConfiguration
+      ),
+      forceResolvedVersions: options.swiftPMOrDefault.forceResolvedVersions ?? !isForIndexBuild,
       observabilityScope: observabilitySystem.topScope.makeChildScope(description: "Load package graph")
     )
 
@@ -473,7 +540,7 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
 
       signposter.emitEvent("Finished generating build plan", id: signpostID)
 
-      buildDescription = BuildDescription(buildPlan: plan)
+      buildDescription = BuildDescription(buildPlan: plan, pluginConfiguration: self.pluginConfiguration)
     }
 
     /// Make sure to execute any throwing statements before setting any
@@ -536,19 +603,7 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
 
       throw NonFileURIError(uri: file)
     }
-    #if compiler(>=6.4)
-    #warning(
-      "Once we can guarantee that the toolchain can index multiple Swift files in a single invocation, we no longer need to set -index-unit-output-path since it's always set using an -output-file-map"
-    )
-    #endif
-    var compilerArguments = try buildTarget.compileArguments(for: fileURL)
-    if buildTarget.compiler == .swift {
-      compilerArguments += [
-        // Fake an output path so that we get a different unit file for every Swift file we background index
-        "-index-unit-output-path", indexUnitOutputPath(forSwiftFile: file),
-      ]
-    }
-    return compilerArguments
+    return try buildTarget.compileArguments(for: fileURL)
   }
 
   package func buildTargets(request: WorkspaceBuildTargetsRequest) async throws -> WorkspaceBuildTargetsResponse {
@@ -720,12 +775,17 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
     return VoidResponse()
   }
 
-  package func prepare(request: BuildTargetPrepareRequest) async throws -> VoidResponse {
+  package func prepare(request: BuildTargetPrepareRequest) async throws -> BuildTargetPrepareResponse {
     // TODO: Support preparation of multiple targets at once. (https://github.com/swiftlang/sourcekit-lsp/issues/1262)
+    var implicitlyPreparedTargets: [BuildTargetIdentifier] = []
     for target in request.targets {
-      await orLog("Preparing") { try await prepare(singleTarget: target) }
+      await orLog("Preparing") {
+        try await prepare(singleTarget: target)
+        implicitlyPreparedTargets += transitiveClosure(of: [target], successors: { targetDependencies[$0] ?? [] })
+          .filter { !request.targets.contains($0) }
+      }
     }
-    return VoidResponse()
+    return BuildTargetPrepareResponse(implicitlyPreparedTargets: implicitlyPreparedTargets)
   }
 
   private func prepare(singleTarget target: BuildTargetIdentifier) async throws {
@@ -743,6 +803,7 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
     logger.debug("Preparing '\(target.forLogging)' using \(self.toolchain.identifier)")
     var arguments = [
       try swift.filePath, "build",
+      "--build-system", "native",
       "--package-path", try projectRoot.filePath,
       "--scratch-path", self.swiftPMWorkspace.location.scratchDirectory.pathString,
       "--disable-index-store",
@@ -757,6 +818,9 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
     if let triple = options.swiftPMOrDefault.triple {
       arguments += ["--triple", triple]
     }
+    if let sdk = options.swiftPMOrDefault.sdk {
+      arguments += ["--sdk", sdk]
+    }
     if let swiftSDKsDirectory = options.swiftPMOrDefault.swiftSDKsDirectory {
       arguments += ["--swift-sdks-path", swiftSDKsDirectory]
     }
@@ -767,6 +831,7 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
       arguments += ["--traits", traits.joined(separator: ",")]
     }
     arguments += toolsets.flatMap { ["--toolset", $0.pathString] }
+    arguments += pkgConfigDirectories.flatMap { ["--pkg-config-path", $0.pathString] }
     arguments += options.swiftPMOrDefault.cCompilerFlags?.flatMap { ["-Xcc", $0] } ?? []
     arguments += options.swiftPMOrDefault.cxxCompilerFlags?.flatMap { ["-Xcxx", $0] } ?? []
     arguments += options.swiftPMOrDefault.swiftCompilerFlags?.flatMap { ["-Xswiftc", $0] } ?? []
@@ -777,12 +842,16 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
     case .noLazy: arguments += ["--experimental-prepare-for-indexing", "--experimental-prepare-for-indexing-no-lazy"]
     case .enabled: arguments.append("--experimental-prepare-for-indexing")
     }
+    // Keep this last so extra arguments can override the options above.
+    arguments += options.swiftPMOrDefault.extraArguments ?? []
     if Task.isCancelled {
       return
     }
     let start = ContinuousClock.now
 
-    let taskID: TaskId = TaskId(id: "preparation-\(preparationTaskID.fetchAndIncrement())")
+    let taskID: TaskId = TaskId(
+      id: "preparation-\(preparationTaskID.wrappingAdd(1, ordering: .relaxed).oldValue)"
+    )
     connectionToSourceKitLSP.send(
       BuildServerProtocol.OnBuildLogMessageNotification(
         type: .info,
@@ -822,6 +891,7 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
         stderr: { @Sendable bytes in stderrHandler.handleDataFromPipe(Data(bytes)) }
       )
     )
+    logger.debug("'swift build' for target \(target.forLogging) returned")
     let exitStatus = result.exitStatus.exhaustivelySwitchable
     self.connectionToSourceKitLSP.send(
       BuildServerProtocol.OnBuildLogMessageNotification(
@@ -877,6 +947,23 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
     return DocumentURI(url.deletingLastPathComponent()) == DocumentURI(self.projectRoot)
   }
 
+  private func isInScratchDirectory(_ url: URL) -> Bool {
+    guard let filePath = try? AbsolutePath(validating: url.filePath) else {
+      return false
+    }
+    if filePath.isDescendantOfOrEqual(to: self.swiftPMWorkspace.location.scratchDirectory) {
+      return true
+    }
+
+    // Also ignore the default '.build' directory. SourceKit-LSP uses '.build/index-build' as its scratch
+    // directory by default, but users can configure a custom scratch path outside of '.build'. In that case,
+    // regular 'swift build' output still lands in '.build', so we want to ignore events there too.
+    if filePath.isDescendantOfOrEqual(to: self.defaultScratchDirectory) {
+      return true
+    }
+    return false
+  }
+
   /// An event is relevant if it modifies a file that matches one of the file rules used by the SwiftPM workspace.
   private func fileEventShouldTriggerPackageReload(event: FileEvent) -> Bool {
     guard let fileURL = event.uri.fileURL else {
@@ -884,6 +971,9 @@ package actor SwiftPMBuildServer: BuiltInBuildServer {
     }
     if isPackageManifestOrPackageResolved(fileURL) {
       return true
+    }
+    if isInScratchDirectory(fileURL) {
+      return false
     }
     switch event.type {
     case .created, .deleted:

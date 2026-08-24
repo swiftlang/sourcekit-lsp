@@ -16,10 +16,10 @@ package import Foundation
 @_spi(SourceKitLSP) import LanguageServerProtocolExtensions
 @_spi(SourceKitLSP) import LanguageServerProtocolTransport
 @_spi(SourceKitLSP) import SKLogging
-import SKOptions
+package import SKOptions
 import SwiftExtensions
 import ToolchainRegistry
-import ToolsProtocolsSwiftExtensions
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 /// The details necessary to create a `BuildServerAdapter`.
 package struct BuildServerSpec {
@@ -27,7 +27,7 @@ package struct BuildServerSpec {
     case externalBuildServer
     case jsonCompilationDatabase
     case fixedCompilationDatabase
-    case swiftPM
+    case swiftPM(inferredBuildSystem: SwiftPMBuildSystem?)
     case injected(
       @Sendable (_ projectRoot: URL, _ connectionToSourceKitLSP: any Connection) async -> any Connection
     )
@@ -120,7 +120,7 @@ actor BuiltInBuildServerAdapter: QueueBasedMessageHandler {
   func handle<Request: RequestType>(
     request: Request,
     id: RequestID,
-    reply: @Sendable @escaping (LSPResult<Request.Response>) -> Void
+    reply: @Sendable @escaping (Result<Request.Response, any Error>) -> Void
   ) async {
     let request = RequestAndReply(request, reply: reply)
     await buildServerHooks.preHandleRequest?(request.params)

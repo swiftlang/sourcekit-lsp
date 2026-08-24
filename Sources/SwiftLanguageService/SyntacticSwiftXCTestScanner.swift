@@ -13,6 +13,7 @@
 @_spi(SourceKitLSP) import LanguageServerProtocol
 import SourceKitLSP
 import SwiftSyntax
+import SwiftSyntaxExtensions
 
 /// Scans a source file for `XCTestCase` classes and test methods.
 ///
@@ -51,21 +52,10 @@ final class SyntacticSwiftXCTestScanner: SyntaxVisitor {
       guard let function = member.decl.as(FunctionDeclSyntax.self) else {
         return nil
       }
-      guard function.name.text.starts(with: "test") else {
+      guard function.isXCTestFunction else {
         return nil
       }
-      guard function.modifiers.map(\.name.tokenKind).allSatisfy({ $0 != .keyword(.static) && $0 != .keyword(.class) })
-      else {
-        // Test methods can't be static.
-        return nil
-      }
-      guard function.signature.returnClause == nil, function.signature.parameterClause.parameters.isEmpty else {
-        // Test methods can't have a return type or have parameters.
-        // Technically we are also filtering out functions that have an explicit `Void` return type here but such
-        // declarations are probably less common than helper functions that start with `test` and have a return type.
-        return nil
-      }
-      let range = snapshot.absolutePositionRange(
+      let range = snapshot.positionRange(
         of: function.positionAfterSkippingLeadingTrivia..<function.endPositionBeforeTrailingTrivia
       )
 
@@ -81,6 +71,37 @@ final class SyntacticSwiftXCTestScanner: SyntaxVisitor {
     }
   }
 
+  func handleClassOrExtension(
+    _ node: some DeclGroupSyntax,
+    name: String,
+    isKnownXCTestCaseSubclass: Bool
+  ) -> SyntaxVisitorContinueKind {
+    let testMethods = findTestMethods(in: node.memberBlock.members, containerName: name)
+
+    guard !testMethods.isEmpty || isKnownXCTestCaseSubclass else {
+      // Don't report a test class if it doesn't contain any test methods.
+      return .visitChildren
+    }
+
+    let range = snapshot.positionRange(
+      of: node.positionAfterSkippingLeadingTrivia..<node.endPositionBeforeTrailingTrivia
+    )
+    let testItem = AnnotatedTestItem(
+      testItem: TestItem(
+        id: name,
+        label: name,
+        disabled: false,
+        style: TestStyle.xcTest,
+        location: Location(uri: snapshot.uri, range: range),
+        children: testMethods,
+        tags: []
+      ),
+      isExtension: node.is(ExtensionDeclSyntax.self)
+    )
+    result.append(testItem)
+    return .visitChildren
+  }
+
   override func visit(_ node: ClassDeclSyntax) -> SyntaxVisitorContinueKind {
     guard let inheritedTypes = node.inheritanceClause?.inheritedTypes, let superclass = inheritedTypes.first else {
       // The class has no superclass and thus can't inherit from XCTestCase.
@@ -94,33 +115,10 @@ final class SyntacticSwiftXCTestScanner: SyntaxVisitor {
       // turn inherits from `XCTestCase`. Resolving that inheritance hierarchy would be semantic.
       return .visitChildren
     }
-    let testMethods = findTestMethods(in: node.memberBlock.members, containerName: node.name.text)
-    guard !testMethods.isEmpty || superclassName == "XCTestCase" else {
-      // Don't report a test class if it doesn't contain any test methods.
-      return .visitChildren
-    }
-    let range = snapshot.absolutePositionRange(
-      of: node.positionAfterSkippingLeadingTrivia..<node.endPositionBeforeTrailingTrivia
-    )
-    let testItem = AnnotatedTestItem(
-      testItem: TestItem(
-        id: node.name.text,
-        label: node.name.text,
-        disabled: false,
-        style: TestStyle.xcTest,
-        location: Location(uri: snapshot.uri, range: range),
-        children: testMethods,
-        tags: []
-      ),
-      isExtension: false
-    )
-    result.append(testItem)
-    return .visitChildren
+    return handleClassOrExtension(node, name: node.name.text, isKnownXCTestCaseSubclass: superclassName == "XCTestCase")
   }
 
   override func visit(_ node: ExtensionDeclSyntax) -> SyntaxVisitorContinueKind {
-    result += findTestMethods(in: node.memberBlock.members, containerName: node.extendedType.trimmedDescription)
-      .map { AnnotatedTestItem(testItem: $0, isExtension: true) }
-    return .visitChildren
+    handleClassOrExtension(node, name: node.extendedType.trimmedDescription, isKnownXCTestCaseSubclass: false)
   }
 }

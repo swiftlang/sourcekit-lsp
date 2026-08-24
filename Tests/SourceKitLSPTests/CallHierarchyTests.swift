@@ -15,6 +15,7 @@ import SKLogging
 import SKTestSupport
 import SwiftExtensions
 import TSCBasic
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
 
 final class CallHierarchyTests: SourceKitLSPTestCase {
@@ -102,10 +103,10 @@ final class CallHierarchyTests: SourceKitLSPTestCase {
         uri: project.fileURI,
         range: Range(position),
         selectionRange: Range(position),
-        data: .dictionary([
+        data: [
           "usr": .string(usr),
           "uri": .string(project.fileURI.stringValue),
-        ])
+        ]
       )
     }
 
@@ -218,10 +219,10 @@ final class CallHierarchyTests: SourceKitLSPTestCase {
           uri: try project.uri(for: "lib.cpp"),
           range: try Range(project.position(of: "2️⃣", in: "lib.cpp")),
           selectionRange: try Range(project.position(of: "2️⃣", in: "lib.cpp")),
-          data: LSPAny.dictionary([
-            "usr": .string("c:@S@FilePathIndex@F@foo#"),
+          data: [
+            "usr": "c:@S@FilePathIndex@F@foo#",
             "uri": .string(try project.uri(for: "lib.cpp").stringValue),
-          ])
+          ]
         )
       ]
     )
@@ -257,10 +258,10 @@ final class CallHierarchyTests: SourceKitLSPTestCase {
             uri: project.fileURI,
             range: Range(project.positions["2️⃣"]),
             selectionRange: Range(project.positions["2️⃣"]),
-            data: .dictionary([
-              "usr": .string("s:4test0A4Func1xySS_tF"),
+            data: [
+              "usr": "s:4test0A4Func1xySS_tF",
               "uri": .string(project.fileURI.stringValue),
-            ])
+            ]
           ),
           fromRanges: [Range(project.positions["3️⃣"])]
         )
@@ -304,10 +305,10 @@ final class CallHierarchyTests: SourceKitLSPTestCase {
             uri: project.fileURI,
             range: Range(project.positions["2️⃣"]),
             selectionRange: Range(project.positions["2️⃣"]),
-            data: .dictionary([
-              "usr": .string("s:4test0A3VarSivg"),
+            data: [
+              "usr": "s:4test0A3VarSivg",
               "uri": .string(project.fileURI.stringValue),
-            ])
+            ]
           ),
           fromRanges: [Range(project.positions["3️⃣"])]
         )
@@ -328,10 +329,10 @@ final class CallHierarchyTests: SourceKitLSPTestCase {
             uri: project.fileURI,
             range: Range(project.positions["4️⃣"]),
             selectionRange: Range(project.positions["4️⃣"]),
-            data: .dictionary([
-              "usr": .string("s:4test0A4FuncyyF"),
+            data: [
+              "usr": "s:4test0A4FuncyyF",
               "uri": .string(project.fileURI.stringValue),
-            ])
+            ]
           ),
           fromRanges: [Range(project.positions["5️⃣"])]
         )
@@ -369,10 +370,10 @@ final class CallHierarchyTests: SourceKitLSPTestCase {
             uri: project.fileURI,
             range: Range(project.positions["2️⃣"]),
             selectionRange: Range(project.positions["2️⃣"]),
-            data: .dictionary([
-              "usr": .string("s:4test0A4FuncyyF"),
+            data: [
+              "usr": "s:4test0A4FuncyyF",
               "uri": .string(project.fileURI.stringValue),
-            ])
+            ]
           ),
           fromRanges: [Range(project.positions["3️⃣"]), Range(project.positions["4️⃣"])]
         )
@@ -409,10 +410,10 @@ final class CallHierarchyTests: SourceKitLSPTestCase {
             uri: project.fileURI,
             range: Range(project.positions["1️⃣"]),
             selectionRange: Range(project.positions["1️⃣"]),
-            data: .dictionary([
-              "usr": .string("s:4test3fooSivg"),
+            data: [
+              "usr": "s:4test3fooSivg",
               "uri": .string(project.fileURI.stringValue),
-            ])
+            ]
           ),
           fromRanges: [Range(project.positions["3️⃣"])]
         )
@@ -448,10 +449,10 @@ final class CallHierarchyTests: SourceKitLSPTestCase {
             uri: project.fileURI,
             range: Range(project.positions["1️⃣"]),
             selectionRange: Range(project.positions["1️⃣"]),
-            data: .dictionary([
-              "usr": .string("s:4test0A4FuncSiyF"),
+            data: [
+              "usr": "s:4test0A4FuncSiyF",
               "uri": .string(project.fileURI.stringValue),
-            ])
+            ]
           ),
           fromRanges: [Range(project.positions["3️⃣"])]
         )
@@ -496,10 +497,10 @@ final class CallHierarchyTests: SourceKitLSPTestCase {
             uri: project.fileURI,
             range: Range(project.positions["2️⃣"]),
             selectionRange: Range(project.positions["2️⃣"]),
-            data: .dictionary([
-              "usr": .string("s:4testAA5protoyAA10MyProtocol_p_tF"),
+            data: [
+              "usr": "s:4testAA5protoyAA10MyProtocol_p_tF",
               "uri": .string(project.fileURI.stringValue),
-            ])
+            ]
           ),
           fromRanges: [Range(project.positions["3️⃣"])]
         )
@@ -544,10 +545,10 @@ final class CallHierarchyTests: SourceKitLSPTestCase {
             uri: project.fileURI,
             range: Range(project.positions["2️⃣"]),
             selectionRange: Range(project.positions["2️⃣"]),
-            data: .dictionary([
-              "usr": .string("s:4testAA4baseyAA4BaseC_tF"),
+            data: [
+              "usr": "s:4testAA4baseyAA4BaseC_tF",
               "uri": .string(project.fileURI.stringValue),
-            ])
+            ]
           ),
           fromRanges: [Range(project.positions["3️⃣"])]
         )
@@ -586,10 +587,10 @@ final class CallHierarchyTests: SourceKitLSPTestCase {
             uri: project.fileURI,
             range: Range(project.positions["1️⃣"]),
             selectionRange: Range(project.positions["1️⃣"]),
-            data: .dictionary([
-              "usr": .string("s:4test7MyClassC3fooyyF"),
+            data: [
+              "usr": "s:4test7MyClassC3fooyyF",
               "uri": .string(project.fileURI.stringValue),
-            ])
+            ]
           ),
           fromRanges: [Range(project.positions["2️⃣"])]
         )
@@ -626,10 +627,10 @@ final class CallHierarchyTests: SourceKitLSPTestCase {
             uri: project.fileURI,
             range: Range(project.positions["2️⃣"]),
             selectionRange: Range(project.positions["2️⃣"]),
-            data: .dictionary([
-              "usr": .string("s:4test0A4Func1xySS_tF"),
+            data: [
+              "usr": "s:4test0A4Func1xySS_tF",
               "uri": .string(project.fileURI.stringValue),
-            ])
+            ]
           ),
           fromRanges: [Range(project.positions["3️⃣"])]
         )
@@ -666,10 +667,10 @@ final class CallHierarchyTests: SourceKitLSPTestCase {
             uri: project.fileURI,
             range: Range(project.positions["1️⃣"]),
             selectionRange: Range(project.positions["1️⃣"]),
-            data: .dictionary([
-              "usr": .string("s:4test3fooyyF"),
+            data: [
+              "usr": "s:4test3fooyyF",
               "uri": .string(project.fileURI.stringValue),
-            ])
+            ]
           ),
           fromRanges: [Range(project.positions["3️⃣"])]
         )
@@ -706,10 +707,10 @@ final class CallHierarchyTests: SourceKitLSPTestCase {
             uri: project.fileURI,
             range: Range(project.positions["2️⃣"]),
             selectionRange: Range(project.positions["2️⃣"]),
-            data: .dictionary([
-              "usr": .string("s:4test5myVarSivp"),
+            data: [
+              "usr": "s:4test5myVarSivp",
               "uri": .string(project.fileURI.stringValue),
-            ])
+            ]
           ),
           fromRanges: [Range(project.positions["3️⃣"])]
         )
@@ -746,10 +747,10 @@ final class CallHierarchyTests: SourceKitLSPTestCase {
             uri: project.fileURI,
             range: Range(project.positions["1️⃣"]),
             selectionRange: Range(project.positions["1️⃣"]),
-            data: .dictionary([
-              "usr": .string("s:4test3fooSiyF"),
+            data: [
+              "usr": "s:4test3fooSiyF",
               "uri": .string(project.fileURI.stringValue),
-            ])
+            ]
           ),
           fromRanges: [Range(project.positions["3️⃣"])]
         )
@@ -788,10 +789,10 @@ final class CallHierarchyTests: SourceKitLSPTestCase {
             uri: project.fileURI,
             range: Range(project.positions["2️⃣"]),
             selectionRange: Range(project.positions["2️⃣"]),
-            data: .dictionary([
-              "usr": .string("s:4test3BarVACycfc"),
+            data: [
+              "usr": "s:4test3BarVACycfc",
               "uri": .string(project.fileURI.stringValue),
-            ])
+            ]
           ),
           fromRanges: [Range(project.positions["3️⃣"])]
         )
@@ -832,10 +833,10 @@ final class CallHierarchyTests: SourceKitLSPTestCase {
             uri: project.fileURI,
             range: Range(project.positions["2️⃣"]),
             selectionRange: Range(project.positions["2️⃣"]),
-            data: .dictionary([
-              "usr": .string("s:4test5OuterV3BarVAEycfc"),
+            data: [
+              "usr": "s:4test5OuterV3BarVAEycfc",
               "uri": .string(project.fileURI.stringValue),
-            ])
+            ]
           ),
           fromRanges: [Range(project.positions["3️⃣"])]
         )
@@ -877,10 +878,10 @@ final class CallHierarchyTests: SourceKitLSPTestCase {
             uri: project.fileURI,
             range: Range(project.positions["2️⃣"]),
             selectionRange: Range(project.positions["2️⃣"]),
-            data: .dictionary([
-              "usr": .string("s:4test3FooV0A3VarSivg"),
+            data: [
+              "usr": "s:4test3FooV0A3VarSivg",
               "uri": .string(project.fileURI.stringValue),
-            ])
+            ]
           ),
           fromRanges: [Range(project.positions["3️⃣"])]
         )
@@ -927,10 +928,10 @@ final class CallHierarchyTests: SourceKitLSPTestCase {
             uri: project.fileURI,
             range: Range(project.positions["2️⃣"]),
             selectionRange: Range(project.positions["2️⃣"]),
-            data: .dictionary([
-              "usr": .string("s:4test3foo4taskyAA6MyTaskV_tF"),
+            data: [
+              "usr": "s:4test3foo4taskyAA6MyTaskV_tF",
               "uri": .string(project.fileURI.stringValue),
-            ])
+            ]
           ),
           fromRanges: [Range(project.positions["1️⃣"])]
         )

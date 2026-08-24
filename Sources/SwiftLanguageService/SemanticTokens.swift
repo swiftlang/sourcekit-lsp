@@ -12,6 +12,7 @@
 
 @_spi(SourceKitLSP) package import LanguageServerProtocol
 @_spi(SourceKitLSP) import SKLogging
+import SKOptions
 import SourceKitD
 import SourceKitLSP
 import SwiftIDEUtils
@@ -44,11 +45,12 @@ extension SwiftLanguageService {
     return SyntaxHighlightingTokenParser(sourcekitd: sourcekitd).parseTokens(skTokens, in: snapshot)
   }
 
-  /// Computes an array of syntax highlighting tokens from the syntax tree that
-  /// have been merged with any semantic tokens from SourceKit. If the provided
-  /// range is non-empty, this function restricts its output to only those
-  /// tokens whose ranges overlap it. If no range is provided, tokens for the
-  /// entire document are returned.
+  /// Computes an array of syntax highlighting tokens based primarily on the semantic tokens from SourceKit.
+  /// If the `reportSyntacticHighlightInSemanticTokensOrDefault` option is set to true, the array also includes tokens
+  /// obtained from the syntax tree in addition to the semantic tokens from SourceKit.
+  ///
+  /// If the provided range is non-empty, this function restricts its output to only those tokens whose ranges overlap
+  /// it. If no range is provided, tokens for the entire document are returned.
   ///
   /// - Parameter range: The range of tokens to restrict this function to, if any.
   /// - Returns: An array of syntax highlighting tokens.
@@ -58,30 +60,40 @@ extension SwiftLanguageService {
   ) async throws -> SyntaxHighlightingTokens {
     try Task.checkCancellation()
 
-    async let tree = syntaxTreeManager.syntaxTree(for: snapshot)
-    let semanticTokens = await orLog("Loading semantic tokens") { try await semanticHighlightingTokens(for: snapshot) }
+    async let semanticTokens =
+      await orLog("Loading semantic tokens") { try await semanticHighlightingTokens(for: snapshot) }
+      ?? SyntaxHighlightingTokens(sortedTokens: [])
+
+    let tokens =
+      if self.options.reportSyntacticHighlightInSemanticTokensOrDefault {
+        try await syntacticTokens(for: snapshot, in: range).mergingTokens(with: semanticTokens)
+      } else {
+        await semanticTokens
+      }
+    return tokens
+  }
+
+  private func syntacticTokens(
+    for snapshot: DocumentSnapshot,
+    in range: Range<Position>?
+  ) async throws -> SyntaxHighlightingTokens {
+    let tree = await syntaxTreeManager.syntaxTree(for: snapshot)
+
+    try Task.checkCancellation()
 
     let range =
       if let range {
         snapshot.byteSourceRange(of: range)
       } else {
-        await tree.range
+        tree.range
       }
 
-    try Task.checkCancellation()
-
-    let tokens =
-      await tree
-      .classifications(in: range)
-      .map { $0.highlightingTokens(in: snapshot) }
-      .reduce(into: SyntaxHighlightingTokens(tokens: [])) { $0.tokens += $1.tokens }
-
-    try Task.checkCancellation()
-
-    return
-      tokens
-      .mergingTokens(with: semanticTokens ?? SyntaxHighlightingTokens(tokens: []))
-      .sorted { $0.start < $1.start }
+    return SyntaxHighlightingTokens(
+      sortedTokens:
+        tree
+        .classifications(in: range)
+        .flatMap { $0.highlightingTokens(in: snapshot).tokens }
+    )
   }
 
   package func documentSemanticTokens(
@@ -115,10 +127,10 @@ extension SwiftLanguageService {
 extension SyntaxClassifiedRange {
   fileprivate func highlightingTokens(in snapshot: DocumentSnapshot) -> SyntaxHighlightingTokens {
     guard let (kind, modifiers) = self.kind.highlightingKindAndModifiers else {
-      return SyntaxHighlightingTokens(tokens: [])
+      return SyntaxHighlightingTokens(sortedTokens: [])
     }
 
-    let multiLineRange = snapshot.absolutePositionRange(of: self.range)
+    let multiLineRange = snapshot.positionRange(of: self.range)
     let ranges = multiLineRange.splitToSingleLineRanges(in: snapshot)
 
     let tokens = ranges.map {
@@ -129,7 +141,7 @@ extension SyntaxClassifiedRange {
       )
     }
 
-    return SyntaxHighlightingTokens(tokens: tokens)
+    return SyntaxHighlightingTokens(sortedTokens: tokens)
   }
 }
 

@@ -22,14 +22,18 @@ The structure of the file is currently not guaranteed to be stable. Options may 
   - `swiftSDKsDirectory: string`: Equivalent to SwiftPM's `--swift-sdks-path` option.
   - `swiftSDK: string`: Equivalent to SwiftPM's `--swift-sdk` option.
   - `triple: string`: Equivalent to SwiftPM's `--triple` option.
+  - `sdk: string`: Equivalent to SwiftPM's `--sdk` option.
   - `toolsets: string[]`: Equivalent to SwiftPM's `--toolset` option.
+  - `pkgConfigPaths: string[]`: Equivalent to SwiftPM's `--pkg-config-path` option.
   - `traits: string[]`: Traits to enable for the package. Equivalent to SwiftPM's `--traits` option.
   - `cCompilerFlags: string[]`: Extra arguments passed to the compiler for C files. Equivalent to SwiftPM's `-Xcc` option.
   - `cxxCompilerFlags: string[]`: Extra arguments passed to the compiler for C++ files. Equivalent to SwiftPM's `-Xcxx` option.
   - `swiftCompilerFlags: string[]`: Extra arguments passed to the compiler for Swift files. Equivalent to SwiftPM's `-Xswiftc` option.
   - `linkerFlags: string[]`: Extra arguments passed to the linker. Equivalent to SwiftPM's `-Xlinker` option.
   - `buildToolsSwiftCompilerFlags: string[]`: Extra arguments passed to the compiler for Swift files or plugins. Equivalent to SwiftPM's `-Xbuild-tools-swiftc` option.
+  - `forceResolvedVersions: boolean`: Equivalent to SwiftPM's `--force-resolved-versions` option. Makes all processes (including background indexing) treat Package.resolved as a lock file.
   - `disableSandbox: boolean`: Disables running subprocesses from SwiftPM in a sandbox. Equivalent to SwiftPM's `--disable-sandbox` option. Useful when running `sourcekit-lsp` in a sandbox because nested sandboxes are not supported.
+  - `extraArguments: string[]`: Additional arguments appended to SwiftPM when starting or preparing the build server.
   - `buildSystem: "native"|"swiftbuild"`: Which SwiftPM build system should be used when opening a package.
 - `compilationDatabase`: Dictionary with the following keys, defining options for workspaces with a compilation database.
   - `searchPaths: string[]`: Additional paths to search for a compilation database, relative to a workspace root.
@@ -57,6 +61,7 @@ The structure of the file is currently not guaranteed to be stable. Options may 
   - `noLazy`: Prepare a target without generating object files but do not do lazy type checking and function body skipping. This uses SwiftPM's `--experimental-prepare-for-indexing-no-lazy` flag.
   - `enabled`: Prepare a target without generating object files.
 - `cancelTextDocumentRequestsOnEditAndClose: boolean`: Whether sending a `textDocument/didChange` or `textDocument/didClose` notification for a document should cancel all pending requests for that document.
+- `reportSyntacticHighlightInSemanticTokens: boolean`: Whether the response for `textDocument/semanticTokens` should include semantic tokens for syntactic and semantic highlighting or just semantic highlighting. This should be enabled in cases where the syntactic grammar (e.g. TextMate or tree-sitter) used by an editor is insufficient for properly highlighting the source code. This can happen for example happen when using complex string interpolations or nested raw strings.
 - `experimentalFeatures: ("on-type-formatting"|"structured-logs")[]`: Experimental features that are enabled.
 - `swiftPublishDiagnosticsDebounceDuration: number`: The time that `SwiftLanguageService` should wait after an edit before starting to compute diagnostics and sending a `PublishDiagnosticsNotification`.
 - `workDoneProgressDebounceDuration: number`: When a task is started that should be displayed to the client as a work done progress, how many milliseconds to wait before actually starting the work done progress. This prevents flickering of the work done progress in the client for short-lived index tasks which end within this duration.

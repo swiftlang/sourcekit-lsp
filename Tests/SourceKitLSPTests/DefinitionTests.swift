@@ -16,6 +16,7 @@ import BuildServerIntegration
 @_spi(Testing) @_spi(SourceKitLSP) import SKLogging
 import SKTestSupport
 import SwiftExtensions
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
 
 class DefinitionTests: SourceKitLSPTestCase {
@@ -25,7 +26,7 @@ class DefinitionTests: SourceKitLSPTestCase {
 
     let positions = testClient.openDocument(
       """
-      let 1️⃣foo = 1
+      let 1️⃣foo3️⃣ = 1
       _ = foo2️⃣
       """,
       uri: uri
@@ -34,7 +35,7 @@ class DefinitionTests: SourceKitLSPTestCase {
     let response = try await testClient.send(
       DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
     )
-    XCTAssertEqual(response?.locations, [Location(uri: uri, range: Range(positions["1️⃣"]))])
+    XCTAssertEqual(response?.locations, [Location(uri: uri, range: positions["1️⃣"]..<positions["3️⃣"])])
   }
 
   func testJumpToDefinitionIncludesOverrides() async throws {
@@ -180,8 +181,8 @@ class DefinitionTests: SourceKitLSPTestCase {
     let uri = DocumentURI(for: .swift)
     let positions = testClient.openDocument(
       """
-      struct 1️⃣Foo {
-        2️⃣init() {}
+      struct 1️⃣Foo4️⃣ {
+        2️⃣init()5️⃣ {}
       }
       _ = 3️⃣Foo()
       """,
@@ -194,8 +195,8 @@ class DefinitionTests: SourceKitLSPTestCase {
     XCTAssertEqual(
       response,
       .locations([
-        Location(uri: uri, range: Range(positions["1️⃣"])),
-        Location(uri: uri, range: Range(positions["2️⃣"])),
+        Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
+        Location(uri: uri, range: positions["2️⃣"]..<positions["5️⃣"]),
       ])
     )
   }
@@ -205,8 +206,8 @@ class DefinitionTests: SourceKitLSPTestCase {
     let uri = DocumentURI(for: .swift)
     let positions = testClient.openDocument(
       """
-      func 1️⃣foo() -> Int { 1 }
-      func 2️⃣foo() -> String { "" }
+      func 1️⃣foo()4️⃣ -> Int { 1 }
+      func 2️⃣foo()5️⃣ -> String { "" }
       func test() {
         _ = 3️⃣foo()
       }
@@ -220,8 +221,8 @@ class DefinitionTests: SourceKitLSPTestCase {
     XCTAssertEqual(
       response,
       .locations([
-        Location(uri: uri, range: Range(positions["1️⃣"])),
-        Location(uri: uri, range: Range(positions["2️⃣"])),
+        Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
+        Location(uri: uri, range: positions["2️⃣"]..<positions["5️⃣"]),
       ])
     )
   }
@@ -231,7 +232,7 @@ class DefinitionTests: SourceKitLSPTestCase {
     let project = try await SwiftPMTestProject(
       files: [
         "LibA/include/LibA.h": """
-        @interface 1️⃣LibAClass2️⃣
+        @interface 1️⃣LibAClass
         - (void)doSomething;
         @end
         """,
@@ -242,7 +243,7 @@ class DefinitionTests: SourceKitLSPTestCase {
         @end
 
         @implementation Test
-        - (void)test:(3️⃣LibAClass *)libAClass {
+        - (void)test:(2️⃣LibAClass *)libAClass {
           [libAClass doSomething];
         }
         @end
@@ -256,15 +257,20 @@ class DefinitionTests: SourceKitLSPTestCase {
             .target(name: "LibB", dependencies: ["LibA"]),
           ]
         )
-        """
+        """,
+      enableBackgroundIndexing: true
     )
     let (uri, positions) = try project.openDocument("LibB.m")
     let response = try await project.testClient.send(
-      DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["3️⃣"])
+      DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
     )
 
+    // Only check the lower bound of the range. If the definition request uses index data, it will return a
+    // zero length range, and if it uses clangd it will return the full range. SwiftPM's older native build system
+    // writes module maps to disk as a side effect of requesting compiler args, while the newer Swift build backend
+    // models them as proper tasks in the build graph, causing them to have slightly different behavior in this case.
     let location = try XCTUnwrap(response?.locations?.only)
-    XCTAssertEqual(location, try project.location(from: "1️⃣", to: "2️⃣", in: "LibA.h"))
+    XCTAssertEqual(location.range.lowerBound, try project.position(of: "1️⃣", in: "LibA.h"))
   }
 
   func testDefinitionOfMethodBetweenModulesObjC() async throws {
@@ -273,7 +279,7 @@ class DefinitionTests: SourceKitLSPTestCase {
       files: [
         "LibA/include/LibA.h": """
         @interface LibAClass
-        - (void)1️⃣doSomething2️⃣;
+        - (void)1️⃣doSomething;
         @end
         """,
         "LibB/include/dummy.h": "",
@@ -284,7 +290,7 @@ class DefinitionTests: SourceKitLSPTestCase {
 
         @implementation Test
         - (void)test:(LibAClass *)libAClass {
-          [libAClass 3️⃣doSomething];
+          [libAClass 2️⃣doSomething];
         }
         @end
         """,
@@ -297,15 +303,20 @@ class DefinitionTests: SourceKitLSPTestCase {
             .target(name: "LibB", dependencies: ["LibA"]),
           ]
         )
-        """
+        """,
+      enableBackgroundIndexing: true
     )
     let (uri, positions) = try project.openDocument("LibB.m")
     let response = try await project.testClient.send(
-      DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["3️⃣"])
+      DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
     )
 
+    // Only check the lower bound of the range. If the definition request uses index data, it will return a
+    // zero length range, and if it uses clangd it will return the full range. SwiftPM's older native build system
+    // writes module maps to disk as a side effect of requesting compiler args, while the newer Swift build backend
+    // models them as proper tasks in the build graph, causing them to have slightly different behavior in this case.
     let location = try XCTUnwrap(response?.locations?.only)
-    XCTAssertEqual(location, try project.location(from: "1️⃣", to: "2️⃣", in: "LibA.h"))
+    XCTAssertEqual(location.range.lowerBound, try project.position(of: "1️⃣", in: "LibA.h"))
   }
 
   func testDefinitionOfImplicitInitializer() async throws {
@@ -314,7 +325,7 @@ class DefinitionTests: SourceKitLSPTestCase {
 
     let positions = testClient.openDocument(
       """
-      class 1️⃣Foo {}
+      class 1️⃣Foo3️⃣ {}
 
       func test() {
         2️⃣Foo()
@@ -328,7 +339,7 @@ class DefinitionTests: SourceKitLSPTestCase {
     )
     XCTAssertEqual(
       response?.locations,
-      [Location(uri: uri, range: Range(positions["1️⃣"]))]
+      [Location(uri: uri, range: positions["1️⃣"]..<positions["3️⃣"])]
     )
   }
 
@@ -358,7 +369,7 @@ class DefinitionTests: SourceKitLSPTestCase {
 
     let (aUri, updatedAPositions) = try await project.changeFileOnDisk(
       "FileA.swift",
-      newMarkedContents: "func 2️⃣sayHello() {}"
+      newMarkedContents: "func 2️⃣sayHello()3️⃣ {}"
     )
 
     // Wait until SourceKit-LSP has handled the `DidChangeWatchedFilesNotification` (which it only does after a delay
@@ -375,7 +386,7 @@ class DefinitionTests: SourceKitLSPTestCase {
     )
     XCTAssertEqual(
       afterChangingFileA,
-      .locations([Location(uri: aUri, range: Range(updatedAPositions["2️⃣"]))])
+      .locations([Location(uri: aUri, range: updatedAPositions["2️⃣"]..<updatedAPositions["3️⃣"])])
     )
 
     let afterChange = try await project.testClient.send(
@@ -383,7 +394,7 @@ class DefinitionTests: SourceKitLSPTestCase {
     )
     XCTAssertEqual(
       afterChange,
-      .locations([Location(uri: aUri, range: Range(updatedAPositions["2️⃣"]))])
+      .locations([Location(uri: aUri, range: updatedAPositions["2️⃣"]..<updatedAPositions["3️⃣"])])
     )
   }
 
@@ -392,7 +403,7 @@ class DefinitionTests: SourceKitLSPTestCase {
     let project = try await SwiftPMTestProject(
       files: [
         "LibA/LibA.swift": """
-        public func 1️⃣sayHello() {}
+        public func 1️⃣sayHello3️⃣() {}
         """,
         "LibB/LibB.swift": """
         import LibA
@@ -447,7 +458,7 @@ class DefinitionTests: SourceKitLSPTestCase {
     )
     XCTAssertEqual(
       afterBuilding,
-      .locations([try project.location(from: "1️⃣", to: "1️⃣", in: "LibA.swift")])
+      .locations([try project.location(from: "1️⃣", to: "3️⃣", in: "LibA.swift")])
     )
   }
 
@@ -588,106 +599,6 @@ class DefinitionTests: SourceKitLSPTestCase {
       DefinitionRequest(textDocument: TextDocumentIdentifier(project.fileURI), position: project.positions["1️⃣"])
     )
     XCTAssertEqual(response?.locations, [Location(uri: project.fileURI, range: Range(project.positions["2️⃣"]))])
-  }
-
-  func testJumpToCopiedHeader() async throws {
-    actor BuildServer: CustomBuildServer {
-      let inProgressRequestsTracker = CustomBuildServerInProgressRequestTracker()
-      private let projectRoot: URL
-
-      private var headerCopyDestination: URL {
-        projectRoot.appending(components: "header-copy", "CopiedTest.h")
-      }
-
-      init(projectRoot: URL, connectionToSourceKitLSP: any Connection) {
-        self.projectRoot = projectRoot
-      }
-
-      func initializeBuildRequest(_ request: InitializeBuildRequest) async throws -> InitializeBuildResponse {
-        return try initializationResponseSupportingBackgroundIndexing(
-          projectRoot: projectRoot,
-          outputPathsProvider: false
-        )
-      }
-
-      func buildTargetSourcesRequest(_ request: BuildTargetSourcesRequest) -> BuildTargetSourcesResponse {
-        return BuildTargetSourcesResponse(items: [
-          SourcesItem(
-            target: .dummy,
-            sources: [
-              SourceItem(
-                uri: DocumentURI(projectRoot.appending(component: "Test.c")),
-                kind: .file,
-                generated: false,
-                dataKind: .sourceKit,
-                data: SourceKitSourceItemData(
-                  language: .c,
-                  kind: .source,
-                  outputPath: nil,
-                  copyDestinations: nil
-                ).encodeToLSPAny()
-              ),
-              SourceItem(
-                uri: DocumentURI(projectRoot.appending(component: "Test.h")),
-                kind: .file,
-                generated: false,
-                dataKind: .sourceKit,
-                data: SourceKitSourceItemData(
-                  language: .c,
-                  kind: .header,
-                  outputPath: nil,
-                  copyDestinations: [DocumentURI(headerCopyDestination)]
-                ).encodeToLSPAny()
-              ),
-            ]
-          )
-        ])
-      }
-
-      func textDocumentSourceKitOptionsRequest(
-        _ request: TextDocumentSourceKitOptionsRequest
-      ) throws -> TextDocumentSourceKitOptionsResponse? {
-        return TextDocumentSourceKitOptionsResponse(compilerArguments: [
-          request.textDocument.uri.pseudoPath, "-I", try headerCopyDestination.deletingLastPathComponent().filePath,
-        ])
-      }
-
-      func prepareTarget(_ request: BuildTargetPrepareRequest) async throws -> VoidResponse {
-        try FileManager.default.createDirectory(
-          at: headerCopyDestination.deletingLastPathComponent(),
-          withIntermediateDirectories: true
-        )
-        try FileManager.default.copyItem(
-          at: projectRoot.appending(component: "Test.h"),
-          to: headerCopyDestination
-        )
-        return VoidResponse()
-      }
-    }
-
-    let project = try await CustomBuildServerTestProject(
-      files: [
-        "Test.h": """
-        void hello();
-        """,
-        "Test.c": """
-        #include <CopiedTest.h>
-
-        void test() {
-          1️⃣hello();
-        }
-        """,
-      ],
-      buildServer: BuildServer.self,
-      enableBackgroundIndexing: true,
-    )
-    try await project.testClient.send(SynchronizeRequest(copyFileMap: true))
-
-    let (uri, positions) = try project.openDocument("Test.c")
-    let response = try await project.testClient.send(
-      DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
-    )
-    XCTAssertEqual(response?.locations?.map(\.uri), [try project.uri(for: "Test.h")])
   }
 
   func testJumpToSwiftInterfaceIfIndexLookupFails() async throws {

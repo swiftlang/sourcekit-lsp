@@ -51,15 +51,9 @@ extension SwiftLanguageService {
     [
       SemanticRefactorCommand.self,
       ExpandMacroCommand.self,
+      RemoveUnusedImportsCommand.self,
     ].map { (command: any SwiftCommand.Type) in
       command.identifier
     }
   }
-
-  /// `SwiftLanguageService` is immortal because sourcekitd uses global state.
-  ///
-  /// Since all instances of `SwiftLanguageService` share the same underlying sourcekitd process,
-  /// shutting down and restarting would cause unnecessary overhead as the new instance would
-  /// just reinitialize the same global state. Instead, we keep the service alive.
-  package static var isImmortal: Bool { true }
 }

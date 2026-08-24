@@ -17,6 +17,7 @@ package import IndexStoreDB
 package import SourceKitLSP
 import SwiftExtensions
 import SwiftSyntax
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 extension SwiftLanguageService {
   package func symbolGraph(
@@ -24,7 +25,10 @@ extension SwiftLanguageService {
     in workspace: Workspace,
     manager: OnDiskDocumentManager
   ) async throws -> String {
-    let (snapshot, buildSettings) = try await manager.open(uri: location.documentUri, language: .swift, in: workspace)
+    guard let uri = location.uri else {
+      throw ResponseError.requestFailed("Symbol location has no file path")
+    }
+    let (snapshot, buildSettings) = try await manager.open(uri: uri, language: .swift, in: workspace)
 
     let symbolGraph = try await cursorInfo(
       snapshot,

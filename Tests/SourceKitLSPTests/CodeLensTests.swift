@@ -130,11 +130,11 @@ final class CodeLensTests: SourceKitLSPTestCase {
       [
         CodeLens(
           range: positions["1️⃣"]..<positions["2️⃣"],
-          command: Command(title: "Run MyApp", command: "swift.run", arguments: [.string("MyApp")])
+          command: Command(title: "Run MyApp", command: "swift.run", arguments: ["MyApp"])
         ),
         CodeLens(
           range: positions["1️⃣"]..<positions["2️⃣"],
-          command: Command(title: "Debug MyApp", command: "swift.debug", arguments: [.string("MyApp")])
+          command: Command(title: "Debug MyApp", command: "swift.debug", arguments: ["MyApp"])
         ),
         CodeLens(
           range: positions["3️⃣"]..<positions["4️⃣"],
@@ -281,11 +281,11 @@ final class CodeLensTests: SourceKitLSPTestCase {
       [
         CodeLens(
           range: positions["1️⃣"]..<positions["2️⃣"],
-          command: Command(title: "Run MyApp", command: "swift.run", arguments: [.string("MyApp")])
+          command: Command(title: "Run MyApp", command: "swift.run", arguments: ["MyApp"])
         ),
         CodeLens(
           range: positions["1️⃣"]..<positions["2️⃣"],
-          command: Command(title: "Debug MyApp", command: "swift.debug", arguments: [.string("MyApp")])
+          command: Command(title: "Debug MyApp", command: "swift.debug", arguments: ["MyApp"])
         ),
       ]
     )

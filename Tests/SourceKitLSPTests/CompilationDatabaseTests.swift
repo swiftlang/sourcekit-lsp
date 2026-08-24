@@ -18,6 +18,7 @@ import SwiftExtensions
 import TSCBasic
 import TSCExtensions
 import ToolchainRegistry
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
 
 final class CompilationDatabaseTests: SourceKitLSPTestCase {

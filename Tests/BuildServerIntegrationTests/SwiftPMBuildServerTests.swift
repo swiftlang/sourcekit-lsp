@@ -15,6 +15,7 @@
 @_spi(Testing) import BuildServerIntegration
 @_spi(SourceKitLSP) import LanguageServerProtocol
 @_spi(SourceKitLSP) import LanguageServerProtocolExtensions
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 @_spi(SourceKitLSP) import LanguageServerProtocolTransport
 import PackageModel
 import SKLogging
@@ -30,6 +31,7 @@ import Foundation
 import Testing
 import struct Basics.AbsolutePath
 import struct Basics.Triple
+import struct Basics.UniversalArchiver
 
 private var hostTriple: Triple {
   get async throws {
@@ -48,9 +50,81 @@ private var hostTriple: Triple {
 }
 
 fileprivate extension SourceKitLSPOptions {
+  static var forTestingNativeSwiftPMBuildServer: Self {
+    SourceKitLSPOptions(swiftPM: SwiftPMOptions(buildSystem: .native))
+  }
+
   static var forTestingExperimentalSwiftPMBuildServer: Self {
     SourceKitLSPOptions(swiftPM: SwiftPMOptions(buildSystem: .swiftbuild))
   }
+}
+
+/// Compute a value that is derived from the toolchain synchronously.
+///
+/// The build servers that a test runs against are listed in `@Test(arguments:)`, which is evaluated synchronously, so
+/// the toolchain queries that decide the list have to block.
+private func computedSynchronously<T: Sendable>(name: String, _ body: @Sendable @escaping () async throws -> T) -> T {
+  nonisolated(unsafe) var result: Result<T, any Error>!
+  let sema = WrappedSemaphore(name: name)
+  Task { @Sendable in
+    do {
+      result = .success(try await body())
+    } catch {
+      result = .failure(error)
+    }
+    sema.signal()
+  }
+  try! sema.waitOrThrow()
+  return try! result.get()
+}
+
+let swiftPMHasExperimentalBuildServer: Bool = computedSynchronously(name: "swiftPMHasExperimentalBuildServer") {
+  if ProcessEnv.block["SWIFTCI_USE_LOCAL_DEPS"] != nil {
+    // In general, don't skip tests in CI. Toolchain should be up-to-date.
+    return false
+  }
+  let swift = try await unwrap(ToolchainRegistry.forTesting.default?.swift).deletingLastPathComponent()
+    .appending(component: "swift")
+  let output = try await Process.run(
+    arguments: [
+      try swift.filePath,
+      "package",
+      "experimental-build-server",
+      "--help",
+    ],
+    // "swift package experimental-build-server --help" times out without a working directory. Set a nonsensical
+    // working directory to make it finish faster.
+    workingDirectory: TSCBasic.AbsolutePath(validating: testScratchDir().filePath)
+  )
+  return try output.utf8stderrOutput().contains("Usage: swift package experimental-build-server")
+}
+
+/// The Swift version of the toolchain used for testing or `nil` if it could not be determined.
+private let testingToolchainSwiftVersion: SwiftVersion? = computedSynchronously(
+  name: "testingToolchainSwiftVersion"
+) {
+  try await ToolchainRegistry.forTesting.default?.swiftVersion
+}
+
+/// The build server configurations that a test should be run with.
+///
+/// The out-of-process build server is included if the toolchain used for testing has one. Tests that rely on build
+/// server behavior which was added during the development of a Swift version pass that version as
+/// `requiredSwiftVersion`, so that they only exercise the out-of-process build server with a toolchain that can have
+/// that behavior.
+private func buildServerOptionsToTest(
+  requiring requiredSwiftVersion: SwiftVersion? = nil
+) -> [SourceKitLSPOptions] {
+  let native: [SourceKitLSPOptions] = [.forTestingNativeSwiftPMBuildServer]
+  guard swiftPMHasExperimentalBuildServer else {
+    return native
+  }
+  if let requiredSwiftVersion {
+    guard let testingToolchainSwiftVersion, testingToolchainSwiftVersion >= requiredSwiftVersion else {
+      return native
+    }
+  }
+  return native + [.forTestingExperimentalSwiftPMBuildServer]
 }
 
 @Suite(.serialized, .configureLogging)
@@ -88,13 +162,15 @@ struct SwiftPMBuildServerTests {
         ]
       )
       let packageRoot = tempDir.appending(component: "pkg")
+      let connection = LocalConnection(receiverName: "dummy")
+      let handler = IgnoringMessageHandler()
+      connection.start(handler: handler)
       await expectThrowsError(
         try await SwiftPMBuildServer(
           projectRoot: packageRoot,
           toolchainRegistry: ToolchainRegistry(toolchains: []),
           options: SourceKitLSPOptions(),
-          connectionToSourceKitLSP: LocalConnection(receiverName: "dummy"),
-          testHooks: SwiftPMTestHooks()
+          connectionToSourceKitLSP: connection
         )
       )
     }
@@ -124,12 +200,14 @@ struct SwiftPMBuildServerTests {
         ),
         backgroundIndexing: false
       )
+      let connection = LocalConnection(receiverName: "dummy")
+      let handler = IgnoringMessageHandler()
+      connection.start(handler: handler)
       let swiftpmBuildServer = try await SwiftPMBuildServer(
         projectRoot: packageRoot,
         toolchainRegistry: .forTesting,
         options: options,
-        connectionToSourceKitLSP: LocalConnection(receiverName: "dummy"),
-        testHooks: SwiftPMTestHooks()
+        connectionToSourceKitLSP: connection
       )
 
       let dataPath = await swiftpmBuildServer.destinationBuildParameters.dataPath
@@ -138,10 +216,28 @@ struct SwiftPMBuildServerTests {
     }
   }
 
-  @Test(
-    arguments: Platform.current == .windows
-      ? [SourceKitLSPOptions()] : [SourceKitLSPOptions(), .forTestingExperimentalSwiftPMBuildServer]
-  )
+  @Test
+  func testExtraArgumentsArePassedVerbatim() async throws {
+    try await withTestScratchDir { tempDir in
+      let extraArguments = [
+        "--experimental-prebuilts-download-url",
+        "file:swift-syntax-prebuilt/feed",
+        "--experimental-prebuilts-root-cert",
+        "swift-syntax-prebuilt/root.cer",
+      ]
+      let config = try await BuildServerConfig.forSwiftPMBuildServer(
+        projectRoot: tempDir,
+        options: SourceKitLSPOptions(
+          swiftPM: .init(extraArguments: extraArguments)
+        ),
+        toolchainRegistry: .forTesting
+      )
+
+      #expect(Array(config.argv.suffix(extraArguments.count)) == extraArguments)
+    }
+  }
+
+  @Test(arguments: buildServerOptionsToTest())
   func testBasicSwiftArgs(options: SourceKitLSPOptions) async throws {
     try await withTestScratchDir { tempDir in
       try FileManager.default.createFiles(
@@ -149,10 +245,11 @@ struct SwiftPMBuildServerTests {
         files: [
           "pkg/Sources/lib/a.swift": "",
           "pkg/Package.swift": """
-          // swift-tools-version:4.2
+          // swift-tools-version:5.8
           import PackageDescription
           let package = Package(
             name: "a",
+            platforms: [.macOS(.v13)],
             targets: [.target(name: "lib")]
           )
           """,
@@ -189,7 +286,7 @@ struct SwiftPMBuildServerTests {
 
       expectArgumentsContain("-target", arguments: arguments)  // Only one!
       #if os(macOS)
-      let versionString = PackageModel.Platform.macOS.oldestSupportedVersion.versionString
+      let versionString = "13.0"  // matches the explicit platforms: [.macOS(.v13)] above
       if options.swiftPMOrDefault.buildSystem == .swiftbuild {
         expectArgumentsContain(
           "-target",
@@ -257,12 +354,10 @@ struct SwiftPMBuildServerTests {
         .appending(components: "Sources", "lib", "a+something.swift")
 
       _ = try #require(await buildServerManager.initializationData?.indexStorePath)
-      let pathWithPlusEscaped = "\(try aPlusSomething.filePath.replacing("+", with: "%2B"))"
-      #if os(Windows)
-      let urlWithPlusEscaped = try #require(URL(string: "file:///\(pathWithPlusEscaped)"))
-      #else
-      let urlWithPlusEscaped = try #require(URL(string: "file://\(pathWithPlusEscaped)"))
-      #endif
+      // Simulate an LSP client that percent-encodes `+` as `%2B` in file URIs.
+      let urlWithPlusEscaped = try #require(
+        URL(string: aPlusSomething.absoluteString.replacing("+", with: "%2B"))
+      )
       let arguments = try #require(
         await buildServerManager.buildSettingsInferredFromMainFile(
           for: DocumentURI(urlWithPlusEscaped),
@@ -288,8 +383,8 @@ struct SwiftPMBuildServerTests {
     }
   }
 
-  @Test
-  func testBuildSetup() async throws {
+  @Test(arguments: buildServerOptionsToTest(requiring: SwiftVersion(6, 5)))
+  func testBuildSetup(options: SourceKitLSPOptions) async throws {
     try await withTestScratchDir { tempDir in
       try FileManager.default.createFiles(
         root: tempDir,
@@ -307,17 +402,18 @@ struct SwiftPMBuildServerTests {
       )
       let packageRoot = tempDir.appending(component: "pkg")
 
-      let options = SourceKitLSPOptions.SwiftPMOptions(
+      let swiftPMOptions = SourceKitLSPOptions.SwiftPMOptions(
         configuration: .release,
         scratchPath: try packageRoot.appending(component: "non_default_build_path").filePath,
         cCompilerFlags: ["-m32"],
-        swiftCompilerFlags: ["-typecheck"]
+        swiftCompilerFlags: ["-typecheck"],
+        buildSystem: options.swiftPMOrDefault.buildSystem
       )
 
       let buildServerManager = await BuildServerManager(
         buildServerSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
-        options: SourceKitLSPOptions(swiftPM: options),
+        options: SourceKitLSPOptions(swiftPM: swiftPMOptions),
         connectionToClient: DummyBuildServerManagerConnectionToClient(),
         buildServerHooks: BuildServerHooks(),
         createMainFilesProvider: { _, _ in nil }
@@ -384,8 +480,8 @@ struct SwiftPMBuildServerTests {
     }
   }
 
-  @Test
-  func testMultiFileSwift() async throws {
+  @Test(arguments: buildServerOptionsToTest())
+  func testMultiFileSwift(options: SourceKitLSPOptions) async throws {
     try await withTestScratchDir { tempDir in
       try FileManager.default.createFiles(
         root: tempDir,
@@ -405,7 +501,7 @@ struct SwiftPMBuildServerTests {
       let buildServerManager = await BuildServerManager(
         buildServerSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
-        options: SourceKitLSPOptions(),
+        options: options,
         connectionToClient: DummyBuildServerManagerConnectionToClient(),
         buildServerHooks: BuildServerHooks(),
         createMainFilesProvider: { _, _ in nil }
@@ -440,8 +536,8 @@ struct SwiftPMBuildServerTests {
     }
   }
 
-  @Test
-  func testMultiTargetSwift() async throws {
+  @Test(arguments: buildServerOptionsToTest())
+  func testMultiTargetSwift(options: SourceKitLSPOptions) async throws {
     try await withTestScratchDir { tempDir in
       try FileManager.default.createFiles(
         root: tempDir,
@@ -468,7 +564,7 @@ struct SwiftPMBuildServerTests {
       let buildServerManager = await BuildServerManager(
         buildServerSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
-        options: SourceKitLSPOptions(),
+        options: options,
         connectionToClient: DummyBuildServerManagerConnectionToClient(),
         buildServerHooks: BuildServerHooks(),
         createMainFilesProvider: { _, _ in nil }
@@ -490,15 +586,12 @@ struct SwiftPMBuildServerTests {
       ).compilerArguments
       expectArgumentsContain(try aswift.filePath, arguments: arguments)
       expectArgumentsDoNotContain(try bswift.filePath, arguments: arguments)
-      expectArgumentsContain(
-        "-Xcc",
-        "-I",
-        "-Xcc",
-        try packageRoot
-          .appending(components: "Sources", "libC", "include")
-          .filePath,
-        arguments: arguments
-      )
+      let libCInclude = try packageRoot.appending(components: "Sources", "libC", "include").filePath
+      if options.swiftPMOrDefault.buildSystem == .swiftbuild {
+        expectArgumentsContain("-I\(libCInclude)", arguments: arguments)
+      } else {
+        expectArgumentsContain("-Xcc", "-I", "-Xcc", libCInclude, arguments: arguments)
+      }
 
       let argumentsB = try #require(
         await buildServerManager.buildSettingsInferredFromMainFile(
@@ -509,18 +602,14 @@ struct SwiftPMBuildServerTests {
       ).compilerArguments
       expectArgumentsContain(try bswift.filePath, arguments: argumentsB)
       expectArgumentsDoNotContain(try aswift.filePath, arguments: argumentsB)
-      expectArgumentsDoNotContain(
-        "-I",
-        try packageRoot
-          .appending(components: "Sources", "libC", "include")
-          .filePath,
-        arguments: argumentsB
+      #expect(
+        !argumentsB.contains { $0.contains(libCInclude) },
       )
     }
   }
 
-  @Test
-  func testUnknownFile() async throws {
+  @Test(arguments: buildServerOptionsToTest())
+  func testUnknownFile(options: SourceKitLSPOptions) async throws {
     try await withTestScratchDir { tempDir in
       try FileManager.default.createFiles(
         root: tempDir,
@@ -541,7 +630,7 @@ struct SwiftPMBuildServerTests {
       let buildServerManager = await BuildServerManager(
         buildServerSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
-        options: SourceKitLSPOptions(),
+        options: options,
         connectionToClient: DummyBuildServerManagerConnectionToClient(),
         buildServerHooks: BuildServerHooks(),
         createMainFilesProvider: { _, _ in nil }
@@ -578,8 +667,8 @@ struct SwiftPMBuildServerTests {
     }
   }
 
-  @Test
-  func testBasicCXXArgs() async throws {
+  @Test(arguments: buildServerOptionsToTest())
+  func testBasicCXXArgs(options: SourceKitLSPOptions) async throws {
     try await withTestScratchDir { tempDir in
       try FileManager.default.createFiles(
         root: tempDir,
@@ -602,7 +691,7 @@ struct SwiftPMBuildServerTests {
       let buildServerManager = await BuildServerManager(
         buildServerSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
-        options: SourceKitLSPOptions(),
+        options: options,
         connectionToClient: DummyBuildServerManagerConnectionToClient(),
         buildServerHooks: BuildServerHooks(),
         createMainFilesProvider: { _, _ in nil }
@@ -637,47 +726,71 @@ struct SwiftPMBuildServerTests {
         expectArgumentsContain("-target", arguments: args)  // Only one!
         #if os(macOS)
         let versionString = PackageModel.Platform.macOS.oldestSupportedVersion.versionString
-        expectArgumentsContain(
-          "-target",
-          try await hostTriple.tripleString(forPlatformVersion: versionString),
-          arguments: args
-        )
+        if options.swiftPMOrDefault.buildSystem == .swiftbuild {
+          expectArgumentsContain(
+            "-target",
+            // Account for differences in macOS naming canonicalization
+            try await hostTriple.tripleString(forPlatformVersion: versionString).replacing("macosx", with: "macos"),
+            arguments: args
+          )
+        } else {
+          expectArgumentsContain(
+            "-target",
+            try await hostTriple.tripleString(forPlatformVersion: versionString),
+            arguments: args
+          )
+        }
         expectArgumentsContain("-isysroot", arguments: args)
-        expectArgumentsContain("-F", arguments: args, allowMultiple: true)
+        if options.swiftPMOrDefault.buildSystem == .swiftbuild {
+          // Swift Build passes framework search paths as combined `-F<path>` arguments.
+          #expect(args.contains { $0.hasPrefix("-F") })
+        } else {
+          expectArgumentsContain("-F", arguments: args, allowMultiple: true)
+        }
         #else
         expectArgumentsContain("-target", try await hostTriple.tripleString, arguments: args)
         #endif
 
-        expectArgumentsContain(
-          "-I",
+        let includePath =
           try packageRoot
-            .appending(components: "Sources", "lib", "include")
-            .filePath,
-          arguments: args
-        )
+          .appending(components: "Sources", "lib", "include")
+          .filePath
+        if options.swiftPMOrDefault.buildSystem == .swiftbuild {
+          // Swift Build passes the include path as a single combined `-I<path>` argument.
+          expectArgumentsContain("-I\(includePath)", arguments: args)
+        } else {
+          expectArgumentsContain("-I", includePath, arguments: args)
+        }
         expectArgumentsDoNotContain("-I", try build.filePath, arguments: args)
         expectArgumentsDoNotContain(try bcxx.filePath, arguments: args)
 
-        URL(fileURLWithPath: try build.appending(components: "lib.build", "a.cpp.o").filePath)
-          .withUnsafeFileSystemRepresentation {
-            expectArgumentsContain("-o", String(cString: $0!), arguments: args)
-          }
+        if options.swiftPMOrDefault.buildSystem == .swiftbuild {
+          #expect(
+            args.contains("-o") && args.contains { $0.hasSuffix(".o") },
+            "Expected an object-file output in \(args)"
+          )
+        } else {
+          URL(fileURLWithPath: try build.appending(components: "lib.build", "a.cpp.o").filePath)
+            .withUnsafeFileSystemRepresentation {
+              expectArgumentsContain("-o", String(cString: $0!), arguments: args)
+            }
+        }
       }
     }
   }
 
-  @Test
-  func testDeploymentTargetSwift() async throws {
+  @Test(arguments: buildServerOptionsToTest())
+  func testDeploymentTargetSwift(options: SourceKitLSPOptions) async throws {
     try await withTestScratchDir { tempDir in
       try FileManager.default.createFiles(
         root: tempDir,
         files: [
           "pkg/Sources/lib/a.swift": "",
           "pkg/Package.swift": """
-          // swift-tools-version:5.0
+          // swift-tools-version:5.7
           import PackageDescription
           let package = Package(name: "a",
-            platforms: [.macOS(.v10_13)],
+            platforms: [.macOS(.v13)],
             targets: [.target(name: "lib")]
           )
           """,
@@ -687,7 +800,7 @@ struct SwiftPMBuildServerTests {
       let buildServerManager = await BuildServerManager(
         buildServerSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
-        options: SourceKitLSPOptions(),
+        options: options,
         connectionToClient: DummyBuildServerManagerConnectionToClient(),
         buildServerHooks: BuildServerHooks(),
         createMainFilesProvider: { _, _ in nil }
@@ -707,19 +820,28 @@ struct SwiftPMBuildServerTests {
       expectArgumentsContain("-target", arguments: arguments)  // Only one!
 
       #if os(macOS)
-      try await expectArgumentsContain(
-        "-target",
-        hostTriple.tripleString(forPlatformVersion: "10.13"),
-        arguments: arguments
-      )
+      if options.swiftPMOrDefault.buildSystem == .swiftbuild {
+        try await expectArgumentsContain(
+          "-target",
+          // Account for differences in macOS naming canonicalization
+          hostTriple.tripleString(forPlatformVersion: "13.0").replacing("macosx", with: "macos"),
+          arguments: arguments
+        )
+      } else {
+        try await expectArgumentsContain(
+          "-target",
+          hostTriple.tripleString(forPlatformVersion: "13.0"),
+          arguments: arguments
+        )
+      }
       #else
       expectArgumentsContain("-target", try await hostTriple.tripleString, arguments: arguments)
       #endif
     }
   }
 
-  @Test
-  func testSymlinkInWorkspaceSwift() async throws {
+  @Test(arguments: buildServerOptionsToTest(requiring: SwiftVersion(6, 5)))
+  func testSymlinkInWorkspaceSwift(options: SourceKitLSPOptions) async throws {
     try await withTestScratchDir { tempDir in
       try FileManager.default.createFiles(
         root: tempDir,
@@ -748,7 +870,7 @@ struct SwiftPMBuildServerTests {
       let buildServerManager = await BuildServerManager(
         buildServerSpec: buildServerSpec,
         toolchainRegistry: .forTesting,
-        options: SourceKitLSPOptions(),
+        options: options,
         connectionToClient: DummyBuildServerManagerConnectionToClient(),
         buildServerHooks: BuildServerHooks(),
         createMainFilesProvider: { _, _ in nil }
@@ -796,8 +918,8 @@ struct SwiftPMBuildServerTests {
     }
   }
 
-  @Test
-  func testSymlinkInWorkspaceCXX() async throws {
+  @Test(arguments: buildServerOptionsToTest(requiring: SwiftVersion(6, 5)))
+  func testSymlinkInWorkspaceCXX(options: SourceKitLSPOptions) async throws {
     try await withTestScratchDir { tempDir in
       try FileManager.default.createFiles(
         root: tempDir,
@@ -834,7 +956,7 @@ struct SwiftPMBuildServerTests {
       let buildServerManager = await BuildServerManager(
         buildServerSpec: buildServerSpec,
         toolchainRegistry: .forTesting,
-        options: SourceKitLSPOptions(),
+        options: options,
         connectionToClient: DummyBuildServerManagerConnectionToClient(),
         buildServerHooks: BuildServerHooks(),
         createMainFilesProvider: { _, _ in nil }
@@ -856,8 +978,8 @@ struct SwiftPMBuildServerTests {
     }
   }
 
-  @Test
-  func testSwiftDerivedSources() async throws {
+  @Test(arguments: buildServerOptionsToTest())
+  func testSwiftDerivedSources(options: SourceKitLSPOptions) async throws {
     try await withTestScratchDir { tempDir in
       try FileManager.default.createFiles(
         root: tempDir,
@@ -878,7 +1000,7 @@ struct SwiftPMBuildServerTests {
       let buildServerManager = await BuildServerManager(
         buildServerSpec: .swiftpmSpec(for: packageRoot),
         toolchainRegistry: .forTesting,
-        options: SourceKitLSPOptions(),
+        options: options,
         connectionToClient: DummyBuildServerManagerConnectionToClient(),
         buildServerHooks: BuildServerHooks(),
         createMainFilesProvider: { _, _ in nil }
@@ -1033,11 +1155,11 @@ struct SwiftPMBuildServerTests {
       ],
       capabilities: ClientCapabilities(window: WindowClientCapabilities(workDoneProgress: true)),
       hooks: Hooks(
-        buildServerHooks: BuildServerHooks(
-          swiftPMTestHooks: SwiftPMTestHooks(reloadPackageDidStart: {
+        buildServerHooks: BuildServerHooks(preHandleNotificationFromBuildServer: { notification in
+          if notification is TaskFinishNotification {
             didReceiveWorkDoneProgressNotification.waitOrXCTFail()
-          })
-        )
+          }
+        })
       ),
       pollIndex: false,
       preInitialization: { testClient in
@@ -1047,7 +1169,12 @@ struct SwiftPMBuildServerTests {
       }
     )
     let begin = try await project.testClient.nextNotification(ofType: WorkDoneProgress.self)
-    #expect(begin.value == .begin(WorkDoneProgressBegin(title: "SourceKit-LSP: Reloading Package")))
+    guard case .begin(let beginValue) = begin.value else {
+      Issue.record("Expected a 'begin' work done progress, got \(begin.value)")
+      return
+    }
+    #expect(beginValue.title.hasSuffix("Reloading Package"))
+
     didReceiveWorkDoneProgressNotification.signal()
 
     let end = try await project.testClient.nextNotification(ofType: WorkDoneProgress.self)
@@ -1176,6 +1303,7 @@ struct SwiftPMBuildServerTests {
       manifest: """
         let package = Package(
           name: "MyLibrary",
+          platforms: [.macOS(.v13)],
           targets: [
             .target(name: "Foo", dependencies: ["Bar"]),
             .target(name: "Bar"),
@@ -1203,6 +1331,477 @@ struct SwiftPMBuildServerTests {
       ).fullReport?.items
     )
     #expect(diagnostics.isEmpty)
+  }
+
+  @Test(arguments: buildServerOptionsToTest())
+  func testPkgConfigDirectories(options: SourceKitLSPOptions) async throws {
+    var options = options
+    options.experimentalFeatures = [.sourceKitOptionsRequest]
+    options.swiftPMOrDefault.pkgConfigPaths = ["pcfiles"]
+    let project = try await SwiftPMTestProject(
+      files: [
+        "MyExecutable/main.swift": """
+        import MyClib
+        """,
+        "MyClib/module.modulemap": """
+        module MyClib [system] {
+          header "shim.h"
+          link "myclib"
+          export *
+        }
+        """,
+        "MyClib/shim.h": "",
+        "/pcfiles/myclib.pc": """
+        Name: myclib
+        Cflags: -I/sourcekit-lsp-test-pkg-config-include
+        """,
+      ],
+      manifest: """
+        let package = Package(
+          name: "MyPkg",
+          targets: [
+            .executableTarget(name: "MyExecutable", dependencies: ["MyClib"]),
+            .systemLibrary(name: "MyClib", pkgConfig: "myclib"),
+          ]
+        )
+        """,
+      options: options
+    )
+
+    let uri = try project.openDocument("main.swift").uri
+
+    let buildSettings = try await project.testClient.send(
+      SourceKitOptionsRequest(
+        textDocument: TextDocumentIdentifier(uri),
+        prepareTarget: false,
+        allowFallbackSettings: false
+      )
+    )
+    #expect(buildSettings.compilerArguments.contains("-I/sourcekit-lsp-test-pkg-config-include"))
+  }
+
+  // MARK: - Package reload filtering
+
+  /// Creates a minimal package containing a zip-based binary target and returns the server ready
+  /// for reload-filtering tests.
+  ///
+  /// Using a zip file is important: SwiftPM extracts zipped binary targets into the scratch
+  /// directory (`.build/index-build/artifacts/` by default), which makes those extracted paths
+  /// part of `buildDescription.inputs`. That is exactly the condition under which file-change
+  /// events in `.build/` would trigger a spurious package reload without the
+  /// `isInScratchDirectory` fix.
+  ///
+  /// - Returns: A tuple of the running server and the project root URL.
+  private func makeServerWithBinaryTargetAndWaitForInitialLoad(
+    in tempDir: URL,
+    options: SourceKitLSPOptions = SourceKitLSPOptions(),
+    connectionToSourceKitLSP: any Connection
+  ) async throws -> (server: SwiftPMBuildServer, projectRoot: URL) {
+    let artifactBundleName = "MyBinaryTool.artifactbundle"
+    let zipName = "\(artifactBundleName).zip"
+
+    try FileManager.default.createFiles(
+      root: tempDir,
+      files: [
+        // Artifact bundle is staged outside of pkg/ so it doesn't pollute the package directory.
+        // ZipArchiver.compress will zip it into pkg/ below.
+        "\(artifactBundleName)/info.json": """
+        {
+          "schemaVersion": "1.0",
+          "artifacts": {
+            "MyBinaryTool": {
+              "type": "executable",
+              "version": "1.0.0",
+              "variants": []
+            }
+          }
+        }
+        """,
+        "pkg/Sources/lib/a.swift": "",
+        "pkg/Package.swift": """
+        // swift-tools-version:5.5
+        import PackageDescription
+        let package = Package(
+          name: "pkg",
+          targets: [
+            .target(name: "lib"),
+            .binaryTarget(name: "MyBinaryTool", path: "\(zipName)")
+          ]
+        )
+        """,
+      ]
+    )
+
+    let pkgDir = tempDir.appending(component: "pkg")
+    try await UniversalArchiver(localFileSystem).compress(
+      directory: Basics.AbsolutePath(validating: tempDir.appending(component: artifactBundleName).filePath),
+      to: Basics.AbsolutePath(validating: pkgDir.appending(component: zipName).filePath)
+    )
+    try FileManager.default.removeItem(at: tempDir.appending(component: artifactBundleName))
+
+    let projectRoot = try pkgDir.realpath
+    let server = try await SwiftPMBuildServer(
+      projectRoot: projectRoot,
+      toolchainRegistry: .forTesting,
+      options: options,
+      connectionToSourceKitLSP: connectionToSourceKitLSP
+    )
+    _ = await server.waitForBuildSystemUpdates(request: WorkspaceWaitForBuildSystemUpdatesRequest())
+    return (server, projectRoot)
+  }
+
+  /// Verifies that file-change events for paths inside the SwiftPM scratch directory do not
+  /// trigger a package reload.
+  ///
+  /// When a package contains a zip-based binary target, SwiftPM extracts the artifact into
+  /// `<scratch>/artifacts/<pkg>/<target>/` on every package load.  Before the
+  /// `isInScratchDirectory` fix those extracted paths were registered in
+  /// `buildDescription.inputs`, so the resulting file-created/-deleted events passed
+  /// `fileAffectsSwiftOrClangBuildSettings`, triggering another reload — an infinite loop.
+  @Test
+  func testBinaryTargetArtifactEventsDoNotTriggerPackageReload() async throws {
+    try await withTestScratchDir { tempDir in
+      let packageReloads = PackageReloadCountingMessageHandler()
+
+      let (server, projectRoot) = try await makeServerWithBinaryTargetAndWaitForInitialLoad(
+        in: tempDir,
+        connectionToSourceKitLSP: LocalConnection(receiverName: "dummy", handler: packageReloads)
+      )
+      let reloadsAfterInitialLoad = packageReloads.count
+
+      // SwiftPM extracts the artifact bundle to:
+      //   <scratch>/artifacts/<package-identity>/<target-name>/<artifact-name>/
+      // With the default options, scratch = .build/index-build/.
+      let extractedInfoJSON = projectRoot.appending(
+        components: ".build",
+        "index-build",
+        "artifacts",
+        "pkg",
+        "MyBinaryTool",
+        "MyBinaryTool.artifactbundle",
+        "info.json"
+      )
+      #expect(FileManager.default.fileExists(atPath: extractedInfoJSON.path))
+      await server.didChangeWatchedFiles(
+        notification: OnWatchedFilesDidChangeNotification(
+          changes: [
+            FileEvent(uri: DocumentURI(extractedInfoJSON), type: .deleted),
+            FileEvent(uri: DocumentURI(extractedInfoJSON), type: .created),
+          ]
+        )
+      )
+
+      _ = await server.waitForBuildSystemUpdates(request: WorkspaceWaitForBuildSystemUpdatesRequest())
+      #expect(packageReloads.count == reloadsAfterInitialLoad)
+    }
+  }
+
+  /// Same scenario with a custom scratch path configured outside of `.build/`.
+  ///
+  /// When a custom scratch path is used, SourceKit-LSP's artifact extraction goes to
+  /// `<custom-scratch>/artifacts/`, which the first `isInScratchDirectory` check covers.
+  /// The second check (default `.build/` directory) additionally suppresses events from
+  /// whatever the regular `swift build` command writes to `.build/`.
+  @Test
+  func testBinaryTargetArtifactEventsDoNotTriggerPackageReloadWithCustomScratchPath()
+    async throws
+  {
+    try await withTestScratchDir { tempDir in
+      let customScratch = tempDir.appending(component: "custom-scratch")
+
+      let packageReloads = PackageReloadCountingMessageHandler()
+
+      let (server, projectRoot) = try await makeServerWithBinaryTargetAndWaitForInitialLoad(
+        in: tempDir,
+        options: SourceKitLSPOptions(swiftPM: .init(scratchPath: try customScratch.filePath)),
+        connectionToSourceKitLSP: LocalConnection(receiverName: "dummy", handler: packageReloads)
+      )
+      let reloadsAfterInitialLoad = packageReloads.count
+
+      // With a custom scratch path, SwiftPM extracts to <custom-scratch>/artifacts/.
+      // Simulate the delete-and-re-expand cycle for those paths.
+      let extractedInfoJSON = customScratch.appending(
+        components: "artifacts",
+        "pkg",
+        "MyBinaryTool",
+        "MyBinaryTool.artifactbundle",
+        "info.json"
+      )
+      #expect(FileManager.default.fileExists(atPath: extractedInfoJSON.path))
+      await server.didChangeWatchedFiles(
+        notification: OnWatchedFilesDidChangeNotification(
+          changes: [
+            FileEvent(uri: DocumentURI(extractedInfoJSON), type: .deleted),
+            FileEvent(uri: DocumentURI(extractedInfoJSON), type: .created),
+          ]
+        )
+      )
+
+      // Also verify that the default .build/ directory is filtered even when a custom
+      // scratch path is configured (second isInScratchDirectory check).
+      let defaultBuildArtifact = projectRoot.appending(
+        components: ".build",
+        "artifacts",
+        "pkg",
+        "MyBinaryTool",
+        "MyBinaryTool.artifactbundle",
+        "info.json"
+      )
+      await server.didChangeWatchedFiles(
+        notification: OnWatchedFilesDidChangeNotification(
+          changes: [FileEvent(uri: DocumentURI(defaultBuildArtifact), type: .created)]
+        )
+      )
+
+      _ = await server.waitForBuildSystemUpdates(request: WorkspaceWaitForBuildSystemUpdatesRequest())
+      #expect(packageReloads.count == reloadsAfterInitialLoad)
+    }
+  }
+
+  /// Verifies that the build system is correctly inferred as 'native' from the `.buildSystem_debug` file.
+  @Test(
+    arguments: [SwiftPMBuildSystem.native, .swiftbuild],
+    [SKOptions.BuildConfiguration.debug, .release]
+  )
+  func testBuildSystemInferenceFromFile(
+    buildSystem: SwiftPMBuildSystem,
+    buildConfiguration: SKOptions.BuildConfiguration,
+  ) async throws {
+    try await withTestScratchDir { tempDir in
+      try FileManager.default.createFiles(
+        root: tempDir,
+        files: [
+          "pkg/Sources/lib/a.swift": "",
+          "pkg/Package.swift": """
+          // swift-tools-version:4.2
+          import PackageDescription
+          let package = Package(
+            name: "a",
+            targets: [.target(name: "lib")]
+          )
+          """,
+          "pkg/.build/.buildSystem_\(buildConfiguration)": "\(buildSystem)",
+        ]
+      )
+      let packageRoot = tempDir.appending(component: "pkg")
+      let options = SourceKitLSPOptions(swiftPM: .init(configuration: buildConfiguration))
+
+      let spec = try #require(
+        SwiftPMBuildServer.searchForConfig(in: packageRoot, options: options)
+      )
+      if case .swiftPM(let inferredBuildSystem) = spec.kind {
+        #expect(
+          inferredBuildSystem == buildSystem,
+          "Expected \(buildSystem) but got \(String(describing: inferredBuildSystem))"
+        )
+      } else {
+        Issue.record("Expected swiftPM build server kind")
+      }
+    }
+  }
+
+  /// Verifies that the build system inference falls back to heuristics when the file doesn't exist.
+  @Test
+  func testBuildSystemInferenceFallbackToHeuristics() async throws {
+    try await withTestScratchDir { tempDir in
+      try FileManager.default.createFiles(
+        root: tempDir,
+        files: [
+          "pkg/Sources/lib/a.swift": "",
+          "pkg/Package.swift": """
+          // swift-tools-version:4.2
+          import PackageDescription
+          let package = Package(
+            name: "a",
+            targets: [.target(name: "lib")]
+          )
+          """,
+        ]
+      )
+      let packageRoot = tempDir.appending(component: "pkg")
+      let buildDir = packageRoot.appending(component: ".build")
+      try FileManager.default.createDirectory(at: buildDir, withIntermediateDirectories: true)
+
+      // Create 'debug' directory to trigger native heuristic
+      let debugDir = buildDir.appending(component: "debug")
+      try FileManager.default.createDirectory(at: debugDir, withIntermediateDirectories: true)
+
+      let spec = try #require(
+        SwiftPMBuildServer.searchForConfig(in: packageRoot, options: SourceKitLSPOptions())
+      )
+      if case .swiftPM(let inferredBuildSystem) = spec.kind {
+        #expect(
+          inferredBuildSystem == .native,
+          "Expected .native from heuristic but got \(String(describing: inferredBuildSystem))"
+        )
+      } else {
+        Issue.record("Expected swiftPM build server kind")
+      }
+    }
+  }
+
+  /// Verifies that when both build system outputs exist, swiftbuild is preferred.
+  @Test
+  func testBuildSystemInferencePreferSwiftBuildWhenBothExist() async throws {
+    try await withTestScratchDir { tempDir in
+      try FileManager.default.createFiles(
+        root: tempDir,
+        files: [
+          "pkg/Sources/lib/a.swift": "",
+          "pkg/Package.swift": """
+          // swift-tools-version:4.2
+          import PackageDescription
+          let package = Package(
+            name: "a",
+            targets: [.target(name: "lib")]
+          )
+          """,
+        ]
+      )
+      let packageRoot = tempDir.appending(component: "pkg")
+      let buildDir = packageRoot.appending(component: ".build")
+      try FileManager.default.createDirectory(at: buildDir, withIntermediateDirectories: true)
+
+      // Create both 'debug' and 'out' directories
+      let debugDir = buildDir.appending(component: "debug")
+      let outDir = buildDir.appending(component: "out")
+      try FileManager.default.createDirectory(at: debugDir, withIntermediateDirectories: true)
+      try FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
+
+      let spec = try #require(
+        SwiftPMBuildServer.searchForConfig(in: packageRoot, options: SourceKitLSPOptions())
+      )
+      if case .swiftPM(let inferredBuildSystem) = spec.kind {
+        #expect(
+          inferredBuildSystem == .swiftbuild,
+          "Expected .swiftbuild when both outputs exist but got \(String(describing: inferredBuildSystem))"
+        )
+      } else {
+        Issue.record("Expected swiftPM build server kind")
+      }
+    }
+  }
+
+  /// Verifies that the correct `.buildSystem_{config}` file is read based on the configuration when both exist.
+  @Test
+  func testBuildSystemInferenceUsesCorrectConfigurationFile() async throws {
+    try await withTestScratchDir { tempDir in
+      try FileManager.default.createFiles(
+        root: tempDir,
+        files: [
+          "pkg/Sources/lib/a.swift": "",
+          "pkg/Package.swift": """
+          // swift-tools-version:4.2
+          import PackageDescription
+          let package = Package(
+            name: "a",
+            targets: [.target(name: "lib")]
+          )
+          """,
+          "pkg/.build/.buildSystem_debug": "native",
+          "pkg/.build/.buildSystem_release": "swiftbuild",
+        ]
+      )
+      let packageRoot = tempDir.appending(component: "pkg")
+
+      // Test with debug configuration (default)
+      let debugSpec = try #require(
+        SwiftPMBuildServer.searchForConfig(in: packageRoot, options: SourceKitLSPOptions())
+      )
+      if case .swiftPM(let inferredBuildSystem) = debugSpec.kind {
+        #expect(
+          inferredBuildSystem == .native,
+          "Expected .native for debug config but got \(String(describing: inferredBuildSystem))"
+        )
+      } else {
+        Issue.record("Expected swiftPM build server kind for debug")
+      }
+
+      // Test with release configuration
+      let releaseOptions = SourceKitLSPOptions(swiftPM: .init(configuration: .release))
+      let releaseSpec = try #require(
+        SwiftPMBuildServer.searchForConfig(in: packageRoot, options: releaseOptions)
+      )
+      if case .swiftPM(let inferredBuildSystem) = releaseSpec.kind {
+        #expect(
+          inferredBuildSystem == .swiftbuild,
+          "Expected .swiftbuild for release config but got \(String(describing: inferredBuildSystem))"
+        )
+      } else {
+        Issue.record("Expected swiftPM build server kind for release")
+      }
+    }
+  }
+
+  /// Verifies that invalid content in the `.buildSystem_{config}` file results in nil inference.
+  @Test
+  func testBuildSystemInferenceInvalidContent() async throws {
+    try await withTestScratchDir { tempDir in
+      try FileManager.default.createFiles(
+        root: tempDir,
+        files: [
+          "pkg/Sources/lib/a.swift": "",
+          "pkg/Package.swift": """
+          // swift-tools-version:4.2
+          import PackageDescription
+          let package = Package(
+            name: "a",
+            targets: [.target(name: "lib")]
+          )
+          """,
+          "pkg/.build/.buildSystem_debug": "invalid_build_system",
+        ]
+      )
+      let packageRoot = tempDir.appending(component: "pkg")
+
+      let spec = try #require(
+        SwiftPMBuildServer.searchForConfig(in: packageRoot, options: SourceKitLSPOptions())
+      )
+      if case .swiftPM(let inferredBuildSystem) = spec.kind {
+        #expect(
+          inferredBuildSystem == nil,
+          "Expected nil for invalid build system but got \(String(describing: inferredBuildSystem))"
+        )
+      } else {
+        Issue.record("Expected swiftPM build server kind")
+      }
+    }
+  }
+
+  @Test
+  func testPackagePlugin() async throws {
+    let testProject = try await SwiftPMTestProject(
+      files: [
+        "Test.swift": """
+        #if NonDefaultTrait
+        #warning("Trait enabled")
+        #endif
+        """
+      ],
+      manifest: """
+        // swift-tools-version: 6.2
+
+        import PackageDescription
+
+        let package = Package(
+          name: "MyLibrary",
+          traits: [
+            .default(enabledTraits: []),
+            "NonDefaultTrait",
+          ],
+          targets: [.target(name: "MyLibrary")]
+        )
+        """,
+      options: SourceKitLSPOptions(swiftPM: .init(traits: ["NonDefaultTrait"])),
+      enableBackgroundIndexing: true
+    )
+
+    let (uri, _) = try testProject.openDocument("Test.swift")
+    let diagnostics = try await testProject.testClient.send(
+      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+    )
+
+    #expect(diagnostics.fullReport?.items.map(\.message) == ["Trait enabled"])
   }
 }
 
@@ -1266,11 +1865,45 @@ fileprivate extension URL {
 fileprivate extension BuildServerSpec {
   static func swiftpmSpec(for packageRoot: URL) -> BuildServerSpec {
     return BuildServerSpec(
-      kind: .swiftPM,
+      kind: .swiftPM(inferredBuildSystem: .native),
       projectRoot: packageRoot,
       configPath: packageRoot.appending(component: "Package.swift")
     )
   }
 }
-
 #endif
+
+private final class PackageReloadCountingMessageHandler: MessageHandler {
+  private let reloads = ThreadSafeBox<Int>(initialValue: 0)
+
+  var count: Int { reloads.value }
+
+  func handle(_ notification: some NotificationType) {
+    guard let notification = notification as? TaskStartNotification,
+      notification.taskId == SwiftPMBuildServer.packageReloadingTaskID
+    else {
+      return
+    }
+    reloads.withLock { $0 += 1 }
+  }
+
+  func handle<Request: RequestType>(
+    _ request: Request,
+    id: RequestID,
+    reply: @Sendable @escaping (LSPResult<Request.Response>) -> Void
+  ) {
+    reply(.failure(.methodNotFound(Request.method)))
+  }
+}
+
+private final class IgnoringMessageHandler: MessageHandler {
+  func handle(_ notification: some NotificationType) {
+  }
+
+  func handle<Request: RequestType>(
+    _ request: Request,
+    id: RequestID,
+    reply: @Sendable @escaping (LSPResult<Request.Response>) -> Void
+  ) {
+  }
+}

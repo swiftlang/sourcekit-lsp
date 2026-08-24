@@ -15,6 +15,7 @@ import Csourcekitd
 import SKTestSupport
 import SourceKitD
 import SwiftExtensions
+import Synchronization
 import TSCBasic
 @_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
@@ -62,13 +63,13 @@ final class SourceKitDRegistryTests: SourceKitLSPTestCase {
   }
 }
 
-private let nextToken = AtomicUInt32(initialValue: 0)
+private let nextToken = Atomic<UInt32>(0)
 
 final class FakeSourceKitD: Sendable {
   let token: UInt32
 
   private init() {
-    token = nextToken.fetchAndIncrement()
+    token = nextToken.wrappingAdd(1, ordering: .relaxed).oldValue
   }
 
   static func getOrCreate(_ url: URL, in registry: SourceKitDRegistry<FakeSourceKitD>) async -> FakeSourceKitD {

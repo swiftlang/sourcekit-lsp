@@ -19,6 +19,7 @@ public import Foundation
 public import SKOptions
 package import SourceKitLSP
 import SwiftExtensions
+import Synchronization
 import TSCExtensions
 package import ToolchainRegistry
 @_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
@@ -29,7 +30,7 @@ import struct TSCBasic.AbsolutePath
 public final class InProcessSourceKitLSPClient: Sendable {
   private let server: SourceKitLSPServer
 
-  private let nextRequestID = AtomicUInt32(initialValue: 0)
+  private let nextRequestID = Atomic<UInt32>(0)
 
   public convenience init(
     toolchainPath: URL?,
@@ -99,9 +100,10 @@ public final class InProcessSourceKitLSPClient: Sendable {
           // possible.
           return continuation.resume(throwing: CancellationError())
         }
-        requestId.value = self.send(request) {
+        let id = self.send(request) {
           continuation.resume(with: $0)
         }
+        requestId.withLock { $0 = id }
         if Task.isCancelled, let requestId = requestId.takeValue() {
           // The task might have been cancelled after the above cancellation check but before `requestId` was assigned
           // a value. To cover that case, check for cancellation here again. Note that we won't cancel twice from here
@@ -123,7 +125,9 @@ public final class InProcessSourceKitLSPClient: Sendable {
     _ request: R,
     reply: @Sendable @escaping (LSPResult<R.Response>) -> Void
   ) -> RequestID {
-    let requestID = RequestID.string("sk-\(Int(nextRequestID.fetchAndIncrement()))")
+    let requestID = RequestID.string(
+      "sk-\(Int(nextRequestID.wrappingAdd(1, ordering: .relaxed).oldValue))"
+    )
     server.handle(request, id: requestID, reply: reply)
     return requestID
   }

@@ -1,4 +1,4 @@
-// swift-tools-version: 6.2
+// swift-tools-version: 6.3
 
 import Foundation
 import PackageDescription
@@ -406,6 +406,7 @@ var targets: [Target] = [
       "SKUtilities",
       "SourceKitD",
       "SwiftExtensions",
+      "SwiftSyntaxExtensions",
       "ToolchainRegistry",
       "TSCExtensions",
       .product(name: "BuildServerProtocol", package: "swift-tools-protocols"),
@@ -430,7 +431,9 @@ var targets: [Target] = [
       "SKUtilities",
       "SourceKitD",
       "SourceKitLSP",
+      "SwiftExtensions",
       "SwiftLanguageService",
+      "SwiftSyntaxCodeActions",
       "ToolchainRegistry",
       .product(name: "BuildServerProtocol", package: "swift-tools-protocols"),
       .product(name: "IndexStoreDB", package: "indexstore-db"),
@@ -438,11 +441,9 @@ var targets: [Target] = [
       .product(name: "SKLogging", package: "swift-tools-protocols"),
       .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
       .product(name: "ToolsProtocolsSwiftExtensions", package: "swift-tools-protocols"),
-      // Depend on `SwiftCompilerPlugin` and `SwiftSyntaxMacros` so the modules are built before running tests and can
-      // be used by test cases that test macros (see `SwiftPMTestProject.macroPackageManifest`)
     ]
       + swiftSyntaxDependencies([
-        "SwiftIfConfig", "SwiftParser", "SwiftSyntax", "SwiftCompilerPlugin", "SwiftSyntaxMacros",
+        "SwiftIfConfig", "SwiftParser", "SwiftSyntax",
       ]),
   ),
 
@@ -493,6 +494,8 @@ var targets: [Target] = [
       "SourceKitD",
       "SourceKitLSP",
       "SwiftExtensions",
+      "SwiftSyntaxCodeActions",
+      "SwiftSyntaxExtensions",
       "ToolchainRegistry",
       "TSCExtensions",
       .product(name: "BuildServerProtocol", package: "swift-tools-protocols"),
@@ -519,6 +522,53 @@ var targets: [Target] = [
     exclude: ["CMakeLists.txt"],
   ),
 
+  // MARK: SwiftSyntaxExtensions
+
+  .target(
+    name: "SwiftSyntaxExtensions",
+    dependencies: [
+      "SwiftExtensions",
+      .product(name: "SKLogging", package: "swift-tools-protocols"),
+    ] + swiftSyntaxDependencies(["SwiftSyntax"]),
+    exclude: ["CMakeLists.txt"]
+  ),
+
+  // MARK: SwiftSyntaxCodeActions
+
+  .target(
+    name: "SwiftSyntaxCodeActions",
+    dependencies: [
+      "SKUtilities",
+      "SourceKitLSP",
+      "SwiftExtensions",
+      "SwiftSyntaxExtensions",
+      .product(name: "LanguageServerProtocol", package: "swift-tools-protocols"),
+      .product(name: "SKLogging", package: "swift-tools-protocols"),
+    ]
+      + swiftSyntaxDependencies([
+        "SwiftBasicFormat",
+        "SwiftOperators",
+        "SwiftParser",
+        "SwiftRefactor",
+        "SwiftSyntax",
+        "SwiftSyntaxBuilder",
+      ]),
+    exclude: ["CMakeLists.txt"],
+  ),
+
+  .testTarget(
+    name: "SwiftSyntaxCodeActionsTests",
+    dependencies: [
+      "SwiftSyntaxCodeActions"
+    ]
+      + swiftSyntaxDependencies([
+        "SwiftParser",
+        "SwiftRefactor",
+        "SwiftSyntax",
+        "SwiftSyntaxBuilder",
+      ]),
+  ),
+
   // MARK: SwiftSourceKitClientPlugin
 
   .target(
@@ -529,6 +579,7 @@ var targets: [Target] = [
       "SwiftExtensionsForPlugin",
       "SwiftSourceKitPluginCommon",
       .product(name: "_SKLoggingForPlugin", package: "swift-tools-protocols"),
+      .product(name: "_ToolsProtocolsSwiftExtensionsForPlugin", package: "swift-tools-protocols"),
     ],
     exclude: ["CMakeLists.txt"],
     swiftSettings: [
@@ -536,6 +587,7 @@ var targets: [Target] = [
         "-module-alias", "SKLogging=_SKLoggingForPlugin",
         "-module-alias", "SourceKitD=SourceKitDForPlugin",
         "-module-alias", "SwiftExtensions=SwiftExtensionsForPlugin",
+        "-module-alias", "ToolsProtocolsSwiftExtensions=_ToolsProtocolsSwiftExtensionsForPlugin",
       ])
     ],
     linkerSettings: sourcekitLSPLinkSettings
@@ -695,7 +747,7 @@ if buildOnlyTests {
 
 let package = Package(
   name: "SourceKitLSP",
-  platforms: [.macOS(.v14)],
+  platforms: [.macOS(.v15)],
   products: products,
   dependencies: dependencies,
   targets: targets,
@@ -785,7 +837,7 @@ var dependencies: [Package.Dependency] {
       .package(url: "https://github.com/swiftlang/swift-docc.git", branch: relatedDependenciesBranch),
       .package(url: "https://github.com/swiftlang/swift-docc-symbolkit.git", branch: relatedDependenciesBranch),
       .package(url: "https://github.com/swiftlang/swift-markdown.git", branch: relatedDependenciesBranch),
-      .package(url: "https://github.com/swiftlang/swift-tools-protocols.git", exact: "0.0.10"),
+      .package(url: "https://github.com/swiftlang/swift-tools-protocols.git", branch: relatedDependenciesBranch),
       .package(url: "https://github.com/swiftlang/swift-tools-support-core.git", branch: relatedDependenciesBranch),
       .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.5.1"),
       .package(url: "https://github.com/swiftlang/swift-syntax.git", branch: relatedDependenciesBranch),
