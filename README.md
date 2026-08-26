@@ -23,3 +23,4 @@ If you should hit any issues while using SourceKit-LSP, we appreciate bug report
 ## Contributing
 
 If you want to contribute code to SourceKit-LSP, see [CONTRIBUTING.md](CONTRIBUTING.md) for more information.
+
