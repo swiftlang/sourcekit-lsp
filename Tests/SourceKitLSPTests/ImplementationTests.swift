@@ -10,10 +10,13 @@
 //
 //===----------------------------------------------------------------------===//
 
+import Foundation
 @_spi(SourceKitLSP) import LanguageServerProtocol
 import SKLogging
 import SKTestSupport
+import SwiftExtensions
 import TSCBasic
+import ToolchainRegistry
 import XCTest
 
 final class ImplementationTests: SourceKitLSPTestCase {
@@ -249,9 +252,6 @@ final class ImplementationTests: SourceKitLSPTestCase {
   }
 
   func testOverrideProtocolFunc() async throws {
-    // TODO: We should not be reporting locations 4, 5 and 7 because they don't actually contain myFunc.
-    // We should, however, be reporting location 6. (https://github.com/swiftlang/sourcekit-lsp/issues/1600)
-
     try await testImplementation(
       """
       protocol MyProto {
@@ -277,8 +277,74 @@ final class ImplementationTests: SourceKitLSPTestCase {
         func 8️⃣myFunc() { }
       }
       """,
-      expectedLocations: ["2️⃣", "3️⃣", "4️⃣", "5️⃣", "7️⃣", "8️⃣"]
+      expectedLocations: ["2️⃣", "3️⃣", "6️⃣", "8️⃣"]
     )
+  }
+
+  func testImplicitImplementationWithoutIndexedDefinitionIsReportedOnce() async throws {
+    guard let swiftc = await ToolchainRegistry.forTesting.default?.swiftc else {
+      throw XCTSkip("swiftc not found")
+    }
+
+    try await withTestScratchDir { binaryModuleDir in
+      let sourceFile = binaryModuleDir.appendingPathComponent("BinaryLib.swift")
+      try await """
+      open class BinaryType {
+        public init() {}
+        open func myFunc() {}
+      }
+      """.writeWithRetry(to: sourceFile)
+
+      var arguments = [
+        swiftc.path,
+        "-emit-module",
+        "-module-name", "BinaryLib",
+        "-emit-module-path", binaryModuleDir.appendingPathComponent("BinaryLib.swiftmodule").path,
+      ]
+      if let sdk = defaultSDKPath {
+        arguments += ["-sdk", sdk]
+      }
+      #if os(macOS)
+      #if arch(arm64)
+      arguments += ["-target", "arm64-apple-macosx10.13"]
+      #elseif arch(x86_64)
+      arguments += ["-target", "x86_64-apple-macosx10.13"]
+      #endif
+      #endif
+      arguments += [sourceFile.path]
+      try await Process.checkNonZeroExit(arguments: arguments)
+
+      let consumerDirectory = binaryModuleDir.appendingPathComponent("Consumer")
+      try FileManager.default.createDirectory(at: consumerDirectory, withIntermediateDirectories: true)
+      let project = try await IndexedSingleSwiftFileTestProject(
+        """
+        import BinaryLib
+
+        protocol MyProto {
+          func 1️⃣myFunc()
+        }
+
+        class 3️⃣SubclassA: BinaryType {}
+        // Keep the extension between the subclasses to verify that the result doesn't depend on source order.
+        extension 2️⃣BinaryType: MyProto {}
+        class 4️⃣SubclassB: BinaryType {}
+        """,
+        workspaceDirectory: consumerDirectory,
+        extraCompilerArguments: ["-I", binaryModuleDir.path]
+      )
+
+      let response = try await project.testClient.send(
+        ImplementationRequest(
+          textDocument: TextDocumentIdentifier(project.fileURI),
+          position: project.positions["1️⃣"]
+        )
+      )
+
+      XCTAssertEqual(
+        response?.locations,
+        [Location(uri: project.fileURI, range: Range(project.positions["2️⃣"]))]
+      )
+    }
   }
 
   func testCrossFile() async throws {
@@ -305,6 +371,46 @@ final class ImplementationTests: SourceKitLSPTestCase {
     XCTAssertEqual(
       response?.locations,
       [Location(uri: try project.uri(for: "b.swift"), range: Range(try project.position(of: "2️⃣", in: "b.swift")))]
+    )
+  }
+
+  /// C++ virtual overrides often share a USR between the in-class declaration and the out-of-line definition.
+  /// Implementation must preserve both explicit locations (not collapse to a single primary definition).
+  func testCppVirtualOverridePreservesDeclarationAndDefinition() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "MyLibrary/include/empty.h": "",
+        "MyLibrary/Test.cpp": """
+        struct Base {
+          virtual void 1️⃣foo();
+        };
+
+        struct Derived : Base {
+          void 2️⃣foo() override;
+        };
+
+        void Base::foo() {}
+        void Derived::3️⃣foo() {}
+        """,
+      ],
+      enableBackgroundIndexing: true
+    )
+
+    let (uri, positions) = try project.openDocument("Test.cpp", language: .cpp)
+
+    let response = try await project.testClient.send(
+      ImplementationRequest(
+        textDocument: TextDocumentIdentifier(uri),
+        position: positions["1️⃣"]
+      )
+    )
+
+    XCTAssertEqual(
+      response?.locations,
+      [
+        Location(uri: uri, range: Range(positions["2️⃣"])),
+        Location(uri: uri, range: Range(positions["3️⃣"])),
+      ]
     )
   }
 }
