@@ -54,6 +54,7 @@ target_link_libraries(SourceKitLSP PRIVATE
   SwiftToolsProtocols::LanguageServerProtocolTransport
   SwiftToolsProtocols::SKLogging
   SourceKitD
+  TSCBasic
   TSCExtensions
   $<$<NOT:$<PLATFORM_ID:Darwin>>:FoundationXML>
 )

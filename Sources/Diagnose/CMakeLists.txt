@@ -27,10 +27,15 @@ set_target_properties(Diagnose PROPERTIES
 
 target_link_libraries(Diagnose PUBLIC
   BuildServerIntegration
+  Csourcekitd
   InProcessClient
+  LanguageServerProtocolExtensions
+  SwiftToolsProtocols::LanguageServerProtocol
+  SwiftToolsProtocols::LanguageServerProtocolTransport
   SwiftToolsProtocols::SKLogging
   SKOptions
   SourceKitD
+  SourceKitLSP
   SwiftExtensions
   SwiftToolsProtocols::ToolsProtocolsSwiftExtensions
   ToolchainRegistry
@@ -39,6 +44,8 @@ target_link_libraries(Diagnose PUBLIC
   SwiftSyntax::SwiftSyntax
   SwiftSyntax::SwiftParser
   TSCBasic
+  TSCLibc
+  TSCUtility
 )
 
 target_link_libraries(Diagnose PRIVATE

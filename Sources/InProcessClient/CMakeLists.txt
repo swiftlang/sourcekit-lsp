@@ -9,12 +9,17 @@ target_link_libraries(InProcessClient PUBLIC
   BuildServerIntegration
   ClangLanguageService
   Crypto
+  LanguageServerProtocolExtensions
   SwiftToolsProtocols::LanguageServerProtocol
+  SwiftToolsProtocols::LanguageServerProtocolTransport
   SwiftToolsProtocols::SKLogging
   SKOptions
   SourceKitLSP
+  SwiftExtensions
   SwiftLanguageService
+  SwiftToolsProtocols::ToolsProtocolsSwiftExtensions
   ToolchainRegistry
+  TSCBasic
 )
 
 target_link_libraries(InProcessClient PRIVATE
