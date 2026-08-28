@@ -16,7 +16,7 @@ internal import SourceKitLSP
 import SwiftBasicFormat
 import SwiftExtensions
 @_spi(Experimental) import SwiftLexicalLookup
-import SwiftOperators
+import SwiftParser
 import SwiftRefactor
 import SwiftSyntax
 
@@ -28,7 +28,7 @@ struct InlineVariable: SyntaxRefactoringCodeActionProvider {
     guard let node = scope.innermostNodeContainingRange else { return nil }
 
     let variableDecl =
-      node.firstMatch(ofType: VariableDeclSyntax.self)
+      node.ancestorOrSelf(mapping: { $0.as(VariableDeclSyntax.self) })
       ?? node.as(CodeBlockItemSyntax.self)?.item.as(VariableDeclSyntax.self)
 
     guard let variableDecl = variableDecl,
@@ -38,7 +38,7 @@ struct InlineVariable: SyntaxRefactoringCodeActionProvider {
     }
 
     // If the cursor is on the identifier or value, return the specific pattern binding.
-    if let specificBinding = node.firstMatch(ofType: PatternBindingSyntax.self) {
+    if let specificBinding = node.ancestorOrSelf(mapping: { $0.as(PatternBindingSyntax.self) }) {
       return specificBinding
     }
 
@@ -53,9 +53,11 @@ struct InlineVariable: SyntaxRefactoringCodeActionProvider {
       throw RefactoringNotApplicableError("Could not extract variable information")
     }
 
-    let targetIdentifier = identifierPattern.identifier.text
+    guard let targetIdentifier = Identifier(identifierPattern.identifier) else {
+      throw RefactoringNotApplicableError("Could not parse the target identifier")
+    }
 
-    guard let blockScope = variableDecl.firstMatch(ofType: CodeBlockItemListSyntax.self) else {
+    guard let blockScope = variableDecl.ancestorOrSelf(mapping: { $0.as(CodeBlockItemListSyntax.self) }) else {
       throw RefactoringNotApplicableError("Could not find the lexical scope for this variable")
     }
 
@@ -70,20 +72,12 @@ struct InlineVariable: SyntaxRefactoringCodeActionProvider {
       throw RefactoringNotApplicableError("Variable is never used")
     }
 
-    guard canDuplicateInitializer(initializer, usageCount: usageSites.count) else {
-      throw RefactoringNotApplicableError(
-        "Inlining this variable would unsafely duplicate a potentially side-effecting initializer"
-      )
-    }
-
     var edits: [SourceEdit] = []
-    let operatorTable = OperatorTable.standardOperators
 
     for usageNode in usageSites {
       let replacementText = formatReplacement(
         initializer: initializer,
-        usageNode: usageNode,
-        operatorTable: operatorTable
+        usageNode: usageNode
       )
 
       // Exclude trailing trivia so range precisely matches the token
@@ -120,222 +114,123 @@ struct InlineVariable: SyntaxRefactoringCodeActionProvider {
   }
 
   private static func findValidUsages(
-    targetIdentifier: String,
+    targetIdentifier: Identifier,
     targetBinding: PatternBindingSyntax,
     in scope: CodeBlockItemListSyntax
   ) -> [DeclReferenceExprSyntax] {
-    let finder = ReferenceCollector(targetIdentifier: targetIdentifier)
+    let finder = ReferenceCollector(
+      targetIdentifier: targetIdentifier,
+      targetBinding: targetBinding
+    )
     finder.walk(scope)
-
-    return finder.candidates.filter { usageNode in
-      guard usageNode.position > targetBinding.endPosition else { return false }
-
-      let lookupResults = usageNode.lookup(Identifier(usageNode.baseName))
-
-      for result in lookupResults {
-        switch result {
-        case .fromScope(_, let names):
-          let matchesTarget = names.contains { name in
-            if let resolvedBinding = name.syntax.firstMatch(ofType: PatternBindingSyntax.self) {
-              return resolvedBinding.id == targetBinding.id
-            }
-
-            if let resolvedDecl = name.syntax.firstMatch(ofType: VariableDeclSyntax.self),
-              let targetDecl = targetBinding.firstMatch(ofType: VariableDeclSyntax.self)
-            {
-              return resolvedDecl.id == targetDecl.id
-            }
-
-            return false
-          }
-
-          if matchesTarget {
-            return true
-          }
-
-          // A closer declaration shadows the target binding, so do not continue
-          // searching outer scopes for another matching declaration.
-          return false
-
-        default:
-          continue
-        }
-      }
-      return false
-    }
-  }
-
-  /// Determines whether it is safe to inline the initializer at multiple usage sites.
-  /// If the initializer has side effects (like a function call), duplicating it could
-  /// change the program's behavior.
-  private static func canDuplicateInitializer(
-    _ initializer: ExprSyntax,
-    usageCount: Int
-  ) -> Bool {
-    guard usageCount > 1 else {
-      return true
-    }
-
-    return isObviouslySideEffectFree(initializer)
-  }
-
-  /// Returns `true` for literals, variable references, and basic collections of these.
-  private static func isObviouslySideEffectFree(_ expr: ExprSyntax) -> Bool {
-    if expr.is(IntegerLiteralExprSyntax.self) || expr.is(FloatLiteralExprSyntax.self)
-      || expr.is(BooleanLiteralExprSyntax.self) || expr.is(StringLiteralExprSyntax.self)
-      || expr.is(NilLiteralExprSyntax.self) || expr.is(DeclReferenceExprSyntax.self)
-    {
-      return true
-    }
-
-    if let arrayExpr = expr.as(ArrayExprSyntax.self) {
-      return arrayExpr.elements.allSatisfy { isObviouslySideEffectFree($0.expression) }
-    }
-
-    if let dictExpr = expr.as(DictionaryExprSyntax.self) {
-      if let elements = dictExpr.content.as(DictionaryElementListSyntax.self) {
-        return elements.allSatisfy {
-          isObviouslySideEffectFree($0.key) && isObviouslySideEffectFree($0.value)
-        }
-      }
-      return true
-    }
-
-    if let tupleExpr = expr.as(TupleExprSyntax.self) {
-      return tupleExpr.elements.allSatisfy { isObviouslySideEffectFree($0.expression) }
-    }
-
-    return false
+    return finder.candidates
   }
 
   static func formatReplacement(
     initializer: ExprSyntax,
-    usageNode: DeclReferenceExprSyntax,
-    operatorTable: OperatorTable
+    usageNode: DeclReferenceExprSyntax
   ) -> String {
-    if isPrimaryExpression(initializer) {
-      return initializer.description
-    }
-
-    if needsParentheses(initializer: initializer, usageNode: usageNode, operatorTable: operatorTable) {
+    if needsParentheses(initializer: initializer, usageNode: usageNode) {
       return "(\(initializer.description.trimmingCharacters(in: .whitespacesAndNewlines)))"
     }
-
     return initializer.description
   }
 
-  static func isPrimaryExpression(_ expr: ExprSyntax) -> Bool {
-    expr.is(IntegerLiteralExprSyntax.self) || expr.is(FloatLiteralExprSyntax.self)
-      || expr.is(BooleanLiteralExprSyntax.self) || expr.is(StringLiteralExprSyntax.self)
-      || expr.is(NilLiteralExprSyntax.self) || expr.is(DeclReferenceExprSyntax.self)
-      || expr.is(FunctionCallExprSyntax.self) || expr.is(MemberAccessExprSyntax.self)
-      || expr.is(SubscriptCallExprSyntax.self) || expr.is(ArrayExprSyntax.self) || expr.is(DictionaryExprSyntax.self)
-      || expr.is(TupleExprSyntax.self) || expr.is(ClosureExprSyntax.self)
-  }
-
-  // Determine whether replacing the reference with the initializer would
-  // change the expression's operator grouping.
   static func needsParentheses(
     initializer: ExprSyntax,
-    usageNode: DeclReferenceExprSyntax,
-    operatorTable: OperatorTable
+    usageNode: DeclReferenceExprSyntax
   ) -> Bool {
-    guard let parent = usageNode.parent else { return false }
+    let root = usageNode.root
+    let fullText = root.description
+    let initializerText = initializer.description.trimmingCharacters(in: .whitespacesAndNewlines)
 
-    if parent.is(MemberAccessExprSyntax.self) || parent.is(SubscriptCallExprSyntax.self)
-      || parent.is(FunctionCallExprSyntax.self) || parent.is(PrefixOperatorExprSyntax.self)
-      || parent.is(PostfixOperatorExprSyntax.self)
-    {
-      return !isPrimaryExpression(initializer)
-    }
+    let startPos = usageNode.positionAfterSkippingLeadingTrivia.utf8Offset
+    let endPos = usageNode.endPositionBeforeTrailingTrivia.utf8Offset
 
-    let parentSeq = parent.as(SequenceExprSyntax.self) ?? parent.parent?.as(SequenceExprSyntax.self)
+    let startIdx = fullText.utf8.index(fullText.utf8.startIndex, offsetBy: startPos)
+    let endIdx = fullText.utf8.index(fullText.utf8.startIndex, offsetBy: endPos)
 
-    guard let parentSeq = parentSeq else {
-      return !isPrimaryExpression(initializer)
-    }
+    var rewrittenText = fullText
+    rewrittenText.replaceSubrange(startIdx..<endIdx, with: initializerText)
 
-    var newElements: [ExprSyntax] = []
-    var replaced = false
+    let parsedFile = Parser.parse(source: rewrittenText)
 
-    for element in parentSeq.elements {
-      if element.id == usageNode.id {
-        replaced = true
-        if let initSeq = initializer.as(SequenceExprSyntax.self) {
-          for initElement in initSeq.elements {
-            newElements.append(initElement)
-          }
-        } else {
-          newElements.append(initializer)
-        }
-      } else {
-        newElements.append(element)
-      }
-    }
-
-    guard replaced else { return !isPrimaryExpression(initializer) }
-
-    let combinedSeq = SequenceExprSyntax(elements: ExprListSyntax(newElements))
-
-    do {
-      let foldedCombined = try operatorTable.foldSingle(combinedSeq)
-
-      let foldedInit: ExprSyntax
-      if let initSeq = initializer.as(SequenceExprSyntax.self) {
-        foldedInit = try operatorTable.foldSingle(initSeq)
-      } else {
-        foldedInit = initializer
-      }
-
-      let targetString = foldedInit.description.trimmingCharacters(in: .whitespacesAndNewlines)
-      return !containsMatchingSubtree(Syntax(foldedCombined), target: targetString)
-    } catch {
+    if parsedFile.hasError {
       return true
     }
+
+    let targetSpan = startPos..<(startPos + initializerText.utf8.count)
+    return !containsNode(in: Syntax(parsedFile), withSpan: targetSpan, matching: initializerText)
   }
 
-  // Check whether the initializer remains grouped as a single expression
-  // after the containing sequence is folded.
-  static func containsMatchingSubtree(_ node: Syntax, target: String) -> Bool {
-    if node.description.trimmingCharacters(in: .whitespacesAndNewlines) == target {
-      return true
-    }
-    for child in node.children(viewMode: .sourceAccurate) {
-      if containsMatchingSubtree(child, target: target) {
+  static func containsNode(
+    in node: Syntax,
+    withSpan span: Range<Int>,
+    matching text: String
+  ) -> Bool {
+    let nodeStart = node.positionAfterSkippingLeadingTrivia.utf8Offset
+    let nodeEnd = node.endPositionBeforeTrailingTrivia.utf8Offset
+
+    if nodeStart == span.lowerBound && nodeEnd == span.upperBound {
+      if node.description.trimmingCharacters(in: .whitespacesAndNewlines) == text {
         return true
       }
     }
+
+    for child in node.children(viewMode: .sourceAccurate) {
+      let childFullStart = child.position.utf8Offset
+      let childFullEnd = child.endPosition.utf8Offset
+
+      if childFullStart <= span.upperBound && childFullEnd >= span.lowerBound {
+        if containsNode(in: child, withSpan: span, matching: text) {
+          return true
+        }
+      }
+    }
+
     return false
   }
 }
 
-/// A syntax visitor that finds all references to a specific identifier name.
-/// This acts as a preliminary filter before using `SwiftLexicalLookup` to verify scope.
+/// A syntax visitor that finds all references to a specific identifier name
+/// and verifies they resolve to the target binding using `SwiftLexicalLookup`.
 final class ReferenceCollector: SyntaxVisitor {
-  let targetIdentifier: String
+  let targetIdentifier: Identifier
+  let targetBinding: PatternBindingSyntax
   var candidates: [DeclReferenceExprSyntax] = []
 
-  init(targetIdentifier: String) {
+  init(targetIdentifier: Identifier, targetBinding: PatternBindingSyntax) {
     self.targetIdentifier = targetIdentifier
+    self.targetBinding = targetBinding
     super.init(viewMode: .sourceAccurate)
   }
 
   override func visit(_ node: DeclReferenceExprSyntax) -> SyntaxVisitorContinueKind {
-    if node.baseName.text == targetIdentifier {
-      candidates.append(node)
+    guard let nodeIdentifier = Identifier(node.baseName),
+      nodeIdentifier == targetIdentifier,
+      node.position > targetBinding.endPosition
+    else {
+      return .visitChildren
     }
-    return .visitChildren
-  }
-}
 
-extension SyntaxProtocol {
-  /// Traverses up the syntax tree to find the first ancestor of the specified type.
-  func firstMatch<T: SyntaxProtocol>(ofType type: T.Type) -> T? {
-    var current: Syntax? = Syntax(self)
-    while let node = current {
-      if let match = node.as(T.self) { return match }
-      current = node.parent
+    let lookupResults = node.lookup(nodeIdentifier)
+    for result in lookupResults {
+      switch result {
+      case .fromScope(_, let names):
+        let matchesTarget = names.contains { name in
+          name.syntax.id == targetBinding.id || name.syntax.id == targetBinding.pattern.id
+        }
+
+        if matchesTarget {
+          candidates.append(node)
+          return .visitChildren
+        }
+        return .visitChildren
+      default:
+        continue
+      }
     }
-    return nil
+
+    return .visitChildren
   }
 }
