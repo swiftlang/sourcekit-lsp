@@ -61,6 +61,15 @@ fileScope = 'fileScope'
 globalScope = 'globalScope'
 ```
 
+Added case
+
+```ts
+/**
+ * Marks a token as a parameter label in a function signature or call.
+ */
+parameterLabel = 'parameterLabel'
+```
+
 ## Semantic token types
 
 Added the following cases from clangd
