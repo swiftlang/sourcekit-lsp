@@ -51,3 +51,8 @@ target_link_libraries(SwiftSourceKitPlugin PRIVATE
   $<$<NOT:$<PLATFORM_ID:Darwin>>:FoundationXML>)
 
 install(TARGETS SwiftSourceKitPlugin DESTINATION lib)
+if(MSVC)
+  install(FILES $<TARGET_FILE_DIR:SwiftSourceKitPlugin>/$<TARGET_FILE_BASE_NAME:SwiftSourceKitPlugin>.pdb
+    DESTINATION lib
+    OPTIONAL)
+endif()
