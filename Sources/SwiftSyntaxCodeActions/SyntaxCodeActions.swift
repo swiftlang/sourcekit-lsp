@@ -30,6 +30,7 @@ package let allSyntaxCodeActionProviders: [any SyntaxCodeActionProvider.Type] = 
     ConvertStoredPropertyToComputed.self,
     ConvertStringConcatenationToStringInterpolation.self,
     ConvertZeroParameterFunctionToComputedProperty.self,
+        ExtractTupleIntoStruct.self,
     FormatRawStringLiteral.self,
     GenerateEnumCaseAsAccessors.self,
     GenerateEnumCaseIsAccessors.self,
