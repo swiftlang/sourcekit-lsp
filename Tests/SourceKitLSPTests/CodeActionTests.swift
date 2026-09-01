@@ -4030,12 +4030,12 @@ final class CodeActionTests: SourceKitLSPTestCase {
   func testInlineVariableBasic() async throws {
     try await assertCodeActions(
       """
-      func doSomething() {2️⃣
-        let 1️⃣x = 423️⃣
+      func doSomething() {1️⃣
+        let 2️⃣x = 423️⃣
         print(4️⃣x5️⃣)
       }
       """,
-      markers: ["1️⃣"],
+      markers: ["2️⃣"],
       exhaustive: false
     ) { uri, positions in
       [
@@ -4047,7 +4047,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
             changes: [
               uri: [
                 TextEdit(range: positions["4️⃣"]..<positions["5️⃣"], newText: "42"),
-                TextEdit(range: positions["2️⃣"]..<positions["3️⃣"], newText: ""),
+                TextEdit(range: positions["1️⃣"]..<positions["3️⃣"], newText: ""),
               ]
             ]
           )
@@ -4059,12 +4059,12 @@ final class CodeActionTests: SourceKitLSPTestCase {
   func testInlineVariableRequiresParens() async throws {
     try await assertCodeActions(
       """
-      func calculate() {2️⃣
-        let 1️⃣x = 1 + 23️⃣
+      func calculate() {1️⃣
+        let 2️⃣x = 1 + 23️⃣
         let y = 4️⃣x5️⃣ * 3
       }
       """,
-      markers: ["1️⃣"],
+      markers: ["2️⃣"],
       exhaustive: false
     ) { uri, positions in
       [
@@ -4076,7 +4076,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
             changes: [
               uri: [
                 TextEdit(range: positions["4️⃣"]..<positions["5️⃣"], newText: "(1 + 2)"),
-                TextEdit(range: positions["2️⃣"]..<positions["3️⃣"], newText: ""),
+                TextEdit(range: positions["1️⃣"]..<positions["3️⃣"], newText: ""),
               ]
             ]
           )
@@ -4088,12 +4088,12 @@ final class CodeActionTests: SourceKitLSPTestCase {
   func testInlineVariableDoesNotRequireParensForPrimaryExpressions() async throws {
     try await assertCodeActions(
       """
-      func calculate() {2️⃣
-        let 1️⃣x = [1, 2, 3]3️⃣
+      func calculate() {1️⃣
+        let 2️⃣x = [1, 2, 3]3️⃣
         let y = 4️⃣x5️⃣.count
       }
       """,
-      markers: ["1️⃣"],
+      markers: ["2️⃣"],
       exhaustive: false
     ) { uri, positions in
       [
@@ -4105,7 +4105,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
             changes: [
               uri: [
                 TextEdit(range: positions["4️⃣"]..<positions["5️⃣"], newText: "[1, 2, 3]"),
-                TextEdit(range: positions["2️⃣"]..<positions["3️⃣"], newText: ""),
+                TextEdit(range: positions["1️⃣"]..<positions["3️⃣"], newText: ""),
               ]
             ]
           )
@@ -4117,13 +4117,13 @@ final class CodeActionTests: SourceKitLSPTestCase {
   func testInlineVariableMultipleUsages() async throws {
     try await assertCodeActions(
       """
-      func printThings() {2️⃣
-        let 1️⃣msg = "Hello"3️⃣
+      func printThings() {1️⃣
+        let 2️⃣msg = "Hello"3️⃣
         print(4️⃣msg5️⃣)
         print(6️⃣msg7️⃣)
       }
       """,
-      markers: ["1️⃣"],
+      markers: ["2️⃣"],
       exhaustive: false
     ) { uri, positions in
       [
@@ -4136,7 +4136,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
               uri: [
                 TextEdit(range: positions["4️⃣"]..<positions["5️⃣"], newText: "\"Hello\""),
                 TextEdit(range: positions["6️⃣"]..<positions["7️⃣"], newText: "\"Hello\""),
-                TextEdit(range: positions["2️⃣"]..<positions["3️⃣"], newText: ""),
+                TextEdit(range: positions["1️⃣"]..<positions["3️⃣"], newText: ""),
               ]
             ]
           )
@@ -4149,11 +4149,11 @@ final class CodeActionTests: SourceKitLSPTestCase {
     try await assertCodeActions(
       """
       func test() {
-        2️⃣let y = 1, 1️⃣x = 423️⃣
+        1️⃣let y = 1, 2️⃣x = 423️⃣
         print(4️⃣x5️⃣)
       }
       """,
-      markers: ["1️⃣"],
+      markers: ["2️⃣"],
       exhaustive: false
     ) { uri, positions in
       [
@@ -4165,7 +4165,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
             changes: [
               uri: [
                 TextEdit(range: positions["4️⃣"]..<positions["5️⃣"], newText: "42"),
-                TextEdit(range: positions["2️⃣"]..<positions["3️⃣"], newText: "let y = 1"),
+                TextEdit(range: positions["1️⃣"]..<positions["3️⃣"], newText: "let y = 1"),
               ]
             ]
           )
@@ -4202,8 +4202,8 @@ final class CodeActionTests: SourceKitLSPTestCase {
   func testInlineVariableRespectsShadowing() async throws {
     try await assertCodeActions(
       """
-      func test() {2️⃣
-        let 1️⃣x = 423️⃣
+      func test() {1️⃣
+        let 2️⃣x = 423️⃣
 
         if condition {
           let x = 100
@@ -4213,7 +4213,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
         print(4️⃣x5️⃣)
       }
       """,
-      markers: ["1️⃣"],
+      markers: ["2️⃣"],
       exhaustive: false
     ) { uri, positions in
       [
@@ -4225,7 +4225,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
             changes: [
               uri: [
                 TextEdit(range: positions["4️⃣"]..<positions["5️⃣"], newText: "42"),
-                TextEdit(range: positions["2️⃣"]..<positions["3️⃣"], newText: ""),
+                TextEdit(range: positions["1️⃣"]..<positions["3️⃣"], newText: ""),
               ]
             ]
           )
@@ -4237,8 +4237,8 @@ final class CodeActionTests: SourceKitLSPTestCase {
   func testInlineVariableRespectsShadowingWithMultipleReferences() async throws {
     try await assertCodeActions(
       """
-      func test() {2️⃣
-        let 1️⃣x = 423️⃣
+      func test() {1️⃣
+        let 2️⃣x = 423️⃣
 
         print(4️⃣x5️⃣)
 
@@ -4250,7 +4250,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
         print(6️⃣x7️⃣)
       }
       """,
-      markers: ["1️⃣"],
+      markers: ["2️⃣"],
       exhaustive: false
     ) { uri, positions in
       [
@@ -4263,7 +4263,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
               uri: [
                 TextEdit(range: positions["4️⃣"]..<positions["5️⃣"], newText: "42"),
                 TextEdit(range: positions["6️⃣"]..<positions["7️⃣"], newText: "42"),
-                TextEdit(range: positions["2️⃣"]..<positions["3️⃣"], newText: ""),
+                TextEdit(range: positions["1️⃣"]..<positions["3️⃣"], newText: ""),
               ]
             ]
           )
@@ -4276,12 +4276,12 @@ final class CodeActionTests: SourceKitLSPTestCase {
     try await assertCodeActions(
       """
       func test() {
-        let value = 422️⃣
-        let 1️⃣x = value + 13️⃣
+        let value = 421️⃣
+        let 2️⃣x = value + 13️⃣
         print(4️⃣x5️⃣)
       }
       """,
-      markers: ["1️⃣"],
+      markers: ["2️⃣"],
       exhaustive: false
     ) { uri, positions in
       [
@@ -4293,7 +4293,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
             changes: [
               uri: [
                 TextEdit(range: positions["4️⃣"]..<positions["5️⃣"], newText: "value + 1"),
-                TextEdit(range: positions["2️⃣"]..<positions["3️⃣"], newText: ""),
+                TextEdit(range: positions["1️⃣"]..<positions["3️⃣"], newText: ""),
               ]
             ]
           )
@@ -4302,16 +4302,13 @@ final class CodeActionTests: SourceKitLSPTestCase {
     }
   }
 
-  func testInlineVariableIgnoresShadowedReferences() async throws {
+  func testInlineVariableNotOfferedInsideNestedBlock() async throws {
     try await assertNoCodeAction(
       titled: "Inline variable",
       in: """
         func test() {
-          let 1️⃣x = 42
-          
-          if condition {
-            let x = 100
-            print(x)
+          let foo = {
+            1️⃣computeSomething()
           }
         }
         """,
@@ -4319,68 +4316,31 @@ final class CodeActionTests: SourceKitLSPTestCase {
     )
   }
 
-  func testInlineVariableRespectsShadowingBetweenValidReferences() async throws {
-    try await assertCodeActions(
-      """
-      func test() {2️⃣
-        let 1️⃣x = 423️⃣
-
-        print(4️⃣x5️⃣)
-
-        if condition {
-          let x = 100
-          print(x)
+  func testInlineVariableNotApplicableForStructProperty() async throws {
+    try await assertNoCodeAction(
+      titled: "Inline variable",
+      in: """
+        func foo() {
+          struct Foo {
+            let 1️⃣x = "hi"
+          }
+          print("wohoo")
         }
-
-        print(6️⃣x7️⃣)
-      }
-      """,
-      markers: ["1️⃣"],
-      exhaustive: false
-    ) { uri, positions in
-      [
-        CodeAction(
-          title: "Inline variable",
-          kind: .refactorInline,
-          diagnostics: nil,
-          edit: WorkspaceEdit(
-            changes: [
-              uri: [
-                TextEdit(
-                  range: positions["4️⃣"]..<positions["5️⃣"],
-                  newText: "42"
-                ),
-                TextEdit(
-                  range: positions["6️⃣"]..<positions["7️⃣"],
-                  newText: "42"
-                ),
-                TextEdit(
-                  range: positions["2️⃣"]..<positions["3️⃣"],
-                  newText: ""
-                ),
-              ]
-            ]
-          )
-        )
-      ]
-    }
+        """,
+      atMarker: "1️⃣"
+    )
   }
 
-  func testInlineVariableShadowingStartsAfterOuterReference() async throws {
+  func testInlineVariableSupportsBacktickedIdentifiers() async throws {
     try await assertCodeActions(
       """
-      func test() {2️⃣
-        let 1️⃣x = 423️⃣
+      func foo() {1️⃣
+        let 2️⃣`x` = "hi"3️⃣
         print(4️⃣x5️⃣)
-
-        if condition {
-          print(6️⃣x7️⃣)
-          let x = 100
-          print(x)
-        }
+        print(6️⃣`x`7️⃣)
       }
       """,
-      markers: ["1️⃣"],
+      markers: ["2️⃣"],
       exhaustive: false
     ) { uri, positions in
       [
@@ -4393,14 +4353,14 @@ final class CodeActionTests: SourceKitLSPTestCase {
               uri: [
                 TextEdit(
                   range: positions["4️⃣"]..<positions["5️⃣"],
-                  newText: "42"
+                  newText: "\"hi\""
                 ),
                 TextEdit(
                   range: positions["6️⃣"]..<positions["7️⃣"],
-                  newText: "42"
+                  newText: "\"hi\""
                 ),
                 TextEdit(
-                  range: positions["2️⃣"]..<positions["3️⃣"],
+                  range: positions["1️⃣"]..<positions["3️⃣"],
                   newText: ""
                 ),
               ]

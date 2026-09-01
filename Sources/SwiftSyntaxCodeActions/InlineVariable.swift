@@ -26,23 +26,28 @@ struct InlineVariable: SyntaxRefactoringCodeActionProvider {
 
   package static func nodeToRefactor(in scope: SyntaxCodeActionScope) -> PatternBindingSyntax? {
     guard let node = scope.innermostNodeContainingRange else { return nil }
-
-    let variableDecl =
-      node.ancestorOrSelf(mapping: { $0.as(VariableDeclSyntax.self) })
-      ?? node.as(CodeBlockItemSyntax.self)?.item.as(VariableDeclSyntax.self)
-
-    guard let variableDecl = variableDecl,
-      variableDecl.bindingSpecifier.tokenKind == .keyword(.let)
-    else {
-      return nil
+    var current: Syntax? = Syntax(node)
+    while let syntax = current {
+      if let binding = syntax.as(PatternBindingSyntax.self) {
+        guard let variableDecl = binding.parent?.parent?.as(VariableDeclSyntax.self),
+          variableDecl.bindingSpecifier.tokenKind == .keyword(.let)
+        else {
+          return nil
+        }
+        return binding
+      }
+      if let variableDecl = syntax.as(VariableDeclSyntax.self) {
+        guard variableDecl.bindingSpecifier.tokenKind == .keyword(.let) else {
+          return nil
+        }
+        return variableDecl.bindings.first
+      }
+      if syntax.is(CodeBlockSyntax.self) || syntax.is(MemberBlockSyntax.self) {
+        return nil
+      }
+      current = syntax.parent
     }
-
-    // If the cursor is on the identifier or value, return the specific pattern binding.
-    if let specificBinding = node.ancestorOrSelf(mapping: { $0.as(PatternBindingSyntax.self) }) {
-      return specificBinding
-    }
-
-    return variableDecl.bindings.first
+    return nil
   }
 
   package static func textRefactor(syntax binding: PatternBindingSyntax, in context: Void) throws -> [SourceEdit] {
@@ -57,7 +62,7 @@ struct InlineVariable: SyntaxRefactoringCodeActionProvider {
       throw RefactoringNotApplicableError("Could not parse the target identifier")
     }
 
-    guard let blockScope = variableDecl.ancestorOrSelf(mapping: { $0.as(CodeBlockItemListSyntax.self) }) else {
+    guard let blockScope = variableDecl.parent?.parent?.as(CodeBlockItemListSyntax.self) else {
       throw RefactoringNotApplicableError("Could not find the lexical scope for this variable")
     }
 
@@ -73,7 +78,6 @@ struct InlineVariable: SyntaxRefactoringCodeActionProvider {
     }
 
     var edits: [SourceEdit] = []
-
     for usageNode in usageSites {
       let replacementText = formatReplacement(
         initializer: initializer,
@@ -97,15 +101,12 @@ struct InlineVariable: SyntaxRefactoringCodeActionProvider {
       // remove only the target binding and clean up the trailing commas.
       var newBindingsArray = Array(variableDecl.bindings)
       newBindingsArray.removeAll { $0.id == binding.id }
-
       if !newBindingsArray.isEmpty {
         newBindingsArray[0].leadingTrivia = []
         newBindingsArray[newBindingsArray.count - 1].trailingComma = nil
       }
-
       var newDecl = variableDecl.with(\.bindings, PatternBindingListSyntax(newBindingsArray))
       newDecl.leadingTrivia = []
-
       let range = variableDecl.positionAfterSkippingLeadingTrivia..<variableDecl.endPosition
       edits.append(SourceEdit(range: range, replacement: newDecl.description))
     }
@@ -131,7 +132,19 @@ struct InlineVariable: SyntaxRefactoringCodeActionProvider {
     usageNode: DeclReferenceExprSyntax
   ) -> String {
     if needsParentheses(initializer: initializer, usageNode: usageNode) {
-      return "(\(initializer.description.trimmingCharacters(in: .whitespacesAndNewlines)))"
+      let parenthesized = TupleExprSyntax(
+        leftParen: .leftParenToken(leadingTrivia: initializer.leadingTrivia),
+        elements: [
+          LabeledExprSyntax(
+            expression:
+              initializer
+              .with(\.leadingTrivia, [])
+              .with(\.trailingTrivia, [])
+          )
+        ],
+        rightParen: .rightParenToken(trailingTrivia: initializer.trailingTrivia)
+      )
+      return parenthesized.description
     }
     return initializer.description
   }
@@ -140,27 +153,49 @@ struct InlineVariable: SyntaxRefactoringCodeActionProvider {
     initializer: ExprSyntax,
     usageNode: DeclReferenceExprSyntax
   ) -> Bool {
-    let root = usageNode.root
-    let fullText = root.description
-    let initializerText = initializer.description.trimmingCharacters(in: .whitespacesAndNewlines)
-
-    let startPos = usageNode.positionAfterSkippingLeadingTrivia.utf8Offset
-    let endPos = usageNode.endPositionBeforeTrailingTrivia.utf8Offset
-
-    let startIdx = fullText.utf8.index(fullText.utf8.startIndex, offsetBy: startPos)
-    let endIdx = fullText.utf8.index(fullText.utf8.startIndex, offsetBy: endPos)
-
-    var rewrittenText = fullText
-    rewrittenText.replaceSubrange(startIdx..<endIdx, with: initializerText)
-
-    let parsedFile = Parser.parse(source: rewrittenText)
-
-    if parsedFile.hasError {
+    guard let codeBlockItem = containingCodeBlockItem(for: Syntax(usageNode)) else {
       return true
     }
-
+    let scopeText = codeBlockItem.description
+    let initializerText = initializer.trimmedDescription
+    let scopeStartOffset = codeBlockItem.position.utf8Offset
+    let startPos =
+      usageNode.positionAfterSkippingLeadingTrivia.utf8Offset - scopeStartOffset
+    let endPos =
+      usageNode.endPositionBeforeTrailingTrivia.utf8Offset - scopeStartOffset
+    let startIdx = scopeText.utf8.index(
+      scopeText.utf8.startIndex,
+      offsetBy: startPos
+    )
+    let endIdx = scopeText.utf8.index(
+      scopeText.utf8.startIndex,
+      offsetBy: endPos
+    )
+    var rewrittenText = scopeText
+    rewrittenText.replaceSubrange(startIdx..<endIdx, with: initializerText)
+    let parsedScope = Parser.parse(source: rewrittenText)
+    if parsedScope.hasError {
+      return true
+    }
     let targetSpan = startPos..<(startPos + initializerText.utf8.count)
-    return !containsNode(in: Syntax(parsedFile), withSpan: targetSpan, matching: initializerText)
+    return !containsNode(
+      in: Syntax(parsedScope),
+      withSpan: targetSpan,
+      matching: initializerText
+    )
+  }
+
+  private static func containingCodeBlockItem(
+    for node: Syntax
+  ) -> CodeBlockItemSyntax? {
+    var current: Syntax? = node
+    while let syntax = current {
+      if let codeBlockItem = syntax.as(CodeBlockItemSyntax.self) {
+        return codeBlockItem
+      }
+      current = syntax.parent
+    }
+    return nil
   }
 
   static func containsNode(
@@ -168,27 +203,46 @@ struct InlineVariable: SyntaxRefactoringCodeActionProvider {
     withSpan span: Range<Int>,
     matching text: String
   ) -> Bool {
+    let finder = TargetNodeFinder(targetSpan: span, targetText: text)
+    finder.walk(node)
+    return finder.found
+  }
+}
+
+/// A visitor that checks if a syntax node with a matching span and description exists.
+private final class TargetNodeFinder: SyntaxAnyVisitor {
+  let targetSpan: Range<Int>
+  let targetText: String
+  var found = false
+
+  init(targetSpan: Range<Int>, targetText: String) {
+    self.targetSpan = targetSpan
+    self.targetText = targetText
+    super.init(viewMode: .sourceAccurate)
+  }
+
+  override func visitAny(_ node: Syntax) -> SyntaxVisitorContinueKind {
+    if found {
+      return .skipChildren
+    }
+
+    // Prune subtree traversal if full span does not overlap target range
+    let fullStart = node.position.utf8Offset
+    let fullEnd = node.endPosition.utf8Offset
+    if fullStart > targetSpan.upperBound || fullEnd < targetSpan.lowerBound {
+      return .skipChildren
+    }
+
     let nodeStart = node.positionAfterSkippingLeadingTrivia.utf8Offset
     let nodeEnd = node.endPositionBeforeTrailingTrivia.utf8Offset
-
-    if nodeStart == span.lowerBound && nodeEnd == span.upperBound {
-      if node.description.trimmingCharacters(in: .whitespacesAndNewlines) == text {
-        return true
+    if nodeStart == targetSpan.lowerBound && nodeEnd == targetSpan.upperBound {
+      if node.trimmedDescription == targetText {
+        found = true
+        return .skipChildren
       }
     }
 
-    for child in node.children(viewMode: .sourceAccurate) {
-      let childFullStart = child.position.utf8Offset
-      let childFullEnd = child.endPosition.utf8Offset
-
-      if childFullStart <= span.upperBound && childFullEnd >= span.lowerBound {
-        if containsNode(in: child, withSpan: span, matching: text) {
-          return true
-        }
-      }
-    }
-
-    return false
+    return .visitChildren
   }
 }
 
@@ -207,8 +261,7 @@ final class ReferenceCollector: SyntaxVisitor {
 
   override func visit(_ node: DeclReferenceExprSyntax) -> SyntaxVisitorContinueKind {
     guard let nodeIdentifier = Identifier(node.baseName),
-      nodeIdentifier == targetIdentifier,
-      node.position > targetBinding.endPosition
+      nodeIdentifier == targetIdentifier
     else {
       return .visitChildren
     }
@@ -218,19 +271,16 @@ final class ReferenceCollector: SyntaxVisitor {
       switch result {
       case .fromScope(_, let names):
         let matchesTarget = names.contains { name in
-          name.syntax.id == targetBinding.id || name.syntax.id == targetBinding.pattern.id
+          name.syntax.id == targetBinding.pattern.id
         }
-
         if matchesTarget {
           candidates.append(node)
-          return .visitChildren
         }
         return .visitChildren
       default:
         continue
       }
     }
-
     return .visitChildren
   }
 }
