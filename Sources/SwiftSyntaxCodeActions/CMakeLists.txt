@@ -16,6 +16,7 @@ add_library(SwiftSyntaxCodeActions STATIC
   FormatRawStringLiteral.swift
   GenerateEnumCaseAccessors.swift
   IndentationRemover.swift
+  InlineTempVariable.swift
   IntegerLiteralUtilities.swift
   MigrateToNewIfLetSyntax.swift
   OpaqueParameterToGeneric.swift
@@ -40,6 +41,7 @@ target_link_libraries(SwiftSyntaxCodeActions PRIVATE
   SwiftToolsProtocols::SKLogging
   SwiftExtensions
   SwiftSyntax::SwiftBasicFormat
+  SwiftSyntax::SwiftLexicalLookup
   SwiftSyntax::SwiftOperators
   SwiftSyntax::SwiftParser
   SwiftSyntax::SwiftRefactor

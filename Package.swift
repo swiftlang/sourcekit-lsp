@@ -511,7 +511,6 @@ var targets: [Target] = [
         "SwiftBasicFormat",
         "SwiftDiagnostics",
         "SwiftIDEUtils",
-        "SwiftLexicalLookup",
         "SwiftOperators",
         "SwiftParser",
         "SwiftParserDiagnostics",
@@ -547,6 +546,7 @@ var targets: [Target] = [
     ]
       + swiftSyntaxDependencies([
         "SwiftBasicFormat",
+        "SwiftLexicalLookup",
         "SwiftOperators",
         "SwiftParser",
         "SwiftRefactor",

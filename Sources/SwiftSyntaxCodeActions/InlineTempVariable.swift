@@ -132,14 +132,12 @@ import SwiftSyntax
     after afterPosition: AbsolutePosition,
     in block: CodeBlockSyntax
   ) -> [DeclReferenceExprSyntax] {
-    let candidates = DeclReferenceCollector(name: name, afterPosition: afterPosition).collect(in: block)
-    let declId = declarationPattern.id
-    let config = LookupConfig(finishInSequentialScope: true)
-    return candidates.filter { ref in
-      guard let identifier = Identifier(ref.baseName) else { return false }
-      let results = ref.lookup(identifier, with: config)
-      return results.first?.names.contains(where: { $0.syntax.id == declId }) ?? false
-    }
+    let collector = DeclReferenceCollector(
+      name: name,
+      declarationId: declarationPattern.id,
+      afterPosition: afterPosition
+    )
+    return collector.collect(in: block)
   }
 
   /// Returns the text to use when inlining `initializer` at the given reference site.
@@ -193,15 +191,18 @@ import SwiftSyntax
 
 // MARK: - DeclReferenceCollector
 
-/// Collects DeclReferenceExprSyntax nodes that match the name and occur after the given position.
-/// Used only to gather candidates; resolution to the specific declaration is done via SwiftLexicalLookup.
+/// Collects DeclReferenceExprSyntax nodes that match the name and occur after the given position,
+/// resolving them via SwiftLexicalLookup to ensure they refer to the target declaration.
 private final class DeclReferenceCollector: SyntaxVisitor {
   private let name: String
+  private let declarationId: SyntaxIdentifier
   private let afterPosition: AbsolutePosition
+  private let lookupConfig = LookupConfig(finishInSequentialScope: true)
   private(set) var references: [DeclReferenceExprSyntax] = []
 
-  init(name: String, afterPosition: AbsolutePosition) {
+  init(name: String, declarationId: SyntaxIdentifier, afterPosition: AbsolutePosition) {
     self.name = name
+    self.declarationId = declarationId
     self.afterPosition = afterPosition
     super.init(viewMode: .sourceAccurate)
   }
@@ -213,7 +214,12 @@ private final class DeclReferenceCollector: SyntaxVisitor {
 
   override func visit(_ node: DeclReferenceExprSyntax) -> SyntaxVisitorContinueKind {
     if node.baseName.text == name, node.position >= afterPosition {
-      references.append(node)
+      if let identifier = Identifier(node.baseName) {
+        let results = node.lookup(identifier, with: lookupConfig)
+        if results.first?.names.contains(where: { $0.syntax.id == declarationId }) == true {
+          references.append(node)
+        }
+      }
     }
     return .visitChildren
   }
