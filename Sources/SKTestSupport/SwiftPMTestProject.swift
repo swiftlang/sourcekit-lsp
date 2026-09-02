@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import BuildServerIntegration
 package import Foundation
 @_spi(SourceKitLSP) package import LanguageServerProtocol
 @_spi(SourceKitLSP) import SKLogging
@@ -241,9 +242,15 @@ package class SwiftPMTestProject: MultiFileTestProject {
   /// Build a SwiftPM package package manifest is located in the directory at `path`.
   package static func build(
     at path: URL,
-    buildSystem: SwiftPMBuildSystem = .native,
+    buildSystem: SwiftPMBuildSystem? = nil,
     extraArguments: [String] = []
   ) async throws {
+    let resolvedBuildSystem: SwiftPMBuildSystem
+    if let buildSystem {
+      resolvedBuildSystem = buildSystem
+    } else {
+      resolvedBuildSystem = await SwiftPMBuildSystem.defaultBuildSystem(toolchainRegistry: ToolchainRegistry.forTesting)
+    }
     guard let swift = await ToolchainRegistry.forTesting.default?.swift else {
       throw Error.swiftNotFound
     }
@@ -255,7 +262,7 @@ package class SwiftPMTestProject: MultiFileTestProject {
         "--build-tests",
         "-Xswiftc", "-index-ignore-system-modules",
         "-Xcc", "-index-ignore-system-symbols",
-        "--build-system", buildSystem.rawValue,
+        "--build-system", resolvedBuildSystem.rawValue,
       ] + extraArguments
     if let globalModuleCache = try globalModuleCache {
       arguments += [
