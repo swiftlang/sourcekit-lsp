@@ -214,9 +214,7 @@ private final class TargetNodeFinder: SyntaxAnyVisitor {
       return .skipChildren
     }
 
-    // Prune subtree traversal if full span does not overlap target range
-    let fullStart = node.position
-    let fullEnd = node.endPosition
+    // Prune subtree traversal if the node does not contain the target span.
     guard node.range.contains(targetSpan) else {
       return .skipChildren
     }
