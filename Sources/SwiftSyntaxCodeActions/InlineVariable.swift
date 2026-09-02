@@ -153,72 +153,60 @@ struct InlineVariable: SyntaxRefactoringCodeActionProvider {
     initializer: ExprSyntax,
     usageNode: DeclReferenceExprSyntax
   ) -> Bool {
-    guard let codeBlockItem = containingCodeBlockItem(for: Syntax(usageNode)) else {
+    guard let codeBlockItem = usageNode.ancestorOrSelf(mapping: { $0.as(CodeBlockItemSyntax.self) }) else {
       return true
     }
     let scopeText = codeBlockItem.description
-    let initializerText = initializer.trimmedDescription
+    let initializerText = initializer.description
+
     let scopeStartOffset = codeBlockItem.position.utf8Offset
-    let startPos =
-      usageNode.positionAfterSkippingLeadingTrivia.utf8Offset - scopeStartOffset
-    let endPos =
-      usageNode.endPositionBeforeTrailingTrivia.utf8Offset - scopeStartOffset
-    let startIdx = scopeText.utf8.index(
-      scopeText.utf8.startIndex,
-      offsetBy: startPos
-    )
-    let endIdx = scopeText.utf8.index(
-      scopeText.utf8.startIndex,
-      offsetBy: endPos
-    )
+    let startPos = usageNode.positionAfterSkippingLeadingTrivia.utf8Offset - scopeStartOffset
+    let endPos = usageNode.endPositionBeforeTrailingTrivia.utf8Offset - scopeStartOffset
+
+    let startIdx = scopeText.utf8.index(scopeText.utf8.startIndex, offsetBy: startPos)
+    let endIdx = scopeText.utf8.index(scopeText.utf8.startIndex, offsetBy: endPos)
+
     var rewrittenText = scopeText
     rewrittenText.replaceSubrange(startIdx..<endIdx, with: initializerText)
-    let parsedScope = Parser.parse(source: rewrittenText)
+
+    var parser = Parser(rewrittenText)
+    let parsedScope = CodeBlockItemSyntax.parse(from: &parser)
     if parsedScope.hasError {
       return true
     }
-    let targetSpan = startPos..<(startPos + initializerText.utf8.count)
-    return !containsNode(
+
+    let targetSpanStart = AbsolutePosition(utf8Offset: startPos)
+    let targetSpanEnd = AbsolutePosition(utf8Offset: startPos + initializerText.utf8.count)
+    let targetSpan = targetSpanStart..<targetSpanEnd
+
+    return !TargetNodeFinder.containsNode(
       in: Syntax(parsedScope),
       withSpan: targetSpan,
       matching: initializerText
     )
   }
+}
 
-  private static func containingCodeBlockItem(
-    for node: Syntax
-  ) -> CodeBlockItemSyntax? {
-    var current: Syntax? = node
-    while let syntax = current {
-      if let codeBlockItem = syntax.as(CodeBlockItemSyntax.self) {
-        return codeBlockItem
-      }
-      current = syntax.parent
-    }
-    return nil
+/// A visitor that checks if a syntax node with a matching span and description exists.
+private final class TargetNodeFinder: SyntaxAnyVisitor {
+  let targetSpan: Range<AbsolutePosition>
+  let targetText: String
+  var found = false
+
+  init(targetSpan: Range<AbsolutePosition>, targetText: String) {
+    self.targetSpan = targetSpan
+    self.targetText = targetText
+    super.init(viewMode: .sourceAccurate)
   }
 
   static func containsNode(
     in node: Syntax,
-    withSpan span: Range<Int>,
+    withSpan span: Range<AbsolutePosition>,
     matching text: String
   ) -> Bool {
     let finder = TargetNodeFinder(targetSpan: span, targetText: text)
     finder.walk(node)
     return finder.found
-  }
-}
-
-/// A visitor that checks if a syntax node with a matching span and description exists.
-private final class TargetNodeFinder: SyntaxAnyVisitor {
-  let targetSpan: Range<Int>
-  let targetText: String
-  var found = false
-
-  init(targetSpan: Range<Int>, targetText: String) {
-    self.targetSpan = targetSpan
-    self.targetText = targetText
-    super.init(viewMode: .sourceAccurate)
   }
 
   override func visitAny(_ node: Syntax) -> SyntaxVisitorContinueKind {
@@ -227,14 +215,14 @@ private final class TargetNodeFinder: SyntaxAnyVisitor {
     }
 
     // Prune subtree traversal if full span does not overlap target range
-    let fullStart = node.position.utf8Offset
-    let fullEnd = node.endPosition.utf8Offset
-    if fullStart > targetSpan.upperBound || fullEnd < targetSpan.lowerBound {
+    let fullStart = node.position
+    let fullEnd = node.endPosition
+    guard node.range.contains(targetSpan) else {
       return .skipChildren
     }
 
-    let nodeStart = node.positionAfterSkippingLeadingTrivia.utf8Offset
-    let nodeEnd = node.endPositionBeforeTrailingTrivia.utf8Offset
+    let nodeStart = node.positionAfterSkippingLeadingTrivia
+    let nodeEnd = node.endPositionBeforeTrailingTrivia
     if nodeStart == targetSpan.lowerBound && nodeEnd == targetSpan.upperBound {
       if node.trimmedDescription == targetText {
         found = true
