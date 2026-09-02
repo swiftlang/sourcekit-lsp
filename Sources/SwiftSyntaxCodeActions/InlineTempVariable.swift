@@ -36,8 +36,8 @@ import SwiftSyntax
 ///
 /// When the inlined value is an expression that may need parentheses for precedence (e.g. `1 + 2`
 /// inlined into `basePrice * 3`), parentheses are added: `(1 + 2) * 3`.
-@_spi(Testing) public struct InlineTempVariable: SyntaxCodeActionProvider {
-  static func codeActions(in scope: SyntaxCodeActionScope) -> [CodeAction] {
+struct InlineTempVariable: SyntaxCodeActionProvider {
+  package static func codeActions(in scope: SyntaxCodeActionScope) -> [CodeAction] {
     guard let (variableDecl, name, initializer, codeBlock, declItem, declarationPattern) = findInlineableBinding(in: scope) else {
       return []
     }
@@ -102,7 +102,8 @@ import SwiftSyntax
       return nil
     }
 
-    guard let binding = variableDecl.bindings.only,
+    guard variableDecl.bindings.count == 1,
+      let binding = variableDecl.bindings.first,
       let pattern = binding.pattern.as(IdentifierPatternSyntax.self),
       let initializer = binding.initializer?.value
     else {
@@ -238,7 +239,7 @@ private extension ExprSyntax {
       .subscriptCallExpr:
       return false
     case .tupleExpr:
-      if let single = self.as(TupleExprSyntax.self)?.elements.only, single.label == nil {
+      if let tuple = self.as(TupleExprSyntax.self), tuple.elements.count == 1, let single = tuple.elements.first, single.label == nil {
         return single.expression.isCompositeForInlining
       }
       return true
