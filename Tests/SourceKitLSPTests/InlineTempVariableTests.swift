@@ -148,4 +148,71 @@ final class InlineTempVariableTests: SourceKitLSPTestCase {
       expectedOutput: nil
     )
   }
+
+  func testInlineTempVariableShadowedVariable() async throws {
+    try await validateCodeAction(
+      input: """
+        func example() {
+            let 1️⃣x = foo()
+            if condition {
+                let x = bar()
+                use(x)
+            }
+            let a = x + 1
+        }
+        """,
+      expectedOutput: """
+        func example() {
+            if condition {
+                let x = bar()
+                use(x)
+            }
+            let a = foo() + 1
+        }
+        """
+    )
+  }
+
+  func testInlineTempVariableInnerShadowedVariable() async throws {
+    try await validateCodeAction(
+      input: """
+        func example() {
+            let x = foo()
+            if condition {
+                let 1️⃣x = bar()
+                use(x)
+            }
+            let a = x + 1
+        }
+        """,
+      expectedOutput: """
+        func example() {
+            let x = foo()
+            if condition {
+                use(bar())
+            }
+            let a = x + 1
+        }
+        """
+    )
+  }
+
+  func testInlineTempVariableClosureParameterShadowing() async throws {
+    try await validateCodeAction(
+      input: """
+        func example() {
+            let 1️⃣x = foo()
+            let f = { (x: Int) in x + 1 }
+            let a = x + 2
+        }
+        """,
+      expectedOutput: """
+        func example() {
+            let f = { (x: Int) in x + 1 }
+            let a = foo() + 2
+        }
+        """
+    )
+  }
 }
+
