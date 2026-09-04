@@ -219,9 +219,7 @@ private final class TargetNodeFinder: SyntaxAnyVisitor {
       return .skipChildren
     }
 
-    let nodeStart = node.positionAfterSkippingLeadingTrivia
-    let nodeEnd = node.endPositionBeforeTrailingTrivia
-    if nodeStart == targetSpan.lowerBound && nodeEnd == targetSpan.upperBound {
+    if node.trimmedRange == targetSpan {
       if node.trimmedDescription == targetText {
         found = true
         return .skipChildren
