@@ -546,6 +546,7 @@ var targets: [Target] = [
     ]
       + swiftSyntaxDependencies([
         "SwiftBasicFormat",
+        "SwiftLexicalLookup",
         "SwiftOperators",
         "SwiftParser",
         "SwiftRefactor",

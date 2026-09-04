@@ -33,6 +33,7 @@ package let allSyntaxCodeActionProviders: [any SyntaxCodeActionProvider.Type] = 
     FormatRawStringLiteral.self,
     GenerateEnumCaseAsAccessors.self,
     GenerateEnumCaseIsAccessors.self,
+    InlineVariable.self,
     MigrateToNewIfLetSyntax.self,
     OpaqueParameterToGeneric.self,
     RemoveRedundantParentheses.self,
