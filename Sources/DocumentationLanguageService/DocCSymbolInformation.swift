@@ -45,6 +45,16 @@ struct DocCSymbolInformation {
       linkComponent.name == symbolComponent.name && symbolComponent.information.matches(linkComponent.disambiguation)
     }
   }
+
+  func matchesAsSuffix(_ link: DocCSymbolLink) -> Bool {
+    guard link.components.count <= components.count else {
+      return false
+    }
+    let matchingSuffix = components.suffix(link.components.count)
+    return zip(link.components, matchingSuffix).allSatisfy { linkComponent, symbolComponent in
+      linkComponent.name == symbolComponent.name && symbolComponent.information.matches(linkComponent.disambiguation)
+    }
+  }
 }
 
 private typealias KindIdentifier = SymbolGraph.Symbol.KindIdentifier
