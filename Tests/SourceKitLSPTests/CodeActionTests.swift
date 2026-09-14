@@ -4370,6 +4370,136 @@ final class CodeActionTests: SourceKitLSPTestCase {
       ]
     }
   }
+
+  func testInvertIfConditionOnIfKeyword() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣if !x {
+        foo()
+      } else {
+        bar()
+      }2️⃣
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Invert if condition",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: """
+                    if x {
+                      bar()
+                    } else {
+                      foo()
+                    }
+                    """
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testInvertIfConditionOnCondition() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣if 2️⃣!(x == y) {
+        return
+      } else {
+        continue
+      }3️⃣
+      """,
+      markers: ["2️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Invert if condition",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["3️⃣"],
+                  newText: """
+                    if (x == y) {
+                      continue
+                    } else {
+                      return
+                    }
+                    """
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testInvertIfConditionNotOfferedInsideBody() async throws {
+    try await assertNoCodeAction(
+      titled: "Invert if condition",
+      in: """
+        if !x {
+          1️⃣foo()
+        } else {
+          bar()
+        }
+        """,
+      atMarker: "1️⃣"
+    )
+  }
+
+  func testInvertIfConditionNotOfferedForNonNegatedIf() async throws {
+    try await assertNoCodeAction(
+      titled: "Invert if condition",
+      in: """
+        1️⃣if x {
+          foo()
+        } else {
+          bar()
+        }
+        """,
+      atMarker: "1️⃣"
+    )
+  }
+
+  func testInvertIfConditionNotOfferedWithoutElse() async throws {
+    try await assertNoCodeAction(
+      titled: "Invert if condition",
+      in: """
+        1️⃣if !x {
+          foo()
+        }
+        """,
+      atMarker: "1️⃣"
+    )
+  }
+
+  func testInvertIfConditionNotOfferedForElseIf() async throws {
+    try await assertNoCodeAction(
+      titled: "Invert if condition",
+      in: """
+        1️⃣if !x {
+          foo()
+        } else if y {
+          bar()
+        }
+        """,
+      atMarker: "1️⃣"
+    )
+  }
 }
 
 private extension CodeActionRequestResponse {
