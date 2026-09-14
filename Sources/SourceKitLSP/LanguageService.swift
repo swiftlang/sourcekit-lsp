@@ -196,6 +196,9 @@ package protocol LanguageService: AnyObject, Sendable {
   func signatureHelp(_ req: SignatureHelpRequest) async throws -> SignatureHelp?
   func hover(_ req: HoverRequest) async throws -> HoverResponse?
   func doccDocumentation(_ req: DoccDocumentationRequest) async throws -> DoccDocumentationResponse
+  func symbolLinkDefinitionInPreview(
+    _ req: DocCSymbolLinkDefinitionRequest
+  ) async throws -> LocationsOrLocationLinksResponse?
   func symbolInfo(_ request: SymbolInfoRequest) async throws -> [SymbolDetails]
 
   /// Retrieve the symbol graph for the given position in the given snapshot, including the USR of the symbol at the
@@ -397,6 +400,12 @@ package extension LanguageService {
 
   func doccDocumentation(_ req: DoccDocumentationRequest) async throws -> DoccDocumentationResponse {
     throw ResponseError.requestNotImplemented(DoccDocumentationRequest.self)
+  }
+
+  func symbolLinkDefinitionInPreview(
+    _ req: DocCSymbolLinkDefinitionRequest
+  ) async throws -> LocationsOrLocationLinksResponse? {
+    throw ResponseError.requestNotImplemented(DocCSymbolLinkDefinitionRequest.self)
   }
 
   func symbolInfo(_ request: SymbolInfoRequest) async throws -> [SymbolDetails] {
