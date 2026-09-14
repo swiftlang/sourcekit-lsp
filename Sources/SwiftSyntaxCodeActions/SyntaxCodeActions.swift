@@ -34,6 +34,7 @@ package let allSyntaxCodeActionProviders: [any SyntaxCodeActionProvider.Type] = 
     GenerateEnumCaseAsAccessors.self,
     GenerateEnumCaseIsAccessors.self,
     InlineVariable.self,
+    InvertIfCondition.self,
     MigrateToNewIfLetSyntax.self,
     OpaqueParameterToGeneric.self,
     RemoveRedundantParentheses.self,
