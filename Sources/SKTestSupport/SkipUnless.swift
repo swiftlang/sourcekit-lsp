@@ -459,6 +459,47 @@ package actor SkipUnless {
     }
   }
 
+  package static func sourcekitdSupportsObjCSelector(
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) async throws {
+    return try await shared.skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(6, 5), file: file, line: line) {
+      let sourcekitd = try await getSourceKitD()
+
+      return try await withTestScratchDir { scratchDirectory in
+        let (positions, source) = extractMarkers(
+          """
+          import Foundation
+
+          class Foo: NSObject {
+            @objc func 1️⃣bar() {}
+          }
+          """
+        )
+
+        let testURL = scratchDirectory.appending(component: "test.swift")
+        try await source.writeWithRetry(to: testURL)
+
+        let sourceFile = try testURL.filePath
+
+        let skreq = sourcekitd.dictionary([
+          sourcekitd.keys.offset: positions["1️⃣"]!.utf8Offset,
+          sourcekitd.keys.sourceFile: sourceFile,
+          sourcekitd.keys.compilerArgs: [sourceFile],
+        ])
+
+        do {
+          let response = try await sourcekitd.send(\.objcSelector, skreq)
+
+          let selector: String? = response[sourcekitd.keys.text]
+          return selector != nil
+        } catch {
+          return false
+        }
+      }
+    }
+  }
+
   package static func swiftPMBuildServerSupportedWithoutBackgroundIndexing(
     file: StaticString = #filePath,
     line: UInt = #line

@@ -959,7 +959,7 @@ extension SwiftLanguageService {
     }
     let providersAndKinds: [(provider: CodeActionProvider, kind: CodeActionKind?)] = [
       (retrieveSyntaxCodeActions, nil),
-      (retrieveRefactorCodeActions, .refactor),
+      (retrieveCursorInfoBasedCodeActions, nil),
       (retrieveQuickFixCodeActions, .quickFix),
       (retrieveRemoveUnusedImportsCodeAction, .sourceOrganizeImports),
     ]
@@ -1054,7 +1054,19 @@ extension SwiftLanguageService {
     )
   }
 
-  func retrieveRefactorCodeActions(_ params: CodeActionRequest) async throws -> [CodeAction] {
+  private func codeActionKind(_ kind: CodeActionKind, matches requested: CodeActionKind) -> Bool {
+    return kind == requested || kind.rawValue.hasPrefix("\(requested.rawValue).")
+  }
+
+  func retrieveCursorInfoBasedCodeActions(_ params: CodeActionRequest) async throws -> [CodeAction] {
+    if let requestedKinds = params.context.only,
+      !requestedKinds.contains(where: {
+        codeActionKind($0, matches: .refactor) || codeActionKind(.refactor, matches: $0)
+      })
+    {
+      return []
+    }
+
     let additionalCursorInfoParameters: ((SKDRequestDictionary) -> Void) = { skreq in
       skreq.set(self.keys.retrieveRefactorActions, to: 1)
     }
@@ -1084,7 +1096,32 @@ extension SwiftLanguageService {
       refactorActions.append(CodeAction(title: expandMacroCommand.title, kind: .refactor, command: expandMacroCommand))
     }
 
-    return refactorActions
+    // Declarations exposed to Objective-C have an Objective-C USR (`c:`), everything else has a Swift USR (`s:`).
+    // Checking it avoids a semantic request per code action on Swift-only declarations.
+    let isOnObjCFunction = cursorInfoResponse.cursorInfo.contains { cursorInfo in
+      switch cursorInfo.symbolInfo.kind {
+      case .method, .function, .constructor:
+        return cursorInfo.symbolInfo.usr?.hasPrefix("c:") ?? false
+      default:
+        return false
+      }
+    }
+    if isOnObjCFunction, let selector = await objcSelector(params.textDocument.uri, at: params.range.lowerBound) {
+      let showObjCSelectorCommand = ShowObjCSelectorCommand(selector: selector).asCommand()
+      refactorActions.append(
+        CodeAction(title: showObjCSelectorCommand.title, kind: .empty, command: showObjCSelectorCommand)
+      )
+    }
+
+    guard let requestedKinds = params.context.only else {
+      return refactorActions
+    }
+    return refactorActions.filter { codeAction in
+      guard let kind = codeAction.kind else {
+        return false
+      }
+      return requestedKinds.contains { codeActionKind(kind, matches: $0) }
+    }
   }
 
   func retrieveQuickFixCodeActions(_ params: CodeActionRequest) async throws -> [CodeAction] {
@@ -1201,6 +1238,8 @@ extension SwiftLanguageService {
       try await semanticRefactoring(command)
     } else if let command = req.swiftCommand(ofType: ExpandMacroCommand.self) {
       try await expandMacro(command)
+    } else if let command = req.swiftCommand(ofType: ShowObjCSelectorCommand.self) {
+      return showObjCSelector(command)
     } else if let command = req.swiftCommand(ofType: RemoveUnusedImportsCommand.self) {
       try await removeUnusedImports(command)
     } else {
