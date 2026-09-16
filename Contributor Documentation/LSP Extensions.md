@@ -616,7 +616,7 @@ export interface SourceKitOptionsRequest {
    * The target URI must match the URI that is used by the BSP server to identify the target. This option thus only
    * makes sense to specify if the client also controls the BSP server.
    *
-   * When this is `null`, SourceKit-LSP returns the compiler arguments it uses when the the document is opened in the
+   * When this is `null`, SourceKit-LSP returns the compiler arguments it uses when the document is opened in the
    * client, ie. it infers a canonical target for the document.
    */
   target?: DocumentURI;
@@ -802,7 +802,7 @@ jumping to the locations where the #Playground macro was expanded.
 
 The request fetches the list of all macros found in the workspace, returning the location, identifier, and optional label
 when available for each #Playground macro expansion. If you want to keep the list of playgrounds up to date without needing to
-call `sourcekit/workspace/playgrounds` each time a document is changed, you can filter for `swift.play` CodeLens returned by the `textDocument/codelens` request.
+call `sourcekit/workspace/playgrounds` each time a document is changed, you can filter for `swift.play` CodeLens returned by the `textDocument/codeLens` request.
 
 SourceKit-LSP will advertise `sourcekit/workspace/playgrounds` in its experimental server capabilities if it supports it.
 
