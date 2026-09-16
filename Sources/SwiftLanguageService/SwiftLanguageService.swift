@@ -623,6 +623,7 @@ extension SwiftLanguageService {
     await syntaxTreeManager.clearSyntaxTrees(for: notification.textDocument.uri)
     await syntaxTreeManager.clearExperimentalFeatures(for: notification.textDocument.uri)
     await inlayHintManager.removeCachedInlayHints(for: notification.textDocument.uri)
+    await sourceKitLSPServer?.clearDiagnostics(for: notification.textDocument.uri, from: .swift)
     switch try? ReferenceDocumentURL(from: notification.textDocument.uri) {
     case .macroExpansion:
       break
@@ -716,12 +717,7 @@ extension SwiftLanguageService {
           throw CancellationError()
         }
 
-        sourceKitLSPServer.sendNotificationToClient(
-          PublishDiagnosticsNotification(
-            uri: document,
-            diagnostics: diagnosticReport.items
-          )
-        )
+        await sourceKitLSPServer.publishDiagnostics(diagnosticReport.items, for: document, from: .swift)
       } catch is CancellationError {
       } catch {
         logger.fault(
@@ -795,6 +791,32 @@ extension SwiftLanguageService {
   // MARK: - Language features
 
   package func definition(_ request: DefinitionRequest) async throws -> LocationsOrLocationLinksResponse? {
+
+    let snapshot = try await latestSnapshot(for: request.textDocument.uri)
+    let tree = await syntaxTreeManager.syntaxTree(for: snapshot)
+    let absolutePosition = snapshot.absolutePosition(of: request.position)
+
+    if let token = tree.token(at: absolutePosition) {
+      var offset = token.position.utf8Offset
+      var isInDocComment = false
+
+      for piece in token.leadingTrivia.pieces {
+        let pieceLength = piece.sourceLength.utf8Length
+        switch piece {
+        case .docLineComment, .docBlockComment:
+          if absolutePosition.utf8Offset >= offset && absolutePosition.utf8Offset < offset + pieceLength {
+            isInDocComment = true
+          }
+        default:
+          break
+        }
+        offset += pieceLength
+      }
+
+      if isInDocComment {
+        return nil
+      }
+    }
     throw ResponseError.unknown("unsupported method")
   }
 
