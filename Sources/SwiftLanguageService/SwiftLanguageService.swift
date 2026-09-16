@@ -794,7 +794,43 @@ extension SwiftLanguageService {
 
   // MARK: - Language features
 
+  /// Whether `position` falls within a `docLineComment` or `docBlockComment` piece of `trivia`,
+  /// which starts at `triviaStart`.
+  private func trivia(
+    _ trivia: Trivia,
+    startingAt triviaStart: AbsolutePosition,
+    contains position: AbsolutePosition
+  ) -> Bool {
+    var offset = triviaStart.utf8Offset
+    for piece in trivia.pieces {
+      let pieceLength = piece.sourceLength.utf8Length
+      switch piece {
+      case .docLineComment, .docBlockComment:
+        if position.utf8Offset >= offset && position.utf8Offset < offset + pieceLength {
+          return true
+        }
+      default:
+        break
+      }
+      offset += pieceLength
+    }
+    return false
+  }
+
   package func definition(_ request: DefinitionRequest) async throws -> LocationsOrLocationLinksResponse? {
+    let snapshot = try await latestSnapshot(for: request.textDocument.uri)
+    let tree = await syntaxTreeManager.syntaxTree(for: snapshot)
+    let absolutePosition = snapshot.absolutePosition(of: request.position)
+
+    if let token = tree.token(at: absolutePosition) {
+      let isInDocComment =
+        trivia(token.leadingTrivia, startingAt: token.position, contains: absolutePosition)
+        || trivia(token.trailingTrivia, startingAt: token.endPositionBeforeTrailingTrivia, contains: absolutePosition)
+
+      if isInDocComment {
+        throw FallThroughToNextLanguageService()
+      }
+    }
     throw ResponseError.unknown("unsupported method")
   }
 

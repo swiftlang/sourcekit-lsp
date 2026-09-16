@@ -99,6 +99,13 @@ package struct GeneratedInterfaceDetails: ResponseType, Hashable {
   }
 }
 
+/// Thrown by a language service's request handler to indicate that this
+/// service isn't the right one for the current request context, and the
+/// next language service should be tried instead.
+package struct FallThroughToNextLanguageService: Error {
+  package init() {}
+}
+
 /// Provides language specific functionality to sourcekit-lsp from a specific toolchain.
 ///
 /// For example, we may have a language service that provides semantic functionality for c-family using a clangd server,
