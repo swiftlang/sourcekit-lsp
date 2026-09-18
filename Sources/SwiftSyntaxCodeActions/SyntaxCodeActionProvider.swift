@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2024 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2026 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -51,7 +51,7 @@ package protocol SyntaxCodeActionProvider: SendableMetatype {
   /// Produce code actions within the given scope. Each code action
   /// corresponds to one syntactic transformation that can be performed, such
   /// as adding or removing separators from an integer literal.
-  static func codeActions(in scope: SyntaxCodeActionScope) -> [CodeAction]
+  static func codeActions(in scope: SyntaxCodeActionScope) async -> [CodeAction]
 
   /// Resolve semantic information for a code action.
   static func resolve(
@@ -104,16 +104,20 @@ package struct SyntaxCodeActionScope {
   /// The innermost node that contains the entire selected source range
   package var innermostNodeContainingRange: Syntax?
 
+  private let symbolInfoProvider: @Sendable (Position) async throws -> [SymbolDetails]
+
   package init?(
     resolveSupport: TextDocumentClientCapabilities.CodeAction.ResolveSupportProperties?,
     snapshot: DocumentSnapshot,
     syntaxTree file: SourceFileSyntax,
     requestedRange: Range<Position>,
+    symbolInfo: @escaping @Sendable (Position) async throws -> [SymbolDetails]
   ) {
     self.resolveSupport = resolveSupport
     self.snapshot = snapshot
     self.requestedRange = requestedRange
     self.file = file
+    self.symbolInfoProvider = symbolInfo
 
     guard let left = tokenForRefactoring(at: requestedRange.lowerBound, snapshot: snapshot, syntaxTree: file),
       let right = tokenForRefactoring(at: requestedRange.upperBound, snapshot: snapshot, syntaxTree: file)
@@ -122,6 +126,10 @@ package struct SyntaxCodeActionScope {
     }
     self.range = left.position..<right.endPosition
     self.innermostNodeContainingRange = findCommonAncestorOrSelf(Syntax(left), Syntax(right))
+  }
+
+  package func symbolInfo(at position: Position) async throws -> [SymbolDetails] {
+    try await symbolInfoProvider(position)
   }
 }
 

@@ -13,6 +13,7 @@ add_library(SwiftSyntaxCodeActions STATIC
   ConvertStringConcatenationToStringInterpolation.swift
   ConvertZeroParameterFunctionToComputedProperty.swift
   DeclModifierRemover.swift
+  ForEachToForInCodeAction.swift
   FormatRawStringLiteral.swift
   GenerateEnumCaseAccessors.swift
   IndentationRemover.swift
