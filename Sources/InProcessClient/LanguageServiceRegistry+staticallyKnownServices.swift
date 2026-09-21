@@ -14,10 +14,7 @@ import ClangLanguageService
 @_spi(SourceKitLSP) import LanguageServerProtocol
 package import SourceKitLSP
 import SwiftLanguageService
-
-#if canImport(DocumentationLanguageService)
 import DocumentationLanguageService
-#endif
 
 extension LanguageServiceRegistry {
   /// All types conforming to `LanguageService` that are known at compile time.
@@ -25,9 +22,7 @@ extension LanguageServiceRegistry {
     var registry = LanguageServiceRegistry()
     registry.register(ClangLanguageService.self, for: [.c, .cpp, .objective_c, .objective_cpp])
     registry.register(SwiftLanguageService.self, for: [.swift])
-    #if canImport(DocumentationLanguageService)
     registry.register(DocumentationLanguageService.self, for: [.markdown, .tutorial, .swift])
-    #endif
     return registry
   }()
 }
