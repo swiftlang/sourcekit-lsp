@@ -1,6 +1,3 @@
-add_compile_options("$<$<COMPILE_LANGUAGE:Swift>:SHELL:-package-name sourcekit_lsp>")
-add_compile_options("$<$<COMPILE_LANGUAGE:Swift>:SHELL:-DRESILIENT_LIBRARIES>")
-add_compile_options("$<$<COMPILE_LANGUAGE:Swift>:SHELL:-swift-version 6>")
 add_subdirectory(BuildServerIntegration)
 add_subdirectory(CCompletionScoring)
 add_subdirectory(ClangLanguageService)

@@ -16,12 +16,14 @@ project(SourceKit-LSP
   LANGUAGES C Swift)
 
 set(CMAKE_Swift_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/swift)
+set(CMAKE_Swift_LANGUAGE_VERSION 6)
 
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 add_compile_options(
+  "$<$<COMPILE_LANGUAGE:Swift>:SHELL:-package-name sourcekit_lsp>"
   "$<$<COMPILE_LANGUAGE:Swift>:SHELL:-enable-upcoming-feature InternalImportsByDefault>"
   "$<$<COMPILE_LANGUAGE:Swift>:SHELL:-enable-upcoming-feature MemberImportVisibility>"
   "$<$<COMPILE_LANGUAGE:Swift>:SHELL:-enable-upcoming-feature InferIsolatedConformances>"
@@ -30,6 +32,7 @@ add_compile_options(
   "$<$<COMPILE_LANGUAGE:Swift>:SHELL:-enable-upcoming-feature ImmutableWeakCaptures>"
   "$<$<COMPILE_LANGUAGE:Swift>:SHELL:-Werror ExistentialAny>"
 )
+target_compile_definitions($<$<COMPILE_LANGUAGE:Swift>:RESILIENT_LIBRARIES>)
 
 find_package(dispatch QUIET)
 find_package(Foundation QUIET)
