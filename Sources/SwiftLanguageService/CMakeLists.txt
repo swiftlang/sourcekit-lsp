@@ -11,6 +11,7 @@ add_library(SwiftLanguageService STATIC
   DiagnosticReportManager.swift
   DocumentFormatting.swift
   DocumentSymbols.swift
+  ExpandDerivedConformanceCommand.swift
   ExpandMacroCommand.swift
   FoldingRange.swift
   GeneratedInterfaceManager.swift
