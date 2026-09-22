@@ -1067,14 +1067,18 @@ extension SwiftLanguageService {
     )
 
     var canInlineMacro = false
+    var canExpandDerivedConformance = false
 
-    var refactorActions = cursorInfoResponse.refactorActions.compactMap {
-      let lspCommand = $0.asCommand()
+    var refactorActions = cursorInfoResponse.refactorActions.compactMap { action -> CodeAction? in
       if !canInlineMacro {
-        canInlineMacro = $0.actionString == "source.refactoring.kind.inline.macro"
+        canInlineMacro = action.actionString == "source.refactoring.kind.inline.macro"
+      }
+      if action.actionString == ExpandDerivedConformanceCommand.actionString {
+        canExpandDerivedConformance = true
+        return nil
       }
 
-      return CodeAction(title: $0.title, kind: $0.lspKind, command: lspCommand)
+      return CodeAction(title: action.title, kind: action.lspKind, command: action.asCommand())
     }
 
     if canInlineMacro {
@@ -1082,6 +1086,22 @@ extension SwiftLanguageService {
         .asCommand()
 
       refactorActions.append(CodeAction(title: expandMacroCommand.title, kind: .refactor, command: expandMacroCommand))
+    }
+
+    if canExpandDerivedConformance {
+      let expandDerivedConformanceCommand = ExpandDerivedConformanceCommand(
+        positionRange: params.range,
+        textDocument: params.textDocument
+      )
+      .asCommand()
+
+      refactorActions.append(
+        CodeAction(
+          title: expandDerivedConformanceCommand.title,
+          kind: .refactor,
+          command: expandDerivedConformanceCommand
+        )
+      )
     }
 
     return refactorActions
@@ -1200,9 +1220,19 @@ extension SwiftLanguageService {
     if let command = req.swiftCommand(ofType: SemanticRefactorCommand.self) {
       try await semanticRefactoring(command)
     } else if let command = req.swiftCommand(ofType: ExpandMacroCommand.self) {
-      try await expandMacro(command)
+      try await expand(
+        actionUID: ExpandMacroCommand.actionString,
+        positionRange: command.positionRange,
+        textDocument: command.textDocument
+      )
     } else if let command = req.swiftCommand(ofType: RemoveUnusedImportsCommand.self) {
       try await removeUnusedImports(command)
+    } else if let command = req.swiftCommand(ofType: ExpandDerivedConformanceCommand.self) {
+      try await expand(
+        actionUID: ExpandDerivedConformanceCommand.actionString,
+        positionRange: command.positionRange,
+        textDocument: command.textDocument
+      )
     } else {
       throw ResponseError.unknown("unknown command \(req.command)")
     }
