@@ -58,11 +58,14 @@ struct CompletionItemData: Codable, LSPAnyCodable {
   let uri: DocumentURI
   let sessionId: CompletionSessionID
   let itemId: Int
+  /// sourcekitd's `key.semantic_score`
+  let semanticScore: Double?
 
-  init(uri: DocumentURI, sessionId: CompletionSessionID, itemId: Int) {
+  init(uri: DocumentURI, sessionId: CompletionSessionID, itemId: Int, semanticScore: Double?) {
     self.uri = uri
     self.sessionId = sessionId
     self.itemId = itemId
+    self.semanticScore = semanticScore
   }
 }
 
@@ -575,8 +578,9 @@ class CodeCompletionSession {
       // Map SourceKit's not_recommended field to LSP's deprecated
       let notRecommended = (value[sourcekitd.keys.notRecommended] ?? 0) != 0
 
+      let semanticScore: Double? = value[sourcekitd.keys.semanticScore]
       let sortText: String?
-      if let semanticScore: Double = value[sourcekitd.keys.semanticScore],
+      if let semanticScore,
         let textMatchScore: Double = value[sourcekitd.keys.textMatchScore]
       {
         let score = semanticScore * textMatchScore
@@ -604,7 +608,12 @@ class CodeCompletionSession {
 
       let data: CompletionItemData? =
         if let identifier: Int = value[keys.identifier] {
-          CompletionItemData(uri: self.uri, sessionId: self.id, itemId: identifier)
+          CompletionItemData(
+            uri: self.uri,
+            sessionId: self.id,
+            itemId: identifier,
+            semanticScore: semanticScore
+          )
         } else {
           nil
         }
