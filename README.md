@@ -1,4 +1,4 @@
-# SourceKit-LSP
+# SourceKit-LSP 
 
 SourceKit-LSP is an implementation of the [Language Server Protocol](https://microsoft.github.io/language-server-protocol/) (LSP) for Swift and C-based languages. It provides intelligent editor functionality like code-completion and jump-to-definition to editors that support LSP. SourceKit-LSP is built on top of [sourcekitd](https://github.com/apple/swift/tree/main/tools/SourceKit) and [clangd](https://clang.llvm.org/extra/clangd.html) for high-fidelity language support, and provides a powerful source code index as well as cross-language support. SourceKit-LSP supports projects that use the Swift Package Manager and projects that generate a `compile_commands.json` file, such as CMake.
 
