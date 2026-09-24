@@ -50,4 +50,7 @@ target_link_libraries(SwiftSourceKitPlugin PRIVATE
   SwiftToolsProtocols::_ToolsProtocolsSwiftExtensionsForPlugin
   $<$<NOT:$<PLATFORM_ID:Darwin>>:FoundationXML>)
 
-install(TARGETS SwiftSourceKitPlugin DESTINATION lib)
+install(TARGETS SwiftSourceKitPlugin
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib
+  RUNTIME DESTINATION bin)
