@@ -153,6 +153,35 @@ final class SwiftCompletionTests: SourceKitLSPTestCase {
     XCTAssertNotEqual(after, selfDot)
   }
 
+  func testCompletionCarriesRawSemanticScore() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
+
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+
+    let positions = testClient.openDocument(
+      """
+      struct S {
+        var abc: Int
+        func test() {
+          self.1️⃣
+        }
+      }
+      """,
+      uri: uri
+    )
+
+    let completions = try await testClient.send(
+      CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+
+    let abc = try XCTUnwrap(completions.items.first { $0.label == "abc" })
+    guard case .dictionary(let data) = abc.data else {
+      return XCTFail("Expected completion item data to be a dictionary")
+    }
+    XCTAssertNotNil(data["semanticScore"], "Expected the raw semanticScore to be carried on completion item data")
+  }
+
   func testCompletionSnippetSupport() async throws {
     try await SkipUnless.sourcekitdSupportsPlugin()
 
