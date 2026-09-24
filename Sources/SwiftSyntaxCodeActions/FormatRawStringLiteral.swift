@@ -31,9 +31,19 @@ package import SwiftSyntax
 /// ##"Hello \#(world)"##
 /// "Hello World"
 /// ```
+///
+/// A literal keeps at least one delimiter if its content contains a `"` or a
+/// `\`, because those characters are only literal while the literal is raw.
 package struct FormatRawStringLiteral: SyntaxRefactoringProvider {
   package static func refactor(syntax lit: StringLiteralExprSyntax, in context: Void) -> StringLiteralExprSyntax {
     var maximumHashes = 0
+    /// Whether the content relies on the literal being raw to keep its meaning.
+    ///
+    /// Dropping every delimiter re-enables escape sequence processing, so a `"`
+    /// would terminate the literal early and a `\` would start an escape
+    /// sequence. Either way the literal no longer means what it used to, and in
+    /// the case of `\` it can keep compiling with a different value.
+    var contentDependsOnBeingRaw = false
     for segment in lit.segments {
       switch segment {
       case .expressionSegment(let expr):
@@ -44,6 +54,9 @@ package struct FormatRawStringLiteral: SyntaxRefactoringProvider {
       case .stringSegment(let string):
         // Find the longest run of # characters in the content of the literal.
         maximumHashes = max(maximumHashes, string.content.text.longestRun(of: "#"))
+        if string.content.text.contains(where: { $0 == "\"" || $0 == "\\" }) {
+          contentDependsOnBeingRaw = true
+        }
       #if RESILIENT_LIBRARIES
       @unknown default:
         fatalError()
@@ -51,7 +64,7 @@ package struct FormatRawStringLiteral: SyntaxRefactoringProvider {
       }
     }
 
-    guard maximumHashes > 0 else {
+    guard maximumHashes > 0 || contentDependsOnBeingRaw else {
       return
         lit
         .with(\.openingPounds, lit.openingPounds?.with(\.tokenKind, .rawStringPoundDelimiter("")))
