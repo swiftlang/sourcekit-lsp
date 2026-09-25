@@ -66,6 +66,72 @@ final class DoccDocumentationTests: SourceKitLSPTestCase {
     )
   }
 
+  func testMultilineReturnsInDocLineComment() async throws {
+    // Regression test for https://github.com/swiftlang/vscode-swift/issues/2119
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
+      """
+      /// Checks whether a field exists.
+      ///
+      /// - Returns: One of the following
+      ///     * 1️⃣0: field does not exist
+      ///     * 1: field exists
+      public func hexists() -> Int { return 1 }
+      """,
+      uri: uri
+    )
+    let response = try await testClient.send(
+      DoccDocumentationRequest(
+        textDocument: TextDocumentIdentifier(uri),
+        position: positions["1️⃣"]
+      )
+    )
+    let renderNodeString = response.renderNode
+    XCTAssertTrue(
+      renderNodeString.contains("0: field does not exist"),
+      "Expected continuation text in render node"
+    )
+    XCTAssertFalse(
+      renderNodeString.contains("\"kind\" : \"content\""),
+      "Continuation lines should not create a separate Discussion section"
+    )
+  }
+
+  func testMultilineReturnsInDocBlockComment() async throws {
+    // Regression test for https://github.com/swiftlang/vscode-swift/issues/2119
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
+      """
+      /**
+       Checks whether a field exists.
+
+       - Returns: One of the following
+           * 1️⃣0: field does not exist
+           * 1: field exists
+       */
+      public func hexists() -> Int { return 1 }
+      """,
+      uri: uri
+    )
+    let response = try await testClient.send(
+      DoccDocumentationRequest(
+        textDocument: TextDocumentIdentifier(uri),
+        position: positions["1️⃣"]
+      )
+    )
+    let renderNodeString = response.renderNode
+    XCTAssertTrue(
+      renderNodeString.contains("0: field does not exist"),
+      "Expected continuation text in render node"
+    )
+    XCTAssertFalse(
+      renderNodeString.contains("\"kind\" : \"content\""),
+      "Continuation lines should not create a separate Discussion section"
+    )
+  }
+
   func testStructure() async throws {
     try await renderDocumentation(
       markedText: """
@@ -550,6 +616,7 @@ final class DoccDocumentationTests: SourceKitLSPTestCase {
       expectedResponses: ["1️⃣": .renderNode(kind: .symbol, containing: "This is an amazing description")]
     )
   }
+
 
   // MARK: Markdown Articles and Extensions
 
