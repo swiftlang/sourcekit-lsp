@@ -176,10 +176,10 @@ final class SwiftCompletionTests: SourceKitLSPTestCase {
     )
 
     let abc = try XCTUnwrap(completions.items.first { $0.label == "abc" })
-    guard case .dictionary(let data) = abc.data else {
-      return XCTFail("Expected completion item data to be a dictionary")
-    }
-    XCTAssertNotNil(data["semanticScore"], "Expected the raw semanticScore to be carried on completion item data")
+    XCTAssertNotNil(
+      abc.sourceKitData?.semanticScore,
+      "Expected the raw semanticScore to be carried on completion item data"
+    )
   }
 
   func testCompletionSnippetSupport() async throws {

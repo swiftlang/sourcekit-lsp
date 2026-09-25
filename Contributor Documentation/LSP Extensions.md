@@ -103,6 +103,23 @@ interface SKCompletionOptions {
 }
 ```
 
+Added field on returned completion items:
+
+The `data` field of a returned `CompletionItem` carries SourceKit-specific metadata. Its client-facing shape is:
+
+```ts
+interface SourceKitCompletionItemData {
+  /**
+   * The semantic score that sourcekitd assigned to this completion (sourcekitd's
+   * `key.semantic_score`), indicating how relevant the completion is in the current context.
+   */
+  semanticScore?: double;
+}
+```
+
+`data` may also contain server-internal fields used to resolve the item in a subsequent
+`completionItem/resolve` request. Clients should ignore any keys they do not recognize.
+
 ## `sourcekit/textDocument/doccDocumentation`
 
 New request that generates documentation for a symbol at a given cursor location.
