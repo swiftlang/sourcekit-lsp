@@ -40,6 +40,7 @@ The specific refactorings available depend on what code is selected or where the
 | **Convert To IfLet Expression** | Select a guard-let statement |
 | **Convert To Switch Statement** | Select an if/else-if chain comparing the same value |
 | **Migrate to shorthand 'if let' syntax** | Cursor on `if let x = x` |
+| **Invert if condition** | Cursor on an `if` statement with a negated condition and an `else` block |
 
 ### Macros
 
