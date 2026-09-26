@@ -45,12 +45,12 @@ struct ConvertIntegerLiteral: SyntaxCodeActionProvider {
       let convertedValue: ExprSyntax =
         "\(raw: radix.literalPrefix)\(raw: String(integerValue, radix: radix.size))"
       let edit = TextEdit(
-        range: scope.snapshot.range(of: integerExpr),
+        range: scope.snapshot.positionRange(of: integerExpr.trimmedRange),
         newText: convertedValue.description
       )
       actions.append(
         CodeAction(
-          title: "Convert \(integerExpr) to \(convertedValue)",
+          title: "Convert \(integerExpr.trimmedDescription) to \(convertedValue)",
           kind: .refactorInline,
           edit: WorkspaceEdit(changes: [scope.snapshot.uri: [edit]])
         )
