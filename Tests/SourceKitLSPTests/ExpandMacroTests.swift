@@ -473,4 +473,63 @@ final class ExpandMacroTests: SourceKitLSPTestCase {
 
     XCTAssertEqual(innerMacroExpansion.content, #"(1 + 2, "1 + 2")"#)
   }
+
+  func testExpandDerivedConformance() async throws {
+    try await SkipUnless.sourcekitdSupportsExpandDerivedConformance()
+
+    let testClient = try await TestSourceKitLSPClient(
+      options: SourceKitLSPOptions.deriveConformancesViaMacros(),
+      capabilities: ClientCapabilities(experimental: [
+        PeekDocumentsRequest.method: ["supported": true],
+        GetReferenceDocumentRequest.method: ["supported": true],
+      ])
+    )
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
+      """
+      struct Point: 1️⃣Equatable {
+        var x: Int
+      }
+      """,
+      uri: uri
+    )
+
+    let response = try await testClient.send(
+      CodeActionRequest(
+        range: Range(positions["1️⃣"]),
+        context: .init(diagnostics: [], only: nil),
+        textDocument: TextDocumentIdentifier(uri)
+      )
+    )
+    guard case .commands(let commands) = response else {
+      XCTFail("Expected commands, got \(String(describing: response))")
+      return
+    }
+    // The raw sourcekitd refactoring must be replaced by `ExpandDerivedConformanceCommand`.
+    let command = try XCTUnwrap(
+      commands.filter { $0.title == "Expand Derived Conformance" }.only,
+      "Expected a single Expand Derived Conformance action, got \(commands.map(\.title))"
+    )
+    XCTAssertEqual(command.command, ExpandDerivedConformanceCommand.identifier)
+
+    let peekDocumentsRequestReceived = self.expectation(description: "PeekDocumentsRequest received")
+    let peekDocumentsRequestURIs = ThreadSafeBox<[DocumentURI]?>(initialValue: nil)
+    testClient.handleSingleRequest { (req: PeekDocumentsRequest) in
+      peekDocumentsRequestURIs.withLock { $0 = req.locations }
+      peekDocumentsRequestReceived.fulfill()
+      return PeekDocumentsResponse(success: true)
+    }
+
+    _ = try await testClient.send(ExecuteCommandRequest(command: command.command, arguments: command.arguments))
+    try await fulfillmentOfOrThrow(peekDocumentsRequestReceived)
+
+    // Goes through `MacroExpansionManager.macroExpansion(for:)`, which has to fall back from
+    // `expand.macro` to `expand.derived_conformance` to find this buffer.
+    let expansionURI = try XCTUnwrap(peekDocumentsRequestURIs.value?.only)
+    let expansion = try await testClient.send(GetReferenceDocumentRequest(uri: expansionURI))
+    XCTAssert(
+      expansion.content.contains("static func __derived_struct_equals(_ lhs: Self, _ rhs: Self) -> Swift::Bool"),
+      "Unexpected expansion: \(expansion.content)"
+    )
+  }
 }
