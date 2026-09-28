@@ -225,6 +225,17 @@ final class SwiftCompletionTests: SourceKitLSPTestCase {
     XCTAssertNotNil(membersData.isSystem, "Expected isSystem on the completion item data")
     XCTAssertNotNil(membersData.hasDiagnostic, "Expected hasDiagnostic on the completion item data")
 
+    // The reply also carries list-level metadata: the base-expression types of the member access and the unfiltered
+    // result count.
+    let listData = try XCTUnwrap(selfDot.listData, "Expected reply-level metadata on the completion list")
+    let memberAccessTypes = try XCTUnwrap(listData.memberAccessTypes, "Expected memberAccessTypes on the completion list")
+    XCTAssertFalse(memberAccessTypes.isEmpty, "Expected a non-empty memberAccessTypes for a member-access completion")
+    let unfilteredResultCount = try XCTUnwrap(
+      listData.unfilteredResultCount,
+      "Expected unfilteredResultCount on the completion list"
+    )
+    XCTAssertGreaterThan(unfilteredResultCount, 0)
+
     // A standard-library member carries its module name and system flag.
     let intDot = try await testClient.send(
       CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
@@ -247,6 +258,7 @@ final class SwiftCompletionTests: SourceKitLSPTestCase {
     let plainData = SourceKitCompletionItemData(fromLSPAny: plainMembers.data)
     XCTAssertNil(plainData?.module, "Did not expect module without the extended-items capability")
     XCTAssertNil(plainData?.annotatedDescription, "Did not expect annotated XML without the capability")
+    XCTAssertNil(plainSelfDot.listData, "Did not expect reply-level metadata without the extended-items capability")
   }
 
   func testCompletionSnippetSupport() async throws {

@@ -306,7 +306,8 @@ class CodeCompletionSession {
       in: snapshot,
       completionPos: self.position,
       requestContext: requestContext,
-      isIncomplete: true
+      isIncomplete: true,
+      listData: extendedCompletionListData(from: dict)
     )
   }
 
@@ -335,7 +336,8 @@ class CodeCompletionSession {
       in: snapshot,
       completionPos: self.position,
       requestContext: requestContext,
-      isIncomplete: true
+      isIncomplete: true,
+      listData: extendedCompletionListData(from: dict)
     )
   }
 
@@ -466,12 +468,26 @@ class CodeCompletionSession {
     return strippedPrefix + formatted.description
   }
 
+  /// Reads the reply-level metadata (member-access types, unfiltered result count) that opted-in clients requested from
+  /// the top-level completion response dictionary. Returns nil — so the field is omitted — for clients that didn't opt
+  /// in to extended completion items.
+  private func extendedCompletionListData(from dict: SKDResponseDictionary) -> SourceKitCompletionListData? {
+    guard clientSupportsExtendedCompletionItems else { return nil }
+    let unfilteredResultCount: Int? = dict[keys.unfilteredResultCount]
+    let memberAccessTypes: [String]? = (dict[keys.memberAccessTypes] as SKDResponseArray?)?.asStringArray
+    return SourceKitCompletionListData(
+      memberAccessTypes: memberAccessTypes,
+      unfilteredResultCount: unfilteredResultCount
+    )
+  }
+
   private func completionsFromSKDResponse(
     _ completions: SKDResponseArray,
     in snapshot: DocumentSnapshot,
     completionPos: Position,
     requestContext: CompletionRequestContext,
-    isIncomplete: Bool
+    isIncomplete: Bool,
+    listData: SourceKitCompletionListData?
   ) async -> CompletionList {
     let sourcekitd = self.sourcekitd
     let keys = sourcekitd.keys
@@ -693,7 +709,7 @@ class CodeCompletionSession {
       }
     }
 
-    return CompletionList(isIncomplete: isIncomplete, items: completionItems)
+    return CompletionList(isIncomplete: isIncomplete, items: completionItems, listData: listData)
   }
 
   private static func resolveDocumentation(
