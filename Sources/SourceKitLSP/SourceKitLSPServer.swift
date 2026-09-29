@@ -135,6 +135,8 @@ package actor SourceKitLSPServer {
   /// the method of the request (ie. the value of `TextDocumentRequest.method`).
   private var inProgressTextDocumentRequests: [DocumentURI: [(id: RequestID, requestMethod: String)]] = [:]
 
+  private var diagnosticsByDocumentAndSource: [DocumentURI: [DiagnosticsSource: [Diagnostic]]] = [:]
+
   var onExit: () -> Void
 
   /// The files that we asked the client to watch.
@@ -392,7 +394,8 @@ package actor SourceKitLSPServer {
       @Sendable @escaping (
         RequestType, Workspace, any LanguageService
       ) async throws ->
-      RequestType.Response
+      RequestType.Response?,
+    combine: (@Sendable ([RequestType.Response]) -> RequestType.Response)? = nil
   ) async {
     await request.reply {
       let request = request.params
@@ -404,15 +407,46 @@ package actor SourceKitLSPServer {
       if languageServices.isEmpty {
         throw ResponseError.unknown("No language service for '\(request.textDocument.uri)' found")
       }
-      // Return the results from the first language service that doesn't throw a `requestNotImplemented` error.
-      for languageService in languageServices {
-        do {
-          return try await requestHandler(request, workspace, languageService)
-        } catch let error as ResponseError where error.code == .requestNotImplemented {
-          continue
+
+      guard let combine else {
+        // No `combine` supplied: first language service to answer wins, race them.
+        return try await withThrowingTaskGroup(of: RequestType.Response?.self) { group in
+          for languageService in languageServices {
+            group.addTask {
+              do {
+                return try await requestHandler(request, workspace, languageService)
+              } catch let error as ResponseError where error.code == .requestNotImplemented {
+                return nil
+              }
+            }
+          }
+          for try await response in group {
+            if let response { return response }
+          }
+          throw ResponseError.unknown("No language service implements \(type(of: request).method)")
         }
       }
-      throw ResponseError.unknown("No language service implements \(type(of: request).method)")
+
+      let responses = try await withThrowingTaskGroup(of: RequestType.Response?.self) { group in
+        for languageService in languageServices {
+          group.addTask {
+            do {
+              return try await requestHandler(request, workspace, languageService)
+            } catch let error as ResponseError where error.code == .requestNotImplemented {
+              return nil
+            }
+          }
+        }
+        var results: [RequestType.Response] = []
+        for try await response in group {
+          if let response { results.append(response) }
+        }
+        return results
+      }
+      guard !responses.isEmpty else {
+        throw ResponseError.unknown("No language service implements \(type(of: request).method)")
+      }
+      return combine(responses)
     }
   }
 
@@ -424,6 +458,25 @@ package actor SourceKitLSPServer {
   /// Send the given request to the editor.
   package func sendRequestToClient<R: RequestType>(_ request: R) async throws -> R.Response {
     return try await client.send(request)
+  }
+
+  package func publishDiagnostics(
+    _ diagnostics: [Diagnostic],
+    for uri: DocumentURI,
+    from source: DiagnosticsSource
+  ) {
+    diagnosticsByDocumentAndSource[uri, default: [:]][source] = diagnostics
+    let merged = diagnosticsByDocumentAndSource[uri]?.values.flatMap { $0 } ?? []
+    sendNotificationToClient(PublishDiagnosticsNotification(uri: uri, diagnostics: merged))
+  }
+
+  package func clearDiagnostics(for uri: DocumentURI, from source: DiagnosticsSource) {
+    guard diagnosticsByDocumentAndSource[uri]?.removeValue(forKey: source) != nil else { return }
+    let merged = diagnosticsByDocumentAndSource[uri]?.values.flatMap { $0 } ?? []
+    sendNotificationToClient(PublishDiagnosticsNotification(uri: uri, diagnostics: merged))
+    if diagnosticsByDocumentAndSource[uri]?.isEmpty == true {
+      diagnosticsByDocumentAndSource[uri] = nil
+    }
   }
 
   /// After the language service has crashed, send `DidOpenTextDocumentNotification`s to a newly instantiated language service for previously open documents.
@@ -658,10 +711,25 @@ extension SourceKitLSPServer: QueueBasedMessageHandler {
       await self.handleRequest(for: request, requestHandler: self.typeDefinition)
     case let request as RequestAndReply<DoccDocumentationRequest>:
       await self.handleRequest(for: request, requestHandler: self.doccDocumentation)
+    case let request as RequestAndReply<DocCSymbolLinkDefinitionRequest>:
+      await self.handleRequest(for: request, requestHandler: self.doccSymbolLinkDefinition)
     case let request as RequestAndReply<DocumentColorRequest>:
       await self.handleRequest(for: request, requestHandler: self.documentColor)
     case let request as RequestAndReply<DocumentDiagnosticsRequest>:
-      await self.handleRequest(for: request, requestHandler: self.documentDiagnostic)
+      await self.handleRequest(
+        for: request,
+        requestHandler: self.documentDiagnostic,
+        combine: { responses in
+          .full(
+            RelatedFullDocumentDiagnosticReport(
+              items: responses.flatMap { report -> [Diagnostic] in
+                guard case .full(let full) = report else { return [] }
+                return full.items
+              }
+            )
+          )
+        }
+      )
     case let request as RequestAndReply<DocumentFormattingRequest>:
       await self.handleRequest(for: request, requestHandler: self.documentFormatting)
     case let request as RequestAndReply<DocumentRangeFormattingRequest>:
@@ -1024,6 +1092,7 @@ extension SourceKitLSPServer {
     addCapabilities(WorkspaceTestsRefreshRequest.method, ["version": 1])
     addCapabilities(DocumentTestsRequest.method, ["version": 2])
     addCapabilities(DoccDocumentationRequest.method, ["version": 1])
+    addCapabilities(DocCSymbolLinkDefinitionRequest.method, ["version": 1])
     addCapabilities(TriggerReindexRequest.method, ["version": 1])
     addCapabilities(GetReferenceDocumentRequest.method, ["version": 1])
     addCapabilities(DidChangeActiveDocumentNotification.method, ["version": 1])
@@ -1550,6 +1619,14 @@ extension SourceKitLSPServer {
     return try await languageService.doccDocumentation(req)
   }
 
+  func doccSymbolLinkDefinition(
+    _ req: DocCSymbolLinkDefinitionRequest,
+    workspace: Workspace,
+    languageService: any LanguageService
+  ) async throws -> LocationsOrLocationLinksResponse? {
+    return try await languageService.symbolLinkDefinitionInPreview(req)
+  }
+
   func hover(
     _ req: HoverRequest,
     workspace: Workspace,
@@ -1966,7 +2043,13 @@ extension SourceKitLSPServer {
     workspace: Workspace,
     languageService: any LanguageService
   ) async throws -> LocationsOrLocationLinksResponse? {
-    let indexBasedResponse = try await indexBasedDefinition(req, workspace: workspace, languageService: languageService)
+    var indexBasedResponse: [Location] = []
+    do {
+      indexBasedResponse = try await indexBasedDefinition(req, workspace: workspace, languageService: languageService)
+    } catch {
+      logger.info("indexBasedDefinition failed: \(error.forLogging)")
+      indexBasedResponse = []
+    }
     let copiedFileMap = await workspace.buildServerManager.cachedCopiedFileMap
     // If we're unable to handle the definition request using our index, see if the
     // language service can handle it (e.g. clangd can provide AST based definitions).
@@ -1975,11 +2058,18 @@ extension SourceKitLSPServer {
     // `SwiftLanguageService` will always respond with `unsupported method`. Thus, only log such a failure instead of
     // returning it to the client.
     if indexBasedResponse.isEmpty {
-      return await orLog("Fallback definition request", level: .info) {
+      do {
         let result = try await languageService.definition(req)
         return result?.adjusted(for: copiedFileMap)
+      } catch let error as ResponseError where error.code == .requestNotImplemented {
+        // Signal to handleRequest's loop to try the next language service
+        throw error
+      } catch {
+        logger.info("Fallback definition request failed: \(error.forLogging)")
+        return nil
       }
     }
+
     let remappedLocations = indexBasedResponse.adjusted(for: copiedFileMap)
     return .locations(remappedLocations)
   }
@@ -2586,6 +2676,11 @@ extension SourceKitLSPServer {
 }
 
 package typealias Diagnostic = LanguageServerProtocol.Diagnostic
+
+package enum DiagnosticsSource: Hashable, Sendable {
+  case swift
+  case documentation
+}
 
 fileprivate extension CheckedIndex {
   /// Take the name of containers into account to form a fully-qualified name for the given symbol.
