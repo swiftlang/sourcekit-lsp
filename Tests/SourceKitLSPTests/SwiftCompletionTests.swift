@@ -228,7 +228,10 @@ final class SwiftCompletionTests: SourceKitLSPTestCase {
     // The reply also carries list-level metadata: the base-expression types of the member access and the unfiltered
     // result count.
     let listData = try XCTUnwrap(selfDot.listData, "Expected reply-level metadata on the completion list")
-    let memberAccessTypes = try XCTUnwrap(listData.memberAccessTypes, "Expected memberAccessTypes on the completion list")
+    let memberAccessTypes = try XCTUnwrap(
+      listData.memberAccessTypes,
+      "Expected memberAccessTypes on the completion list"
+    )
     XCTAssertFalse(memberAccessTypes.isEmpty, "Expected a non-empty memberAccessTypes for a member-access completion")
     let unfilteredResultCount = try XCTUnwrap(
       listData.unfilteredResultCount,
@@ -1571,7 +1574,8 @@ final class SwiftCompletionTests: SourceKitLSPTestCase {
             )
           )
         )
-      )
+      ),
+      experimental: ["sourcekit-lsp.completion.extendedItems": ["supported": true]]
     )
 
     let testClient = try await TestSourceKitLSPClient(capabilities: capabilities)
@@ -1598,6 +1602,65 @@ final class SwiftCompletionTests: SourceKitLSPTestCase {
       documentation: resolvedItem.documentation,
       expected: "Creates a true value"
     )
+
+    // For an opted-in client, resolve also surfaces the extended metadata on the item's data.
+    let resolvedData = try XCTUnwrap(
+      SourceKitCompletionItemData(fromLSPAny: resolvedItem.data),
+      "Expected extended completion metadata on the resolved item"
+    )
+    XCTAssertEqual(resolvedData.docBrief, "Creates a true value")
+    let docFullAsXML = try XCTUnwrap(resolvedData.docFullAsXML, "Expected doc-comment XML on the resolved item")
+    XCTAssertTrue(docFullAsXML.contains("Creates a true value"), "Unexpected doc XML: \(docFullAsXML)")
+    let associatedUSRs = try XCTUnwrap(resolvedData.associatedUSRs, "Expected associated USRs on the resolved item")
+    XCTAssertTrue(
+      associatedUSRs.contains { $0.contains("makeBool") },
+      "Expected a USR for makeBool, got: \(associatedUSRs)"
+    )
+  }
+
+  func testCompletionItemResolveDiagnostic() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
+    try await SkipUnless.sourcekitdSupportsFullDocumentationInCompletion()
+
+    let capabilities = ClientCapabilities(
+      textDocument: TextDocumentClientCapabilities(
+        completion: TextDocumentClientCapabilities.Completion(
+          completionItem: TextDocumentClientCapabilities.Completion.CompletionItem(
+            resolveSupport: TextDocumentClientCapabilities.Completion.CompletionItem.ResolveSupportProperties(
+              properties: ["documentation"]
+            )
+          )
+        )
+      ),
+      experimental: ["sourcekit-lsp.completion.extendedItems": ["supported": true]]
+    )
+
+    let testClient = try await TestSourceKitLSPClient(capabilities: capabilities)
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
+      """
+      struct S {
+        @available(*, deprecated)
+        func deprecatedF() {}
+        func test() {
+          self.1️⃣
+        }
+      }
+      """,
+      uri: uri
+    )
+    let completions = try await testClient.send(
+      CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+    let item = try XCTUnwrap(completions.items.first { $0.label.contains("deprecatedF") })
+    let itemData = try XCTUnwrap(SourceKitCompletionItemData(fromLSPAny: item.data))
+    XCTAssertEqual(itemData.hasDiagnostic, true)
+
+    let resolvedItem = try await testClient.send(CompletionItemResolveRequest(item: item))
+    let resolvedData = try XCTUnwrap(SourceKitCompletionItemData(fromLSPAny: resolvedItem.data))
+    let diagnostic = try XCTUnwrap(resolvedData.diagnostic, "Expected a diagnostic on the resolved deprecated item")
+    XCTAssertEqual(diagnostic.severity, .warning)
+    XCTAssertEqual(diagnostic.message, "'deprecatedF()' is deprecated")
   }
 
   func testCompletionBriefDocumentationFallback() async throws {

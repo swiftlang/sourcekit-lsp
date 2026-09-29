@@ -189,7 +189,8 @@ class CodeCompletionSession {
 
   static func completionItemResolve(
     item: CompletionItem,
-    sourcekitd: SourceKitD
+    sourcekitd: SourceKitD,
+    clientSupportsExtendedCompletionItems: Bool
   ) async throws -> CompletionItem {
     guard let data = CompletionItemData(fromLSPAny: item.data) else {
       return item
@@ -202,7 +203,8 @@ class CodeCompletionSession {
         in: item,
         timeout: session.options.sourcekitdRequestTimeoutOrDefault,
         restartTimeout: session.options.semanticServiceRestartTimeoutOrDefault,
-        sourcekitd: sourcekitd
+        sourcekitd: sourcekitd,
+        includeExtendedMetadata: clientSupportsExtendedCompletionItems
       )
     }
     return try await task.valuePropagatingCancellation
@@ -704,7 +706,8 @@ class CodeCompletionSession {
           in: item,
           timeout: .seconds(1),
           restartTimeout: semanticServiceRestartTimeoutOrDefault,
-          sourcekitd: sourcekitd
+          sourcekitd: sourcekitd,
+          includeExtendedMetadata: false
         )
       }
     }
@@ -716,31 +719,104 @@ class CodeCompletionSession {
     in item: CompletionItem,
     timeout: Duration,
     restartTimeout: Duration,
-    sourcekitd: SourceKitD
+    sourcekitd: SourceKitD,
+    includeExtendedMetadata: Bool
   ) async -> CompletionItem {
     var item = item
-    if let itemId = CompletionItemData(fromLSPAny: item.data)?.itemId {
-      let req = sourcekitd.dictionary([
-        sourcekitd.keys.identifier: itemId
-      ])
-      let documentationResponse = await orLog("Retrieving documentation for completion item") {
-        try await sourcekitd.send(
-          \.codeCompleteDocumentation,
-          req,
-          timeout: timeout,
-          restartTimeout: restartTimeout,
-          documentUrl: nil,
-          fileContents: nil
-        )
-      }
-
-      if let response = documentationResponse,
-        let docString = documentationString(from: response, sourcekitd: sourcekitd)
-      {
-        item.documentation = .markupContent(MarkupContent(kind: .markdown, value: docString))
-      }
+    guard let itemId = CompletionItemData(fromLSPAny: item.data)?.itemId else {
+      return item
     }
+    let keys = sourcekitd.keys
+    let req = sourcekitd.dictionary([
+      keys.identifier: itemId
+    ])
+    let documentationResponse = await orLog("Retrieving documentation for completion item") {
+      try await sourcekitd.send(
+        \.codeCompleteDocumentation,
+        req,
+        timeout: timeout,
+        restartTimeout: restartTimeout,
+        documentUrl: nil,
+        fileContents: nil
+      )
+    }
+
+    guard let response = documentationResponse else {
+      return item
+    }
+
+    if let docString = documentationString(from: response, sourcekitd: sourcekitd) {
+      item.documentation = .markupContent(MarkupContent(kind: .markdown, value: docString))
+    }
+
+    guard includeExtendedMetadata else {
+      return item
+    }
+
+    // Surface the extended per-item metadata that opted-in clients requested, merged flat onto
+    // `CompletionItem.data` next to the metadata already produced at completion time.
+    var sourcekitData = SourceKitCompletionItemData(fromLSPAny: item.data) ?? SourceKitCompletionItemData()
+    sourcekitData.docBrief = response[keys.docBrief]
+    sourcekitData.docFullAsXML = response[keys.docFullAsXML]
+    sourcekitData.associatedUSRs = (response[keys.associatedUSRs] as SKDResponseArray?)?.asStringArray
+
+    if sourcekitData.hasDiagnostic == true {
+      sourcekitData.diagnostic = await resolveDiagnostic(
+        itemId: itemId,
+        timeout: timeout,
+        restartTimeout: restartTimeout,
+        sourcekitd: sourcekitd
+      )
+    }
+
+    item.data = mergedCompletionItemData(item.data ?? .null, sourcekitData.encodeToLSPAny())
     return item
+  }
+
+  private static func resolveDiagnostic(
+    itemId: Int,
+    timeout: Duration,
+    restartTimeout: Duration,
+    sourcekitd: SourceKitD
+  ) async -> SourceKitCompletionItemData.Diagnostic? {
+    let keys = sourcekitd.keys
+    let req = sourcekitd.dictionary([
+      keys.identifier: itemId
+    ])
+    let response = await orLog("Retrieving diagnostic for completion item") {
+      try await sourcekitd.send(
+        \.codeCompleteDiagnostic,
+        req,
+        timeout: timeout,
+        restartTimeout: restartTimeout,
+        documentUrl: nil,
+        fileContents: nil
+      )
+    }
+    guard let response, let message: String = response[keys.description] else {
+      return nil
+    }
+    return SourceKitCompletionItemData.Diagnostic(
+      severity: completionDiagnosticSeverity(from: response, sourcekitd: sourcekitd),
+      message: message
+    )
+  }
+
+  private static func completionDiagnosticSeverity(
+    from response: SKDResponseDictionary,
+    sourcekitd: SourceKitD
+  ) -> DiagnosticSeverity? {
+    guard let uid: sourcekitd_api_uid_t = response[sourcekitd.keys.severity] else {
+      return nil
+    }
+    let values = sourcekitd.values
+    switch uid {
+    case values.diagError: return .error
+    case values.diagWarning: return .warning
+    case values.diagNote: return .information
+    case values.diagRemark: return .hint
+    default: return nil
+    }
   }
 
   private static func documentationString(from response: SKDResponseDictionary, sourcekitd: SourceKitD) -> String? {
