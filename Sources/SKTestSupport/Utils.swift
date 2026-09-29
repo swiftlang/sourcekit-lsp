@@ -112,7 +112,7 @@ package func withTestScratchDir<T>(
   return try await body(scratchDirectory)
 }
 
-var globalModuleCache: URL? {
+private var testModuleCacheRoot: URL? {
   get throws {
     if let customModuleCache = ProcessInfo.processInfo.environment["SOURCEKIT_LSP_TEST_MODULE_CACHE"] {
       if customModuleCache.isEmpty {
@@ -121,6 +121,10 @@ var globalModuleCache: URL? {
       return URL(fileURLWithPath: customModuleCache)
     }
     return try FileManager.default.temporaryDirectory.realpath
-      .appending(components: "sourcekit-lsp-test-scratch", "shared-module-cache")
+      .appending(components: "sourcekit-lsp-test-scratch", "module-caches")
   }
+}
+
+func uniqueTestModuleCache() throws -> URL? {
+  return try testModuleCacheRoot?.appending(component: UUID().uuidString, directoryHint: .isDirectory)
 }

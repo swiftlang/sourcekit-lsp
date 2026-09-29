@@ -264,9 +264,15 @@ package class SwiftPMTestProject: MultiFileTestProject {
         "-Xcc", "-index-ignore-system-symbols",
         "--build-system", resolvedBuildSystem.rawValue,
       ] + extraArguments
-    if let globalModuleCache = try globalModuleCache {
+    let moduleCache = try uniqueTestModuleCache()
+    defer {
+      if let moduleCache, cleanScratchDirectories {
+        try? FileManager.default.removeItem(at: moduleCache)
+      }
+    }
+    if let moduleCache {
       arguments += [
-        "-Xswiftc", "-module-cache-path", "-Xswiftc", try globalModuleCache.filePath,
+        "-Xswiftc", "-module-cache-path", "-Xswiftc", try moduleCache.filePath,
       ]
     }
     let argumentsCopy = arguments
