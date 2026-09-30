@@ -505,7 +505,7 @@ final class ExpandMacroTests: SourceKitLSPTestCase {
       XCTFail("Expected commands, got \(String(describing: response))")
       return
     }
-    // The raw sourcekitd refactoring must be replaced by `ExpandDerivedConformanceCommand`.
+    // The peekable expansion is `ExpandDerivedConformanceCommand`, not sourcekitd's refactoring, which inlines.
     let command = try XCTUnwrap(
       commands.filter { $0.title == "Expand Derived Conformance" }.only,
       "Expected a single Expand Derived Conformance action, got \(commands.map(\.title))"
@@ -561,8 +561,57 @@ final class ExpandMacroTests: SourceKitLSPTestCase {
       return
     }
     XCTAssertFalse(
-      commands.contains { $0.title == "Expand Derived Conformance" },
+      commands.contains { ["Expand Derived Conformance", "Inline Derived Conformance"].contains($0.title) },
       "Got \(commands.map(\.title))"
+    )
+  }
+
+  func testInlineDerivedConformance() async throws {
+    try await SkipUnless.sourcekitdSupportsExpandDerivedConformance()
+
+    let testClient = try await TestSourceKitLSPClient(options: SourceKitLSPOptions.deriveConformancesViaMacros())
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
+      """
+      struct Point: 1️⃣Equatable {2️⃣
+        var x: Int
+      }
+      """,
+      uri: uri
+    )
+
+    let response = try await testClient.send(
+      CodeActionRequest(
+        range: Range(positions["1️⃣"]),
+        context: .init(diagnostics: [], only: nil),
+        textDocument: TextDocumentIdentifier(uri)
+      )
+    )
+    guard case .commands(let commands) = response else {
+      XCTFail("Expected commands, got \(String(describing: response))")
+      return
+    }
+    let command = try XCTUnwrap(
+      commands.filter { $0.title == "Inline Derived Conformance" }.only,
+      "Expected a single Inline Derived Conformance action, got \(commands.map(\.title))"
+    )
+
+    let applyEditReceived = self.expectation(description: "ApplyEditRequest received")
+    let applyEditWorkspaceEdit = ThreadSafeBox<WorkspaceEdit?>(initialValue: nil)
+    testClient.handleSingleRequest { (req: ApplyEditRequest) -> ApplyEditResponse in
+      applyEditWorkspaceEdit.withLock { $0 = req.edit }
+      applyEditReceived.fulfill()
+      return ApplyEditResponse(applied: true, failureReason: nil)
+    }
+
+    _ = try await testClient.send(ExecuteCommandRequest(command: command.command, arguments: command.arguments))
+    try await fulfillmentOfOrThrow(applyEditReceived)
+
+    let edit = try XCTUnwrap(applyEditWorkspaceEdit.value?.changes?[uri]?.only)
+    XCTAssertEqual(edit.range, Range(positions["2️⃣"]))
+    XCTAssert(
+      edit.newText.contains("static func __derived_struct_equals(_ lhs: Self, _ rhs: Self) -> Swift::Bool"),
+      "Unexpected edit: \(edit.newText)"
     )
   }
 }

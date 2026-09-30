@@ -1075,7 +1075,11 @@ extension SwiftLanguageService {
       }
       if action.actionString == ExpandDerivedConformanceCommand.actionString {
         canExpandDerivedConformance = true
-        return nil
+        // sourcekitd's refactoring inserts the witnesses into the source, so offer it as an inline refactoring. The
+        // peekable expansion is offered separately as `ExpandDerivedConformanceCommand`.
+        var inlineAction = action
+        inlineAction.title = "Inline Derived Conformance"
+        return CodeAction(title: inlineAction.title, kind: .refactorInline, command: inlineAction.asCommand())
       }
 
       return CodeAction(title: action.title, kind: action.lspKind, command: action.asCommand())
