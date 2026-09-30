@@ -532,4 +532,37 @@ final class ExpandMacroTests: SourceKitLSPTestCase {
       "Unexpected expansion: \(expansion.content)"
     )
   }
+
+  func testExpandDerivedConformanceNotOfferedWithoutFeatureFlag() async throws {
+    try await SkipUnless.sourcekitdSupportsExpandDerivedConformance()
+
+    let testClient = try await TestSourceKitLSPClient(
+      options: SourceKitLSPOptions.deriveConformancesViaMacros(enabled: false)
+    )
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
+      """
+      struct Point: 1️⃣Equatable {
+        var x: Int
+      }
+      """,
+      uri: uri
+    )
+
+    let response = try await testClient.send(
+      CodeActionRequest(
+        range: Range(positions["1️⃣"]),
+        context: .init(diagnostics: [], only: nil),
+        textDocument: TextDocumentIdentifier(uri)
+      )
+    )
+    guard case .commands(let commands) = response else {
+      XCTFail("Expected commands, got \(String(describing: response))")
+      return
+    }
+    XCTAssertFalse(
+      commands.contains { $0.title == "Expand Derived Conformance" },
+      "Got \(commands.map(\.title))"
+    )
+  }
 }

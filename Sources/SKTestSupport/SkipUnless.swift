@@ -537,17 +537,18 @@ private struct GenericError: Error, CustomStringConvertible {
 }
 
 extension SourceKitLSPOptions {
-  /// Test options whose fallback build settings derive conformances via macros.
+  /// Test options whose fallback build settings derive conformances via macros if `enabled` is `true`.
   ///
   /// The fallback build settings don't go through the driver, so they need the toolchain's host plugins, which contain
   /// the derivation macros, to be passed explicitly.
-  package static func deriveConformancesViaMacros() async throws -> SourceKitLSPOptions {
+  package static func deriveConformancesViaMacros(enabled: Bool = true) async throws -> SourceKitLSPOptions {
     let toolchain = try await unwrap(ToolchainRegistry.forTesting.default)
     var options = try await SourceKitLSPOptions.testDefault()
-    options.fallbackBuildSystemOrDefault.swiftCompilerFlags = [
-      "-enable-experimental-feature", "DeriveConformancesViaMacros",
-      "-plugin-path", try toolchain.path.appending(components: "lib", "swift", "host", "plugins").filePath,
-    ]
+    var flags = ["-plugin-path", try toolchain.path.appending(components: "lib", "swift", "host", "plugins").filePath]
+    if enabled {
+      flags += ["-enable-experimental-feature", "DeriveConformancesViaMacros"]
+    }
+    options.fallbackBuildSystemOrDefault.swiftCompilerFlags = flags
     return options
   }
 }
