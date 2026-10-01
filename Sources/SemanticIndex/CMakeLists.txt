@@ -13,11 +13,15 @@ set_target_properties(SemanticIndex PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Swift_MODULE_DIRECTORY})
 target_link_libraries(SemanticIndex PRIVATE
   BuildServerIntegration
+  SwiftToolsProtocols::BuildServerProtocol
+  LanguageServerProtocolExtensions
   SwiftToolsProtocols::LanguageServerProtocol
   SwiftToolsProtocols::SKLogging
+  SKOptions
   SwiftExtensions
   SwiftToolsProtocols::ToolsProtocolsSwiftExtensions
   ToolchainRegistry
+  TSCBasic
   TSCExtensions
   IndexStoreDB
   $<$<NOT:$<PLATFORM_ID:Darwin>>:Foundation>)
