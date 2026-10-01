@@ -1100,7 +1100,8 @@ package actor BuildServerManager: QueueBasedMessageHandler {
         for: document,
         in: target,
         language: language,
-        fallbackAfterTimeout: false
+        fallbackAfterTimeout: false,
+        purpose: .editor
       )
     else {
       return nil
@@ -1133,7 +1134,8 @@ package actor BuildServerManager: QueueBasedMessageHandler {
   private func buildSettingsFromBuildServer(
     for document: DocumentURI,
     in target: BuildTargetIdentifier,
-    language: Language
+    language: Language,
+    purpose: SourceKitOptionsPurpose
   ) async throws -> FileBuildSettings? {
     guard let buildServerAdapter = try await buildServerAdapterAfterInitialized else {
       return nil
@@ -1141,8 +1143,11 @@ package actor BuildServerManager: QueueBasedMessageHandler {
     let request = TextDocumentSourceKitOptionsRequest(
       textDocument: TextDocumentIdentifier(document),
       target: target,
-      language: language
+      language: language,
+      purpose: purpose
     )
+    // `purpose` is part of the request, so editor and index requests occupy separate cache entries: the index entry is
+    // computed after preparation (picking up the explicit-modules sidecar) without sharing the editor's stale entry.
     let response = try await cachedAdjustedSourceKitOptions.get(request, isolation: self) { request in
       let options = try await buildServerAdapter.send(request)
       switch language.semanticKind {
@@ -1176,21 +1181,31 @@ package actor BuildServerManager: QueueBasedMessageHandler {
   ///
   /// If `fallbackAfterTimeout` is true fallback build settings will be returned if no build settings can be found in
   /// `SourceKitLSPOptions.buildSettingsTimeoutOrDefault`.
+  ///
+  /// `purpose` tells the build server whether the settings drive live editor functionality or a background index build;
+  /// indexing passes `.index` so it receives index-tailored settings (and a separate cache entry) after preparation. It
+  /// has no default so every caller states its purpose explicitly.
   package func buildSettings(
     for document: DocumentURI,
     in target: BuildTargetIdentifier,
     language: Language,
-    fallbackAfterTimeout: Bool
+    fallbackAfterTimeout: Bool,
+    purpose: SourceKitOptionsPurpose
   ) async -> FileBuildSettings? {
     let buildSettingsFromBuildServer = await orLog("Getting build settings") {
       if fallbackAfterTimeout {
         try await withTimeout(options.buildSettingsTimeoutOrDefault) {
-          return try await self.buildSettingsFromBuildServer(for: document, in: target, language: language)
+          return try await self.buildSettingsFromBuildServer(
+            for: document,
+            in: target,
+            language: language,
+            purpose: purpose
+          )
         } resultReceivedAfterTimeout: { _ in
           await self.filesBuildSettingsChangedDebouncer.scheduleCall([document])
         }
       } else {
-        try await self.buildSettingsFromBuildServer(for: document, in: target, language: language)
+        try await self.buildSettingsFromBuildServer(for: document, in: target, language: language, purpose: purpose)
       }
     }
     guard let buildSettingsFromBuildServer else {
@@ -1360,7 +1375,8 @@ package actor BuildServerManager: QueueBasedMessageHandler {
             for: mainFile,
             in: target,
             language: languageForFile,
-            fallbackAfterTimeout: fallbackAfterTimeout
+            fallbackAfterTimeout: fallbackAfterTimeout,
+            purpose: .editor
           )
         case .result(nil):
           if allowInferenceFromRelatedFile {
