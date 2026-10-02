@@ -237,4 +237,208 @@ final class WorkspaceSymbolInfoTests: XCTestCase {
       )
     }
   }
+
+  // MARK: - Member names of a container
+
+  func testMemberNamesOfContainerAreQualified() async throws {
+    let project = try await IndexedSingleSwiftFileTestProject(
+      """
+      struct Outer {
+        struct Container {
+          func inner() {}
+        }
+      }
+      struct Container {
+        func topLevel() {}
+      }
+      """
+    )
+
+    let response = try await project.testClient.send(WorkspaceSymbolNamesRequest(containerName: "Container"))
+
+    // `Container` matches the chain of both containers as a suffix, so the names disambiguate them.
+    assertContains(response.names, "Outer.Container.inner()")
+    assertContains(response.names, "Container.topLevel()")
+    // The containers themselves are not members of themselves.
+    XCTAssertFalse(response.names.contains("Container"))
+    XCTAssertFalse(response.names.contains("Outer.Container"))
+  }
+
+  func testMemberNamesOfContainerChain() async throws {
+    let project = try await IndexedSingleSwiftFileTestProject(
+      """
+      struct Outer {
+        struct Container {
+          func inner() {}
+        }
+      }
+      struct Container {
+        func topLevel() {}
+      }
+      """
+    )
+
+    let response = try await project.testClient.send(
+      WorkspaceSymbolNamesRequest(containerName: "Outer.Container")
+    )
+
+    // Naming the enclosing container as well excludes the top-level `Container`. The implicit
+    // initializer is a member like any other.
+    XCTAssertEqual(response.names, ["Outer.Container.init()", "Outer.Container.inner()"])
+  }
+
+  func testMemberNamesIncludeMembersDeclaredInExtensions() async throws {
+    let project = try await IndexedSingleSwiftFileTestProject(
+      """
+      struct Container {
+        func declared() {}
+      }
+      extension Container {
+        func inExtension() {}
+      }
+      """
+    )
+
+    let response = try await project.testClient.send(WorkspaceSymbolNamesRequest(containerName: "Container"))
+
+    assertContains(response.names, "Container.declared()")
+    assertContains(response.names, "Container.inExtension()")
+  }
+
+  func testMemberNamesOfContainerMatchesCaseInsensitively() async throws {
+    let project = try await IndexedSingleSwiftFileTestProject(
+      """
+      struct Container {
+        func member() {}
+      }
+      """
+    )
+
+    let response = try await project.testClient.send(WorkspaceSymbolNamesRequest(containerName: "container"))
+
+    XCTAssertEqual(response.names, ["Container.init()", "Container.member()"])
+  }
+
+  func testMemberNamesOfUnresolvableContainerIsEmpty() async throws {
+    let project = try await IndexedSingleSwiftFileTestProject(
+      """
+      struct Container {
+        func member() {}
+      }
+      """
+    )
+
+    for containerName in ["NoSuchContainer", "", "Container.", ".Container", "Outer..Container"] {
+      let response = try await project.testClient.send(
+        WorkspaceSymbolNamesRequest(containerName: containerName)
+      )
+      XCTAssertEqual(response.names, [], "Expected no names for container name '\(containerName)'")
+    }
+  }
+
+  func testMemberNamesWithoutContainerNameReturnsWorkspaceNames() async throws {
+    let project = try await IndexedSingleSwiftFileTestProject(
+      """
+      struct Container {
+        func member() {}
+      }
+      public func topLevelFunction() {}
+      """
+    )
+
+    let response = try await project.testClient.send(WorkspaceSymbolNamesRequest())
+
+    // Names are bare in this mode, and the container itself is included.
+    assertContains(response.names, "Container")
+    assertContains(response.names, "member()")
+    assertContains(response.names, "topLevelFunction()")
+  }
+
+  // MARK: - Qualified names in workspace/symbolInfo
+
+  func testMemberNamesRoundTripThroughSymbolInfo() async throws {
+    let project = try await IndexedSingleSwiftFileTestProject(
+      """
+      struct Outer {
+        struct Container {
+          func inner() {}
+        }
+      }
+      struct Container {
+        func inner() {}
+      }
+      """
+    )
+
+    let names = try await project.testClient.send(
+      WorkspaceSymbolNamesRequest(containerName: "Container")
+    ).names
+
+    for name in names {
+      let response = try await project.testClient.send(WorkspaceSymbolInfoRequest(names: [name]))
+      XCTAssertEqual(
+        response.results.count,
+        1,
+        "Expected '\(name)' to resolve to exactly one symbol, got \(response.results)"
+      )
+      let returnedNames = response.results.map { item in
+        switch item {
+        case .symbolInformation(let info): info.name
+        case .workspaceSymbol(let symbol): symbol.name
+        }
+      }
+      XCTAssertEqual(returnedNames, [name], "Expected the item for '\(name)' to be labelled with the name as requested")
+    }
+  }
+
+  func testQualifiedNameDoesNotMatchMoreDeeplyNestedContainer() async throws {
+    let project = try await IndexedSingleSwiftFileTestProject(
+      """
+      struct Outer {
+        struct Container {
+          func inner() {}
+        }
+      }
+      """
+    )
+
+    // `Container.inner()` names a top-level `Container`, which doesn't exist here.
+    let response = try await project.testClient.send(
+      WorkspaceSymbolInfoRequest(names: ["Container.inner()"])
+    )
+    XCTAssertEqual(response.results, [])
+
+    let qualified = try await project.testClient.send(
+      WorkspaceSymbolInfoRequest(names: ["Outer.Container.inner()"])
+    )
+    XCTAssertEqual(qualified.results.count, 1)
+  }
+
+  func testQualifiedNameIsMatchedCaseSensitively() async throws {
+    let project = try await IndexedSingleSwiftFileTestProject(
+      """
+      struct Container {
+        func member() {}
+      }
+      """
+    )
+
+    let response = try await project.testClient.send(
+      WorkspaceSymbolInfoRequest(names: ["container.member()"])
+    )
+    XCTAssertEqual(response.results, [])
+  }
+
+  func testBareNamesStillResolve() async throws {
+    let project = try await IndexedSingleSwiftFileTestProject(
+      """
+      struct Container {
+        func member() {}
+      }
+      """
+    )
+
+    let response = try await project.testClient.send(WorkspaceSymbolInfoRequest(names: ["member()"]))
+    XCTAssertEqual(response.results.count, 1)
+  }
 }

@@ -410,6 +410,8 @@ For each name the response contains zero or more `WorkspaceSymbolItem` values:
 
 Every requested name is present in the response as a flat array; items carry their name in the `name` field of the `SymbolInformation` or `WorkspaceSymbol`.
 
+A name containing `.` or `::`, such as one returned by `sourcekit/workspace/symbolNames` with a `containerName`, is resolved as a qualified name. It must spell every enclosing container and is compared case-sensitively and with the separator it was written with, so `Container.init(_:)` does not resolve to `Outer.Container.init(_:)` and `Foo::bar` does not resolve to a Swift `Foo.bar`. The items for a qualified name carry the qualified name in their `name` field.
+
 > [!IMPORTANT]
 > This request is experimental and may be modified or removed in future versions of SourceKit-LSP without notice. Do not rely on it.
 
@@ -419,7 +421,7 @@ Every requested name is present in the response as a flat array; items carry the
 ```ts
 export interface WorkspaceSymbolInfoParams {
   /**
-   * Symbol names to resolve.
+   * Symbol names to resolve. A name containing `.` or `::` is resolved as a fully-qualified name.
    */
   names: string[];
 }
@@ -456,6 +458,8 @@ New request that returns the flat, deduplicated list of every symbol name in the
 
 Clients use this list to drive a local search UI (fuzzy matching, prefix filtering, etc.) without a round-trip per keystroke. After the user selects a name, send a `sourcekit/workspace/symbolInfo` request to resolve it to concrete locations.
 
+When `containerName` is set, the response instead lists the fully-qualified names of the members of the named container(s), which lets a client filter a qualified query such as `Container.val` locally. Every name in the response can be passed verbatim to `sourcekit/workspace/symbolInfo`.
+
 > [!IMPORTANT]
 > This request is experimental and may be modified or removed in future versions of SourceKit-LSP without notice. Do not rely on it.
 
@@ -463,12 +467,26 @@ Clients use this list to drive a local search UI (fuzzy matching, prefix filteri
 - result: `WorkspaceSymbolNamesResult`
 
 ```ts
-export interface WorkspaceSymbolNamesParams {}
+export interface WorkspaceSymbolNamesParams {
+  /**
+   * When set, the response contains the fully-qualified names of the members of the container(s) named by this
+   * value instead of every symbol name in the workspace.
+   *
+   * The value may name a chain of containers separated by `.` or `::`, e.g. `Outer.Inner`. The innermost name must
+   * match a container name in full, and the enclosing names are matched as a suffix of the container's chain, all
+   * case-insensitively, so `Inner` also matches a container declared as `Outer.Inner`.
+   *
+   * Only the direct members of the container and its extensions are returned, never the container itself. Inherited
+   * members and accessors are not included.
+   */
+  containerName?: string;
+}
 
 export interface WorkspaceSymbolNamesResult {
   /**
    * Flat, deduplicated list of all symbol names in the workspace index,
-   * including names from system modules (stdlib, SDK).
+   * including names from system modules (stdlib, SDK), or the fully-qualified
+   * names of a container's members if `containerName` was set.
    */
   names: string[];
 }
