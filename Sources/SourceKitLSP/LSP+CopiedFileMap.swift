@@ -83,8 +83,8 @@ extension TypeHierarchyItem {
   package func adjusted(for copiedFileMap: CopiedFileMap) -> TypeHierarchyItem {
     let adjustedURI = copiedFileMap.adjustedURI(for: uri)
     let adjustedData =
-      HierarchyItemData(fromLSPAny: data).map { itemData in
-        HierarchyItemData(uri: adjustedURI, usr: itemData.usr).encodeToLSPAny()
+      sourceKitData.map { itemData in
+        SourceKitSymbolIdentifier(usr: itemData.usr, uri: adjustedURI).encodeToLSPAny()
       } ?? self.data
     return TypeHierarchyItem(
       name: name,
@@ -103,8 +103,8 @@ extension CallHierarchyItem {
   package func adjusted(for copiedFileMap: CopiedFileMap) -> CallHierarchyItem {
     let adjustedURI = copiedFileMap.adjustedURI(for: uri)
     let adjustedData =
-      HierarchyItemData(fromLSPAny: data).map { itemData in
-        HierarchyItemData(uri: adjustedURI, usr: itemData.usr).encodeToLSPAny()
+      sourceKitData.map { itemData in
+        SourceKitSymbolIdentifier(usr: itemData.usr, uri: adjustedURI).encodeToLSPAny()
       } ?? self.data
     return CallHierarchyItem(
       name: name,

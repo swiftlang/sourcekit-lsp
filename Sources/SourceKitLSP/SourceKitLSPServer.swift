@@ -730,6 +730,8 @@ extension SourceKitLSPServer: QueueBasedMessageHandler {
       await request.reply { try await subtypes(request.params) }
     case let request as RequestAndReply<TypeHierarchySupertypesRequest>:
       await request.reply { try await supertypes(request.params) }
+    case let request as RequestAndReply<WorkspaceReferencesRequest>:
+      await request.reply { try await workspaceReferences(request.params) }
     case let request as RequestAndReply<WorkspaceSymbolNamesRequest>:
       await request.reply { try await workspaceSymbolNames(request.params) }
     case let request as RequestAndReply<WorkspaceSymbolInfoRequest>:
@@ -1030,6 +1032,7 @@ extension SourceKitLSPServer {
     addCapabilities(SynchronizeRequest.method, ["version": 1])
     addCapabilities(WorkspaceSymbolNamesRequest.method, ["version": 2])
     addCapabilities(WorkspaceSymbolInfoRequest.method, ["version": 2])
+    addCapabilities(WorkspaceReferencesRequest.method, ["version": 1])
     if let toolchain = await toolchainRegistry.preferredToolchain(containing: [\.swiftc]), toolchain.swiftPlay != nil {
       addCapabilities(WorkspacePlaygroundsRefreshRequest.method, ["version": 1])
       addCapabilities(WorkspacePlaygroundsRequest.method, ["version": 1])
@@ -2081,12 +2084,7 @@ extension SourceKitLSPServer {
     let index = await workspaceForDocument(uri: req.textDocument.uri)?.index(checkedFor: .deletedFiles)
     let indexLocations = try symbols.flatMap { symbol -> [Location] in
       guard let usr = symbol.usr, let index else { return [] }
-      logger.info("Finding references for USR \(usr)")
-      var roles: SymbolRole = [.reference]
-      if req.context.includeDeclaration {
-        roles.formUnion([.declaration, .definition])
-      }
-      return try index.occurrences(ofUSR: usr, roles: roles).compactMap { $0.location.lspLocation }
+      return try indexReferences(ofUSR: usr, includeDeclaration: req.context.includeDeclaration, index: index)
     }
 
     var locations = indexLocations
@@ -2113,6 +2111,30 @@ extension SourceKitLSPServer {
     return remappedLocations.unique.sorted()
   }
 
+  func workspaceReferences(_ req: WorkspaceReferencesRequest) async throws -> [Location] {
+    guard let workspace = await self.workspaceForDocument(uri: req.symbol.uri),
+      let index = await workspace.index(checkedFor: .deletedFiles)
+    else {
+      return []
+    }
+    let locations = try indexReferences(
+      ofUSR: req.symbol.usr,
+      includeDeclaration: req.includeDeclaration ?? false,
+      index: index
+    )
+    let copiedFileMap = await workspace.buildServerManager.cachedCopiedFileMap
+    return locations.adjusted(for: copiedFileMap).unique.sorted()
+  }
+
+  private func indexReferences(ofUSR usr: String, includeDeclaration: Bool, index: CheckedIndex) throws -> [Location] {
+    logger.info("Finding references for USR \(usr)")
+    var roles: SymbolRole = [.reference]
+    if includeDeclaration {
+      roles.formUnion([.declaration, .definition])
+    }
+    return try index.occurrences(ofUSR: usr, roles: roles).compactMap { $0.location.lspLocation }
+  }
+
   private func indexToLSPCallHierarchyItem(
     definition: SymbolOccurrence,
     index: CheckedIndex
@@ -2130,8 +2152,8 @@ extension SourceKitLSPServer {
       uri: location.uri,
       range: location.range,
       selectionRange: location.range,
-      // We encode usr and uri for incoming/outgoing call lookups in the implementation-specific data field
-      data: HierarchyItemData(uri: location.uri, usr: symbol.usr).encodeToLSPAny()
+      // Identifies the symbol for incoming/outgoing call lookups
+      data: SourceKitSymbolIdentifier(usr: symbol.usr, uri: location.uri).encodeToLSPAny()
     )
   }
 
@@ -2181,7 +2203,7 @@ extension SourceKitLSPServer {
   }
 
   func incomingCalls(_ req: CallHierarchyIncomingCallsRequest) async throws -> [CallHierarchyIncomingCall]? {
-    guard let data = HierarchyItemData(fromLSPAny: req.item.data),
+    guard let data = req.item.sourceKitData,
       let workspace = await self.workspaceForDocument(uri: data.uri),
       let index = await workspace.index(checkedFor: .deletedFiles)
     else {
@@ -2246,7 +2268,7 @@ extension SourceKitLSPServer {
   }
 
   func outgoingCalls(_ req: CallHierarchyOutgoingCallsRequest) async throws -> [CallHierarchyOutgoingCall]? {
-    guard let data = HierarchyItemData(fromLSPAny: req.item.data),
+    guard let data = req.item.sourceKitData,
       let workspace = await self.workspaceForDocument(uri: data.uri),
       let index = await workspace.index(checkedFor: .deletedFiles)
     else {
@@ -2335,8 +2357,8 @@ extension SourceKitLSPServer {
       uri: location.uri,
       range: location.range,
       selectionRange: location.range,
-      // We encode usr and uri for incoming/outgoing type lookups in the implementation-specific data field
-      data: HierarchyItemData(uri: location.uri, usr: symbol.usr).encodeToLSPAny()
+      // Identifies the symbol for supertype/subtype lookups
+      data: SourceKitSymbolIdentifier(usr: symbol.usr, uri: location.uri).encodeToLSPAny()
     )
   }
 
@@ -2424,7 +2446,7 @@ extension SourceKitLSPServer {
   }
 
   func supertypes(_ req: TypeHierarchySupertypesRequest) async throws -> [TypeHierarchyItem]? {
-    guard let data = HierarchyItemData(fromLSPAny: req.item.data),
+    guard let data = req.item.sourceKitData,
       let workspace = await self.workspaceForDocument(uri: data.uri),
       let index = await workspace.index(checkedFor: .deletedFiles)
     else {
@@ -2482,7 +2504,7 @@ extension SourceKitLSPServer {
   }
 
   func subtypes(_ req: TypeHierarchySubtypesRequest) async throws -> [TypeHierarchyItem]? {
-    guard let data = HierarchyItemData(fromLSPAny: req.item.data),
+    guard let data = req.item.sourceKitData,
       let workspace = await self.workspaceForDocument(uri: data.uri),
       let index = await workspace.index(checkedFor: .deletedFiles)
     else {
