@@ -21,3 +21,8 @@ target_link_libraries(sourcekit-lsp PRIVATE
 
 install(TARGETS sourcekit-lsp
   DESTINATION bin)
+if(MSVC)
+  install(FILES $<TARGET_FILE_DIR:sourcekit-lsp>/$<TARGET_FILE_BASE_NAME:sourcekit-lsp>.pdb
+    DESTINATION bin
+    OPTIONAL)
+endif()
