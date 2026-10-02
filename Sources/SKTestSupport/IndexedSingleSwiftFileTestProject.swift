@@ -101,9 +101,10 @@ package struct IndexedSingleSwiftFileTestProject {
       "-index-store-path", try indexURL.filePath,
       "-typecheck",
     ]
-    if let globalModuleCache = try globalModuleCache {
+    let moduleCache = try uniqueTestModuleCache()
+    if let moduleCache {
       compilerArguments += [
-        "-module-cache-path", try globalModuleCache.filePath,
+        "-module-cache-path", try moduleCache.filePath,
       ]
     }
     if !indexSystemModules {
@@ -207,6 +208,9 @@ package struct IndexedSingleSwiftFileTestProject {
       cleanUp: {
         if cleanUp {
           try? FileManager.default.removeItem(at: testWorkspaceDirectory)
+          if let moduleCache {
+            try? FileManager.default.removeItem(at: moduleCache)
+          }
         }
       }
     )
