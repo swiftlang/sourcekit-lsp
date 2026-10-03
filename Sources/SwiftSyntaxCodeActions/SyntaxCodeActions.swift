@@ -21,7 +21,6 @@ package let allSyntaxCodeActionProviders: [any SyntaxCodeActionProvider.Type] = 
     AddSeparatorsToIntegerLiteral.self,
     ApplyDeMorganLaw.self,
     ConvertCommentToDocComment.self,
-    ConvertCommentToDocComment.self,
     ConvertComputedPropertyToStored.self,
     ConvertComputedPropertyToZeroParameterFunction.self,
     ConvertIfLetToGuard.self,
