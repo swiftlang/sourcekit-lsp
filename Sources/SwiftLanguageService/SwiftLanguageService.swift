@@ -957,20 +957,56 @@ extension SwiftLanguageService {
       // Do not show code actions in reference documents
       return nil
     }
+
+    let uri = req.textDocument.uri
+    let sharedCursorInfo = SharedCursorInfo { [weak self] range in
+      guard let self else { throw CancellationError() }
+      return try await self.cursorInfo(
+        uri,
+        range,
+        fallbackSettingsAfterTimeout: true,
+        additionalParameters: { skreq in
+          skreq.set(self.keys.retrieveRefactorActions, to: 1)
+        }
+      )
+    }
+
+    let snapshot = try documentManager.latestSnapshot(uri)
+    let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
+    guard
+      let scope = SyntaxCodeActionScope(
+        resolveSupport: capabilityRegistry.clientCapabilities.textDocument?.codeAction?.resolveSupport,
+        snapshot: snapshot,
+        syntaxTree: syntaxTree,
+        requestedRange: req.range,
+        symbolInfo: { position in
+          let response = try await sharedCursorInfo.value(for: position..<position)
+          return response.cursorInfo.map(\.symbolInfo)
+        }
+      )
+    else {
+      return nil
+    }
+
     let providersAndKinds: [(provider: CodeActionProvider, kind: CodeActionKind?)] = [
-      (retrieveSyntaxCodeActions, nil),
-      (retrieveRefactorCodeActions, .refactor),
+      ({ _ in await self.retrieveSyntaxCodeActions(scope) }, nil),
+      (
+        { request in
+          try await self.retrieveRefactorCodeActions(request, sharedCursorInfo: sharedCursorInfo)
+        },
+        .refactor
+      ),
       (retrieveQuickFixCodeActions, .quickFix),
-      (retrieveRemoveUnusedImportsCodeAction, .sourceOrganizeImports),
+      ({ _ in try await self.retrieveRemoveUnusedImportsCodeAction(scope) }, .sourceOrganizeImports),
     ]
     let wantedActionKinds = req.context.only
     let providers: [CodeActionProvider] = providersAndKinds.compactMap { (provider, kind) in
-      if let wantedActionKinds, let kind = kind, !wantedActionKinds.contains(kind) {
+      if let wantedActionKinds, let kind, !wantedActionKinds.contains(kind) {
         return nil
       }
-
       return provider
     }
+
     let codeActionCapabilities = capabilityRegistry.clientCapabilities.textDocument?.codeAction
     let codeActions = try await retrieveCodeActions(req, providers: providers)
     let response = CodeActionRequestResponse(
@@ -998,23 +1034,9 @@ extension SwiftLanguageService {
     .flatMap { $0 }
   }
 
-  func retrieveSyntaxCodeActions(_ request: CodeActionRequest) async throws -> [CodeAction] {
-    let uri = request.textDocument.uri
-    let snapshot = try documentManager.latestSnapshot(uri)
-
-    let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
-    guard
-      let scope = SyntaxCodeActionScope(
-        resolveSupport: capabilityRegistry.clientCapabilities.textDocument?.codeAction?.resolveSupport,
-        snapshot: snapshot,
-        syntaxTree: syntaxTree,
-        requestedRange: request.range
-      )
-    else {
-      return []
-    }
+  func retrieveSyntaxCodeActions(_ scope: SyntaxCodeActionScope) async -> [CodeAction] {
     return await allSyntaxCodeActionProviders.concurrentMap { provider in
-      return provider.codeActions(in: scope)
+      await provider.codeActions(in: scope)
     }.flatMap { $0 }
   }
 
@@ -1032,12 +1054,19 @@ extension SwiftLanguageService {
     }
     let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
 
+    let symbolInfo: @Sendable (Position) async throws -> [SymbolDetails] = { position in
+      try await self.symbolInfo(
+        SymbolInfoRequest(textDocument: TextDocumentIdentifier(snapshot.uri), position: position)
+      )
+    }
+
     guard
       let scope = SyntaxCodeActionScope(
         resolveSupport: capabilityRegistry.clientCapabilities.textDocument?.codeAction?.resolveSupport,
         snapshot: snapshot,
         syntaxTree: syntaxTree,
-        requestedRange: data.range
+        requestedRange: data.range,
+        symbolInfo: symbolInfo
       )
     else {
       throw ResponseError.unknown("Unable to re-create code action scope")
@@ -1046,29 +1075,19 @@ extension SwiftLanguageService {
       req.codeAction,
       in: scope,
       unresolvedData: data.data,
-      symbolInfo: { position in
-        try await self.symbolInfo(
-          SymbolInfoRequest(textDocument: TextDocumentIdentifier(snapshot.uri), position: position)
-        )
-      }
+      symbolInfo: symbolInfo
     )
   }
 
-  func retrieveRefactorCodeActions(_ params: CodeActionRequest) async throws -> [CodeAction] {
-    let additionalCursorInfoParameters: ((SKDRequestDictionary) -> Void) = { skreq in
-      skreq.set(self.keys.retrieveRefactorActions, to: 1)
-    }
-
-    let cursorInfoResponse = try await cursorInfo(
-      params.textDocument.uri,
-      params.range,
-      fallbackSettingsAfterTimeout: true,
-      additionalParameters: additionalCursorInfoParameters
-    )
+  func retrieveRefactorCodeActions(
+    _ params: CodeActionRequest,
+    sharedCursorInfo: SharedCursorInfo
+  ) async throws -> [CodeAction] {
+    let cursorInfoResult = try await sharedCursorInfo.value(for: params.range)
 
     var canInlineMacro = false
 
-    var refactorActions = cursorInfoResponse.refactorActions.compactMap {
+    var refactorActions = cursorInfoResult.refactorActions.compactMap {
       let lspCommand = $0.asCommand()
       if !canInlineMacro {
         canInlineMacro = $0.actionString == "source.refactoring.kind.inline.macro"

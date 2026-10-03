@@ -32,6 +32,7 @@ add_library(SwiftLanguageService STATIC
   SemanticRefactorCommand.swift
   SemanticRefactoring.swift
   SemanticTokens.swift
+  SharedCursorInfo.swift
   SignatureHelp.swift
   SwiftCodeLensScanner.swift
   SwiftCommand.swift
@@ -85,4 +86,3 @@ target_link_libraries(SwiftLanguageService PRIVATE
   SwiftSyntax::SwiftSyntaxBuilder
   $<$<NOT:$<PLATFORM_ID:Darwin>>:FoundationXML>
 )
-
