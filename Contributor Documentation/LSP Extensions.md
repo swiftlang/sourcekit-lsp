@@ -103,6 +103,93 @@ interface SKCompletionOptions {
 }
 ```
 
+Added field on returned completion items:
+
+The `data` field of a returned `CompletionItem` carries SourceKit-specific metadata. Its client-facing shape is:
+
+```ts
+interface SourceKitCompletionItemData {
+  /**
+   * The module that defines the completion (sourcekitd's `key.modulename`).
+   */
+  module?: string;
+
+  /**
+   * Groups overloads of the same declaration (sourcekitd's `key.group_id`).
+   */
+  groupID?: int;
+
+  /**
+   * Whether the completion comes from a system module (sourcekitd's `key.is_system`).
+   */
+  isSystem?: bool;
+
+  /**
+   * Whether the completion has an associated diagnostic (sourcekitd's `key.has_diagnostic`).
+   */
+  hasDiagnostic?: bool;
+
+  /**
+   * The annotated-description XML for the completion's label, as produced by sourcekitd.
+   */
+  annotatedDescription?: string;
+
+  /**
+   * The annotated-description XML for the completion's type name, as produced by sourcekitd.
+   */
+  annotatedTypeName?: string;
+
+  /**
+   * The semantic score that sourcekitd assigned to this completion (sourcekitd's
+   * `key.semantic_score`), indicating how relevant the completion is in the current context.
+   */
+  semanticScore?: double;
+
+  /**
+   * The USRs associated with the completion (sourcekitd's `key.associated_usrs`).
+   * Populated during `completionItem/resolve`.
+   */
+  associatedUSRs?: string[];
+
+  /**
+   * The completion's brief documentation (sourcekitd's `key.doc.brief`).
+   * Populated during `completionItem/resolve`.
+   */
+  docBrief?: string;
+
+  /**
+   * The completion's full doc-comment XML (sourcekitd's `key.doc.full_as_xml`).
+   * Populated during `completionItem/resolve`.
+   */
+  docFullAsXML?: string;
+
+  /**
+   * The diagnostic associated with the completion, if any.
+   * Populated during `completionItem/resolve` when `hasDiagnostic` is set.
+   */
+  diagnostic?: SourceKitCompletionItemDiagnostic;
+}
+```
+
+with
+
+```ts
+interface SourceKitCompletionItemDiagnostic {
+  /**
+   * The severity of the diagnostic.
+   */
+  severity?: DiagnosticSeverity;
+
+  /**
+   * The diagnostic message.
+   */
+  message: string;
+}
+```
+
+`data` may also contain server-internal routing fields used to resolve the item in a subsequent
+`completionItem/resolve` request. Clients should ignore any keys they do not recognize.
+
 ## `sourcekit/textDocument/doccDocumentation`
 
 New request that generates documentation for a symbol at a given cursor location.
