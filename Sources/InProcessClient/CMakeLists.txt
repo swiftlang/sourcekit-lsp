@@ -9,6 +9,7 @@ target_link_libraries(InProcessClient PUBLIC
   BuildServerIntegration
   ClangLanguageService
   Crypto
+  DocumentationLanguageService
   SwiftToolsProtocols::LanguageServerProtocol
   SwiftToolsProtocols::SKLogging
   SKOptions
