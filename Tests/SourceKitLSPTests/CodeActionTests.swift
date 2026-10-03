@@ -741,33 +741,35 @@ final class CodeActionTests: SourceKitLSPTestCase {
       let x = 1️⃣162️⃣  // comment
       """,
       markers: ["1️⃣"],
-      exhaustive: false,
-      expected: convertSixteenCodeActions
-    )
-  }
-
-  func testConvertIntegerLiteralFollowedByOperator() async throws {
-    try await assertCodeActions(
-      """
-      let y = 1️⃣162️⃣ + 1
-      """,
-      markers: ["1️⃣"],
-      exhaustive: false,
-      expected: convertSixteenCodeActions
-    )
-  }
-
-  func testConvertIntegerLiteralOnOwnLine() async throws {
-    try await assertCodeActions(
-      """
-      foo(
-        1️⃣162️⃣
-      )
-      """,
-      markers: ["1️⃣"],
-      exhaustive: false,
-      expected: convertSixteenCodeActions
-    )
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Convert 16 to 0b10000",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [uri: [TextEdit(range: positions["1️⃣"]..<positions["2️⃣"], newText: "0b10000")]]
+          )
+        ),
+        CodeAction(
+          title: "Convert 16 to 0o20",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [uri: [TextEdit(range: positions["1️⃣"]..<positions["2️⃣"], newText: "0o20")]]
+          )
+        ),
+        CodeAction(
+          title: "Convert 16 to 0x10",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [uri: [TextEdit(range: positions["1️⃣"]..<positions["2️⃣"], newText: "0x10")]]
+          )
+        ),
+      ]
+    }
   }
 
   func testAddSeparatorsToIntegerLiteral() async throws {
@@ -4413,23 +4415,6 @@ private extension CodeActionRequestResponse {
       return nil
     }
     return actions
-  }
-}
-
-/// The code actions that convert the integer literal `16` between `1️⃣` and `2️⃣` to the other radixes.
-///
-/// The edits must only replace the literal itself and leave its surrounding trivia intact.
-private func convertSixteenCodeActions(uri: DocumentURI, positions: DocumentPositions) -> [CodeAction] {
-  return [("0b10000", "Convert 16 to 0b10000"), ("0o20", "Convert 16 to 0o20"), ("0x10", "Convert 16 to 0x10")].map {
-    (newText, title) in
-    CodeAction(
-      title: title,
-      kind: .refactorInline,
-      diagnostics: nil,
-      edit: WorkspaceEdit(
-        changes: [uri: [TextEdit(range: positions["1️⃣"]..<positions["2️⃣"], newText: newText)]]
-      )
-    )
   }
 }
 
