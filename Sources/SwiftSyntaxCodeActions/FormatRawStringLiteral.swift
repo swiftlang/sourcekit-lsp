@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import SwiftParser
 import SwiftRefactor
 package import SwiftSyntax
 
@@ -51,18 +52,91 @@ package struct FormatRawStringLiteral: SyntaxRefactoringProvider {
       }
     }
 
-    guard maximumHashes > 0 else {
-      return
-        lit
-        .with(\.openingPounds, lit.openingPounds?.with(\.tokenKind, .rawStringPoundDelimiter("")))
-        .with(\.closingPounds, lit.closingPounds?.with(\.tokenKind, .rawStringPoundDelimiter("")))
+    let originalHashCount = lit.openingPounds?.text.count ?? 0
+    let maximumCandidateHashCount = max(maximumHashes + 1, originalHashCount)
+
+    for hashCount in 0...maximumCandidateHashCount {
+      let candidate = lit.withHashDelimiterCount(hashCount)
+      if candidate.isValidReplacement(for: lit) {
+        return candidate
+      }
     }
 
-    let delimiters = String(repeating: "#", count: maximumHashes + 1)
+    return lit
+  }
+}
+
+private extension StringLiteralExprSyntax {
+  func withHashDelimiterCount(_ hashCount: Int) -> StringLiteralExprSyntax {
+    let delimiters = String(repeating: "#", count: hashCount)
+    let openingPounds = self.openingPounds
+    let closingPounds = self.closingPounds
+    let candidateOpeningPounds =
+      hashCount == 0
+      ? nil
+      : TokenSyntax.rawStringPoundDelimiter(
+        delimiters,
+        leadingTrivia: openingPounds?.leadingTrivia ?? self.openingQuote.leadingTrivia
+      )
+
+    let candidateClosingPounds =
+      hashCount == 0
+      ? nil
+      : TokenSyntax.rawStringPoundDelimiter(
+        delimiters,
+        trailingTrivia: closingPounds?.trailingTrivia ?? self.closingQuote.trailingTrivia
+      )
+
+    let candidateOpeningQuote =
+      hashCount == 0
+      ? self.openingQuote.with(\.leadingTrivia, openingPounds?.leadingTrivia ?? self.openingQuote.leadingTrivia)
+      : self.openingQuote.with(\.leadingTrivia, [])
+
+    let candidateClosingQuote =
+      hashCount == 0
+      ? self.closingQuote.with(\.trailingTrivia, closingPounds?.trailingTrivia ?? self.closingQuote.trailingTrivia)
+      : self.closingQuote.with(\.trailingTrivia, [])
+
+    let segments = StringLiteralSegmentListSyntax(
+      self.segments.map { segment in
+        if case let .expressionSegment(expressionSegment) = segment {
+          let candidatePounds =
+            hashCount == 0
+            ? nil
+            : TokenSyntax.rawStringPoundDelimiter(
+              delimiters,
+              leadingTrivia: expressionSegment.pounds?.leadingTrivia ?? [],
+              trailingTrivia: expressionSegment.pounds?.trailingTrivia ?? []
+            )
+          return .expressionSegment(expressionSegment.with(\.pounds, candidatePounds))
+        }
+        return segment
+      }
+    )
+
     return
-      lit
-      .with(\.openingPounds, lit.openingPounds?.with(\.tokenKind, .rawStringPoundDelimiter(delimiters)))
-      .with(\.closingPounds, lit.closingPounds?.with(\.tokenKind, .rawStringPoundDelimiter(delimiters)))
+      self
+      .with(\.openingPounds, candidateOpeningPounds)
+      .with(\.openingQuote, candidateOpeningQuote)
+      .with(\.segments, segments)
+      .with(\.closingQuote, candidateClosingQuote)
+      .with(\.closingPounds, candidateClosingPounds)
+  }
+
+  func isValidReplacement(for original: StringLiteralExprSyntax) -> Bool {
+    let source = self.description
+    var parser = Parser(source)
+    let parsedExpr = ExprSyntax.parse(from: &parser)
+
+    guard !parsedExpr.hasError, parsedExpr.description == source else {
+      return false
+    }
+
+    guard let parsedLiteral = parsedExpr.as(StringLiteralExprSyntax.self) else {
+      return false
+    }
+
+    return parsedLiteral.representedLiteralValue == original.representedLiteralValue
   }
 }
 

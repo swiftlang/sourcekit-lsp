@@ -1138,9 +1138,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
               uri: [
                 TextEdit(
                   range: positions["1️⃣"]..<positions["3️⃣"],
-                  newText: ##"""
-                    ##"Hello \#(name)"##
-                    """##
+                  newText: "\"Hello \\(name)\""
                 )
               ]
             ]
