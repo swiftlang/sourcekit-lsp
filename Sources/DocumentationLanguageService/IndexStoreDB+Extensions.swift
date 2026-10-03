@@ -40,7 +40,7 @@ extension CheckedIndex {
     var result: [SymbolOccurrence] = []
     for occurrence in topLevelSymbolOccurrences {
       let info = try await doccSymbolInformation(ofUSR: occurrence.symbol.usr, fetchSymbolGraph: fetchSymbolGraph)
-      if info.matches(symbolLink) {
+      if info.matchesAsSuffix(symbolLink) {
         result.append(occurrence)
       }
     }

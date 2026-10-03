@@ -404,11 +404,26 @@ package actor SourceKitLSPServer {
       if languageServices.isEmpty {
         throw ResponseError.unknown("No language service for '\(request.textDocument.uri)' found")
       }
-      // Return the results from the first language service that doesn't throw a `requestNotImplemented` error.
-      for languageService in languageServices {
+      // Return the results from the first language service that produces a non-nil response.
+      // A language service can opt out of handling this request for the given service by throwing
+      // `ResponseError.requestNotImplemented` (it never implements this method) or
+      // `FallThroughToNextLanguageService` (it implements the method, but isn't the right service
+      // for this particular request), in which case the next language service is tried.
+      for (index, languageService) in languageServices.enumerated() {
         do {
           return try await requestHandler(request, workspace, languageService)
         } catch let error as ResponseError where error.code == .requestNotImplemented {
+          continue
+        } catch is FallThroughToNextLanguageService {
+          if index + 1 < languageServices.count {
+            logger.debug(
+              "\(type(of: languageService)) is not the right service for \(type(of: request).method); falling through to \(type(of: languageServices[index + 1]))"
+            )
+          } else {
+            logger.debug(
+              "\(type(of: languageService)) is not the right service for \(type(of: request).method); no further language services to try"
+            )
+          }
           continue
         }
       }
@@ -1966,7 +1981,13 @@ extension SourceKitLSPServer {
     workspace: Workspace,
     languageService: any LanguageService
   ) async throws -> LocationsOrLocationLinksResponse? {
-    let indexBasedResponse = try await indexBasedDefinition(req, workspace: workspace, languageService: languageService)
+    let indexBasedResponse: [Location]
+    do {
+      indexBasedResponse = try await indexBasedDefinition(req, workspace: workspace, languageService: languageService)
+    } catch {
+      logger.info("indexBasedDefinition failed: \(error.forLogging)")
+      indexBasedResponse = []
+    }
     let copiedFileMap = await workspace.buildServerManager.cachedCopiedFileMap
     // If we're unable to handle the definition request using our index, see if the
     // language service can handle it (e.g. clangd can provide AST based definitions).
@@ -1975,9 +1996,18 @@ extension SourceKitLSPServer {
     // `SwiftLanguageService` will always respond with `unsupported method`. Thus, only log such a failure instead of
     // returning it to the client.
     if indexBasedResponse.isEmpty {
-      return await orLog("Fallback definition request", level: .info) {
+      do {
         let result = try await languageService.definition(req)
         return result?.adjusted(for: copiedFileMap)
+      } catch let error as ResponseError where error.code == .requestNotImplemented {
+        // Signal to handleRequest's loop to try the next language service
+        throw error
+      } catch let error as FallThroughToNextLanguageService {
+        // Signal to handleRequest's loop to try the next language service
+        throw error
+      } catch {
+        logger.info("Fallback definition request failed: \(error.forLogging)")
+        return nil
       }
     }
     let remappedLocations = indexBasedResponse.adjusted(for: copiedFileMap)
