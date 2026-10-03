@@ -4432,10 +4432,48 @@ final class CodeActionTests: SourceKitLSPTestCase {
                 TextEdit(
                   range: positions["1️⃣"]..<positions["3️⃣"],
                   newText: """
-                    if (x == y) {
+                    if x == y {
                       continue
                     } else {
                       return
+                    }
+                    """
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testInvertIfConditionNonNegated() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣if 2️⃣x == y {
+        foo()
+      } else {
+        bar()
+      }3️⃣
+      """,
+      markers: ["1️⃣", "2️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Invert if condition",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["3️⃣"],
+                  newText: """
+                    if x != y {
+                      bar()
+                    } else {
+                      foo()
                     }
                     """
                 )
@@ -4453,20 +4491,6 @@ final class CodeActionTests: SourceKitLSPTestCase {
       in: """
         if !x {
           1️⃣foo()
-        } else {
-          bar()
-        }
-        """,
-      atMarker: "1️⃣"
-    )
-  }
-
-  func testInvertIfConditionNotOfferedForNonNegatedIf() async throws {
-    try await assertNoCodeAction(
-      titled: "Invert if condition",
-      in: """
-        1️⃣if x {
-          foo()
         } else {
           bar()
         }

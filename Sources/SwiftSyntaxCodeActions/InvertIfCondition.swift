@@ -12,8 +12,9 @@
 
 import SwiftRefactor
 package import SwiftSyntax
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
-/// Inverts a negated `if` condition and swaps the branches.
+/// Inverts an `if` condition and swaps the branches.
 ///
 /// ## Before
 ///
@@ -43,7 +44,7 @@ package struct InvertIfCondition: SyntaxRefactoringProvider {
       throw RefactoringNotApplicableError("missing else block")
     }
 
-    guard ifExpr.conditions.count == 1, let condition = ifExpr.conditions.first else {
+    guard let condition = ifExpr.conditions.only else {
       throw RefactoringNotApplicableError("conditions count must be 1")
     }
 
@@ -51,21 +52,47 @@ package struct InvertIfCondition: SyntaxRefactoringProvider {
       throw RefactoringNotApplicableError("condition is not an expression")
     }
 
-    guard let prefixOpExpr = expr.as(PrefixOperatorExprSyntax.self), prefixOpExpr.operator.text == "!" else {
-      throw RefactoringNotApplicableError("condition is not negated with '!'")
-    }
-
-    let innerExpr = prefixOpExpr.expression.with(
-      \.leadingTrivia,
-      prefixOpExpr.leadingTrivia
+    let invertedCondition: ExprSyntax
+    if let prefixOpExpr = expr.as(PrefixOperatorExprSyntax.self), prefixOpExpr.operator.text == "!" {
+      var innerExpr = prefixOpExpr.expression
+      innerExpr.leadingTrivia = prefixOpExpr.leadingTrivia
         .merging(prefixOpExpr.operator.leadingTrivia)
         .merging(prefixOpExpr.operator.trailingTrivia)
         .merging(prefixOpExpr.expression.leadingTrivia)
-    )
+      invertedCondition = innerExpr
+    } else {
+      let leadingTrivia = expr.leadingTrivia
+      let trailingTrivia = expr.trailingTrivia
+      let trimmedExpr = expr.trimmed
+
+      let wrappedInParens = ExprSyntax(
+        TupleExprSyntax(
+          leftParen: .leftParenToken(),
+          elements: LabeledExprListSyntax([
+            LabeledExprSyntax(expression: trimmedExpr)
+          ]),
+          rightParen: .rightParenToken()
+        )
+      )
+      let notExpr = ExprSyntax(
+        PrefixOperatorExprSyntax(
+          operator: .prefixOperator("!"),
+          expression: wrappedInParens
+        )
+      )
+
+      let transformer = DeMorganTransformer()
+      let inverted = transformer.computeComplement(of: notExpr) ?? notExpr
+
+      var finalExpr = inverted
+      finalExpr.leadingTrivia = leadingTrivia
+      finalExpr.trailingTrivia = trailingTrivia
+      invertedCondition = finalExpr
+    }
 
     let newConditions = ifExpr.conditions.with(
       \.[ifExpr.conditions.startIndex].condition,
-      .expression(innerExpr)
+      .expression(invertedCondition)
     )
 
     let oldBody = ifExpr.body
@@ -81,11 +108,56 @@ package struct InvertIfCondition: SyntaxRefactoringProvider {
       .with(\.leadingTrivia, oldElseBlock.leadingTrivia)
       .with(\.trailingTrivia, oldElseBlock.trailingTrivia)
 
-    return
+    let refactoredIfExpr =
       ifExpr
       .with(\.conditions, newConditions)
       .with(\.body, newBody)
       .with(\.elseBody, .codeBlock(newElseBody))
+
+    return removeRedundantParentheses(from: refactoredIfExpr)
+  }
+
+  private static func removeRedundantParentheses(from ifExpr: IfExprSyntax) -> IfExprSyntax {
+    var current = ifExpr
+    while true {
+      guard let condition = current.conditions.only,
+        case .expression(let expr) = condition.condition
+      else {
+        break
+      }
+
+      if let tuple = expr.as(TupleExprSyntax.self),
+        let simplified = try? RemoveRedundantParentheses.refactor(syntax: tuple, in: ())
+      {
+        current = current.with(
+          \.conditions,
+          current.conditions.with(
+            \.[current.conditions.startIndex].condition,
+            .expression(simplified)
+          )
+        )
+        continue
+      }
+
+      if let prefixOp = expr.as(PrefixOperatorExprSyntax.self),
+        let tuple = prefixOp.expression.as(TupleExprSyntax.self),
+        let simplified = try? RemoveRedundantParentheses.refactor(syntax: tuple, in: ())
+      {
+        var newPrefixOp = prefixOp
+        newPrefixOp.expression = simplified
+        current = current.with(
+          \.conditions,
+          current.conditions.with(
+            \.[current.conditions.startIndex].condition,
+            .expression(ExprSyntax(newPrefixOp))
+          )
+        )
+        continue
+      }
+
+      break
+    }
+    return current
   }
 }
 

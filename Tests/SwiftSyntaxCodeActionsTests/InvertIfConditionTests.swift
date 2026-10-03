@@ -17,99 +17,140 @@ import SwiftSyntaxCodeActions
 import XCTest
 
 final class InvertIfConditionTests: XCTestCase {
+  private func assertRefactor(
+    _ input: ExprSyntax,
+    expected: ExprSyntax,
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) throws {
+    try SwiftSyntaxCodeActionsTests.assertRefactor(
+      input,
+      context: (),
+      provider: InvertIfCondition.self,
+      expected: expected,
+      file: file,
+      line: line
+    )
+  }
+
+  private func assertRefactorFails(
+    _ input: ExprSyntax,
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) throws {
+    try SwiftSyntaxCodeActionsTests.assertRefactor(
+      input,
+      context: (),
+      provider: InvertIfCondition.self,
+      expected: ExprSyntax?.none,
+      file: file,
+      line: line
+    )
+  }
+
   func testInvertIfCondition() throws {
-    let tests: [(ExprSyntax, ExprSyntax)] = [
-      (
-        """
-        if !x {
-          foo()
-        } else {
-          bar()
-        }
-        """,
-        """
+    // Negated identifier
+    try assertRefactor(
+      """
+      if !x {
+        foo()
+      } else {
+        bar()
+      }
+      """,
+      expected: """
         if x {
           bar()
         } else {
           foo()
         }
         """
-      ),
-      (
-        """
-        if !(x == y) {
-          return
-        } else {
+    )
+
+    // Negated comparison with redundant parentheses removed
+    try assertRefactor(
+      """
+      if !(x == y) {
+        return
+      } else {
+        continue
+      }
+      """,
+      expected: """
+        if x == y {
           continue
-        }
-        """,
-        """
-        if (x == y) {
-          continue
         } else {
           return
         }
         """
-      ),
-      (
-        """
-        if /* comment */ !x {
-          a
-        } else {
-          b
-        }
-        """,
-        """
+    )
+
+    // Leading comment before condition
+    try assertRefactor(
+      """
+      if /* comment */ !x {
+        a
+      } else {
+        b
+      }
+      """,
+      expected: """
         if /* comment */ x {
           b
         } else {
           a
         }
         """
-      ),
-      (
-        """
-        if !x /* comment */ {
-          a
-        } else {
-          b
-        }
-        """,
-        """
+    )
+
+    // Trailing comment after condition
+    try assertRefactor(
+      """
+      if !x /* comment */ {
+        a
+      } else {
+        b
+      }
+      """,
+      expected: """
         if x /* comment */ {
           b
         } else {
           a
         }
         """
-      ),
-      (
-        """
-        if !(/* comment */ x == y) {
-          return
-        } else {
+    )
+
+    // Comment inside negated condition with redundant parentheses removed
+    try assertRefactor(
+      """
+      if !(/* comment */ x == y) {
+        return
+      } else {
+        continue
+      }
+      """,
+      expected: """
+        if /* comment */ x == y {
           continue
-        }
-        """,
-        """
-        if (/* comment */ x == y) {
-          continue
         } else {
           return
         }
         """
-      ),
-      (
-        """
-        if !x {
-          // body comment
-          foo()
-        } else {
-          // else comment
-          bar()
-        }
-        """,
-        """
+    )
+
+    // Comments in bodies preserved
+    try assertRefactor(
+      """
+      if !x {
+        // body comment
+        foo()
+      } else {
+        // else comment
+        bar()
+      }
+      """,
+      expected: """
         if x {
           // else comment
           bar()
@@ -118,17 +159,10 @@ final class InvertIfConditionTests: XCTestCase {
           foo()
         }
         """
-      ),
-    ]
+    )
 
-    for (input, expected) in tests {
-      try assertRefactor(input, context: (), provider: InvertIfCondition.self, expected: expected)
-    }
-  }
-
-  func testInvertIfConditionFails() throws {
-    let tests: [ExprSyntax] = [
-      // Not negated
+    // Non-negated identifier
+    try assertRefactor(
       """
       if x {
         a
@@ -136,40 +170,212 @@ final class InvertIfConditionTests: XCTestCase {
         b
       }
       """,
-      // No else
+      expected: """
+        if !x {
+          b
+        } else {
+          a
+        }
+        """
+    )
+
+    // Non-negated equality comparison (becomes !=)
+    try assertRefactor(
+      """
+      if x == y {
+        a
+      } else {
+        b
+      }
+      """,
+      expected: """
+        if x != y {
+          b
+        } else {
+          a
+        }
+        """
+    )
+
+    // Non-negated inequality comparison (becomes ==)
+    try assertRefactor(
+      """
+      if x != y {
+        a
+      } else {
+        b
+      }
+      """,
+      expected: """
+        if x == y {
+          b
+        } else {
+          a
+        }
+        """
+    )
+
+    // Non-negated less than comparison (becomes >=)
+    try assertRefactor(
+      """
+      if x < y {
+        a
+      } else {
+        b
+      }
+      """,
+      expected: """
+        if x >= y {
+          b
+        } else {
+          a
+        }
+        """
+    )
+
+    // Conjunction (De Morgan's law: !(a && b) -> !a || !b)
+    try assertRefactor(
+      """
+      if a && b {
+        foo()
+      } else {
+        bar()
+      }
+      """,
+      expected: """
+        if !a || !b {
+          bar()
+        } else {
+          foo()
+        }
+        """
+    )
+
+    // Disjunction (De Morgan's law: !(a || b) -> !a && !b)
+    try assertRefactor(
+      """
+      if a || b {
+        foo()
+      } else {
+        bar()
+      }
+      """,
+      expected: """
+        if !a && !b {
+          bar()
+        } else {
+          foo()
+        }
+        """
+    )
+
+    // Function call
+    try assertRefactor(
+      """
+      if foo() {
+        a
+      } else {
+        b
+      }
+      """,
+      expected: """
+        if !foo() {
+          b
+        } else {
+          a
+        }
+        """
+    )
+
+    // Parenthesized identifier
+    try assertRefactor(
+      """
+      if (x) {
+        a
+      } else {
+        b
+      }
+      """,
+      expected: """
+        if !x {
+          b
+        } else {
+          a
+        }
+        """
+    )
+  }
+
+  func testInvertIfConditionFails() throws {
+    // No else
+    try assertRefactorFails(
       """
       if !x {
         a
       }
-      """,
-      // Else if (not a CodeBlock)
+      """
+    )
+
+    try assertRefactorFails(
+      """
+      if x {
+        a
+      }
+      """
+    )
+
+    // Else if (not a CodeBlock)
+    try assertRefactorFails(
       """
       if !x {
         a
       } else if y {
         b
       }
-      """,
-      // Multiple conditions
+      """
+    )
+
+    // Multiple conditions
+    try assertRefactorFails(
       """
       if !x, !y {
         a
       } else {
         b
       }
-      """,
-      // Binding
+      """
+    )
+
+    try assertRefactorFails(
+      """
+      if x, y {
+        a
+      } else {
+        b
+      }
+      """
+    )
+
+    // Binding
+    try assertRefactorFails(
       """
       if let x = y {
         a
       } else {
         b
       }
-      """,
-    ]
+      """
+    )
 
-    for input in tests {
-      try assertRefactor(input, context: (), provider: InvertIfCondition.self, expected: ExprSyntax?.none)
-    }
+    // Case condition
+    try assertRefactorFails(
+      """
+      if case .foo = x {
+        a
+      } else {
+        b
+      }
+      """
+    )
   }
 }
