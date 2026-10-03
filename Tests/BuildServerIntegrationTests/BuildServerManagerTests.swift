@@ -29,9 +29,16 @@ fileprivate actor TestBuildServer: CustomBuildServer {
   private let connectionToSourceKitLSP: any Connection
   private var buildSettingsByFile: [DocumentURI: TextDocumentSourceKitOptionsResponse] = [:]
 
+  /// The `purpose` of every `TextDocumentSourceKitOptionsRequest` the build server has received, in order.
+  private(set) var receivedPurposes: [SourceKitOptionsPurpose?] = []
+
   func setBuildSettings(for uri: DocumentURI, to buildSettings: TextDocumentSourceKitOptionsResponse?) {
     buildSettingsByFile[uri] = buildSettings
     connectionToSourceKitLSP.send(OnBuildTargetDidChangeNotification(changes: nil))
+  }
+
+  func clearReceivedPurposes() {
+    receivedPurposes = []
   }
 
   init(projectRoot: URL, connectionToSourceKitLSP: any Connection) {
@@ -45,6 +52,7 @@ fileprivate actor TestBuildServer: CustomBuildServer {
   func textDocumentSourceKitOptionsRequest(
     _ request: TextDocumentSourceKitOptionsRequest
   ) async throws -> TextDocumentSourceKitOptionsResponse? {
+    receivedPurposes.append(request.purpose)
     return buildSettingsByFile[request.textDocument.uri]
   }
 }
@@ -216,6 +224,32 @@ final class BuildServerManagerTests: SourceKitLSPTestCase {
     await del.setExpected([(a, .swift, fallbackSettings, revert)])
     await buildServer.setBuildSettings(for: a, to: nil)
     try await fulfillmentOfOrThrow(revert)
+  }
+
+  func testSettingsRequestPurposeSplitsCacheEntries() async throws {
+    let a = try DocumentURI(string: "bsm:a.swift")
+    let mainFiles = ManualMainFilesProvider([a: [a]])
+
+    let (manager, buildServer) = try await createBuildServerManager(mainFilesProvider: mainFiles)
+
+    await buildServer.setBuildSettings(for: a, to: TextDocumentSourceKitOptionsResponse(compilerArguments: ["args"]))
+    await manager.waitForUpToDateBuildGraph()
+    let target = try await unwrap(manager.canonicalTarget(for: a))
+
+    // Ignore any build-server traffic from graph setup; measure only the explicit fetches below.
+    await buildServer.clearReceivedPurposes()
+
+    // Editor and index requests for the same file occupy distinct cache entries, so the build server is consulted
+    // once per purpose (a shared entry would make the second request a cache hit).
+    _ = await manager.buildSettings(for: a, in: target, language: .swift, fallbackAfterTimeout: false, purpose: .editor)
+    _ = await manager.buildSettings(for: a, in: target, language: .swift, fallbackAfterTimeout: false, purpose: .index)
+    assertEqual(await buildServer.receivedPurposes, [.editor, .index])
+
+    // Repeat fetches are served from each purpose's own cache entry, without re-consulting the build server.
+    await buildServer.clearReceivedPurposes()
+    _ = await manager.buildSettings(for: a, in: target, language: .swift, fallbackAfterTimeout: false, purpose: .editor)
+    _ = await manager.buildSettings(for: a, in: target, language: .swift, fallbackAfterTimeout: false, purpose: .index)
+    assertEqual(await buildServer.receivedPurposes, [])
   }
 
   func testSettingsHeaderChangeMainFile() async throws {
