@@ -128,7 +128,7 @@ private extension StringLiteralExprSyntax {
     var parser = Parser(source)
     let parsedExpr = ExprSyntax.parse(from: &parser)
 
-    guard !parsedExpr.hasError, parsedExpr.description == source else {
+    guard !parsedExpr.hasError else {
       return false
     }
 
