@@ -1,5 +1,14 @@
+[=[
+This source file is part of the Swift open source project
 
-cmake_minimum_required(VERSION 3.16.1)
+Copyright (c) 2014 - 2026 Apple Inc. and the Swift project authors
+Licensed under Apache License v2.0 with Runtime Library Exception
+
+See http://swift.org/LICENSE.txt for license information
+See http://swift.org/CONTRIBUTORS.txt for Swift project authors
+]=]
+
+cmake_minimum_required(VERSION 3.29)
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake/modules)
 
@@ -7,12 +16,14 @@ project(SourceKit-LSP
   LANGUAGES C Swift)
 
 set(CMAKE_Swift_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/swift)
+set(CMAKE_Swift_LANGUAGE_VERSION 6)
 
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 add_compile_options(
+  "$<$<COMPILE_LANGUAGE:Swift>:SHELL:-package-name sourcekit_lsp>"
   "$<$<COMPILE_LANGUAGE:Swift>:SHELL:-enable-upcoming-feature InternalImportsByDefault>"
   "$<$<COMPILE_LANGUAGE:Swift>:SHELL:-enable-upcoming-feature MemberImportVisibility>"
   "$<$<COMPILE_LANGUAGE:Swift>:SHELL:-enable-upcoming-feature InferIsolatedConformances>"
@@ -21,6 +32,7 @@ add_compile_options(
   "$<$<COMPILE_LANGUAGE:Swift>:SHELL:-enable-upcoming-feature ImmutableWeakCaptures>"
   "$<$<COMPILE_LANGUAGE:Swift>:SHELL:-Werror ExistentialAny>"
 )
+target_compile_definitions($<$<COMPILE_LANGUAGE:Swift>:RESILIENT_LIBRARIES>)
 
 find_package(dispatch QUIET)
 find_package(Foundation QUIET)
@@ -35,6 +47,7 @@ find_package(SwiftSyntax CONFIG REQUIRED)
 find_package(SwiftASN1 CONFIG REQUIRED)
 find_package(SwiftCrypto CONFIG REQUIRED)
 find_package(SwiftToolsProtocols CONFIG REQUIRED)
+find_package(SwiftDocC CONFIG REQUIRED)
 
 include(SwiftSupport)
 
