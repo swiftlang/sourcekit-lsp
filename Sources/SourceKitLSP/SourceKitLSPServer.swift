@@ -1028,8 +1028,8 @@ extension SourceKitLSPServer {
     addCapabilities(GetReferenceDocumentRequest.method, ["version": 1])
     addCapabilities(DidChangeActiveDocumentNotification.method, ["version": 1])
     addCapabilities(SynchronizeRequest.method, ["version": 1])
-    addCapabilities(WorkspaceSymbolNamesRequest.method, ["version": 1])
-    addCapabilities(WorkspaceSymbolInfoRequest.method, ["version": 1])
+    addCapabilities(WorkspaceSymbolNamesRequest.method, ["version": 2])
+    addCapabilities(WorkspaceSymbolInfoRequest.method, ["version": 2])
     if let toolchain = await toolchainRegistry.preferredToolchain(containing: [\.swiftc]), toolchain.swiftPlay != nil {
       addCapabilities(WorkspacePlaygroundsRefreshRequest.method, ["version": 1])
       addCapabilities(WorkspacePlaygroundsRequest.method, ["version": 1])
@@ -1568,7 +1568,7 @@ extension SourceKitLSPServer {
 
   /// Handle a `workspace/symbolNames` request, returning the name list.
   func workspaceSymbolNames(_ req: WorkspaceSymbolNamesRequest) async throws -> WorkspaceSymbolNamesResponse {
-    return WorkspaceSymbolNamesResponse(names: await symbolNames())
+    return WorkspaceSymbolNamesResponse(names: await symbolNames(containerName: req.containerName))
   }
 
   /// Handle a `workspace/symbolInfo` request.
