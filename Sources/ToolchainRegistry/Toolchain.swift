@@ -169,7 +169,6 @@ public final class Toolchain: Sendable {
             let output = try result.output.get()
             return try SupportedSwiftFeatures(jsonData: Data(output))
           } catch {
-            logger.debug("Failed to get supported Swift features from \(swiftc.path): \(error.localizedDescription)")
             return nil
           }
         }

@@ -17,6 +17,7 @@ import SwiftParser
 public import SwiftSyntax
 package import ToolchainRegistry
 
+/// Represents the category of a Swift feature being enabled in a package manifest.
 private enum PackageManifestFeatureKind: Sendable {
   case upcoming
   case experimental
@@ -47,6 +48,9 @@ private struct PackageManifestFeatureUse: Sendable {
 }
 
 package enum PackageManifestFeatureSupport {
+  /// Produces diagnostics for Swift feature names used in package manifests.
+  /// The supported feature list comes directly from the toolchain, allowing
+  /// diagnostics to reflect the features understood by the active compiler.
   package static func diagnostics(
     in snapshot: DocumentSnapshot,
     syntaxTree: SourceFileSyntax,
@@ -83,6 +87,8 @@ package enum PackageManifestFeatureSupport {
         return nil
       }
 
+      // The feature is supported by the other API, so suggest using the
+      // corresponding enableUpcomingFeature/enableExperimentalFeature call.
       let otherKind: PackageManifestFeatureKind = featureUse.kind == .upcoming ? .experimental : .upcoming
       if supportedFeatures.contains(name, kind: otherKind.supportedFeatureKind) {
         return Diagnostic(
@@ -127,6 +133,10 @@ package enum PackageManifestFeatureSupport {
     }
 
     let features = featureUse.kind == .upcoming ? supportedFeatures.upcoming : supportedFeatures.experimental
+
+    // Use the text between the beginning of the string content and the cursor
+    // as the completion filter, while keeping the replacement range limited to
+    // the string contents so that the surrounding quotes are preserved.
     let typedPrefix = String(
       snapshot.text[
         snapshot.indexOf(
@@ -174,38 +184,64 @@ package enum PackageManifestFeatureSupport {
     return visitor.featureUses
   }
 
+  /// Finds the closest matching string from a list of candidates
   private static func closestMatch(to name: String, in candidates: [String]) -> String? {
-    let scored = candidates.map { ($0, editDistance(name.lowercased(), $0.lowercased())) }.min { lhs, rhs in
-      lhs.1 < rhs.1
+    let target = name.lowercased()
+    var bestCandidate: String?
+    var bestDistance = Int.max
+
+    // Only suggest candidates within a small edit distance.
+    let threshold = 2
+
+    for candidate in candidates {
+      let distance = mismatchCount(target, candidate.lowercased(), limit: threshold)
+      if distance <= threshold, distance < bestDistance {
+        bestDistance = distance
+        bestCandidate = candidate
+      }
     }
-    guard let (candidate, distance) = scored else {
-      return nil
-    }
-    let threshold = max(2, min(5, name.count / 3))
-    return distance <= threshold ? candidate : nil
+    return bestCandidate
   }
 
-  private static func editDistance(_ lhs: String, _ rhs: String) -> Int {
-    let lhs = Array(lhs)
-    let rhs = Array(rhs)
-    if lhs.isEmpty { return rhs.count }
-    if rhs.isEmpty { return lhs.count }
+  private static func mismatchCount(_ lhs: String, _ rhs: String, limit: Int) -> Int {
+    let lhsChars = Array(lhs)
+    let rhsChars = Array(rhs)
 
-    var previous = Array(0...rhs.count)
-    var current = Array(repeating: 0, count: rhs.count + 1)
-    for lhsIndex in 1...lhs.count {
-      current[0] = lhsIndex
-      for rhsIndex in 1...rhs.count {
-        let substitutionCost = lhs[lhsIndex - 1] == rhs[rhsIndex - 1] ? 0 : 1
-        current[rhsIndex] = min(
-          previous[rhsIndex] + 1,
-          current[rhsIndex - 1] + 1,
-          previous[rhsIndex - 1] + substitutionCost
-        )
-      }
-      previous = current
+    if abs(lhsChars.count - rhsChars.count) > limit {
+      return Int.max
     }
-    return previous[rhs.count]
+
+    var differences = 0
+    var i = 0
+    var j = 0
+
+    while i < lhsChars.count && j < rhsChars.count {
+      if lhsChars[i] == rhsChars[j] {
+        i += 1
+        j += 1
+      } else {
+        differences += 1
+        if differences > limit { return Int.max }
+
+        let canSkipLhs = i + 1 < lhsChars.count && lhsChars[i + 1] == rhsChars[j]
+        let canSkipRhs = j + 1 < rhsChars.count && lhsChars[i] == rhsChars[j + 1]
+
+        if canSkipLhs && canSkipRhs {
+          i += 1
+          j += 1
+        } else if canSkipLhs {
+          i += 1
+        } else if canSkipRhs {
+          j += 1
+        } else {
+          i += 1
+          j += 1
+        }
+      }
+    }
+
+    differences += (lhsChars.count - i) + (rhsChars.count - j)
+    return differences > limit ? Int.max : differences
   }
 }
 

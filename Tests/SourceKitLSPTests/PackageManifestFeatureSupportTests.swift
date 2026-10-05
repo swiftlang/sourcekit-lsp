@@ -34,7 +34,6 @@ final class PackageManifestFeatureSupportTests: SourceKitLSPTestCase {
   func testDiagnosticsForPackageManifestFeatures() throws {
     let diagnostics = diagnostics(
       """
-      // swift-tools-version: 6.0
       import PackageDescription
 
       let package = Package(
@@ -152,7 +151,6 @@ final class PackageManifestFeatureSupportTests: SourceKitLSPTestCase {
     XCTAssertEqual(partial.items.map(\.label), ["ExistentialAny"])
     XCTAssertEqual(
       partial.items.first?.textEdit,
-      // FIX: Change 31 to 28, and 43 to 40 to match the exact utf16 string indices
       .textEdit(
         TextEdit(
           range: Position(line: 3, utf16index: 28)..<Position(line: 3, utf16index: 40),

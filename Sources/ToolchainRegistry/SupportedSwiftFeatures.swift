@@ -12,6 +12,7 @@
 
 package import Foundation
 
+/// Represents a specific Swift language feature that can be enabled by the compiler.
 package struct SupportedSwiftFeature: Sendable, Equatable {
   package enum Kind: String, Sendable {
     case upcoming
@@ -38,6 +39,8 @@ package struct SupportedSwiftFeatures: Sendable, Equatable {
     self.experimental = experimental
   }
 
+  /// Creates a feature list from the JSON output of
+  /// `swiftc -print-supported-features`.
   package init(jsonData: Data) throws {
     let entries = try JSONDecoder().decode([FeatureEntry].self, from: jsonData)
     var upcoming: [SupportedSwiftFeature] = []
