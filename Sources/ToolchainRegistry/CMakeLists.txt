@@ -1,5 +1,6 @@
 
 add_library(ToolchainRegistry STATIC
+  SupportedSwiftFeatures.swift
   Toolchain.swift
   ToolchainRegistry.swift
   XCToolchainPlist.swift)
