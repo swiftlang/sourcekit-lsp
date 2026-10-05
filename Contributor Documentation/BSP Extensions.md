@@ -200,6 +200,13 @@ export interface TextDocumentSourceKitOptionsRequest {
 
   /** The language with which the document was opened in the editor. */
   language: LanguageId;
+
+  /** The purpose for which the options are requested: `editor` to drive live editor functionality (completion,
+   * diagnostics, etc.) or `index` to drive a background index build.
+   *
+   * The main difference is that for `index`, we could assume there is a preparation build happening before the
+   * build setting has been queried. */
+  purpose?: "editor" | "index";
 }
 
 export interface TextDocumentSourceKitOptionsResult {

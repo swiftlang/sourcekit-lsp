@@ -323,11 +323,14 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
       [UpdateIndexStorePartition.Invocation: [(file: FileToIndex, indexUnitOutputPath: String)]] = [:]
     var partitions: [UpdateIndexStorePartition] = []
     for fileInfo in fileInfos {
+      // Request index-purpose settings so the build server can serve index-tailored options (the explicit-modules
+      // sidecar written during preparation) via a cache entry separate from the editor's.
       let buildSettings = await buildServerManager.buildSettings(
         for: fileInfo.mainFile,
         in: target,
         language: language,
-        fallbackAfterTimeout: false
+        fallbackAfterTimeout: false,
+        purpose: .index
       )
       guard let buildSettings else {
         logger.error("Not indexing \(fileInfo.file.forLogging) because it has no compiler arguments")
