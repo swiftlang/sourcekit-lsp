@@ -170,9 +170,10 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
       } else {
         try await SourceKitLSPOptions.testDefault()
       }
-    if let globalModuleCache = try globalModuleCache {
+    let moduleCache = try uniqueTestModuleCache()
+    if let moduleCache {
       options.swiftPMOrDefault.swiftCompilerFlags =
-        (options.swiftPMOrDefault.swiftCompilerFlags ?? []) + ["-module-cache-path", try globalModuleCache.filePath]
+        (options.swiftPMOrDefault.swiftCompilerFlags ?? []) + ["-module-cache-path", try moduleCache.filePath]
     }
     options.backgroundIndexing = enableBackgroundIndexing
     if options.sourcekitdRequestTimeout == nil {
@@ -196,7 +197,12 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
       }
     )
 
-    self.cleanUp = cleanUp
+    self.cleanUp = {
+      if let moduleCache, cleanScratchDirectories {
+        try? FileManager.default.removeItem(at: moduleCache)
+      }
+      cleanUp()
+    }
     self.usePullDiagnostics = usePullDiagnostics
     self.serverToClientConnection.start(handler: WeakMessageHandler(self))
 
