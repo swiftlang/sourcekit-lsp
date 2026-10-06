@@ -878,6 +878,8 @@ package struct sourcekitd_api_requests {
   package let findLocalRenameRanges: sourcekitd_api_uid_t
   /// `source.request.semantic.refactoring`
   package let semanticRefactoring: sourcekitd_api_uid_t
+  /// `source.request.objc.selector`
+  package let objcSelector: sourcekitd_api_uid_t
   /// `source.request.enable-compile-notifications`
   package let enableCompileNotifications: sourcekitd_api_uid_t
   /// `source.request.test_notification`
@@ -951,6 +953,7 @@ package struct sourcekitd_api_requests {
     findRenameRanges = api.uid_get_from_cstr("source.request.find-syntactic-rename-ranges")!
     findLocalRenameRanges = api.uid_get_from_cstr("source.request.find-local-rename-ranges")!
     semanticRefactoring = api.uid_get_from_cstr("source.request.semantic.refactoring")!
+    objcSelector = api.uid_get_from_cstr("source.request.objc.selector")!
     enableCompileNotifications = api.uid_get_from_cstr("source.request.enable-compile-notifications")!
     testNotification = api.uid_get_from_cstr("source.request.test_notification")!
     collectExpressionType = api.uid_get_from_cstr("source.request.expression.type")!
