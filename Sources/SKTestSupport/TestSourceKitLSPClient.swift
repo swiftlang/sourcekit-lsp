@@ -43,6 +43,22 @@ extension SourceKitLSPOptions {
       }
 
     return SourceKitLSPOptions(
+      swiftPM: SourceKitLSPOptions.SwiftPMOptions(
+        swiftCompilerFlags: [
+          // All tests share one module cache, so one test can be waiting on a
+          // module lock that another test holds. A lock whose owner was killed is
+          // only detected on platforms where `LockFileManager` can tell that the
+          // owning process is gone, so elsewhere the waiter blocks for the full
+          // lock timeout before clearing the lock and building the module itself.
+          // Report module builds and lock acquisitions so that a stalled index
+          // task names the contended module instead of looking like slow indexing,
+          // and lower the wait so that contention is reported rather than
+          // resolving silently.
+          "-Xcc", "-Rmodule-build",
+          "-Xcc", "-Rmodule-lock",
+          "-Xcc", "-fimplicit-modules-lock-timeout=10",
+        ]
+      ),
       buildSettingsTimeout: buildSettingsTimeoutMilliseconds,
       sourcekitd: SourceKitDOptions(
         clientPlugin: try pluginPaths.clientPlugin.filePath,
