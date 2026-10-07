@@ -412,7 +412,10 @@ package actor SourceKitLSPServer {
           continue
         }
       }
-      throw ResponseError.unknown("No language service implements \(type(of: request).method)")
+      throw ResponseError(
+        code: .requestNotImplemented,
+        message: "No language service implements \(type(of: request).method)"
+      )
     }
   }
 
