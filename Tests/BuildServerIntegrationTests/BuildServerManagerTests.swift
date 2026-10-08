@@ -29,16 +29,25 @@ fileprivate actor TestBuildServer: CustomBuildServer {
   private let connectionToSourceKitLSP: any Connection
   private var buildSettingsByFile: [DocumentURI: TextDocumentSourceKitOptionsResponse] = [:]
 
+  private var unlockBuildTargetSourcesResponses: MultiEntrySemaphore?
+
   func setBuildSettings(for uri: DocumentURI, to buildSettings: TextDocumentSourceKitOptionsResponse?) {
     buildSettingsByFile[uri] = buildSettings
     connectionToSourceKitLSP.send(OnBuildTargetDidChangeNotification(changes: nil))
+  }
+
+  func delayBuildTargetSourcesResponses(until semaphore: MultiEntrySemaphore) {
+    unlockBuildTargetSourcesResponses = semaphore
   }
 
   init(projectRoot: URL, connectionToSourceKitLSP: any Connection) {
     self.connectionToSourceKitLSP = connectionToSourceKitLSP
   }
 
-  func buildTargetSourcesRequest(_ request: BuildTargetSourcesRequest) -> BuildTargetSourcesResponse {
+  func buildTargetSourcesRequest(_ request: BuildTargetSourcesRequest) async -> BuildTargetSourcesResponse {
+    if let unlockBuildTargetSourcesResponses {
+      await unlockBuildTargetSourcesResponses.waitOrXCTFail()
+    }
     return dummyTargetSourcesResponse(files: buildSettingsByFile.keys)
   }
 
@@ -56,7 +65,8 @@ fileprivate extension BuildServerManager {
 }
 
 private func createBuildServerManager(
-  mainFilesProvider: some MainFilesProvider
+  mainFilesProvider: some MainFilesProvider,
+  options: SourceKitLSPOptions = SourceKitLSPOptions()
 ) async throws -> (manager: BuildServerManager, buildServer: TestBuildServer) {
   let dummyPath = URL(fileURLWithPath: "/")
   let testBuildServer = ThreadSafeBox<TestBuildServer?>(initialValue: nil)
@@ -74,7 +84,7 @@ private func createBuildServerManager(
   let manager = await BuildServerManager(
     buildServerSpec: spec,
     toolchainRegistry: ToolchainRegistry.forTesting,
-    options: SourceKitLSPOptions(),
+    options: options,
     connectionToClient: DummyBuildServerManagerConnectionToClient(),
     buildServerHooks: BuildServerHooks(),
     createMainFilesProvider: { _, _ in mainFilesProvider }
@@ -171,6 +181,30 @@ final class BuildServerManagerTests: SourceKitLSPTestCase {
     ])
     await buildServer.setBuildSettings(for: a, to: nil)
     try await fulfillmentOfOrThrow(changed)
+  }
+
+  func testNoFallbackSettingsIfTargetInferenceExceedsTimeout() async throws {
+    let a = try DocumentURI(string: "bsm:a.swift")
+    let mainFiles = ManualMainFilesProvider([a: [a]])
+
+    var options = SourceKitLSPOptions()
+    options.buildSettingsTimeout = 10 /* milliseconds */
+    let (manager, buildServer) = try await createBuildServerManager(mainFilesProvider: mainFiles, options: options)
+
+    let unlockBuildTargetSourcesResponses = MultiEntrySemaphore(name: "Build server starts responding")
+    await buildServer.delayBuildTargetSourcesResponses(until: unlockBuildTargetSourcesResponses)
+    await buildServer.setBuildSettings(for: a, to: TextDocumentSourceKitOptionsResponse(compilerArguments: ["x"]))
+
+    let settingsTask = Task {
+      await manager.buildSettingsInferredFromMainFile(for: a, language: .swift, fallbackAfterTimeout: false)
+    }
+    // Let `buildSettingsTimeout` elapse before the build server answers `buildTarget/sources`.
+    try await Task.sleep(for: .milliseconds(200))
+    unlockBuildTargetSourcesResponses.signal()
+
+    let settings = try await unwrap(settingsTask.value)
+    XCTAssertFalse(settings.isFallback)
+    XCTAssertEqual(settings.compilerArguments.first, "x")
   }
 
   func testSettingsMainFileInitialNil() async throws {

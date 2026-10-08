@@ -1333,6 +1333,8 @@ package actor BuildServerManager: QueueBasedMessageHandler {
         let target: WithTimeoutResult<BuildTargetIdentifier?> =
           if let explicitlyRequestedTarget {
             .result(explicitlyRequestedTarget)
+          } else if !fallbackAfterTimeout {
+            .result(await self.canonicalTarget(for: mainFile))
           } else {
             try await withTimeoutResult(options.buildSettingsTimeoutOrDefault) {
               return await self.canonicalTarget(for: mainFile)
