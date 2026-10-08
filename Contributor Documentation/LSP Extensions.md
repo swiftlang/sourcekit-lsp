@@ -921,6 +921,60 @@ export interface PeekDocumentsResult {
 }
 ```
 
+## `sourcekit/workspace/members`
+
+Request that returns the members of a type identified by its USR.
+
+The members declared in the type and in its extensions are returned, sorted by location. Implicit members, i.e. members synthesized by the compiler or added by a macro expansion, are not included. Nested types are members, but their own members are not included. Like `sourcekit/workspace/references`, the request only queries the index and does not require the client to open a document.
+
+SourceKit-LSP will advertise `sourcekit/workspace/members` in its experimental server capabilities if it supports it.
+
+> [!IMPORTANT]
+> This request is experimental and may be modified or removed in future versions of SourceKit-LSP without notice. Do not rely on it.
+
+- params: `WorkspaceMembersParams`
+- result: `SourceKitSymbolMember[]`
+
+```ts
+export interface WorkspaceMembersParams {
+  /** The type whose members to return. */
+  symbol: SourceKitSymbolIdentifier;
+}
+
+export interface SourceKitSymbolMember {
+  /** The member's name, e.g. `foo(x:)`. */
+  name: string;
+
+  kind: SymbolKind;
+
+  /** The member's primary definition or declaration. */
+  location: Location;
+
+  /** Identifies the member for further queries. */
+  symbol: SourceKitSymbolIdentifier;
+
+  /** Tags for this member, e.g. whether it is a `static` or `class` member. Omitted if the member has no tags. */
+  tags?: SourceKitSymbolTag[];
+}
+
+/**
+ * A SourceKit-LSP-specific tag on a symbol.
+ *
+ * Clients must ignore tags they don't know.
+ */
+export namespace SourceKitSymbolTag {
+  /**
+   * A type member declared `static`, such as a Swift `static` member or a C++ static member.
+   */
+  export const static = "static"
+
+  /**
+   * A type member declared `class`, such as a Swift `class` member or an Objective-C class method.
+   */
+  export const class = "class"
+}
+```
+
 ## `sourcekit/workspace/playgrounds`
 
 New request for returning the list of all #Playground macros in the workspace.
