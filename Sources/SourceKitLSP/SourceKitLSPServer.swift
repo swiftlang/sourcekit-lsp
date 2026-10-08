@@ -2315,28 +2315,34 @@ extension SourceKitLSPServer {
     return calls.sorted(by: { $0.to.name < $1.to.name })
   }
 
+  /// The type hierarchy item for the type defined at `definition`.
+  ///
+  /// If `definition` is an extension, the item identifies the extended type but is located at the extension, which
+  /// is where the extension's conformances are declared.
   private func indexToLSPTypeHierarchyItem(
     definition: SymbolOccurrence,
     moduleName: String?,
     index: CheckedIndex
   ) throws -> TypeHierarchyItem? {
-    let name: String
-    let detail: String?
-
     guard let location = definition.location.lspLocation else {
       return nil
     }
 
-    let symbol = definition.symbol
-    switch symbol.kind {
+    let type: Symbol
+    let name: String
+    let detail: String?
+    switch definition.symbol.kind {
     case .extension:
-      // Query the conformance added by this extension
-      let conformances = try index.occurrences(relatedToUSR: symbol.usr, roles: .baseOf)
-      if conformances.isEmpty {
-        name = symbol.name
-      } else {
-        name = "\(symbol.name): \(conformances.map(\.symbol.name).sorted().joined(separator: ", "))"
+      // The occurrence of the extended type at the extension site is related to the extension by `extendedBy`.
+      guard
+        let extendedTypeOccurrence = try index.occurrences(relatedToUSR: definition.symbol.usr, roles: .extendedBy)
+          .sorted().first
+      else {
+        return nil
       }
+      type = extendedTypeOccurrence.symbol
+      let extendedTypeDefinition = try index.primaryDefinitionOrDeclarationOccurrence(ofUSR: type.usr)
+      name = try extendedTypeDefinition.map { try index.fullyQualifiedName(of: $0) } ?? type.name
       // Add the file name and line to the detail string
       if let url = location.uri.fileURL,
         let basename = (try? AbsolutePath(validating: url.filePath))?.basename
@@ -2348,20 +2354,21 @@ extension SourceKitLSPServer {
         detail = "Extension"
       }
     default:
+      type = definition.symbol
       name = try index.fullyQualifiedName(of: definition)
       detail = moduleName
     }
 
     return TypeHierarchyItem(
       name: name,
-      kind: symbol.kind.asLspSymbolKind(),
+      kind: type.kind.asLspSymbolKind(),
       tags: nil,
       detail: detail,
       uri: location.uri,
       range: location.range,
       selectionRange: location.range,
       // Identifies the symbol for supertype/subtype lookups
-      data: SourceKitSymbolIdentifier(usr: symbol.usr, uri: location.uri).encodeToLSPAny()
+      data: SourceKitSymbolIdentifier(usr: type.usr, uri: location.uri).encodeToLSPAny()
     )
   }
 
@@ -2514,8 +2521,9 @@ extension SourceKitLSPServer {
       return []
     }
 
-    // Resolve child types and extensions
-    let occurs = try index.occurrences(ofUSR: data.usr, roles: [.baseOf, .extendedBy])
+    // Resolve the types and extensions whose inheritance clause names the type. The type's own extensions are not
+    // subtypes, so `extendedBy` occurrences are not included.
+    let occurs = try index.occurrences(ofUSR: data.usr, roles: .baseOf)
 
     // TODO: Remove this workaround once https://github.com/swiftlang/swift/issues/75600 is fixed
     func indexToLSPTypeHierarchyItem2(
@@ -2530,33 +2538,52 @@ extension SourceKitLSPServer {
       )
     }
 
-    // Convert occurrences to type hierarchy items
-    var types: [TypeHierarchyItem] = []
+    // Convert occurrences to type hierarchy items. An item for an extension identifies the extended type, so items
+    // are keyed by the USR in their data.
+    var types: [String: (item: TypeHierarchyItem, isExtension: Bool)] = [:]
     let copiedFileMap = await workspace.buildServerManager.cachedCopiedFileMap
     for occurrence in occurs {
       if occurrence.relations.count > 1 {
-        // An occurrence with a `baseOf` or `extendedBy` relation is an occurrence inside an inheritance clause.
-        // Such an occurrence can only be the source of a single type, namely the one that the inheritance clause belongs
-        // to.
-        logger.fault("Expected at most extendedBy or baseOf relation but got \(occurrence.relations.count)")
+        // An occurrence with a `baseOf` relation is an occurrence inside an inheritance clause. Such an occurrence can
+        // only be the source of a single type, namely the one that the inheritance clause belongs to.
+        logger.fault("Expected at most one baseOf relation but got \(occurrence.relations.count)")
       }
       guard let related = occurrence.relations.sorted().first else {
         continue
       }
 
-      // Resolve the subtype's definition to find its location
+      // Resolve the definition of the subtype or extension to find its location
       guard let definition = try index.primaryDefinitionOrDeclarationOccurrence(ofUSR: related.symbol.usr) else {
         continue
       }
 
       let moduleName = definition.location.moduleName
-      guard let item = try indexToLSPTypeHierarchyItem2(definition: definition, moduleName: moduleName, index: index)
+      guard let item = try indexToLSPTypeHierarchyItem2(definition: definition, moduleName: moduleName, index: index),
+        let usr = item.sourceKitData?.usr
       else {
         continue
       }
-      types.append(item.adjusted(for: copiedFileMap))
+      let candidate = (item: item.adjusted(for: copiedFileMap), isExtension: definition.symbol.kind == .extension)
+
+      // A type can declare the same relationship more than once, e.g. in an Objective-C class and in a category of it.
+      // Prefer the type's own declaration over an extension, and the earliest extension otherwise.
+      if let existing = types[usr] {
+        let isPreferred =
+          if existing.isExtension != candidate.isExtension {
+            !candidate.isExtension
+          } else {
+            Location(uri: candidate.item.uri, range: candidate.item.range)
+              < Location(uri: existing.item.uri, range: existing.item.range)
+          }
+        guard isPreferred else {
+          continue
+        }
+      }
+      types[usr] = candidate
     }
-    return types.sorted { $0.name < $1.name }
+    return types.values.map(\.item).sorted {
+      ($0.name, Location(uri: $0.uri, range: $0.range)) < ($1.name, Location(uri: $1.uri, range: $1.range))
+    }
   }
 
   func synchronize(_ req: SynchronizeRequest) async throws -> VoidResponse {
