@@ -175,7 +175,7 @@ package actor DocumentationLanguageService: LanguageService, Sendable {
       self.target = target
     }
 
-    private func contains(_ range: Markdown.SourceRange?) -> Bool {
+    private func targetIsContained(by range: Markdown.SourceRange?) -> Bool {
       guard let range else { return false }
       return range.lowerBound <= target && target < range.upperBound
     }
@@ -183,16 +183,18 @@ package actor DocumentationLanguageService: LanguageService, Sendable {
     mutating func visitSymbolLink(_ symbolLink: SymbolLink) {
       guard
         found == nil,
-        contains(symbolLink.range),
+        targetIsContained(by: symbolLink.range),
         let destination = symbolLink.destination,
-        let range = symbolLink.range
+        let range = symbolLink.range,
+        range.lowerBound.line == target.line
       else {
         return
       }
       // Symbol links are delimited by two backticks (``Foo/bar``),
       // so the destination starts two columns past the start of the link.
-      let destinationStartColumn = range.lowerBound.column + 2
-      let relativeColumn = target.column - destinationStartColumn
+      // The offset of the target location relative to the link’s start
+      let targetOffsetFromLinkStart = range.lowerBound.column + 2
+      let relativeColumn = target.column - targetOffsetFromLinkStart
       guard relativeColumn >= 0 else {
         return
       }

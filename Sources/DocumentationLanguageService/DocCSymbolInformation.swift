@@ -46,12 +46,12 @@ struct DocCSymbolInformation {
     }
   }
 
-  func matchesAsSuffix(_ link: DocCSymbolLink) -> Bool {
-    guard link.components.count <= components.count else {
+  func matches(suffix: DocCSymbolLink) -> Bool {
+    guard suffix.components.count <= components.count else {
       return false
     }
-    let matchingSuffix = components.suffix(link.components.count)
-    return zip(link.components, matchingSuffix).allSatisfy { linkComponent, symbolComponent in
+    let matchingSuffix = components.suffix(suffix.components.count)
+    return zip(suffix.components, matchingSuffix).allSatisfy { linkComponent, symbolComponent in
       linkComponent.name == symbolComponent.name && symbolComponent.information.matches(linkComponent.disambiguation)
     }
   }
