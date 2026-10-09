@@ -134,7 +134,7 @@ package final actor CapabilityRegistry {
   /// Whether the client wants per-item metadata (module, group ID, system/diagnostic flags, and the annotated
   /// description/type name XML) surfaced on Swift completion items.
   package nonisolated var clientSupportsExtendedCompletionItems: Bool {
-    return clientHasExperimentalCapability("sourcekit-lsp.completion.extendedItems")
+    return clientHasExperimentalCapability(CompletionRequest.extendedItemsCapability)
   }
 
   /// Whether the client supports `workspaceSymbol/resolve` and will resolve `location` or `location.range`.
