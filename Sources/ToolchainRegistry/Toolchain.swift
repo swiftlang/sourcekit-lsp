@@ -110,6 +110,7 @@ public final class Toolchain: Sendable {
   package let libIndexStore: URL?
 
   private let swiftVersionTask: Mutex<Task<SwiftVersion, any Error>?> = Mutex(nil)
+  private let supportedFeaturesTask: Mutex<Task<SupportedSwiftFeatures?, Never>?> = Mutex(nil)
 
   /// The Swift version installed in the toolchain. Throws an error if the version could not be parsed or if no Swift
   /// compiler is installed in the toolchain.
@@ -147,6 +148,35 @@ public final class Toolchain: Sendable {
       }
 
       return try await task.value
+    }
+  }
+
+  package var supportedSwiftFeatures: SupportedSwiftFeatures? {
+    get async {
+      let task = supportedFeaturesTask.withLock { task in
+        if let task {
+          return task
+        }
+        let newTask = Task { () -> SupportedSwiftFeatures? in
+          guard let swiftc else {
+            return nil
+          }
+
+          do {
+            let process = Process(args: try swiftc.filePath, "-print-supported-features")
+            try process.launch()
+            let result = try await process.waitUntilExit()
+            let output = try result.output.get()
+            return try SupportedSwiftFeatures(jsonData: Data(output))
+          } catch {
+            return nil
+          }
+        }
+        task = newTask
+        return newTask
+      }
+
+      return await task.value
     }
   }
 
