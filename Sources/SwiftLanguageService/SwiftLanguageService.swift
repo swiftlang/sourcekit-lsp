@@ -796,10 +796,10 @@ extension SwiftLanguageService {
 
   /// Whether `position` falls within a `docLineComment` or `docBlockComment` piece of `trivia`,
   /// which starts at `triviaStart`.
-  private func trivia(
-    _ trivia: Trivia,
-    startingAt triviaStart: AbsolutePosition,
-    contains position: AbsolutePosition
+  private func isContainedInDocComment(
+    _ position: AbsolutePosition,
+    trivia: Trivia,
+    startingAt triviaStart: AbsolutePosition
   ) -> Bool {
     var offset = triviaStart.utf8Offset
     for piece in trivia.pieces {
@@ -824,9 +824,12 @@ extension SwiftLanguageService {
 
     if let token = tree.token(at: absolutePosition) {
       let isInDocComment =
-        trivia(token.leadingTrivia, startingAt: token.position, contains: absolutePosition)
-        || trivia(token.trailingTrivia, startingAt: token.endPositionBeforeTrailingTrivia, contains: absolutePosition)
-
+        isContainedInDocComment(absolutePosition, trivia: token.leadingTrivia, startingAt: token.position)
+        || isContainedInDocComment(
+          absolutePosition,
+          trivia: token.trailingTrivia,
+          startingAt: token.endPositionBeforeTrailingTrivia
+        )
       if isInDocComment {
         throw FallThroughToNextLanguageService()
       }
