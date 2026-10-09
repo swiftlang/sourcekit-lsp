@@ -938,4 +938,46 @@ final class CallHierarchyTests: SourceKitLSPTestCase {
       ]
     )
   }
+
+  func testIncomingCallsOfClientConstructedItem() async throws {
+    let project = try await IndexedSingleSwiftFileTestProject(
+      """
+      func foo() {}
+
+      func 1️⃣bar() {
+        2️⃣foo()
+      }
+      """
+    )
+
+    // Only `data` identifies the symbol; the remaining fields are placeholders.
+    var item = CallHierarchyItem(
+      name: "",
+      kind: .null,
+      tags: nil,
+      uri: project.fileURI,
+      range: Position(line: 0, utf16index: 0)..<Position(line: 0, utf16index: 0),
+      selectionRange: Position(line: 0, utf16index: 0)..<Position(line: 0, utf16index: 0)
+    )
+    item.sourceKitData = SourceKitSymbolIdentifier(usr: "s:4test3fooyyF", uri: project.fileURI)
+
+    let calls = try await project.testClient.send(CallHierarchyIncomingCallsRequest(item: item))
+    XCTAssertEqual(
+      calls,
+      [
+        CallHierarchyIncomingCall(
+          from: CallHierarchyItem(
+            name: "bar()",
+            kind: .function,
+            tags: nil,
+            uri: project.fileURI,
+            range: Range(project.positions["1️⃣"]),
+            selectionRange: Range(project.positions["1️⃣"]),
+            data: SourceKitSymbolIdentifier(usr: "s:4test3baryyF", uri: project.fileURI).encodeToLSPAny()
+          ),
+          fromRanges: [Range(project.positions["2️⃣"])]
+        )
+      ]
+    )
+  }
 }

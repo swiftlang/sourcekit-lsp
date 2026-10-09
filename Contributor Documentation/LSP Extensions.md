@@ -43,6 +43,26 @@ Added field (this is an extension from clangd that SourceKit-LSP re-exposes):
 codeActions: CodeAction[]?
 ```
 
+## `CallHierarchyItem` and `TypeHierarchyItem`
+
+For items returned by SourceKit-LSP, `data` contains a `SourceKitSymbolIdentifier`. `callHierarchy/incomingCalls`, `callHierarchy/outgoingCalls`, `typeHierarchy/supertypes` and `typeHierarchy/subtypes` only use `data` to identify the symbol, so a client that already knows a symbol's USR can construct an item without `textDocument/prepareCallHierarchy` or `textDocument/prepareTypeHierarchy`. The remaining fields of such an item are required by LSP but are not used by SourceKit-LSP.
+
+```ts
+/**
+ * Identifies a symbol in the index of a SourceKit-LSP workspace.
+ *
+ * Clients may construct it themselves. SourceKit-LSP ignores unknown fields; clients should preserve fields they
+ * don't know when passing a server-provided value back.
+ */
+export interface SourceKitSymbolIdentifier {
+  /** The USR of the symbol. */
+  usr: string;
+
+  /** Any document in the workspace whose index should be queried. Only used to select the workspace. */
+  uri: DocumentURI;
+}
+```
+
 ## Semantic token modifiers
 
 Added the following cases from clangd
@@ -947,6 +967,30 @@ export interface Playground {
    * The location of where the #Playground macro was used in the source code.
    */
   location: Location
+}
+```
+
+## `sourcekit/workspace/references`
+
+New request that returns all references to a symbol identified by its USR.
+
+Unlike `textDocument/references`, the symbol is not looked up from a source position, so the request does not require the client to open a document. The USR can be obtained from `textDocument/symbolInfo` or from the `data` of a call or type hierarchy item (see `SourceKitSymbolIdentifier`). Only indexed occurrences are returned; references to local symbols, which are not indexed, require `textDocument/references`.
+
+SourceKit-LSP will advertise `sourcekit/workspace/references` in its experimental server capabilities if it supports it.
+
+> [!IMPORTANT]
+> This request is experimental and may be modified or removed in future versions of SourceKit-LSP without notice. Do not rely on it.
+
+- params: `WorkspaceReferenceParams`
+- result: `Location[]`
+
+```ts
+export interface WorkspaceReferenceParams {
+  /** The symbol to find references to. */
+  symbol: SourceKitSymbolIdentifier;
+
+  /** Whether to include the declaration and definition of the symbol. Defaults to `false`. */
+  includeDeclaration?: boolean;
 }
 ```
 
