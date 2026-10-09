@@ -17,6 +17,7 @@ import IndexStoreDB
 import Markdown
 @_spi(SourceKitLSP) import SKLogging
 package import SKOptions
+import SKUtilities
 import SemanticIndex
 package import SourceKitLSP
 import SwiftExtensions
@@ -219,15 +220,13 @@ package actor DocumentationLanguageService: LanguageService, Sendable {
   }
 
   private func extractSymbolFromText(_ text: String, at position: Position) -> String? {
-    let lines = text.components(separatedBy: "\n")
-    var column = position.utf16index + 1
-    if position.line < lines.count {
-      column = utf8Offset(inLine: lines[position.line], forUTF16Offset: position.utf16index) + 1
-    }
+    let lineTable = LineTable(text)
+    let utf8Column = lineTable.utf8ColumnAt(line: position.line, utf16Column: position.utf16index)
+  
     // LSP positions are 0-based; swift-markdown SourceLocation is 1-based.
     let target = Markdown.SourceLocation(
       line: position.line + 1,
-      column: column,
+      column: utf8Column + 1,
       source: nil
     )
 
