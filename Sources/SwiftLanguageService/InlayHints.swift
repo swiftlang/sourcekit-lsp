@@ -30,12 +30,13 @@ extension SwiftLanguageService {
       // The client does not support workspace/inlayHint/refresh.
       // We have to compute inlay hints on every request, because we cannot trigger a refresh when the inlay hints have been recomputed in the background.
       let snapshot = try await latestSnapshot(for: uri)
-      async let typeInlayHints = inlayHintManager.computeTypeInlayHints(
+      let typeInlayHints = try await inlayHintManager.computeInlayHints(
         swiftLanguageService: self,
         for: snapshot,
         range: req.range
       )
-      return try await typeInlayHints + computeIfConfigInlayHints(snapshot: snapshot, range: req.range)
+      return try await typeInlayHints
+        + computeIfConfigInlayHints(snapshot: snapshot, range: req.range)
     }
 
     if let hints = await inlayHintManager.getCachedInlayHints(
@@ -43,7 +44,8 @@ extension SwiftLanguageService {
       for: snapshot,
       range: req.range
     ) {
-      return try await hints + computeIfConfigInlayHints(snapshot: snapshot, range: req.range)
+      return try await hints
+        + computeIfConfigInlayHints(snapshot: snapshot, range: req.range)
     }
 
     // No cached hints are available. The inlay hint manager has scheduled a refresh task if needed, so we can just
