@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2024 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2025 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -13,14 +13,14 @@
 @_spi(SourceKitLSP) package import LanguageServerProtocol
 import SourceKitD
 
-package struct ExpandMacroCommand: SwiftCommand {
-  package static let identifier: String = "expand.macro.command"
-
-  /// The name of this refactoring action.
-  package var title = "Expand Macro"
+package struct ExpandDerivedConformanceCommand: SwiftCommand {
+  package static let identifier: String = "expand.derived_conformance.command"
 
   /// The sourcekitd identifier of the refactoring action.
-  package static let actionString = "source.refactoring.kind.expand.macro"
+  package static let actionString = "source.refactoring.kind.expand.derived_conformance"
+
+  /// The name of this refactoring action.
+  package var title = "Expand Derived Conformance"
 
   /// The range to expand.
   @CustomCodable<PositionRange>

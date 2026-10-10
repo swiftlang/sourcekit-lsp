@@ -18,6 +18,7 @@ import InProcessClient
 @_spi(SourceKitLSP) import LanguageServerProtocolTransport
 import RegexBuilder
 @_spi(SourceKitLSP) import SKLogging
+package import SKOptions
 import SourceKitD
 import SourceKitLSP
 import SwiftExtensions
@@ -380,6 +381,35 @@ package actor SkipUnless {
     }
   }
 
+  package static func sourcekitdSupportsExpandDerivedConformance(
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) async throws {
+    return try await shared.skipUnlessSupportedByToolchain(
+      swiftVersion: SwiftVersion(6, 5),
+      file: file,
+      line: line
+    ) {
+      let testClient = try await TestSourceKitLSPClient(options: SourceKitLSPOptions.deriveConformancesViaMacros())
+      let uri = DocumentURI(for: .swift)
+      let positions = testClient.openDocument("struct S: 1️⃣Equatable {}", uri: uri)
+      let response = try await testClient.send(
+        CodeActionRequest(
+          range: Range(positions["1️⃣"]),
+          context: .init(diagnostics: [], only: nil),
+          textDocument: TextDocumentIdentifier(uri)
+        )
+      )
+      let commands: [Command] =
+        switch response {
+        case .codeActions(let codeActions): codeActions.compactMap(\.command)
+        case .commands(let commands): commands
+        case nil: []
+        }
+      return commands.contains { $0.title == "Expand Derived Conformance" }
+    }
+  }
+
   /// Check if SourceKit-LSP was compiled with docc support
   package static func doccSupported(
     file: StaticString = #filePath,
@@ -503,5 +533,22 @@ private struct GenericError: Error, CustomStringConvertible {
 
   init(_ message: String) {
     self.description = message
+  }
+}
+
+extension SourceKitLSPOptions {
+  /// Test options whose fallback build settings derive conformances via macros if `enabled` is `true`.
+  ///
+  /// The fallback build settings don't go through the driver, so they need the toolchain's host plugins, which contain
+  /// the derivation macros, to be passed explicitly.
+  package static func deriveConformancesViaMacros(enabled: Bool = true) async throws -> SourceKitLSPOptions {
+    let toolchain = try await unwrap(ToolchainRegistry.forTesting.default)
+    var options = try await SourceKitLSPOptions.testDefault()
+    var flags = ["-plugin-path", try toolchain.path.appending(components: "lib", "swift", "host", "plugins").filePath]
+    if enabled {
+      flags += ["-enable-experimental-feature", "DeriveConformancesViaMacros"]
+    }
+    options.fallbackBuildSystemOrDefault.swiftCompilerFlags = flags
+    return options
   }
 }
