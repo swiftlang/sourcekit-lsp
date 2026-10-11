@@ -18,6 +18,7 @@ add_library(SwiftSyntaxCodeActions STATIC
   IndentationRemover.swift
   InlineVariable.swift
   IntegerLiteralUtilities.swift
+  InvertIfCondition.swift
   MigrateToNewIfLetSyntax.swift
   OpaqueParameterToGeneric.swift
   PackageManifestEdits.swift
