@@ -735,6 +735,43 @@ final class CodeActionTests: SourceKitLSPTestCase {
     }
   }
 
+  func testConvertIntegerLiteralWithTrailingComment() async throws {
+    try await assertCodeActions(
+      """
+      let x = 1️⃣162️⃣  // comment
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Convert 16 to 0b10000",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [uri: [TextEdit(range: positions["1️⃣"]..<positions["2️⃣"], newText: "0b10000")]]
+          )
+        ),
+        CodeAction(
+          title: "Convert 16 to 0o20",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [uri: [TextEdit(range: positions["1️⃣"]..<positions["2️⃣"], newText: "0o20")]]
+          )
+        ),
+        CodeAction(
+          title: "Convert 16 to 0x10",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [uri: [TextEdit(range: positions["1️⃣"]..<positions["2️⃣"], newText: "0x10")]]
+          )
+        ),
+      ]
+    }
+  }
+
   func testAddSeparatorsToIntegerLiteral() async throws {
     try await assertCodeActions(
       """
