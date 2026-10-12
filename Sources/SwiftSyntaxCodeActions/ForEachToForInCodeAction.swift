@@ -15,32 +15,67 @@ import SourceKitLSP
 import SwiftBasicFormat
 import SwiftRefactor
 import SwiftSyntax
-import SwiftSyntaxBuilder
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 /// Code action to convert `.forEach { }` calls to `for-in` loops.
 ///
-/// Only active when the cursor is on the `forEach` token and the symbol resolves
-/// to `Sequence.forEach` from the Swift standard library.
-struct ForEachToForInCodeAction: SyntaxCodeActionProvider {
-  package static func codeActions(in scope: SyntaxCodeActionScope) async -> [CodeAction] {
-    guard let match = findForEachCall(in: scope) else {
-      return []
-    }
+/// Offered on the `forEach` token. Resolving the action verifies that the symbol
+/// is from the Swift standard library before generating edits.
+struct ForEachToForInCodeAction: ResolvableSyntaxRefactoringCodeActionProvider {
+  typealias Input = FunctionCallExprSyntax
 
-    let position = scope.snapshot.position(of: match.forEachToken.position)
-    guard let info = try? await scope.symbolInfo(at: position).first,
-      isStdlibSequenceForEach(info)
+  static let title = "Convert to 'for-in' loop"
+
+  struct Context {
+    let indentationWidth: Trivia
+  }
+
+  struct UnresolvedData: Codable, LSPAnyCodable {
+    let position: Position
+  }
+
+  static func nodeToRefactor(in scope: SyntaxCodeActionScope) -> Input? {
+    guard scope.resolveSupport?.canResolveEdit ?? false,
+      let match = findForEachCall(in: scope),
+      checkClosureEligibility(match.closure).isEligible,
+      extractParameter(from: match.closure) != nil
     else {
-      return []
+      return nil
+    }
+    return match.callExpr
+  }
+
+  static func refactoringContext(
+    for node: Input,
+    in scope: SyntaxCodeActionScope
+  ) -> RefactoringContext<Context, UnresolvedData> {
+    let member = node.calledExpression.cast(MemberAccessExprSyntax.self)
+    return .unresolved(
+      UnresolvedData(position: scope.snapshot.position(of: member.declName.baseName.positionAfterSkippingLeadingTrivia))
+    )
+  }
+
+  static func resolveContext(
+    for data: UnresolvedData,
+    in scope: SyntaxCodeActionScope,
+    symbolInfo: (_ position: Position) async throws -> [SymbolDetails]
+  ) async throws -> Context {
+    guard let info = try await symbolInfo(data.position).only,
+      info.systemModule?.moduleName == "Swift"
+    else {
+      throw RefactoringNotApplicableError("Only the Swift standard library's forEach can be converted to a for-in loop")
+    }
+    return Context(indentationWidth: BasicFormat.inferIndentation(of: Syntax(scope.file)) ?? .spaces(2))
+  }
+
+  static func textRefactor(syntax: Input, in context: Context) throws -> [SourceEdit] {
+    guard let match = matchForEachCall(syntax), let param = extractParameter(from: match.closure) else {
+      throw RefactoringNotApplicableError("Unsupported forEach closure")
     }
 
     let eligibility = checkClosureEligibility(match.closure)
     guard eligibility.isEligible else {
-      return []
-    }
-
-    guard let param = extractParameter(from: match.closure) else {
-      return []
+      throw RefactoringNotApplicableError("Unsupported control flow in forEach closure")
     }
 
     var body = match.closure.statements
@@ -48,21 +83,27 @@ struct ForEachToForInCodeAction: SyntaxCodeActionProvider {
       body = DollarZeroRewriter(replacement: param.name).visit(body)
     }
     let loopLabel =
-      eligibility.hasBareReturnInNestedLoop ? generateUniqueLabel(in: match.closure.statements) : nil
+      eligibility.hasBareReturnInNestedLoop
+      ? generateUniqueName(startingWith: "forEachLoop", in: match.closure.statements) : nil
     let rewrittenBody = ReturnToContinueRewriter(loopLabel: loopLabel).visit(body)
-    let indentationWidth = BasicFormat.inferIndentation(of: Syntax(scope.file)) ?? .spaces(2)
-    let baseIndentation = match.callExpr.firstToken(viewMode: .sourceAccurate)?.indentationOfLine ?? []
+    let baseIndentation = match.expression.firstToken(viewMode: .sourceAccurate)?.indentationOfLine ?? []
+    var sequence = match.sequence.trimmed
+    if let tryExpr = match.expression.as(TryExprSyntax.self) {
+      // Evaluating the sequence can throw as well as invoking the closure.
+      sequence = ExprSyntax(tryExpr.with(\.expression, sequence).with(\.leadingTrivia, []))
+    }
+    let bodyTrivia = match.closure.signature?.inKeyword.trailingTrivia ?? match.closure.leftBrace.trailingTrivia
 
     let forInLoop = ForStmtSyntax(
       forKeyword: .keyword(.for, trailingTrivia: .space),
       pattern: IdentifierPatternSyntax(identifier: .identifier(param.name)),
       typeAnnotation: param.typeAnnotation,
       inKeyword: .keyword(.in, leadingTrivia: .space, trailingTrivia: .space),
-      sequence: match.sequence.trimmed,
+      sequence: sequence,
       body: CodeBlockSyntax(
-        leftBrace: .leftBraceToken(leadingTrivia: .space),
+        leftBrace: .leftBraceToken(leadingTrivia: .space, trailingTrivia: bodyTrivia),
         statements: rewrittenBody,
-        rightBrace: .rightBraceToken()
+        rightBrace: match.closure.rightBrace.with(\.trailingTrivia, [])
       )
     )
     var replacement = StmtSyntax(forInLoop)
@@ -75,22 +116,12 @@ struct ForEachToForInCodeAction: SyntaxCodeActionProvider {
         )
       )
     }
-    let format = BasicFormat(indentationWidth: indentationWidth, initialIndentation: baseIndentation)
+    let format = BasicFormat(indentationWidth: context.indentationWidth, initialIndentation: baseIndentation)
+    replacement.leadingTrivia = baseIndentation
     replacement = replacement.formatted(using: format).cast(StmtSyntax.self)
     replacement.leadingTrivia = []
 
-    let edit = TextEdit(
-      range: scope.snapshot.range(of: match.callExpr),
-      newText: replacement.description
-    )
-
-    return [
-      CodeAction(
-        title: "Convert to 'for-in' loop",
-        kind: .refactorInline,
-        edit: WorkspaceEdit(changes: [scope.snapshot.uri: [edit]])
-      )
-    ]
+    return [SourceEdit(range: match.expression.trimmedRange, replacement: replacement.description)]
   }
 }
 
@@ -98,9 +129,9 @@ struct ForEachToForInCodeAction: SyntaxCodeActionProvider {
 
 private struct Match {
   let callExpr: FunctionCallExprSyntax
+  let expression: ExprSyntax
   let sequence: ExprSyntax
   let closure: ClosureExprSyntax
-  let forEachToken: TokenSyntax
 }
 
 /// Matches only when the cursor/selection is on the `forEach` token.
@@ -108,44 +139,142 @@ private func findForEachCall(in scope: SyntaxCodeActionScope) -> Match? {
   guard let token = selectedForEachToken(in: scope),
     token.text == "forEach",
     let memberName = token.parent?.as(DeclReferenceExprSyntax.self),
-    let contextNode = scope.innermostNodeContainingRange,
-    let callExpr = contextNode.findParentOfSelf(
-      ofType: FunctionCallExprSyntax.self,
-      stoppingIf: { $0.is(FunctionDeclSyntax.self) || $0.is(ClosureExprSyntax.self) },
-      matching: { call in
-        guard let memberAccess = call.calledExpression.as(MemberAccessExprSyntax.self) else {
-          return false
-        }
-        return memberAccess.declName.id == memberName.id
-      }
-    ),
-    let memberAccess = callExpr.calledExpression.as(MemberAccessExprSyntax.self),
-    let sequence = memberAccess.base
+    let memberAccess = memberName.parent?.as(MemberAccessExprSyntax.self),
+    memberAccess.declName.id == memberName.id,
+    let callExpr = memberAccess.parent?.as(FunctionCallExprSyntax.self),
+    callExpr.calledExpression.id == memberAccess.id
+  else {
+    return nil
+  }
+  return matchForEachCall(callExpr)
+}
+
+private func matchForEachCall(_ callExpr: FunctionCallExprSyntax) -> Match? {
+  guard let memberAccess = callExpr.calledExpression.as(MemberAccessExprSyntax.self),
+    memberAccess.declName.baseName.text == "forEach",
+    let sequence = memberAccess.base,
+    !hasOptionalChaining(sequence),
+    callExpr.additionalTrailingClosures.isEmpty
   else {
     return nil
   }
 
-  let closure: ClosureExprSyntax?
-  if let trailingClosure = callExpr.trailingClosure {
+  var expression = ExprSyntax(callExpr)
+  if let tryExpr = callExpr.parent?.as(TryExprSyntax.self) {
+    guard tryExpr.questionOrExclamationMark == nil else { return nil }
+    expression = ExprSyntax(tryExpr)
+  }
+  // A loop can only replace a standalone expression, not a value used by another expression.
+  guard isStatementContext(Syntax(expression)) else {
+    return nil
+  }
+
+  let closure: ClosureExprSyntax
+  if let trailingClosure = callExpr.trailingClosure, callExpr.arguments.isEmpty {
     closure = trailingClosure
-  } else if callExpr.arguments.count == 1,
-    let closureArg = callExpr.arguments.first?.expression.as(ClosureExprSyntax.self)
+  } else if callExpr.trailingClosure == nil, callExpr.arguments.count == 1,
+    let argument = callExpr.arguments.first, argument.label == nil,
+    let closureArg = argument.expression.as(ClosureExprSyntax.self)
   {
     closure = closureArg
   } else {
     return nil
   }
 
-  guard let closure else {
+  let bodyStart = closure.signature?.inKeyword ?? closure.leftBrace
+  var preservedRanges = [
+    sequence.trimmedRange,
+    bodyStart.endPositionBeforeTrailingTrivia..<bodyStart.endPosition,
+    closure.statements.position..<closure.statements.endPosition,
+    closure.rightBrace.position..<closure.rightBrace.endPositionBeforeTrailingTrivia,
+  ]
+  if let tryExpr = expression.as(TryExprSyntax.self) {
+    preservedRanges.append(tryExpr.tryKeyword.trimmedRange.lowerBound..<tryExpr.tryKeyword.endPosition)
+  }
+  guard !hasDiscardedComment(in: expression, preserving: preservedRanges) else {
     return nil
   }
 
   return Match(
     callExpr: callExpr,
+    expression: expression,
     sequence: sequence,
-    closure: closure,
-    forEachToken: token
+    closure: closure
   )
+}
+
+/// A sole expression can implicitly return a value from a function, closure, getter, or branch.
+private func isStatementContext(_ node: Syntax) -> Bool {
+  if let parent = node.parent, parent.is(ExpressionStmtSyntax.self) || parent.is(IfExprSyntax.self) {
+    return isStatementContext(parent)
+  }
+  guard let item = node.parent?.as(CodeBlockItemSyntax.self),
+    let statements = item.parent?.as(CodeBlockItemListSyntax.self)
+  else { return false }
+  guard statements.count == 1 else { return true }
+  if let closure = statements.parent?.as(ClosureExprSyntax.self) {
+    return closure.signature?.returnClause?.type.isVoid ?? false
+  }
+  if statements.parent?.is(AccessorBlockSyntax.self) == true {
+    return false
+  }
+  if let switchCase = statements.parent?.as(SwitchCaseSyntax.self),
+    let switchExpr = switchCase.parent?.parent?.as(SwitchExprSyntax.self)
+  {
+    return isStatementContext(Syntax(switchExpr))
+  }
+  if let owner = statements.parent?.as(CodeBlockSyntax.self)?.parent {
+    if let function = owner.as(FunctionDeclSyntax.self) {
+      return function.signature.returnClause?.type.isVoid ?? true
+    }
+    if let accessor = owner.as(AccessorDeclSyntax.self) {
+      return accessor.accessorSpecifier.tokenKind != .keyword(.get)
+    }
+    if owner.is(IfExprSyntax.self) {
+      return isStatementContext(owner)
+    }
+  }
+  return true
+}
+
+/// Optional chaining propagates through the receiver's postfix expression, but not its arguments.
+private func hasOptionalChaining(_ expression: ExprSyntax) -> Bool {
+  if expression.is(OptionalChainingExprSyntax.self) {
+    return true
+  } else if let member = expression.as(MemberAccessExprSyntax.self), let base = member.base {
+    return hasOptionalChaining(base)
+  } else if let call = expression.as(FunctionCallExprSyntax.self) {
+    return hasOptionalChaining(call.calledExpression)
+  } else if let subscriptCall = expression.as(SubscriptCallExprSyntax.self) {
+    return hasOptionalChaining(subscriptCall.calledExpression)
+  } else if let specialization = expression.as(GenericSpecializationExprSyntax.self) {
+    return hasOptionalChaining(specialization.expression)
+  } else if let unwrap = expression.as(ForceUnwrapExprSyntax.self) {
+    return hasOptionalChaining(unwrap.expression)
+  }
+  return false
+}
+
+/// Decline the action if removing the call or closure signature would discard a comment.
+private func hasDiscardedComment(in expression: ExprSyntax, preserving ranges: [Range<AbsolutePosition>]) -> Bool {
+  for token in expression.tokens(viewMode: .sourceAccurate) {
+    for (trivia, start) in [
+      (token.leadingTrivia, token.position),
+      (token.trailingTrivia, token.endPositionBeforeTrailingTrivia),
+    ] {
+      var position = start
+      for piece in trivia {
+        let end = position + piece.sourceLength
+        defer { position = end }
+        if piece.isComment, expression.trimmedRange.contains(position),
+          !ranges.contains(where: { $0.lowerBound <= position && end <= $0.upperBound })
+        {
+          return true
+        }
+      }
+    }
+  }
+  return false
 }
 
 /// Matches the original request range against a single token exactly. We cannot rely on
@@ -156,7 +285,7 @@ private func selectedForEachToken(in scope: SyntaxCodeActionScope) -> TokenSynta
   let lowerBound = scope.snapshot.absolutePosition(of: scope.requestedRange.lowerBound)
   let upperBound = scope.snapshot.absolutePosition(of: scope.requestedRange.upperBound)
 
-  guard let token = tokenAtRequestStart(in: scope.file, at: lowerBound),
+  guard let token = scope.file.token(at: lowerBound),
     lowerBound == token.position
   else {
     return nil
@@ -167,20 +296,6 @@ private func selectedForEachToken(in scope: SyntaxCodeActionScope) -> TokenSynta
   }
 
   return token
-}
-
-private func tokenAtRequestStart(in file: SourceFileSyntax, at position: AbsolutePosition) -> TokenSyntax? {
-  if position == file.endPosition {
-    return file.endOfFileToken.previousToken(viewMode: .sourceAccurate)
-  }
-  return file.token(at: position)
-}
-
-private func isStdlibSequenceForEach(_ info: SymbolDetails) -> Bool {
-  guard let module = info.systemModule else {
-    return false
-  }
-  return module.moduleName == "Swift"
 }
 
 // MARK: - Closure Eligibility
@@ -275,12 +390,13 @@ private struct ClosureParam {
 
 private func extractParameter(from closure: ClosureExprSyntax) -> ClosureParam? {
   guard let signature = closure.signature else {
-    // No signature → anonymous $0 usage.
-    let name = generateUniqueName(in: closure.statements)
+    let name = generateUniqueName(startingWith: "element", in: closure.statements)
     return ClosureParam(name: name, typeAnnotation: nil, needsDollarZeroRewrite: true)
   }
 
-  guard signature.capture == nil else {
+  guard signature.capture == nil, signature.attributes.isEmpty,
+    signature.effectSpecifiers?.asyncSpecifier == nil
+  else {
     return nil
   }
 
@@ -295,48 +411,31 @@ private func extractParameter(from closure: ClosureExprSyntax) -> ClosureParam? 
     return ClosureParam(name: p.name.text, typeAnnotation: nil, needsDollarZeroRewrite: false)
   case .parameterClause(let clause):
     // `{ (item) in ... }` or `{ (item: Type) in ... }`
-    guard clause.parameters.count == 1, let p = clause.parameters.first else { return nil }
+    guard clause.parameters.count == 1, let p = clause.parameters.first,
+      p.attributes.isEmpty, p.modifiers.isEmpty, p.ellipsis == nil
+    else { return nil }
     let typeAnnotation = p.type.map {
       TypeAnnotationSyntax(colon: .colonToken(trailingTrivia: .space), type: $0)
     }
-    return ClosureParam(name: p.firstName.text, typeAnnotation: typeAnnotation, needsDollarZeroRewrite: false)
+    return ClosureParam(
+      name: (p.secondName ?? p.firstName).text,
+      typeAnnotation: typeAnnotation,
+      needsDollarZeroRewrite: false
+    )
   @unknown default:
     return nil
   }
 }
 
-/// Generates a unique name starting with "element" that doesn't conflict with existing identifiers.
-private func generateUniqueName(in node: some SyntaxProtocol) -> String {
-  if !containsIdentifier(named: "element", in: node) {
-    return "element"
+/// Generates a name that doesn't conflict with existing identifiers, including escaped identifiers.
+private func generateUniqueName(startingWith baseName: String, in node: some SyntaxProtocol) -> String {
+  var name = baseName
+  var suffix = 0
+  while node.tokens(viewMode: .sourceAccurate).contains(where: { $0.identifier?.name == name }) {
+    suffix += 1
+    name = "\(baseName)\(suffix)"
   }
-  var counter = 1
-  while containsIdentifier(named: "element\(counter)", in: node) {
-    counter += 1
-  }
-  return "element\(counter)"
-}
-
-/// Generates a unique label starting with "forEachLoop".
-private func generateUniqueLabel(in node: some SyntaxProtocol) -> String {
-  if !containsIdentifier(named: "forEachLoop", in: node) {
-    return "forEachLoop"
-  }
-  var counter = 1
-  while containsIdentifier(named: "forEachLoop\(counter)", in: node) {
-    counter += 1
-  }
-  return "forEachLoop\(counter)"
-}
-
-/// Checks if the node contains an identifier with the given name.
-private func containsIdentifier(named name: String, in node: some SyntaxProtocol) -> Bool {
-  for token in node.tokens(viewMode: .sourceAccurate) {
-    if case .identifier(let tokenName) = token.tokenKind, tokenName == name {
-      return true
-    }
-  }
-  return false
+  return name
 }
 
 // MARK: - Syntax Rewriting
@@ -355,13 +454,15 @@ private class ReturnToContinueRewriter: SyntaxRewriter {
     guard node.expression == nil else {
       return StmtSyntax(node)
     }
+    let label = nestedLoopCount > 0 ? loopLabel : nil
     return StmtSyntax(
       ContinueStmtSyntax(
         continueKeyword: .keyword(
           .continue,
-          trailingTrivia: nestedLoopCount > 0 && loopLabel != nil ? .space : []
+          leadingTrivia: node.returnKeyword.leadingTrivia,
+          trailingTrivia: label == nil ? node.returnKeyword.trailingTrivia : .space
         ),
-        label: nestedLoopCount > 0 ? loopLabel.map { .identifier($0) } : nil
+        label: label.map { .identifier($0, trailingTrivia: node.returnKeyword.trailingTrivia) }
       )
     )
   }
@@ -407,7 +508,7 @@ private class DollarZeroRewriter: SyntaxRewriter {
   }
 
   override func visit(_ node: DeclReferenceExprSyntax) -> ExprSyntax {
-    guard node.baseName.text == "$0" else {
+    guard node.baseName.identifier?.name == "$0" else {
       return ExprSyntax(node)
     }
     return ExprSyntax(
@@ -422,13 +523,27 @@ private class DollarZeroRewriter: SyntaxRewriter {
     )
   }
 
+  override func visit(_ node: ClosureExprSyntax) -> ExprSyntax {
+    // Capture initializers belong to the enclosing scope; the nested body has its own parameters.
+    guard var signature = node.signature, var capture = signature.capture else {
+      return ExprSyntax(node)
+    }
+    capture.items = ClosureCaptureListSyntax(
+      capture.items.map { item in
+        guard let initializer = item.initializer else { return item }
+        return item.with(\.initializer, initializer.with(\.value, visit(initializer.value)))
+      }
+    )
+    signature.capture = capture
+    return ExprSyntax(node.with(\.signature, signature))
+  }
+
   // Don't dig into nested scopes.
   override func visit(_ node: FunctionDeclSyntax) -> DeclSyntax { DeclSyntax(node) }
   override func visit(_ node: InitializerDeclSyntax) -> DeclSyntax { DeclSyntax(node) }
   override func visit(_ node: DeinitializerDeclSyntax) -> DeclSyntax { DeclSyntax(node) }
   override func visit(_ node: ActorDeclSyntax) -> DeclSyntax { DeclSyntax(node) }
   override func visit(_ node: ClassDeclSyntax) -> DeclSyntax { DeclSyntax(node) }
-  override func visit(_ node: ClosureExprSyntax) -> ExprSyntax { ExprSyntax(node) }
   override func visit(_ node: EnumDeclSyntax) -> DeclSyntax { DeclSyntax(node) }
   override func visit(_ node: ExtensionDeclSyntax) -> DeclSyntax { DeclSyntax(node) }
   override func visit(_ node: ProtocolDeclSyntax) -> DeclSyntax { DeclSyntax(node) }
