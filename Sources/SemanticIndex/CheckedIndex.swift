@@ -424,14 +424,15 @@ private struct IndexOutOfDateChecker {
     case date(Date)
   }
 
-  /// Caches whether a document has modifications in `documentManager` that haven't been saved to disk yet.
-  private var fileHasInMemoryModificationsCache: [DocumentURI: Bool] = [:]
+  /// File paths to whether the document has modifications in `documentManager` that haven't been
+  /// saved to disk yet.
+  private var fileHasInMemoryModificationsCache: [String: Bool] = [:]
 
-  /// Document URIs to modification times that have already been computed.
-  private var modTimeCache: [DocumentURI: ModificationTime] = [:]
+  /// File paths to modification times that have already been computed.
+  private var modTimeCache: [String: ModificationTime] = [:]
 
-  /// Document URIs to whether they exist on the file system
-  private var fileExistsCache: [DocumentURI: Bool] = [:]
+  /// File paths to whether they exist on the file system.
+  private var fileExistsCache: [String: Bool] = [:]
 
   init(checkLevel: IndexCheckLevel) {
     self.checkLevel = checkLevel
@@ -442,16 +443,16 @@ private struct IndexOutOfDateChecker {
   /// Returns `true` if the source file for the given symbol location exists and has not been modified after it has been
   /// indexed.
   mutating func isUpToDate(_ symbolLocation: SymbolLocation) -> Bool {
-    let uri = DocumentURI(filePath: symbolLocation.path, isDirectory: false)
+    let path = symbolLocation.path
     switch checkLevel {
     case .inMemoryModifiedFiles(let documentManager):
-      if fileHasInMemoryModifications(uri, documentManager: documentManager) {
+      if fileHasInMemoryModifications(atPath: path, documentManager: documentManager) {
         return false
       }
       fallthrough
     case .modifiedFiles:
       do {
-        let sourceFileModificationDate = try modificationDate(of: uri)
+        let sourceFileModificationDate = try modificationDate(atPath: path)
         switch sourceFileModificationDate {
         case .fileDoesNotExist:
           return false
@@ -463,7 +464,7 @@ private struct IndexOutOfDateChecker {
         return true
       }
     case .deletedFiles:
-      return fileExists(at: uri)
+      return fileExists(atPath: path)
     }
   }
 
@@ -535,15 +536,24 @@ private struct IndexOutOfDateChecker {
   /// the cache key. This is fine because we always assume the `documentManager` to come from the associated value of
   /// `CheckLevel.imMemoryModifiedFiles`, which is constant.
   private mutating func fileHasInMemoryModifications(
+    atPath path: String,
+    documentManager: any InMemoryDocumentManager
+  ) -> Bool {
+    if let cached = fileHasInMemoryModificationsCache[path] {
+      return cached
+    }
+    let hasInMemoryModifications = documentManager.fileHasInMemoryModifications(
+      DocumentURI(filePath: path, isDirectory: false)
+    )
+    fileHasInMemoryModificationsCache[path] = hasInMemoryModifications
+    return hasInMemoryModifications
+  }
+
+  private mutating func fileHasInMemoryModifications(
     _ uri: DocumentURI,
     documentManager: any InMemoryDocumentManager
   ) -> Bool {
-    if let cached = fileHasInMemoryModificationsCache[uri] {
-      return cached
-    }
-    let hasInMemoryModifications = documentManager.fileHasInMemoryModifications(uri)
-    fileHasInMemoryModificationsCache[uri] = hasInMemoryModifications
-    return hasInMemoryModifications
+    return fileHasInMemoryModifications(atPath: uri.pseudoPath, documentManager: documentManager)
   }
 
   /// Returns true if the file at the given URI has a different content in the document manager than on-disk. This is
@@ -573,26 +583,25 @@ private struct IndexOutOfDateChecker {
     }
   }
 
-  mutating func modificationDate(of uri: DocumentURI) throws -> ModificationTime {
-    if let cached = modTimeCache[uri] {
+  private mutating func modificationDate(atPath path: String) throws -> ModificationTime {
+    if let cached = modTimeCache[path] {
       return cached
     }
-    let modTime = try modificationDateUncached(of: uri)
-    modTimeCache[uri] = modTime
+    let modTime = try modificationDateUncached(of: DocumentURI(filePath: path, isDirectory: false))
+    modTimeCache[path] = modTime
     return modTime
   }
 
-  private mutating func fileExists(at uri: DocumentURI) -> Bool {
-    if let cached = fileExistsCache[uri] {
+  mutating func modificationDate(of uri: DocumentURI) throws -> ModificationTime {
+    return try modificationDate(atPath: uri.pseudoPath)
+  }
+
+  private mutating func fileExists(atPath path: String) -> Bool {
+    if let cached = fileExistsCache[path] {
       return cached
     }
-    let fileExists =
-      if let fileUrl = uri.fileURL {
-        FileManager.default.fileExists(at: fileUrl)
-      } else {
-        false
-      }
-    fileExistsCache[uri] = fileExists
+    let fileExists = FileManager.default.fileExists(atPath: path)
+    fileExistsCache[path] = fileExists
     return fileExists
   }
 }
