@@ -76,10 +76,12 @@ extension SourceKitLSPServer {
           includeSystemSymbols: includeSystemSymbols,
           in: index
         )
+        // Only the names are needed, which don't depend on which occurrence of a member they're built from.
         return try self.members(
           ofContainerUSRs: containerUSRs,
           matching: .all,
           includeSystemSymbols: includeSystemSymbols,
+          resolvePrimaryDefinitions: false,
           in: index
         )
         .compactMap { try? QualifiedSymbolName(of: $0, in: index).qualified }
@@ -144,6 +146,7 @@ extension SourceKitLSPServer {
               ofContainerUSRs: containerUSRs,
               matching: .exact(Set(requested.map(\.member))),
               includeSystemSymbols: canUseGeneratedInterfaceReferenceDocument,
+              resolvePrimaryDefinitions: true,
               in: index
             )
             return Dictionary(grouping: members, by: \.symbol.name)
@@ -323,6 +326,7 @@ extension SourceKitLSPServer {
         ofContainerUSRs: containerUSRs,
         matching: query.member.isEmpty ? .all : .fuzzy(query.member),
         includeSystemSymbols: canUseGeneratedInterfaceReferenceDocument,
+        resolvePrimaryDefinitions: true,
         in: index
       )
       var mainFiles: [DocumentURI: DocumentURI] = [:]
@@ -581,14 +585,19 @@ extension SourceKitLSPServer {
   }
 
   /// The direct members (`childOf`) of the containers with the given USRs that `filter` selects,
-  /// de-duplicated by USR.
+  /// de-duplicated by USR. Members without a name are skipped, since no query can name them.
   ///
   /// System (SDK/stdlib) members are only included if `includeSystemSymbols` is `true`. They can only be
   /// navigated to through a generated interface, so callers pass `false` when the client can't open one.
+  ///
+  /// If `resolvePrimaryDefinitions` is `true`, a C-family member is returned as its primary definition or
+  /// declaration rather than the occurrence it was found through. That is a lookup per member, so callers
+  /// that don't use the occurrence's location pass `false`.
   private nonisolated func members(
     ofContainerUSRs containerUSRs: Set<String>,
     matching filter: MemberFilter,
     includeSystemSymbols: Bool,
+    resolvePrimaryDefinitions: Bool,
     in index: CheckedIndex
   ) throws -> [SymbolOccurrence] {
     var members: [SymbolOccurrence] = []
@@ -599,6 +608,7 @@ extension SourceKitLSPServer {
       for child in children {
         guard
           !child.roles.contains(.accessorOf),
+          !child.symbol.name.isEmpty,
           includeSystemSymbols || !child.location.isSystem,
           filter.matches(memberName: child.symbol.name),
           seenUSRs.insert(child.symbol.usr).inserted
@@ -608,7 +618,10 @@ extension SourceKitLSPServer {
         switch child.symbol.language {
         case .c, .cxx, .objc:
           // A C-family symbol can have separate declaration and definition occurrences.
-          members.append((try? index.primaryDefinitionOrDeclarationOccurrence(ofUSR: child.symbol.usr)) ?? child)
+          let primary =
+            resolvePrimaryDefinitions
+            ? try? index.primaryDefinitionOrDeclarationOccurrence(ofUSR: child.symbol.usr) : nil
+          members.append(primary ?? child)
         case .swift:
           // Swift members have a single declaration site, so use the occurrence directly.
           members.append(child)
