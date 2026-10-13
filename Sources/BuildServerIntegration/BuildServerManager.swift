@@ -1542,6 +1542,15 @@ package actor BuildServerManager: QueueBasedMessageHandler {
     let response = try await buildServerAdapterAfterInitialized.send(
       BuildTargetPrepareRequest(targets: targets.sorted { $0.uri.stringValue < $1.uri.stringValue })
     )
+    if let changedTargets = response.targetsWithChangedOptions.map({ Set($0) }), !changedTargets.isEmpty {
+      // Invalidate before returning so that nothing waiting on the preparation reads the stale options. Unlike
+      // `buildTarget/didChange`, this keeps the targets prepared.
+      logger.info("Preparation changed SourceKit options of \(changedTargets.count) targets")
+      self.cachedAdjustedSourceKitOptions.clear(isolation: self) { changedTargets.contains($0.target) }
+      if !watchedFiles.isEmpty {
+        await filesBuildSettingsChangedDebouncer.scheduleCall(Set(watchedFiles.keys))
+      }
+    }
     await orLog("Calling fileDependenciesUpdated") {
       let filesInPreparedTargets = try await self.sourceFiles(in: targets).flatMap(\.sources).map(\.uri)
       await filesDependenciesUpdatedDebouncer.scheduleCall(Set(filesInPreparedTargets))

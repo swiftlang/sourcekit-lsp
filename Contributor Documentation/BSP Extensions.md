@@ -125,6 +125,15 @@ export interface BuildTargetPrepareResponse {
    * When omitted, this is the same as an empty array.
    */
   implicitlyPreparedTargets?: BuildTargetIdentifier[]
+
+  /**
+   * Targets whose `textDocument/sourceKitOptions` may have changed as a result of the prepare request, for example
+   * because preparation produced inputs that their compiler arguments reference. The client discards any options it
+   * cached for these targets.
+   *
+   * When omitted, this is the same as an empty array.
+   */
+  targetsWithChangedOptions?: BuildTargetIdentifier[]
 }
 ```
 
