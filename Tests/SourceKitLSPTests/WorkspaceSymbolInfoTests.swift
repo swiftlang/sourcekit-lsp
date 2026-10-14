@@ -324,6 +324,50 @@ final class WorkspaceSymbolInfoTests: XCTestCase {
     XCTAssertEqual(response.names, ["Container.init()", "Container.member()"])
   }
 
+  func testMemberNamesOfCXXNamespace() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "MyLibrary/include/lib.h": """
+        namespace mynamespace {
+          void foo();
+          struct MyStruct {};
+          enum { Unnamed };
+        }
+        """,
+        "MyLibrary/lib.cpp": """
+        #include "lib.h"
+        namespace mynamespace {
+          void 1️⃣foo() {}
+        }
+        """,
+      ],
+      enableBackgroundIndexing: true
+    )
+
+    // `foo` is declared in the header and defined in the `.cpp` but listed once, and the unnamed enum,
+    // which no query can name, isn't listed.
+    let names = try await project.testClient.send(WorkspaceSymbolNamesRequest(containerName: "mynamespace")).names
+    XCTAssertEqual(names, ["mynamespace::MyStruct", "mynamespace::foo"])
+
+    // Resolving the name points at the definition.
+    let response = try await project.testClient.send(WorkspaceSymbolInfoRequest(names: ["mynamespace::foo"]))
+    XCTAssertEqual(
+      response.results,
+      [
+        .symbolInformation(
+          SymbolInformation(
+            name: "mynamespace::foo",
+            kind: .function,
+            location: Location(
+              uri: try project.uri(for: "lib.cpp"),
+              range: try Range(project.position(of: "1️⃣", in: "lib.cpp"))
+            )
+          )
+        )
+      ]
+    )
+  }
+
   func testMemberNamesOfUnresolvableContainerIsEmpty() async throws {
     let project = try await IndexedSingleSwiftFileTestProject(
       """
