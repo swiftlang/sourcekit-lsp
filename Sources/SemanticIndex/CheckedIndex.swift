@@ -277,16 +277,7 @@ package final class CheckedIndex {
     if containers.count > 1 {
       logger.fault("Expected an occurrence to a child of at most one symbol, not multiple")
     }
-    let container = containers.filter {
-      switch $0.symbol.kind {
-      case .module, .namespace, .enum, .struct, .class, .protocol, .extension, .union:
-        return true
-      case .unknown, .namespaceAlias, .macro, .typealias, .function, .variable, .field, .enumConstant,
-        .instanceMethod, .classMethod, .staticMethod, .instanceProperty, .classProperty, .staticProperty, .constructor,
-        .destructor, .conversionFunction, .parameter, .using, .concept, .commentTag:
-        return false
-      }
-    }.sorted().first
+    let container = containers.filter { $0.symbol.kind.isContainer }.sorted().first
 
     guard var containerSymbol = container?.symbol else {
       return []
@@ -323,6 +314,21 @@ package final class CheckedIndex {
     }
     containerNamesCache[containerSymbol.usr] = result
     return result
+  }
+}
+
+package extension IndexSymbolKind {
+  /// Whether symbols of this kind can have members, ie. can be a container whose name is part of
+  /// the qualified name of its members.
+  var isContainer: Bool {
+    switch self {
+    case .module, .namespace, .enum, .struct, .class, .protocol, .extension, .union:
+      return true
+    case .unknown, .namespaceAlias, .macro, .typealias, .function, .variable, .field, .enumConstant,
+      .instanceMethod, .classMethod, .staticMethod, .instanceProperty, .classProperty, .staticProperty, .constructor,
+      .destructor, .conversionFunction, .parameter, .using, .concept, .commentTag:
+      return false
+    }
   }
 }
 
