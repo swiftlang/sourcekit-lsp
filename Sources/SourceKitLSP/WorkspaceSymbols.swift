@@ -544,6 +544,9 @@ extension SourceKitLSPServer {
       if Task.isCancelled {
         return false
       }
+      guard symbol.symbol.kind.isContainer else {
+        return true
+      }
       // Resolving a system namespace (e.g. `std`, or a whole module) would enumerate an entire system scope,
       // so skip those.
       let isSystemNamespace: Bool =
