@@ -212,7 +212,7 @@ interface SourceKitCompletionItemDiagnostic {
 
 ## `sourcekit/textDocument/doccDocumentation`
 
-New request that generates documentation for a symbol at a given cursor location.
+Request that generates documentation for a symbol at a given cursor location.
 
 > [!NOTE]
 > This request was previously named `textDocument/doccDocumentation`. The old name is still accepted for backward compatibility.
@@ -265,7 +265,7 @@ export interface DoccDocumentationResponse {
 
 ## `textDocument/symbolInfo`
 
-New request for semantic information about the symbol at a given location.
+Request for semantic information about the symbol at a given location.
 
 This request looks up the symbol (if any) at a given text document location and returns
 SymbolDetails for that location, including information such as the symbol's USR. The symbolInfo
@@ -397,7 +397,7 @@ interface SymbolDetails {
 
 ## `sourcekit/textDocument/tests`
 
-New request that returns symbols for all the test classes and test methods within a file.
+Request that returns symbols for all the test classes and test methods within a file.
 
 > [!NOTE]
 > This request was previously named `textDocument/tests`. The old name is still accepted for backward compatibility.
@@ -507,7 +507,7 @@ export interface IsIndexingResult {
 
 ## `sourcekit/workspace/symbolInfo`
 
-New request that returns structured location information for a list of exact symbol names.
+Request that returns structured location information for a list of exact symbol names.
 
 Unlike the standard `workspace/symbol` request (which accepts a fuzzy query string), this request takes exact names — typically obtained from `sourcekit/workspace/symbolNames` — and returns all index occurrences for each name across every workspace.
 
@@ -561,7 +561,7 @@ export interface SourceKitWorkspaceSymbolData {
 
 ## `sourcekit/workspace/symbolNames`
 
-New request that returns the flat, deduplicated list of every symbol name in the workspace index, including names from indexed system modules (stdlib, SDK frameworks).
+Request that returns the flat, deduplicated list of every symbol name in the workspace index, including names from indexed system modules (stdlib, SDK frameworks).
 
 Clients use this list to drive a local search UI (fuzzy matching, prefix filtering, etc.) without a round-trip per keystroke. After the user selects a name, send a `sourcekit/workspace/symbolInfo` request to resolve it to concrete locations.
 
@@ -604,7 +604,7 @@ export interface WorkspaceSymbolNamesResult {
 
 ## `sourcekit/window/didChangeActiveDocument`
 
-New notification from the client to the server, telling SourceKit-LSP which document is the currently active primary document.
+Notification from the client to the server, telling SourceKit-LSP which document is the currently active primary document.
 
 This notification should only be called for documents that the editor has opened in SourceKit-LSP using the `textDocument/didOpen` notification.
 
@@ -692,7 +692,7 @@ export interface StructuredLogEnd {
 
 ## `sourcekit/workspace/setOptions`
 
-New request to modify runtime options of SourceKit-LSP.
+Request to modify runtime options of SourceKit-LSP.
 
 Any options not specified in this request will be left as-is.
 
@@ -716,7 +716,7 @@ export interface SetOptionsParams {
 
 ## `sourcekit/workspace/sourceKitOptions`
 
-New request from the client to the server to retrieve the compiler arguments that SourceKit-LSP uses to process the document.
+Request from the client to the server to retrieve the compiler arguments that SourceKit-LSP uses to process the document.
 
 This request does not require the document to be opened in SourceKit-LSP. This is also why it has the `workspace/` instead of the `textDocument/` prefix.
 
@@ -816,7 +816,7 @@ export interface SourceKitOptionsResult {
 
 ## `sourcekit/workspace/outputPaths`
 
-New request from the client to the server to retrieve the output paths of a target (see the `buildTarget/outputPaths` BSP request).
+Request from the client to the server to retrieve the output paths of a target (see the `buildTarget/outputPaths` BSP request).
 
 This request will only succeed if the build server supports the `buildTarget/outputPaths` request.
 
@@ -923,7 +923,7 @@ export interface PeekDocumentsResult {
 
 ## `sourcekit/workspace/playgrounds`
 
-New request for returning the list of all #Playground macros in the workspace.
+Request for returning the list of all #Playground macros in the workspace.
 
 Primarily designed to allow editors to provide a list of available playgrounds in the project workspace and allow
 jumping to the locations where the #Playground macro was expanded.
@@ -972,7 +972,7 @@ export interface Playground {
 
 ## `sourcekit/workspace/references`
 
-New request that returns all references to a symbol identified by its USR.
+Request that returns all references to a symbol identified by its USR.
 
 Unlike `textDocument/references`, the symbol is not looked up from a source position, so the request does not require the client to open a document. The USR can be obtained from `textDocument/symbolInfo` or from the `data` of a call or type hierarchy item (see `SourceKitSymbolIdentifier`). Only indexed occurrences are returned; references to local symbols, which are not indexed, require `textDocument/references`.
 
@@ -1041,7 +1041,7 @@ export interface SynchronizeParams {
 
 ## `sourcekit/workspace/tests`
 
-New request that returns symbols for all the test classes and test methods within the current workspace.
+Request that returns symbols for all the test classes and test methods within the current workspace.
 
 > [!NOTE]
 > This request was previously named `workspace/tests`. The old name is still accepted for backward compatibility.
@@ -1055,7 +1055,7 @@ export interface WorkspaceTestsParams {}
 
 ## `sourcekit/workspace/triggerReindex`
 
-New request to re-index all files open in the SourceKit-LSP server.
+Request to re-index all files open in the SourceKit-LSP server.
 
 Users should not need to rely on this request. The index should always be updated automatically in the background. Having to invoke this request means there is a bug in SourceKit-LSP's automatic re-indexing. It does, however, offer a workaround to re-index files when such a bug occurs where otherwise there would be no workaround.
 
@@ -1072,7 +1072,7 @@ export interface TriggerReindexParams {}
 
 ## Languages
 
-Added a new language with the identifier `tutorial` to support the `*.tutorial` files that
+Added a language with the identifier `tutorial` to support the `*.tutorial` files that
 Swift DocC uses to define tutorials and tutorial overviews in its documentation catalogs.
 It is expected that editors send document events for `tutorial` and `markdown` files if
 they wish to request information about these files from SourceKit-LSP.
