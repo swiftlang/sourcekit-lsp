@@ -553,9 +553,16 @@ extension SourceKitLSPServer {
         default:
           false
         }
-      let enclosingScopes = (try? index.containerNames(of: symbol)) ?? []
-      guard !isSystemNamespace, filter.matches(enclosingScopes: enclosingScopes, ancestors: ancestors) else {
+      guard !isSystemNamespace else {
         return true
+      }
+      // Looking up the enclosing scopes can mean finding the definition of the container's parent,
+      // so only do it if the filter depends on them.
+      if !filter.matchesAnyEnclosingScopes {
+        let enclosingScopes = (try? index.containerNames(of: symbol)) ?? []
+        guard filter.matches(enclosingScopes: enclosingScopes, ancestors: ancestors) else {
+          return true
+        }
       }
       matchedContainerUSRs.insert(symbol.symbol.usr)
       if includeSystemSymbols || !symbol.location.isSystem {
@@ -656,6 +663,18 @@ enum ContainerChainFilter {
   var ignoresCase: Bool {
     switch self {
     case .suffixIgnoringCase: return true
+    case .exact: return false
+    }
+  }
+
+  /// Whether a candidate container is named by this filter's chain regardless of its enclosing
+  /// scopes, so that they don't need to be looked up.
+  ///
+  /// That is the case for a suffix that only names the container itself. An exact chain of a single
+  /// name still requires the container to have no enclosing scopes.
+  var matchesAnyEnclosingScopes: Bool {
+    switch self {
+    case .suffixIgnoringCase(let chain): return chain.count == 1
     case .exact: return false
     }
   }
