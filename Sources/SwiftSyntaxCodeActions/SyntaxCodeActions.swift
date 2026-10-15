@@ -38,6 +38,7 @@ package let allSyntaxCodeActionProviders: [any SyntaxCodeActionProvider.Type] = 
     OpaqueParameterToGeneric.self,
     RemoveRedundantParentheses.self,
     RemoveSeparatorsFromIntegerLiteral.self,
+    RemoveUnusedParameter.self,
     SwapBinaryOperands.self,
     ToggleTestDisabled.self,
   ]
