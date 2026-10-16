@@ -449,4 +449,37 @@ final class PullDiagnosticsTests: SourceKitLSPTestCase {
     let diagnostic = try XCTUnwrap(diagnostics.fullReport?.items.only)
     XCTAssertEqual(diagnostic.message, "Cannot convert value of type 'Int' to specified type 'String'")
   }
+
+  func testDiagnosticsInScripts() async throws {
+    let project = try await SwiftPMTestProject(files: [
+      "Test.swift": "",
+      "/script.swift": """
+      1️⃣let x: String = 1
+      """,
+    ])
+
+    // We should not report diagnostics for random files in the workspace. They are likely part of a target that we
+    // don't know about and produce nonsensical diagnostics.
+    let (uri, positions) = try project.openDocument("script.swift")
+    let diagnosticsBeforeEdit = try await project.testClient.send(
+      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+    )
+    XCTAssertEqual(diagnosticsBeforeEdit.fullReport?.items, [])
+
+    // But if the source file contains a shebang, we know that it is intended to be executed by its own an thus fallback
+    // build settings will be sufficient to generate diagnostics for it.
+    project.testClient.send(
+      DidChangeTextDocumentNotification(
+        textDocument: VersionedTextDocumentIdentifier(uri, version: 2),
+        contentChanges: [TextDocumentContentChangeEvent(range: Range(positions["1️⃣"]), text: "#!/usr/bin/env swift\n")]
+      )
+    )
+    let diagnosticsAfterEdit = try await project.testClient.send(
+      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+    )
+    XCTAssertEqual(
+      diagnosticsAfterEdit.fullReport?.items.map(\.message),
+      ["Cannot convert value of type 'Int' to specified type 'String'"]
+    )
+  }
 }
