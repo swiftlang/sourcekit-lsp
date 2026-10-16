@@ -229,6 +229,9 @@ package final actor SemanticIndexManager {
       _ message: String, _ type: WindowMessageType, _ structure: LanguageServerProtocol.StructuredLogKind
     ) -> Void
 
+  /// Collects the module variants that index invocations load, for the modules report in the index log.
+  private let moduleVariantTracker = ModuleVariantTracker()
+
   /// Called when files are scheduled to be indexed.
   ///
   /// The parameter is the number of files that were scheduled to be indexed.
@@ -241,6 +244,12 @@ package final actor SemanticIndexManager {
   private let indexProgressStatusDidChange: @Sendable () -> Void
 
   // MARK: - Public API
+
+  /// A summary of the module variants that index invocations loaded since the last call, or `nil` if they loaded
+  /// none through explicit module maps.
+  package func takeModulesReport() -> String? {
+    return moduleVariantTracker.takeReport()
+  }
 
   /// A summary of the tasks that this `SemanticIndexManager` has currently scheduled or is currently indexing.
   package var progressStatus: IndexProgressStatus {
@@ -801,6 +810,7 @@ package final actor SemanticIndexManager {
         indexStoreUpToDateTracker: indexStoreUpToDateTracker,
         indexFilesWithUpToDateUnit: indexFilesWithUpToDateUnit,
         logMessageToIndexLog: logMessageToIndexLog,
+        moduleVariantTracker: moduleVariantTracker,
         timeout: updateIndexStoreTimeout,
         hooks: hooks
       )
