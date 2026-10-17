@@ -19,7 +19,6 @@ add_library(SourceKitLSP STATIC
   MessageMetadata.swift
   OnDiskDocumentManager.swift
   PlaygroundDiscovery.swift
-  QualifiedWorkspaceSymbolQuery.swift
   ReferenceDocumentURL.swift
   Rename.swift
   SemanticTokensLegend+SourceKitLSPLegend.swift
@@ -32,6 +31,7 @@ add_library(SourceKitLSP STATIC
   TestDiscovery.swift
   TextEdit+IsNoop.swift
   Workspace.swift
+  WorkspaceSymbols.swift
 )
 set_target_properties(SourceKitLSP PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Swift_MODULE_DIRECTORY}

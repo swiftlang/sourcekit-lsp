@@ -1,0 +1,802 @@
+//===----------------------------------------------------------------------===//
+//
+// This source file is part of the Swift.org open source project
+//
+// Copyright (c) 2014 - 2026 Apple Inc. and the Swift project authors
+// Licensed under Apache License v2.0 with Runtime Library Exception
+//
+// See https://swift.org/LICENSE.txt for license information
+// See https://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
+//
+//===----------------------------------------------------------------------===//
+
+import BuildServerIntegration
+import Foundation
+import IndexStoreDB
+@_spi(SourceKitLSP) import LanguageServerProtocol
+@_spi(SourceKitLSP) import LanguageServerProtocolExtensions
+@_spi(SourceKitLSP) import SKLogging
+import SemanticIndex
+import SwiftExtensions
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
+
+extension SourceKitLSPServer {
+  /// Whether a symbol whose only location is inside a generated interface may be reported.
+  ///
+  /// Emitting a generated-interface reference document requires both that the client can open it and
+  /// that it will call `workspaceSymbol/resolve` to fill in the range. Every path that reports symbols
+  /// derives the answer from here, so that `symbolNames(containerName:)` never offers a name that
+  /// `symbolItems(forNames:)` cannot resolve.
+  private var canUseGeneratedInterfaceReferenceDocument: Bool {
+    return (self.capabilityRegistry?.clientHasWorkspaceGetReferenceDocumentSupport ?? false)
+      && (self.capabilityRegistry?.clientSupportsWorkspaceSymbolResolve ?? false)
+  }
+
+  /// The names of the symbols in the indexes of all workspaces, sorted and de-duplicated.
+  ///
+  /// If `containerName` is set, the fully-qualified names of that container's members are returned
+  /// instead of every symbol name in the workspaces.
+  func symbolNames(containerName: String?) async -> [String] {
+    if let containerName {
+      return await memberNames(ofContainer: containerName)
+    }
+    var symbols = await self.workspaces
+      .concurrentMap { workspace in
+        await orLog("Getting symbol names in workspace") {
+          try await workspace.uncheckedIndex?.allSymbolNames() ?? []
+        } ?? []
+      }
+      .flatMap { $0 }
+    if !symbols.isSortedAndUnique {
+      symbols.sortAndDedupe()
+    }
+    return symbols
+  }
+
+  /// The fully-qualified names of the members of the container(s) named by `containerName`, sorted and
+  /// de-duplicated.
+  ///
+  /// The names are qualified because `containerName` is matched as a suffix of a container's chain, so
+  /// more than one container can match and a bare member name would be ambiguous between them. Each
+  /// returned name can be passed to `symbolItems(forNames:)`, which matches it exactly.
+  private func memberNames(ofContainer containerName: String) async -> [String] {
+    guard let chain = QualifiedWorkspaceSymbolQuery.containerChain(containerName) else {
+      return []
+    }
+    let includeSystemSymbols = canUseGeneratedInterfaceReferenceDocument
+    var names = await workspaces.concurrentMap { workspace -> [String] in
+      // Checked for deleted files like the paths that produce items, rather than at the unchecked level
+      // that the workspace-wide mode uses, because the two stages have to agree.
+      guard let index = await workspace.index(checkedFor: .deletedFiles) else {
+        return []
+      }
+      return orLog("Getting member names of \(containerName)") {
+        let containerUSRs = try self.containerUSRs(
+          matching: .suffixIgnoringCase(chain),
+          includeSystemSymbols: includeSystemSymbols,
+          in: index
+        )
+        // Only the names are needed, which don't depend on which occurrence of a member they're built from.
+        return try self.members(
+          ofContainerUSRs: containerUSRs,
+          matching: .all,
+          includeSystemSymbols: includeSystemSymbols,
+          resolvePrimaryDefinitions: false,
+          in: index
+        )
+        .compactMap { try? QualifiedSymbolName(of: $0, in: index).qualified }
+      } ?? []
+    }
+    .flatMap { $0 }
+    if !names.isSortedAndUnique {
+      names.sortAndDedupe()
+    }
+    return names
+  }
+
+  /// For each name in `names`, look up all canonical occurrences in every workspace index and convert them to
+  /// `WorkspaceSymbolItem` values:
+  /// - Source-file symbols get a `file://` URI with the exact 0-based line/column from the index.
+  /// - SDK/stdlib symbols (index location ends in `.swiftinterface` or `.swiftmodule`) get a
+  ///   `WorkspaceSymbol` with `location: .uri(file:// URL?module=...)` and the USR in `data`, provided
+  ///   the client advertises `workspace.symbol.resolveSupport`. The client should call
+  ///   `workspaceSymbol/resolve` to obtain the exact location within the interface.
+  ///   Without that capability the raw `file://` URI from the index record is returned instead.
+  ///
+  /// The results are ordered by the position of their name in `names`; a name with no occurrences contributes
+  /// no items.
+  func symbolItems(forNames names: [String]) async throws -> [WorkspaceSymbolItem] {
+
+    // Bound here rather than read inside the closure, which is not isolated to the server.
+    let canUseGeneratedInterfaceReferenceDocument = self.canUseGeneratedInterfaceReferenceDocument
+    let groupedResultPerWorkspace = await workspaces.concurrentMap { workspace -> [String: [WorkspaceSymbolItem]] in
+      guard let index = await workspace.index(checkedFor: .deletedFiles) else {
+        return [:]
+      }
+      var occurrencesByName: [String: [SymbolOccurrence]] = [:]
+      // Qualified names are resolved per container chain rather than per name, so that names sharing a
+      // container resolve it and walk its members once. The walk visits every member of the container and
+      // of each of its extensions, which for a type like `String` is most of the cost of the request.
+      var qualifiedNamesByChain: [[String]: [(name: String, member: String)]] = [:]
+      for name in names {
+        if Task.isCancelled { return [:] }
+        if let query = QualifiedWorkspaceSymbolQuery(name) {
+          qualifiedNamesByChain[query.containerChain, default: []].append((name, query.member))
+          continue
+        }
+        var symbols: [SymbolOccurrence] = []
+        _ = orLog("Getting symbol occurrences") {
+          try index.forEachCanonicalSymbolOccurrence(byName: name) { symbolOccurrence in
+            symbols.append(symbolOccurrence)
+            return true
+          }
+        }
+        occurrencesByName[name] = symbols
+      }
+      for (chain, requested) in qualifiedNamesByChain {
+        if Task.isCancelled { return [:] }
+        let membersByName: [String: [SymbolOccurrence]] =
+          orLog("Getting members of \(chain.joined(separator: "."))") {
+            let containerUSRs = try self.containerUSRs(
+              matching: .exact(chain),
+              includeSystemSymbols: canUseGeneratedInterfaceReferenceDocument,
+              in: index
+            )
+            let members = try self.members(
+              ofContainerUSRs: containerUSRs,
+              matching: .exact(Set(requested.map(\.member))),
+              includeSystemSymbols: canUseGeneratedInterfaceReferenceDocument,
+              resolvePrimaryDefinitions: true,
+              in: index
+            )
+            return Dictionary(grouping: members, by: \.symbol.name)
+          } ?? [:]
+        for (name, member) in requested {
+          // The chain is parsed after normalizing `::` to `.`, so which separator the client used is not
+          // recoverable from it. Comparing the rebuilt name keeps a request for a C++ `Foo::bar` from also
+          // matching a Swift `Foo.bar`.
+          occurrencesByName[name] = (membersByName[member] ?? []).filter {
+            (try? QualifiedSymbolName(of: $0, in: index).qualified) == name
+          }
+        }
+      }
+      // Items for these are labelled with their qualified name, so the client gets back the name it asked for.
+      let qualifiedNames = Set(qualifiedNamesByChain.values.joined().map(\.name))
+
+      var mainFiles: [DocumentURI: DocumentURI] = [:]
+      if canUseGeneratedInterfaceReferenceDocument {
+        let occurrences = occurrencesByName.values.flatMap { $0 }
+        mainFiles =
+          await orLog("Resolving generated interface main files") {
+            try await self.generatedInterfaceMainFiles(for: occurrences, in: workspace)
+          } ?? [:]
+      }
+      if Task.isCancelled { return [:] }
+
+      var result: [String: [WorkspaceSymbolItem]] = [:]
+      let copiedFileMap = await workspace.buildServerManager.cachedCopiedFileMap
+      for name in names {
+        result[name] = (occurrencesByName[name] ?? []).compactMap { symbol in
+          orLog("Getting symbol information") {
+            try self.workspaceSymbolItem(
+              for: symbol,
+              in: index,
+              copiedFileMap: copiedFileMap,
+              referenceDocumentMainFile: symbol.location.uri.flatMap { mainFiles[$0] },
+              useQualifiedName: qualifiedNames.contains(name)
+            )
+          }
+        }
+      }
+      return result
+    }
+
+    try Task.checkCancellation()
+
+    // Flatten the result.
+    var result: [WorkspaceSymbolItem] = []
+    for name in names {
+      for grouped in groupedResultPerWorkspace {
+        if let items = grouped[name] {
+          result.append(contentsOf: items)
+        }
+      }
+    }
+    return result
+  }
+
+  /// If the symbol has a `location: .uri(sourcekit-lsp://generated-swift-interface?...)` (as emitted by
+  /// `workspace/symbol` and `workspace/symbolInfo` for SDK/stdlib symbols), open the generated Swift
+  /// interface, resolve the symbol position using `data["usr"]`, and return the symbol with the exact
+  /// range. Symbols with an already-resolved `location: .location(...)` are returned unchanged.
+  func resolveGeneratedInterfaceLocation(of symbol: WorkspaceSymbol) async throws -> WorkspaceSymbol {
+    var symbol = symbol
+    guard
+      case .uri(let uriOnly) = symbol.location,
+      let referenceURL = try? ReferenceDocumentURL(from: uriOnly.uri),
+      case .generatedInterface(let urlData) = referenceURL
+    else {
+      return symbol
+    }
+
+    // A USR is always present in practice; this only guards against a malformed `data` payload with an
+    // empty USR string, treating it as absent so we don't run a position lookup that can't match.
+    let usr = (symbol.sourceKitData?.usr).flatMap { $0.isEmpty ? nil : $0 }
+    let buildSettingsFile = urlData.buildSettingsFrom
+    guard let workspace = await self.workspaceForDocument(uri: buildSettingsFile) else {
+      return symbol
+    }
+    let languageService = try await workspace.primaryLanguageService(for: buildSettingsFile, .swift)
+    let details = await orLog("Opening generated interface in workspaceSymbol/resolve") {
+      try await languageService.openGeneratedInterface(
+        document: buildSettingsFile,
+        moduleName: urlData.moduleName,
+        groupName: urlData.groupName,
+        symbolUSR: usr
+      )
+    }
+    symbol.location = .location(
+      Location(uri: uriOnly.uri, range: Range(details?.position ?? Position(line: 0, utf16index: 0)))
+    )
+    return symbol
+  }
+
+  /// The symbols in the indexes of all workspaces that match `query`.
+  ///
+  /// A query containing a qualifier separator (`.` or `::`) is resolved as a container chain plus a member
+  /// name; any other query is matched as a subsequence against the symbol name.
+  func symbolItems(matching query: String) async throws -> [WorkspaceSymbolItem] {
+    // Ignore short queries since they are:
+    // - noisy and slow, since they can match many symbols
+    // - normally unintentional, triggered when the user types slowly or if the editor doesn't
+    //   debounce events while the user is typing
+    guard query.count >= minWorkspaceSymbolPatternLength else {
+      return []
+    }
+    if let qualified = QualifiedWorkspaceSymbolQuery(query) {
+      return try await qualifiedWorkspaceSymbols(qualified)
+    }
+    return try await unqualifiedWorkspaceSymbols(query: query)
+  }
+
+  private func unqualifiedWorkspaceSymbols(query: String) async throws -> [WorkspaceSymbolItem] {
+    var items: [WorkspaceSymbolItem] = []
+    for workspace in workspaces {
+      guard let index = await workspace.index(checkedFor: .deletedFiles) else {
+        continue
+      }
+      let copiedFileMap = await workspace.buildServerManager.cachedCopiedFileMap
+      var symbols: [SymbolOccurrence] = []
+      try index.forEachCanonicalSymbolOccurrence(
+        containing: query,
+        anchorStart: false,
+        anchorEnd: false,
+        subsequence: true,
+        ignoreCase: true
+      ) { symbol in
+        if Task.isCancelled {
+          return false
+        }
+        guard !symbol.location.isSystem && !symbol.roles.contains(.accessorOf) else {
+          return true
+        }
+        symbols.append(symbol)
+        return true
+      }
+      try Task.checkCancellation()
+      // `workspace/symbol` filters out system symbols above, so no result points into a generated
+      // interface and there is no main file to resolve.
+      items += try symbols.sorted(by: <).compactMap {
+        try self.workspaceSymbolItem(
+          for: $0,
+          in: index,
+          copiedFileMap: copiedFileMap,
+          referenceDocumentMainFile: nil
+        )
+      }
+    }
+    return items
+  }
+
+  /// Handle a `workspace/symbol` request whose query contains a qualifier separator (`.` or `::`).
+  ///
+  /// Resolves the container named by the query's container chain and returns the container's members whose
+  /// name matches the query's member component.
+  /// See `members(ofContainerChain:matching:includeSystemSymbols:in:)`.
+  private func qualifiedWorkspaceSymbols(
+    _ query: QualifiedWorkspaceSymbolQuery
+  ) async throws -> [WorkspaceSymbolItem] {
+    // Unlike `unqualifiedWorkspaceSymbols`, qualified queries can match SDK/stdlib members
+    // (e.g. `String.count`), so they need main files.
+    var items: [WorkspaceSymbolItem] = []
+    for workspace in workspaces {
+      guard let index = await workspace.index(checkedFor: .deletedFiles) else {
+        continue
+      }
+      let copiedFileMap = await workspace.buildServerManager.cachedCopiedFileMap
+      // Resolve the container named by the container chain, then take its direct members, keeping those
+      // whose name matches `query.member`. An empty member (e.g. the query `Foo.`) lists all members.
+      // System members are only useful if we can point at their generated interface.
+      let containerUSRs = try self.containerUSRs(
+        matching: .suffixIgnoringCase(query.containerChain),
+        includeSystemSymbols: canUseGeneratedInterfaceReferenceDocument,
+        in: index
+      )
+      let symbols = try self.members(
+        ofContainerUSRs: containerUSRs,
+        matching: query.member.isEmpty ? .all : .fuzzy(query.member),
+        includeSystemSymbols: canUseGeneratedInterfaceReferenceDocument,
+        resolvePrimaryDefinitions: true,
+        in: index
+      )
+      var mainFiles: [DocumentURI: DocumentURI] = [:]
+      if canUseGeneratedInterfaceReferenceDocument {
+        mainFiles =
+          await orLog("Resolving generated interface main files") {
+            try await self.generatedInterfaceMainFiles(for: symbols, in: workspace)
+          } ?? [:]
+      }
+      items += try symbols.sorted(by: <).compactMap {
+        try self.workspaceSymbolItem(
+          for: $0,
+          in: index,
+          copiedFileMap: copiedFileMap,
+          referenceDocumentMainFile: $0.location.uri.flatMap { mainFiles[$0] },
+          useQualifiedName: true
+        )
+      }
+    }
+    return items
+  }
+
+  /// Map a `SymbolOccurrence` from the index to a `WorkspaceSymbolItem`, or `nil` if it has no
+  /// representable location.
+  ///
+  /// If `useQualifiedName` is `true` and the symbol has a container, the item's `name` is the fully-qualified
+  /// name (e.g. `Foo.bar`) and `containerName` is dropped. This is used for qualified queries so that clients
+  /// which filter workspace symbols by matching the query against the item's `name` (e.g. VS Code) keep the
+  /// result — the qualified query wouldn't match the bare member name otherwise.
+  ///
+  /// - Parameter referenceDocumentMainFile: The project file whose build settings are used to open the
+  ///   symbol's generated interface. **Passing a non-`nil` value changes the shape of the result**: the
+  ///   symbol is returned as a `WorkspaceSymbol` with a `sourcekit-lsp://generated-swift-interface`
+  ///   reference-document location (its range resolved lazily via `workspaceSymbol/resolve`) and the USR
+  ///   in `data`, instead of a `SymbolInformation` with a plain `file://` location. A non-`nil` value must
+  ///   therefore only be passed when the client supports **both** `workspace/getReferenceDocument` and
+  ///   `workspaceSymbol/resolve`; enforcing that is the caller's responsibility.
+  private nonisolated func workspaceSymbolItem(
+    for symbolOccurrence: SymbolOccurrence,
+    in index: CheckedIndex,
+    copiedFileMap: CopiedFileMap,
+    referenceDocumentMainFile: DocumentURI?,
+    useQualifiedName: Bool = false
+  ) throws -> WorkspaceSymbolItem? {
+    let qualifiedName = try QualifiedSymbolName(of: symbolOccurrence, in: index)
+
+    // For qualified queries, put the qualified name in the label (which clients filter against) and drop the
+    // now-redundant container name.
+    let name: String
+    let displayContainerName: String?
+    if useQualifiedName, qualifiedName.containerName != nil {
+      name = qualifiedName.qualified
+      displayContainerName = nil
+    } else {
+      name = symbolOccurrence.symbol.name
+      displayContainerName = qualifiedName.containerName
+    }
+
+    if let referenceDocumentMainFile {
+      let (interfaceModuleName, groupName) = Self.splitModuleNameAndGroup(symbolOccurrence.location.moduleName)
+      let urlData = GeneratedInterfaceDocumentURLData(
+        moduleName: interfaceModuleName,
+        groupName: groupName,
+        primaryFile: referenceDocumentMainFile
+      )
+      let usr = symbolOccurrence.symbol.usr
+      // Include the interface path and module name in `data` so clients can render the candidate without
+      // parsing the opaque location URI.
+      let data = SourceKitWorkspaceSymbolData(
+        usr: usr,
+        interfaceURI: symbolOccurrence.location.uri,
+        moduleName: symbolOccurrence.location.moduleName
+      )
+      return WorkspaceSymbolItem.workspaceSymbol(
+        WorkspaceSymbol(
+          name: name,
+          kind: symbolOccurrence.symbol.kind.asLspSymbolKind(),
+          containerName: displayContainerName,
+          location: .uri(.init(uri: try urlData.uri)),
+          data: data.encodeToLSPAny()
+        )
+      )
+    }
+
+    guard let symbolLocation = symbolOccurrence.location.lspLocation else { return nil }
+    let location = symbolLocation.adjusted(for: copiedFileMap)
+    return WorkspaceSymbolItem.symbolInformation(
+      SymbolInformation(
+        name: name,
+        kind: symbolOccurrence.symbol.kind.asLspSymbolKind(),
+        deprecated: nil,
+        location: location,
+        containerName: displayContainerName
+      )
+    )
+  }
+
+  /// The pieces of a symbol's name that depend on its containers.
+  struct QualifiedSymbolName {
+    /// The symbol's container names joined with `separator`, or `nil` if the symbol has no container.
+    let containerName: String?
+
+    /// The separator between a container and its members in the symbol's language.
+    let separator: String
+
+    /// The symbol's name prefixed with `containerName`.
+    let qualified: String
+
+    /// The name of `symbolOccurrence` prefixed with the names of its containers, joined with the separator
+    /// that its language uses.
+    ///
+    /// This is the spelling that `workspace/symbolNames` returns for the members of a container and that
+    /// `workspace/symbolInfo` parses and compares a requested name against, so it must be built here and
+    /// nowhere else.
+    init(of symbolOccurrence: SymbolOccurrence, in index: CheckedIndex) throws {
+      let containerNames = try index.containerNames(of: symbolOccurrence)
+      separator =
+        switch symbolOccurrence.symbol.language {
+        case .cxx, .c, .objc: "::"
+        case .swift: "."
+        }
+      if containerNames.isEmpty {
+        containerName = nil
+        qualified = symbolOccurrence.symbol.name
+      } else {
+        let containerName = containerNames.joined(separator: separator)
+        self.containerName = containerName
+        qualified = "\(containerName)\(separator)\(symbolOccurrence.symbol.name)"
+      }
+    }
+  }
+
+  /// Split an index module name into its module and optional group components.
+  private nonisolated static func splitModuleNameAndGroup(
+    _ fullModuleName: String
+  ) -> (module: String, group: String?) {
+    // A dotted index module name is ambiguous: `Foo.Bar` could be module `Foo` with group `Bar`, or a real
+    // submodule named `Foo.Bar`, and SourceKit-LSP can't tell the two apart. In practice only the `Swift`
+    // module is divided into groups (and it has no submodules), so only there is the trailing component
+    // treated as a group; every other module name is kept whole.
+    let swiftModulePrefix = "Swift."
+    guard fullModuleName.hasPrefix(swiftModulePrefix) else {
+      return (fullModuleName, nil)
+    }
+    // The index spells a group's levels with `.` (`Swift.Math.Integers`) but sourcekitd expects '/'
+    // separated group name.
+    let group = fullModuleName.dropFirst(swiftModulePrefix.count).replacing(".", with: "/")
+    return ("Swift", String(group))
+  }
+
+  /// For each distinct SDK interface (`.swiftinterface`/`.swiftmodule`) among `symbols`, resolve the main
+  /// file — a project file that imports the module, found via `mainFiles(containing:)` — whose build
+  /// settings are used to open the generated interface. The lookup runs once per interface so a
+  /// `workspace/symbol` response with many members of the same module doesn't repeat it. Interfaces with no
+  /// main file are omitted, so callers skip those symbols.
+  private func generatedInterfaceMainFiles(
+    for symbols: [SymbolOccurrence],
+    in workspace: Workspace
+  ) async throws -> [DocumentURI: DocumentURI] {
+    var mainFiles: [DocumentURI: DocumentURI] = [:]
+    for symbol in symbols {
+      let path = symbol.location.path
+      guard path.hasSuffix(".swiftinterface") || path.hasSuffix(".swiftmodule"),
+        let interfaceURI = symbol.location.uri,
+        mainFiles[interfaceURI] == nil
+      else {
+        continue
+      }
+      try Task.checkCancellation()
+      let mainFile = await workspace.buildServerManager
+        .mainFiles(containing: interfaceURI)
+        .sorted(by: { $0.arbitrarySchemeURL.absoluteString < $1.arbitrarySchemeURL.absoluteString })
+        .first
+      if let mainFile {
+        mainFiles[interfaceURI] = mainFile
+      }
+    }
+    return mainFiles
+  }
+
+  /// The USRs of the containers named by `filter`, together with the extensions that declare their
+  /// members.
+  ///
+  /// Members declared in an extension are `childOf` the extension symbol rather than the extended type,
+  /// so the extensions of every matching container are resolved here as well. A type's occurrences at
+  /// `extension` sites carry `extendedBy` relations pointing at those extensions.
+  ///
+  /// System (SDK/stdlib) containers are matched even if `includeSystemSymbols` is `false`, because a
+  /// system type can be extended from the user's own modules and those members stay reachable. Only the
+  /// containers whose members may be reported are returned.
+  private nonisolated func containerUSRs(
+    matching filter: ContainerChainFilter,
+    includeSystemSymbols: Bool,
+    in index: CheckedIndex
+  ) throws -> Set<String> {
+    guard let containerName = filter.chain.last else {
+      throw ResponseError.internalError("\(#function) requires a non-empty chain")
+    }
+    let ancestors = filter.chain.dropLast()
+
+    // Resolve the innermost container(s) by exact name, verifying the outer scope chain.
+    //
+    // `matchedContainerUSRs` holds every resolved container, including system ones, so that extensions
+    // written in the user's modules are found for a system type. `result` is the subset whose children
+    // may be walked.
+    var matchedContainerUSRs: Set<String> = []
+    var result: Set<String> = []
+    try index.forEachCanonicalSymbolOccurrence(
+      containing: containerName,
+      anchorStart: true,
+      anchorEnd: true,
+      subsequence: false,
+      ignoreCase: filter.ignoresCase
+    ) { symbol in
+      if Task.isCancelled {
+        return false
+      }
+      guard symbol.symbol.kind.isContainer else {
+        return true
+      }
+      // Resolving a system namespace (e.g. `std`, or a whole module) would enumerate an entire system scope,
+      // so skip those.
+      let isSystemNamespace: Bool =
+        switch symbol.symbol.kind {
+        case .namespace, .namespaceAlias, .module:
+          symbol.location.isSystem
+        default:
+          false
+        }
+      guard !isSystemNamespace else {
+        return true
+      }
+      // Looking up the enclosing scopes can mean finding the definition of the container's parent,
+      // so only do it if the filter depends on them.
+      if !filter.matchesAnyEnclosingScopes {
+        let enclosingScopes = (try? index.containerNames(of: symbol)) ?? []
+        guard filter.matches(enclosingScopes: enclosingScopes, ancestors: ancestors) else {
+          return true
+        }
+      }
+      matchedContainerUSRs.insert(symbol.symbol.usr)
+      if includeSystemSymbols || !symbol.location.isSystem {
+        result.insert(symbol.symbol.usr)
+      }
+      return true
+    }
+    try Task.checkCancellation()
+
+    // Filtering the occurrences by the `.extendedBy` role restricts the lookup to the `extension` sites
+    // instead of returning every reference of the type.
+    //
+    // The extension site's location distinguishes the user's extensions from the SDK's, so system
+    // extensions are skipped before any of their members are enumerated.
+    for typeUSR in matchedContainerUSRs {
+      try Task.checkCancellation()
+      for occurrence in try index.occurrences(ofUSR: typeUSR, roles: .extendedBy) {
+        guard includeSystemSymbols || !occurrence.location.isSystem else {
+          continue
+        }
+        for relation in occurrence.relations where relation.roles.contains(.extendedBy) {
+          result.insert(relation.symbol.usr)
+        }
+      }
+    }
+    return result
+  }
+
+  /// The direct members (`childOf`) of the containers with the given USRs that `filter` selects,
+  /// de-duplicated by USR. Members without a name are skipped, since no query can name them.
+  ///
+  /// System (SDK/stdlib) members are only included if `includeSystemSymbols` is `true`. They can only be
+  /// navigated to through a generated interface, so callers pass `false` when the client can't open one.
+  ///
+  /// If `resolvePrimaryDefinitions` is `true`, a C-family member is returned as its primary definition or
+  /// declaration rather than the occurrence it was found through. That is a lookup per member, so callers
+  /// that don't use the occurrence's location pass `false`.
+  private nonisolated func members(
+    ofContainerUSRs containerUSRs: Set<String>,
+    matching filter: MemberFilter,
+    includeSystemSymbols: Bool,
+    resolvePrimaryDefinitions: Bool,
+    in index: CheckedIndex
+  ) throws -> [SymbolOccurrence] {
+    var members: [SymbolOccurrence] = []
+    var seenUSRs: Set<String> = []
+    for containerUSR in containerUSRs {
+      try Task.checkCancellation()
+      let children = try index.occurrences(relatedToUSR: containerUSR, roles: .childOf)
+      for child in children {
+        guard
+          !child.roles.contains(.accessorOf),
+          !child.symbol.name.isEmpty,
+          includeSystemSymbols || !child.location.isSystem,
+          filter.matches(memberName: child.symbol.name),
+          seenUSRs.insert(child.symbol.usr).inserted
+        else {
+          continue
+        }
+        switch child.symbol.language {
+        case .c, .cxx, .objc:
+          // A C-family symbol can have separate declaration and definition occurrences.
+          let primary =
+            resolvePrimaryDefinitions
+            ? try? index.primaryDefinitionOrDeclarationOccurrence(ofUSR: child.symbol.usr) : nil
+          members.append(primary ?? child)
+        case .swift:
+          // Swift members have a single declaration site, so use the occurrence directly.
+          members.append(child)
+        }
+      }
+    }
+    return members
+  }
+}
+
+/// Which containers a query names, and how their names are matched.
+enum ContainerChainFilter {
+  /// The chain names the innermost containers and may omit the enclosing ones, matched
+  /// case-insensitively, so `container` matches a container declared as `Outer.Container`.
+  ///
+  /// Used for the queries that a user types, where the chain is a hint rather than a full path.
+  case suffixIgnoringCase([String])
+
+  /// The chain names every enclosing container, matched case-sensitively.
+  ///
+  /// Used for a name that `workspace/symbolNames` produced, which spells the containers exactly as the
+  /// index does.
+  case exact([String])
+
+  /// The container names, outermost first.
+  var chain: [String] {
+    switch self {
+    case .suffixIgnoringCase(let chain), .exact(let chain): return chain
+    }
+  }
+
+  var ignoresCase: Bool {
+    switch self {
+    case .suffixIgnoringCase: return true
+    case .exact: return false
+    }
+  }
+
+  /// Whether a candidate container is named by this filter's chain regardless of its enclosing
+  /// scopes, so that they don't need to be looked up.
+  ///
+  /// That is the case for a suffix that only names the container itself. An exact chain of a single
+  /// name still requires the container to have no enclosing scopes.
+  var matchesAnyEnclosingScopes: Bool {
+    switch self {
+    case .suffixIgnoringCase(let chain): return chain.count == 1
+    case .exact: return false
+    }
+  }
+
+  /// Whether a candidate container declared inside `enclosingScopes` is named by this filter's chain.
+  func matches(enclosingScopes: [String], ancestors: some Collection<String>) -> Bool {
+    switch self {
+    case .suffixIgnoringCase:
+      // Match only the suffix of the enclosing scopes, so a chain may name just the inner scopes, e.g.
+      // `Inner` for a container declared as `Outer.Inner`.
+      return enclosingScopes.suffix(ancestors.count).map { $0.lowercased() }
+        == ancestors.map { $0.lowercased() }
+    case .exact:
+      // Comparing the scopes in full also rejects a container nested deeper than the chain, which
+      // produces more scopes than there are ancestors.
+      return enclosingScopes == Array(ancestors)
+    }
+  }
+}
+
+/// Which members of a container a query selects.
+enum MemberFilter {
+  /// Every member, which is what a query ending in a separator (`Foo.`) and a request for a container's
+  /// member names ask for.
+  case all
+
+  /// The members whose name contains the string as a case-insensitive subsequence.
+  case fuzzy(String)
+
+  /// The members whose name equals one of the strings.
+  case exact(Set<String>)
+
+  func matches(memberName: String) -> Bool {
+    switch self {
+    case .all: return true
+    case .fuzzy(let pattern): return memberName.fuzzilyContains(subsequence: pattern)
+    case .exact(let names): return names.contains(memberName)
+    }
+  }
+}
+
+/// A `workspace/symbol` query split into its qualified parts.
+///
+/// For example:
+///   `"String.description"`   → `containerChain: ["String"], member: "description"`
+///   `"Foo::bar"`             → `containerChain: ["Foo"], member: "bar"`
+///   `"Outer.Inner.method"`   → `containerChain: ["Outer", "Inner"], member: "method"`
+///   `"Foo."`                 → `containerChain: ["Foo"], member: ""`
+///   `"Foo.bar(baz:)"`        → `containerChain: ["Foo"], member: "bar(baz:)"` (a lone `:` is literal)
+///
+/// An unqualified query (no separator, e.g. `"description"`) fails to parse and returns `nil`.
+package struct QualifiedWorkspaceSymbolQuery: Equatable {
+  /// Container chain in outer-to-inner order. Always non-empty for a successfully-parsed query.
+  package let containerChain: [String]
+
+  /// The trailing component the user is searching for. May be empty (e.g. for the query `Foo.`).
+  package let member: String
+
+  /// Parse a `workspace/symbol` query, splitting on the trailing `.` or `::` qualifier separators.
+  ///
+  /// Returns `nil` if the query has no qualifier or the container chain is empty (so callers can fall
+  /// back to the unqualified search path). A trailing separator with an empty member (e.g. `Foo.`)
+  /// is a valid qualified query that lists all members of the container.
+  package init?(_ query: String) {
+    let components = Self.split(query)
+    // Without a separator the query isn't qualified; callers fall back to the unqualified search path. An
+    // empty member is allowed (e.g. `Foo.` lists all members of the container).
+    guard components.count >= 2, let member = components.last,
+      let containerChain = Self.validatedChain(components.dropLast())
+    else {
+      return nil
+    }
+    self.containerChain = containerChain
+    self.member = member
+  }
+
+  /// Split a qualified name or query on its `.` and `::` separators.
+  ///
+  /// A lone `:` is not a separator — it is a literal character, e.g. an argument label in
+  /// `Collection.append(contentsOf:)`. Empty components are preserved so that callers can reject a
+  /// leading or doubled separator.
+  private static func split(_ string: String) -> [String] {
+    return
+      string
+      .replacing("::", with: ".")
+      .split(separator: ".", omittingEmptySubsequences: false)
+      .map(String.init)
+  }
+
+  /// Parse a chain of container names, e.g. `Outer.Inner` or `Outer::Inner`.
+  ///
+  /// Returns `nil` if any name in the chain is empty, which rejects the empty string as well as a
+  /// leading, trailing or doubled separator.
+  package static func containerChain(_ containerName: String) -> [String]? {
+    return validatedChain(split(containerName)[...])
+  }
+
+  /// `components` as a container chain, or `nil` if any of them is empty.
+  private static func validatedChain(_ components: ArraySlice<String>) -> [String]? {
+    guard !components.contains(where: \.isEmpty) else { return nil }
+    return Array(components)
+  }
+}
+
+extension String {
+  /// Returns `true` if the characters of `subsequence` appear in order within `self`, compared
+  /// case-insensitively. An empty `subsequence` always matches.
+  package func fuzzilyContains(subsequence: String) -> Bool {
+    var remaining = Substring(subsequence.lowercased())
+    for character in self.lowercased() where character == remaining.first {
+      remaining = remaining.dropFirst()
+    }
+    return remaining.isEmpty
+  }
+}
+
+/// Minimum supported pattern length for a `workspace/symbol` request, smaller pattern
+/// strings are not queried and instead we return no results.
+private let minWorkspaceSymbolPatternLength = 3
+
+/// The maximum number of results to return from a `workspace/symbol` request.
+private let maxWorkspaceSymbolResults = 4096

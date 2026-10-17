@@ -28,10 +28,28 @@ fileprivate actor TestBuildServer: CustomBuildServer {
   let inProgressRequestsTracker = CustomBuildServerInProgressRequestTracker()
   private let connectionToSourceKitLSP: any Connection
   private var buildSettingsByFile: [DocumentURI: TextDocumentSourceKitOptionsResponse] = [:]
+  private(set) var sourceKitOptionsRequestCount = 0
+  private var targetsWithChangedOptionsOnPrepare: [BuildTargetIdentifier]? = nil
 
   func setBuildSettings(for uri: DocumentURI, to buildSettings: TextDocumentSourceKitOptionsResponse?) {
     buildSettingsByFile[uri] = buildSettings
     connectionToSourceKitLSP.send(OnBuildTargetDidChangeNotification(changes: nil))
+  }
+
+  /// Change the build settings the way preparation does: without notifying SourceKit-LSP, reporting the change in the
+  /// next prepare response instead.
+  func setBuildSettingsChangedByPreparation(
+    for uri: DocumentURI,
+    to buildSettings: TextDocumentSourceKitOptionsResponse?,
+    targetsWithChangedOptions: [BuildTargetIdentifier]?
+  ) {
+    buildSettingsByFile[uri] = buildSettings
+    targetsWithChangedOptionsOnPrepare = targetsWithChangedOptions
+  }
+
+  func prepareTarget(_ request: BuildTargetPrepareRequest) async throws -> BuildTargetPrepareResponse {
+    defer { targetsWithChangedOptionsOnPrepare = nil }
+    return BuildTargetPrepareResponse(targetsWithChangedOptions: targetsWithChangedOptionsOnPrepare)
   }
 
   init(projectRoot: URL, connectionToSourceKitLSP: any Connection) {
@@ -45,6 +63,7 @@ fileprivate actor TestBuildServer: CustomBuildServer {
   func textDocumentSourceKitOptionsRequest(
     _ request: TextDocumentSourceKitOptionsRequest
   ) async throws -> TextDocumentSourceKitOptionsResponse? {
+    sourceKitOptionsRequestCount += 1
     return buildSettingsByFile[request.textDocument.uri]
   }
 }
@@ -171,6 +190,42 @@ final class BuildServerManagerTests: SourceKitLSPTestCase {
     ])
     await buildServer.setBuildSettings(for: a, to: nil)
     try await fulfillmentOfOrThrow(changed)
+  }
+
+  func testPrepareInvalidatesOptionsOfTargetsWithChangedOptions() async throws {
+    let a = try DocumentURI(string: "bsm:a.swift")
+    let (manager, buildServer) = try await createBuildServerManager(mainFilesProvider: ManualMainFilesProvider([:]))
+    await buildServer.setBuildSettings(for: a, to: TextDocumentSourceKitOptionsResponse(compilerArguments: ["old"]))
+    await manager.waitForUpToDateBuildGraph()
+    let target = try await unwrap(manager.canonicalTarget(for: a))
+
+    func firstCompilerArgument() async -> String? {
+      await manager.buildSettings(for: a, in: target, language: .swift, fallbackAfterTimeout: false)?.compilerArguments
+        .first
+    }
+
+    assertEqual(await firstCompilerArgument(), "old")
+    let requestCount = await buildServer.sourceKitOptionsRequestCount
+
+    // Preparation that reports no changed options keeps the cached options.
+    await buildServer.setBuildSettingsChangedByPreparation(
+      for: a,
+      to: TextDocumentSourceKitOptionsResponse(compilerArguments: ["new"]),
+      targetsWithChangedOptions: nil
+    )
+    _ = try await manager.prepare(targets: [target])
+    assertEqual(await firstCompilerArgument(), "old")
+    assertEqual(await buildServer.sourceKitOptionsRequestCount, requestCount)
+
+    // Preparation that reports the target's options as changed invalidates them before `prepare` returns.
+    await buildServer.setBuildSettingsChangedByPreparation(
+      for: a,
+      to: TextDocumentSourceKitOptionsResponse(compilerArguments: ["new"]),
+      targetsWithChangedOptions: [target]
+    )
+    _ = try await manager.prepare(targets: [target])
+    assertEqual(await firstCompilerArgument(), "new")
+    assertEqual(await buildServer.sourceKitOptionsRequestCount, requestCount + 1)
   }
 
   func testSettingsMainFileInitialNil() async throws {

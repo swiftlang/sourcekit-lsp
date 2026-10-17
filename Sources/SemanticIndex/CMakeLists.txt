@@ -3,6 +3,7 @@ add_library(SemanticIndex STATIC
   CheckedIndex.swift
   IndexTaskDescription.swift
   IndexHooks.swift
+  ModuleVariantTracker.swift
   PreparationTaskDescription.swift
   SemanticIndexManager.swift
   TaskScheduler.swift

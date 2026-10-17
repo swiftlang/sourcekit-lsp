@@ -735,6 +735,43 @@ final class CodeActionTests: SourceKitLSPTestCase {
     }
   }
 
+  func testConvertIntegerLiteralWithTrailingComment() async throws {
+    try await assertCodeActions(
+      """
+      let x = 1️⃣162️⃣  // comment
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Convert 16 to 0b10000",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [uri: [TextEdit(range: positions["1️⃣"]..<positions["2️⃣"], newText: "0b10000")]]
+          )
+        ),
+        CodeAction(
+          title: "Convert 16 to 0o20",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [uri: [TextEdit(range: positions["1️⃣"]..<positions["2️⃣"], newText: "0o20")]]
+          )
+        ),
+        CodeAction(
+          title: "Convert 16 to 0x10",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [uri: [TextEdit(range: positions["1️⃣"]..<positions["2️⃣"], newText: "0x10")]]
+          )
+        ),
+      ]
+    }
+  }
+
   func testAddSeparatorsToIntegerLiteral() async throws {
     try await assertCodeActions(
       """
@@ -1138,9 +1175,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
               uri: [
                 TextEdit(
                   range: positions["1️⃣"]..<positions["3️⃣"],
-                  newText: ##"""
-                    ##"Hello \#(name)"##
-                    """##
+                  newText: "\"Hello \\(name)\""
                 )
               ]
             ]
@@ -3356,6 +3391,440 @@ final class CodeActionTests: SourceKitLSPTestCase {
     }
   }
 
+  func testToggleSwiftTestingTestEnabledToDisabled() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣@Test2️⃣
+      func testExample() {
+        #expect(2 + 2 == 4)
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Toggle Test Enabled/Disabled",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: "@Test(.disabled())"
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testToggleSwiftTestingTestDisabledToEnabled() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣@Test(.disabled())2️⃣
+      func testExample() {
+        #expect(2 + 2 == 4)
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Toggle Test Enabled/Disabled",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: "@Test"
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testToggleXCTestEnabledToDisabled() async throws {
+    try await assertCodeActions(
+      """
+      class MyTests {
+      1️⃣func testExample()2️⃣ {
+          3️⃣XCTAssertEqual(2 + 2, 4)
+      }
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Toggle Test Enabled/Disabled",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["2️⃣"]..<positions["2️⃣"],
+                  newText: " throws"
+                ),
+                TextEdit(
+                  range: positions["3️⃣"]..<positions["3️⃣"],
+                  newText: "throw XCTSkip(\"Disabled\")\n    "
+                ),
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testToggleXCTestDisabledToEnabled() async throws {
+    try await assertCodeActions(
+      """
+      class MyTests {
+      1️⃣func testExample() throws {2️⃣
+          throw XCTSkip("Disabled")3️⃣
+          XCTAssertEqual(2 + 2, 4)
+      }
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Toggle Test Enabled/Disabled",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["2️⃣"]..<positions["3️⃣"],
+                  newText: ""
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testToggleXCTestDisabledToEnabledPreservesComments() async throws {
+    try await assertCodeActions(
+      """
+      class MyTests {
+      1️⃣func testExample() throws {2️⃣
+          throw XCTSkip("Disabled")3️⃣
+          // We shouldn't delete this comment
+          XCTAssertEqual(2 + 2, 4)
+      }
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Toggle Test Enabled/Disabled",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["2️⃣"]..<positions["3️⃣"],
+                  newText: ""
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testToggleTestNotOfferedForNonTestFunction() async throws {
+    try await assertNoCodeAction(
+      titled: "Toggle Test Enabled/Disabled",
+      in: """
+        1️⃣func helper() {
+          print("hi")
+        }2️⃣
+        """,
+      atMarker: "1️⃣"
+    )
+  }
+
+  func testToggleTestNotOfferedForConditionallyDisabledTest() async throws {
+    try await assertNoCodeAction(
+      titled: "Toggle Test Enabled/Disabled",
+      in: """
+        1️⃣@Test(.disabled(if: someCondition, "Waiting on backend API"))
+        func testExample() {
+          #expect(2 + 2 == 4)
+        }2️⃣
+        """,
+      atMarker: "1️⃣"
+    )
+  }
+
+  func testToggleTestNotOfferedForTrailingClosureDisabledSwiftTestingTest() async throws {
+    try await assertNoCodeAction(
+      titled: "Toggle Test Enabled/Disabled",
+      in: """
+        1️⃣@Test(.disabled("Waiting on backend API") { someCondition() })
+        func testExample() {
+          #expect(2 + 2 == 4)
+        }2️⃣
+        """,
+      atMarker: "1️⃣"
+    )
+  }
+
+  func testToggleSwiftTestingTestEnabledToDisabledWithExistingTraits() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣@Test("Custom Name", .bug("123"))2️⃣
+      func testExample() {
+          #expect(2 + 2 == 4)
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Toggle Test Enabled/Disabled",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: "@Test(\"Custom Name\", .bug(\"123\"), .disabled())"
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testToggleSwiftTestingTestDisabledToEnabledWithDisabledReason() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣@Test(.disabled("Waiting on backend API"))2️⃣
+      func testExample() {
+          #expect(2 + 2 == 4)
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Toggle Test Enabled/Disabled",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: "@Test"
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testToggleXCTestEnabledToDisabledEmptyBody() async throws {
+    try await assertCodeActions(
+      """
+      class MyTests {
+      1️⃣func testExample()2️⃣ {
+      3️⃣}
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Toggle Test Enabled/Disabled",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["2️⃣"]..<positions["2️⃣"],
+                  newText: " throws"
+                ),
+                TextEdit(
+                  range: positions["3️⃣"]..<positions["3️⃣"],
+                  newText: "    throw XCTSkip(\"Disabled\")\n"
+                ),
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testToggleXCTestEnabledToDisabledSingleLineEmptyBody() async throws {
+    try await assertCodeActions(
+      """
+      class MyTests {
+      1️⃣func testExample()2️⃣ {3️⃣}
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Toggle Test Enabled/Disabled",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["2️⃣"]..<positions["2️⃣"],
+                  newText: " throws"
+                ),
+                TextEdit(
+                  range: positions["3️⃣"]..<positions["3️⃣"],
+                  newText: "\n    throw XCTSkip(\"Disabled\")\n"
+                ),
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testToggleXCTestEnabledToDisabledIndentedEmptyBody() async throws {
+    try await assertCodeActions(
+      """
+      class MyTests: XCTestCase {
+          1️⃣func testExample()2️⃣ {
+          3️⃣}
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Toggle Test Enabled/Disabled",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["2️⃣"]..<positions["2️⃣"],
+                  newText: " throws"
+                ),
+                TextEdit(
+                  range: positions["3️⃣"]..<positions["3️⃣"],
+                  newText: "    throw XCTSkip(\"Disabled\")\n    "
+                ),
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testToggleSwiftTestingTestEnabledToDisabledWithLabeledArguments() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣@Test(arguments: [1, 2])2️⃣
+      func testExample() {}
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Toggle Test Enabled/Disabled",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: "@Test(.disabled(), arguments: [1, 2])"
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testToggleXCTestEnabledToDisabledAsyncMethod() async throws {
+    try await assertCodeActions(
+      """
+      class MyTests {
+      1️⃣func testExample() async2️⃣ {
+          3️⃣XCTAssertEqual(2 + 2, 4)
+      }
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Toggle Test Enabled/Disabled",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["2️⃣"]..<positions["2️⃣"],
+                  newText: " throws"
+                ),
+                TextEdit(
+                  range: positions["3️⃣"]..<positions["3️⃣"],
+                  newText: "throw XCTSkip(\"Disabled\")\n    "
+                ),
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
   /// Retrieves the code action at a set of markers and asserts that it matches a list of expected code actions.
   ///
   /// - Parameters:
@@ -3593,6 +4062,503 @@ final class CodeActionTests: SourceKitLSPTestCase {
     )
   }
 
+  func testInlineVariableBasic() async throws {
+    try await assertCodeActions(
+      """
+      func doSomething() {1️⃣
+        let 2️⃣x = 423️⃣
+        print(4️⃣x5️⃣)
+      }
+      """,
+      markers: ["2️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Inline variable",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(range: positions["4️⃣"]..<positions["5️⃣"], newText: "42"),
+                TextEdit(range: positions["1️⃣"]..<positions["3️⃣"], newText: ""),
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testInlineVariableRequiresParens() async throws {
+    try await assertCodeActions(
+      """
+      func calculate() {1️⃣
+        let 2️⃣x = 1 + 23️⃣
+        let y = 4️⃣x5️⃣ * 3
+      }
+      """,
+      markers: ["2️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Inline variable",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(range: positions["4️⃣"]..<positions["5️⃣"], newText: "(1 + 2)"),
+                TextEdit(range: positions["1️⃣"]..<positions["3️⃣"], newText: ""),
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testInlineVariableDoesNotRequireParensForPrimaryExpressions() async throws {
+    try await assertCodeActions(
+      """
+      func calculate() {1️⃣
+        let 2️⃣x = [1, 2, 3]3️⃣
+        let y = 4️⃣x5️⃣.count
+      }
+      """,
+      markers: ["2️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Inline variable",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(range: positions["4️⃣"]..<positions["5️⃣"], newText: "[1, 2, 3]"),
+                TextEdit(range: positions["1️⃣"]..<positions["3️⃣"], newText: ""),
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testInlineVariableMultipleUsages() async throws {
+    try await assertCodeActions(
+      """
+      func printThings() {1️⃣
+        let 2️⃣msg = "Hello"3️⃣
+        print(4️⃣msg5️⃣)
+        print(6️⃣msg7️⃣)
+      }
+      """,
+      markers: ["2️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Inline variable",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(range: positions["4️⃣"]..<positions["5️⃣"], newText: "\"Hello\""),
+                TextEdit(range: positions["6️⃣"]..<positions["7️⃣"], newText: "\"Hello\""),
+                TextEdit(range: positions["1️⃣"]..<positions["3️⃣"], newText: ""),
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testInlineVariableMultipleBindingsInDeclaration() async throws {
+    try await assertCodeActions(
+      """
+      func test() {
+        1️⃣let y = 1, 2️⃣x = 423️⃣
+        print(4️⃣x5️⃣)
+      }
+      """,
+      markers: ["2️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Inline variable",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(range: positions["4️⃣"]..<positions["5️⃣"], newText: "42"),
+                TextEdit(range: positions["1️⃣"]..<positions["3️⃣"], newText: "let y = 1"),
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testInlineVariableNotOfferedForVar() async throws {
+    try await assertNoCodeAction(
+      titled: "Inline variable",
+      in: """
+        func test() {
+          var 1️⃣x = 42
+          print(x)
+        }
+        """,
+      atMarker: "1️⃣"
+    )
+  }
+
+  func testInlineVariableNotOfferedForUnusedVariable() async throws {
+    try await assertNoCodeAction(
+      titled: "Inline variable",
+      in: """
+        func test() {
+          let 1️⃣x = 42
+        }
+        """,
+      atMarker: "1️⃣"
+    )
+  }
+
+  func testInlineVariableRespectsShadowing() async throws {
+    try await assertCodeActions(
+      """
+      func test() {1️⃣
+        let 2️⃣x = 423️⃣
+
+        if condition {
+          let x = 100
+          print(x)
+        }
+
+        print(4️⃣x5️⃣)
+      }
+      """,
+      markers: ["2️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Inline variable",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(range: positions["4️⃣"]..<positions["5️⃣"], newText: "42"),
+                TextEdit(range: positions["1️⃣"]..<positions["3️⃣"], newText: ""),
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testInlineVariableRespectsShadowingWithMultipleReferences() async throws {
+    try await assertCodeActions(
+      """
+      func test() {1️⃣
+        let 2️⃣x = 423️⃣
+
+        print(4️⃣x5️⃣)
+
+        if condition {
+          let x = 100
+          print(x)
+        }
+
+        print(6️⃣x7️⃣)
+      }
+      """,
+      markers: ["2️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Inline variable",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(range: positions["4️⃣"]..<positions["5️⃣"], newText: "42"),
+                TextEdit(range: positions["6️⃣"]..<positions["7️⃣"], newText: "42"),
+                TextEdit(range: positions["1️⃣"]..<positions["3️⃣"], newText: ""),
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testInlineVariableUsedInInitializer() async throws {
+    try await assertCodeActions(
+      """
+      func test() {
+        let value = 421️⃣
+        let 2️⃣x = value + 13️⃣
+        print(4️⃣x5️⃣)
+      }
+      """,
+      markers: ["2️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Inline variable",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(range: positions["4️⃣"]..<positions["5️⃣"], newText: "value + 1"),
+                TextEdit(range: positions["1️⃣"]..<positions["3️⃣"], newText: ""),
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testInlineVariableNotOfferedInsideNestedBlock() async throws {
+    try await assertNoCodeAction(
+      titled: "Inline variable",
+      in: """
+        func test() {
+          let foo = {
+            1️⃣computeSomething()
+          }
+        }
+        """,
+      atMarker: "1️⃣"
+    )
+  }
+
+  func testInlineVariableNotApplicableForStructProperty() async throws {
+    try await assertNoCodeAction(
+      titled: "Inline variable",
+      in: """
+        func foo() {
+          struct Foo {
+            let 1️⃣x = "hi"
+          }
+          print("wohoo")
+        }
+        """,
+      atMarker: "1️⃣"
+    )
+  }
+
+  func testInlineVariableSupportsBacktickedIdentifiers() async throws {
+    try await assertCodeActions(
+      """
+      func foo() {1️⃣
+        let 2️⃣`x` = "hi"3️⃣
+        print(4️⃣x5️⃣)
+        print(6️⃣`x`7️⃣)
+      }
+      """,
+      markers: ["2️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Inline variable",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["4️⃣"]..<positions["5️⃣"],
+                  newText: "\"hi\""
+                ),
+                TextEdit(
+                  range: positions["6️⃣"]..<positions["7️⃣"],
+                  newText: "\"hi\""
+                ),
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["3️⃣"],
+                  newText: ""
+                ),
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testInvertIfConditionOnIfKeyword() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣if !x {
+        foo()
+      } else {
+        bar()
+      }2️⃣
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Invert if condition",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: """
+                    if x {
+                      bar()
+                    } else {
+                      foo()
+                    }
+                    """
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testInvertIfConditionOnCondition() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣if 2️⃣!(x == y) {
+        return
+      } else {
+        continue
+      }3️⃣
+      """,
+      markers: ["2️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Invert if condition",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["3️⃣"],
+                  newText: """
+                    if x == y {
+                      continue
+                    } else {
+                      return
+                    }
+                    """
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testInvertIfConditionNonNegated() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣if 2️⃣x == y {
+        foo()
+      } else {
+        bar()
+      }3️⃣
+      """,
+      markers: ["1️⃣", "2️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Invert if condition",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["3️⃣"],
+                  newText: """
+                    if x != y {
+                      bar()
+                    } else {
+                      foo()
+                    }
+                    """
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testInvertIfConditionNotOfferedInsideBody() async throws {
+    try await assertNoCodeAction(
+      titled: "Invert if condition",
+      in: """
+        if !x {
+          1️⃣foo()
+        } else {
+          bar()
+        }
+        """,
+      atMarker: "1️⃣"
+    )
+  }
+
+  func testInvertIfConditionNotOfferedWithoutElse() async throws {
+    try await assertNoCodeAction(
+      titled: "Invert if condition",
+      in: """
+        1️⃣if !x {
+          foo()
+        }
+        """,
+      atMarker: "1️⃣"
+    )
+  }
+
+  func testInvertIfConditionNotOfferedForElseIf() async throws {
+    try await assertNoCodeAction(
+      titled: "Invert if condition",
+      in: """
+        1️⃣if !x {
+          foo()
+        } else if y {
+          bar()
+        }
+        """,
+      atMarker: "1️⃣"
+    )
+  }
 }
 
 private extension CodeActionRequestResponse {

@@ -40,6 +40,7 @@ The specific refactorings available depend on what code is selected or where the
 | **Convert To IfLet Expression** | Select a guard-let statement |
 | **Convert To Switch Statement** | Select an if/else-if chain comparing the same value |
 | **Migrate to shorthand 'if let' syntax** | Cursor on `if let x = x` |
+| **Invert if condition** | Cursor on an `if` statement with a condition and an `else` block |
 
 ### Macros
 
@@ -60,6 +61,8 @@ The specific refactorings available depend on what code is selected or where the
 | **Convert to zero parameter function** | Cursor on a read-only computed property |
 | **Add documentation** | Cursor on a function, type, property, or macro declaration |
 | **Convert comment to doc comment** | Cursor on a regular comment preceding a declaration |
+| **Toggle Test Enabled/Disabled** | Cursor on a Swift Testing `@Test` function or an XCTest test method |
+| **Inline Variable** | Cursor on a local `let` variable declaration or one of its usages to replace all references with its initializer |
 
 ### Async/Await
 

@@ -185,6 +185,8 @@ fileprivate extension OutOfProcessReferenceResolver.ResolvedInformation {
       kind = .unknownSymbol
     case .section:
       kind = .unknown
+    @unknown default:
+      kind = .unknown
     }
 
     self.init(

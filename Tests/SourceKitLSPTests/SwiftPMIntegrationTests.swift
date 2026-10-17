@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import BuildServerIntegration
+@_spi(SourceKitLSP) import BuildServerProtocol
 import Foundation
 @_spi(SourceKitLSP) import LanguageServerProtocol
 import SKLogging
@@ -287,16 +288,18 @@ final class SwiftPMIntegrationTests: SourceKitLSPTestCase {
   }
 
   func testProvideSyntacticFunctionalityWhilePackageIsLoading() async throws {
-    let receivedDocumentSymbolsReply = WrappedSemaphore(name: "Received document symbols reply")
+    let receivedDocumentSymbolsReply = MultiEntrySemaphore(name: "Received document symbols reply")
     let project = try await SwiftPMTestProject(
       files: [
         "Test.swift": ""
       ],
       hooks: Hooks(
         buildServerHooks: BuildServerHooks(
-          swiftPMTestHooks: SwiftPMTestHooks(reloadPackageDidStart: {
-            receivedDocumentSymbolsReply.waitOrXCTFail()
-          })
+          preHandleRequest: { request in
+            if request is TextDocumentSourceKitOptionsRequest {
+              await receivedDocumentSymbolsReply.waitOrXCTFail()
+            }
+          }
         )
       ),
       pollIndex: false
@@ -307,7 +310,7 @@ final class SwiftPMIntegrationTests: SourceKitLSPTestCase {
   }
 
   func testDiagnosticsGetRefreshedAfterPackageLoadingFinishes() async throws {
-    let receivedInitialDiagnosticsReply = WrappedSemaphore(name: "Received initial diagnostics reply")
+    let receivedInitialDiagnosticsReply = MultiEntrySemaphore(name: "Received initial diagnostics reply")
     let project = try await SwiftPMTestProject(
       files: [
         "Test.swift": """
@@ -319,9 +322,11 @@ final class SwiftPMIntegrationTests: SourceKitLSPTestCase {
       ),
       hooks: Hooks(
         buildServerHooks: BuildServerHooks(
-          swiftPMTestHooks: SwiftPMTestHooks(reloadPackageDidStart: {
-            receivedInitialDiagnosticsReply.waitOrXCTFail()
-          })
+          preHandleRequest: { request in
+            if request is TextDocumentSourceKitOptionsRequest {
+              await receivedInitialDiagnosticsReply.waitOrXCTFail()
+            }
+          }
         )
       ),
       pollIndex: false

@@ -2,7 +2,8 @@
 
 Open Quickly is a feature that lets editors provide fast symbol navigation across the entire workspace, including
 symbols defined in SDK `.swiftinterface` files. It is built on four LSP extensions that work together in a four-phase
-flow.
+flow. Qualified queries such as `Outer.Container.member` or `Foo::bar` use the same extensions, with the discovery phase
+listing the members of a container (see [Qualified Queries](#qualified-queries)).
 
 ## LSP Extensions
 
@@ -17,6 +18,25 @@ search UI (fuzzy matching, prefix filtering, etc.).
     names: ["String", "Array", "Dictionary", "MyViewController", ...]
   }
 ```
+
+When the request carries a `containerName`, the response instead lists the fully-qualified names of that container's
+members. The value may name a chain of containers separated by `.` or `::`. The innermost name must match a container
+name in full, and the enclosing names are matched as a suffix of the container's chain, all case-insensitively, so
+`Container` also names a container declared as `Outer.Container`. Because more than one container can match, every
+returned name is fully qualified, joined with the separator of the member's language (`.` for Swift, `::` for C-family
+languages).
+
+```
+→ WorkspaceSymbolNamesRequest { containerName: "Container" }
+← WorkspaceSymbolNamesResponse {
+    names: ["Outer.Container.init(_:)", "Outer.Container.value", ...]
+  }
+```
+
+Only the direct members of the container and of its extensions are listed, never the container itself. Inherited
+members and accessors are not listed, and neither are the members of a system namespace or module such as `std`. SDK and
+stdlib members are listed only when the client advertises the capabilities that `sourcekit/workspace/symbolInfo` needs
+to return them (see [Client Capabilities](#client-capabilities)), so every listed name can be resolved.
 
 ### `sourcekit/workspace/symbolInfo` — Resolution
 
@@ -79,6 +99,28 @@ record is returned as `SymbolInformation` instead.
 > `WorkspaceSymbol.sourceKitData` rather than reading raw JSON keys.
 
 The response is a flat array of `WorkspaceSymbolItem` values. Each item carries the symbol name in its `name` field.
+
+A name that contains `.` or `::`, such as one returned by `sourcekit/workspace/symbolNames` with a `containerName`, is
+resolved as a qualified name. Unlike `containerName`, a qualified name must spell every enclosing container, and it is
+compared case-sensitively and with the separator it was written with: `Container.init(_:)` does not resolve to
+`Outer.Container.init(_:)`, and `Foo::bar` does not resolve to a Swift `Foo.bar`. The items for a qualified name carry
+the qualified name in their `name` field, so a client can match each item to the name it requested.
+
+```
+→ WorkspaceSymbolInfoRequest { names: ["Outer.Container.value"] }
+← WorkspaceSymbolInfoResponse {
+    results: [
+      SymbolInformation {
+        name: "Outer.Container.value",
+        kind: .property,
+        location: Location {
+          uri: "file:///path/to/Outer.swift",
+          range: { line: 5, character: 8 }
+        }
+      }
+    ]
+  }
+```
 
 ### `workspaceSymbol/resolve` — Range Resolution
 
@@ -165,6 +207,34 @@ Client                                            Server
 4. **Content retrieval** — fetch the generated interface text. The editor scrolls to `location.range.start` from the
    resolve step.
 
+### Qualified Queries
+
+When the user's query names a container, the client fetches the container's member names once and filters them
+locally, instead of sending a request per keystroke.
+
+```
+Client                                            Server
+  │                                                  │
+  │  [user types "Container."]                       │
+  │                                                  │
+  │── sourcekit/workspace/symbolNames                │
+  │     { containerName: "Container" } ─────────────▶│
+  │◀─ { ["Outer.Container.init(_:)",                 │
+  │      "Outer.Container.value", ...] } ────────────│
+  │                                                  │
+  │  [user types "Container.val"]                    │
+  │                                                  │
+  │── sourcekit/workspace/symbolInfo                 │
+  │     {["Outer.Container.value"]} ────────────────▶│
+  │◀─ [SymbolInformation] ───────────────────────────│
+  │     (name: "Outer.Container.value")              │
+```
+
+1. **Discovery** — once the query contains a separator, send the part before the last separator as `containerName`.
+   The client filters the returned qualified names by the part after it while the container part is unchanged.
+2. **Resolution** — send the selected qualified names verbatim. The rest of the flow is the same as for unqualified
+   names: SDK/stdlib members go on to range resolution and content retrieval.
+
 ## `sourcekit-lsp://` URI for SDK/stdlib Symbols
 
 The location URI for an SDK/stdlib `WorkspaceSymbol` is a fully-parameterized
@@ -223,6 +293,10 @@ the following. When either is missing, `sourcekit/workspace/symbolInfo` falls ba
   3.17) — signals that the client can call `workspaceSymbol/resolve` to obtain a range-bearing location.
 
 The server advertises its side of the contract by reporting `workspaceSymbolProvider` with `resolveProvider: true`.
+
+The server reports version 2 of the `sourcekit/workspace/symbolNames` and `sourcekit/workspace/symbolInfo` experimental
+server capabilities when it supports `containerName` and qualified names. A client should only send a `containerName` to
+a server that reports version 2.
 
 ## Notes
 

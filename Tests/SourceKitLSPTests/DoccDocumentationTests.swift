@@ -923,6 +923,18 @@ final class DoccDocumentationTests: SourceKitLSPTestCase {
     )
   }
 
+  func testRequestNotImplementedByAnyLanguageService() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .markdown)
+    let positions = testClient.openDocument("1️⃣# Title", uri: uri)
+
+    await assertThrowsError(
+      try await testClient.send(HoverRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"]))
+    ) { error in
+      XCTAssertEqual((error as? ResponseError)?.code, .requestNotImplemented, "Received unexpected error: \(error)")
+    }
+  }
+
   // MARK: Tutorials
 
   func testTutorial() async throws {

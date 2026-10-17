@@ -39,11 +39,16 @@ extension SwiftLanguageService {
       requestContext: requestContext,
       compileCommand: compileCommand,
       clientCapabilities: capabilityRegistry.clientCapabilities,
+      clientSupportsExtendedCompletionItems: capabilityRegistry.clientSupportsExtendedCompletionItems,
       filterText: filterText
     )
   }
 
   package func completionItemResolve(_ req: CompletionItemResolveRequest) async throws -> CompletionItem {
-    return try await CodeCompletionSession.completionItemResolve(item: req.item, sourcekitd: sourcekitd)
+    return try await CodeCompletionSession.completionItemResolve(
+      item: req.item,
+      sourcekitd: sourcekitd,
+      clientSupportsExtendedCompletionItems: capabilityRegistry.clientSupportsExtendedCompletionItems
+    )
   }
 }

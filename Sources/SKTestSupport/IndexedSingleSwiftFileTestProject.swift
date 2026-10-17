@@ -114,7 +114,7 @@ package struct IndexedSingleSwiftFileTestProject {
     if let sdk = defaultSDKPath {
       compilerArguments += ["-sdk", sdk]
 
-      // The following are needed so we can import XCTest
+      // The following are needed so we can import XCTest and Swift Testing.
       let sdkUrl = URL(fileURLWithPath: sdk)
       #if os(Windows)
       let platform = sdkUrl.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
@@ -131,6 +131,23 @@ package struct IndexedSingleSwiftFileTestProject {
           "windows"
         )
       compilerArguments += ["-I", try xctestModuleDir.filePath]
+
+      // Test files that only import XCTest still depend on Swift Testing for
+      // interoperability support.
+      if let swiftTestingVersion = info.defaults.swiftTestingVersion {
+        let swiftTestingModuleDir =
+          platform
+          .appending(
+            components: "Developer",
+            "Library",
+            "Testing-\(swiftTestingVersion)",
+            "usr",
+            "lib",
+            "swift",
+            "windows"
+          )
+        compilerArguments += ["-I", try swiftTestingModuleDir.filePath]
+      }
       #else
       let usrLibDir =
         sdkUrl

@@ -21,7 +21,6 @@ package let allSyntaxCodeActionProviders: [any SyntaxCodeActionProvider.Type] = 
     AddSeparatorsToIntegerLiteral.self,
     ApplyDeMorganLaw.self,
     ConvertCommentToDocComment.self,
-    ConvertCommentToDocComment.self,
     ConvertComputedPropertyToStored.self,
     ConvertComputedPropertyToZeroParameterFunction.self,
     ConvertIfLetToGuard.self,
@@ -33,12 +32,15 @@ package let allSyntaxCodeActionProviders: [any SyntaxCodeActionProvider.Type] = 
     FormatRawStringLiteral.self,
     GenerateEnumCaseAsAccessors.self,
     GenerateEnumCaseIsAccessors.self,
+    InlineVariable.self,
+    InvertIfCondition.self,
     MigrateToNewIfLetSyntax.self,
     MoveMembersToExtension.self,
     OpaqueParameterToGeneric.self,
     RemoveRedundantParentheses.self,
     RemoveSeparatorsFromIntegerLiteral.self,
     SwapBinaryOperands.self,
+    ToggleTestDisabled.self,
   ]
   #if !NO_SWIFTPM_DEPENDENCY
   result.append(PackageManifestEdits.self)

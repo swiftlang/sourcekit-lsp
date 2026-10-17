@@ -177,6 +177,9 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
       _ message: String, _ type: WindowMessageType, _ structure: LanguageServerProtocol.StructuredLogKind
     ) -> Void
 
+  /// See `SemanticIndexManager.moduleVariantTracker`.
+  private let moduleVariantTracker: ModuleVariantTracker
+
   /// How long to wait until we cancel an update indexstore task. This timeout should be long enough that all
   /// `swift-frontend` tasks finish within it. It prevents us from blocking the index if the type checker gets stuck on
   /// an expression for a long time.
@@ -214,6 +217,7 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
       @escaping @Sendable (
         _ message: String, _ type: WindowMessageType, _ structure: LanguageServerProtocol.StructuredLogKind
       ) -> Void,
+    moduleVariantTracker: ModuleVariantTracker,
     timeout: Duration,
     hooks: IndexHooks
   ) {
@@ -225,6 +229,7 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     self.indexStoreUpToDateTracker = indexStoreUpToDateTracker
     self.indexFilesWithUpToDateUnit = indexFilesWithUpToDateUnit
     self.logMessageToIndexLog = logMessageToIndexLog
+    self.moduleVariantTracker = moduleVariantTracker
     self.timeout = timeout
     self.hooks = hooks
   }
@@ -602,20 +607,22 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     let start = ContinuousClock.now
     let signposter = Logger(subsystem: LoggingScope.subsystem, category: "indexing").makeSignposter()
     let signpostID = signposter.makeSignpostID()
+    let indexFileNames = indexFiles.map { $0.fileURL?.lastPathComponent ?? $0.pseudoPath }
     let state = signposter.beginInterval(
       "Indexing",
       id: signpostID,
-      "Indexing \(indexFiles.map { $0.fileURL?.lastPathComponent ?? $0.pseudoPath })"
+      "Indexing \(indexFileNames)"
     )
     defer {
       signposter.endInterval("Indexing", state)
     }
+    moduleVariantTracker.recordIndexInvocation(processArguments)
     let taskId = "indexing-\(id)"
     logMessageToIndexLog(
       processArguments.joined(separator: " "),
       .info,
       .begin(
-        StructuredLogBegin(title: "Indexing \(indexFiles.map(\.pseudoPath).joined(separator: ", "))", taskID: taskId)
+        StructuredLogBegin(title: "Indexing \(indexFileNames.joined(separator: ", "))", taskID: taskId)
       )
     )
 
