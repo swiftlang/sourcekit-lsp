@@ -63,6 +63,8 @@ The specific refactorings available depend on what code is selected or where the
 | **Convert comment to doc comment** | Cursor on a regular comment preceding a declaration |
 | **Toggle Test Enabled/Disabled** | Cursor on a Swift Testing `@Test` function or an XCTest test method |
 | **Inline Variable** | Cursor on a local `let` variable declaration or one of its usages to replace all references with its initializer |
+| **Remove unused parameter** | Cursor on an unused parameter in a local function |
+| **Replace unused parameter with '_'** | Cursor on an unused parameter in a function or initializer |
 
 ### Async/Await
 

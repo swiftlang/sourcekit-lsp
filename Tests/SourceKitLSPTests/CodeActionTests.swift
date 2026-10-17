@@ -4559,6 +4559,299 @@ final class CodeActionTests: SourceKitLSPTestCase {
       atMarker: "1️⃣"
     )
   }
+
+  func testRemoveUnusedParameterLocalFunction() async throws {
+    try await assertCodeActions(
+      """
+      func outer() {
+  func greet(1️⃣name: String, 2️⃣title: String3️⃣) {
+    print("Hello, \\(name)")
+  }
+  greet(4️⃣name: "Alice", title: "Ms."5️⃣)
+}
+      """,
+      markers: ["2️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Remove unused parameter 'title'",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["3️⃣"],
+                  newText: "name: String"
+                ),
+                TextEdit(
+                  range: positions["4️⃣"]..<positions["5️⃣"],
+                  newText: #"name: "Alice""#
+                ),
+              ]
+            ]
+          )
+        ),
+        CodeAction(
+          title: "Replace unused parameter 'title' with '_'",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["2️⃣"]..<positions["3️⃣"],
+                  newText: "title _: String"
+                )
+              ]
+            ]
+          )
+        ),
+      ]
+    }
+  }
+
+  func testRemoveUnusedParameterLocalFunctionOnlyParameter() async throws {
+    try await assertCodeActions(
+      """
+      func outer() {
+  func helper(1️⃣x: Int2️⃣) {
+    print("hello")
+  }
+  helper(3️⃣x: 424️⃣)
+}
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Remove unused parameter 'x'",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: ""
+                ),
+                TextEdit(
+                  range: positions["3️⃣"]..<positions["4️⃣"],
+                  newText: ""
+                ),
+              ]
+            ]
+          )
+        ),
+        CodeAction(
+          title: "Replace unused parameter 'x' with '_'",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: "x _: Int"
+                )
+              ]
+            ]
+          )
+        ),
+      ]
+    }
+  }
+
+  func testReplaceUnusedParameterNonLocalFunction() async throws {
+    try await assertCodeActions(
+      """
+      func greet(name: String, 1️⃣title: String2️⃣) {
+  print("Hello, \\(name)")
+}
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Replace unused parameter 'title' with '_'",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: "title _: String"
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testReplaceUnusedParameterUnlabeled() async throws {
+    try await assertCodeActions(
+      """
+      func log(_ 1️⃣message: String2️⃣) {
+  print("event")
+}
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Replace unused parameter 'message' with '_'",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: "_: String"
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testReplaceUnusedParameterInInitializer() async throws {
+    try await assertCodeActions(
+      """
+      struct S {
+  init(name: String, 1️⃣tag: Int2️⃣) {
+    print(name)
+  }
+}
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Replace unused parameter 'tag' with '_'",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: "tag _: Int"
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testRemoveUnusedParameterRespectsShadowing() async throws {
+    try await assertCodeActions(
+      """
+      func greet(1️⃣unused: Int2️⃣) {
+  let closure = {
+    let unused = 42
+    print(unused)
+  }
+  closure()
+}
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Replace unused parameter 'unused' with '_'",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: "unused _: Int"
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testRemoveUnusedParameterNotOfferedWhenParameterIsUsed() async throws {
+    try await assertNoCodeAction(
+      titled: "Remove unused parameter 'name'",
+      in: """
+        func greet(1️⃣name: String) {
+  print(name)
+}
+        """,
+      atMarker: "1️⃣"
+    )
+    try await assertNoCodeAction(
+      titled: "Replace unused parameter 'name' with '_'",
+      in: """
+        func greet(1️⃣name: String) {
+  print(name)
+}
+        """,
+      atMarker: "1️⃣"
+    )
+  }
+
+  func testRemoveUnusedParameterNotOfferedForWildcard() async throws {
+    try await assertNoCodeAction(
+      titled: "Remove unused parameter '_'",
+      in: """
+        func greet(1️⃣_: Int) {}
+        """,
+      atMarker: "1️⃣"
+    )
+    try await assertNoCodeAction(
+      titled: "Replace unused parameter '_' with '_'",
+      in: """
+        func greet(1️⃣_: Int) {}
+        """,
+      atMarker: "1️⃣"
+    )
+  }
+
+  func testRemoveUnusedParameterNotOfferedInsideFunctionBody() async throws {
+    try await assertNoCodeAction(
+      titled: "Remove unused parameter 'name'",
+      in: """
+        func greet(name: String) {
+  1️⃣print("hi")
+}
+        """,
+      atMarker: "1️⃣"
+    )
+  }
+
+  func testRemoveUnusedParameterNotOfferedWithoutBody() async throws {
+    try await assertNoCodeAction(
+      titled: "Remove unused parameter 'x'",
+      in: """
+        protocol P {
+  func foo(1️⃣x: Int)
+}
+        """,
+      atMarker: "1️⃣"
+    )
+  }
+
 }
 
 private extension CodeActionRequestResponse {
