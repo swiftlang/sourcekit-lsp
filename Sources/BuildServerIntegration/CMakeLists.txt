@@ -35,11 +35,17 @@ target_link_libraries(BuildServerIntegration PUBLIC
   SwiftExtensions
   SwiftToolsProtocols::ToolsProtocolsSwiftExtensions
   ToolchainRegistry
-  PackageModel
-  TSCBasic
+  Basics
   Build
+  PackageGraph
+  PackageLoading
+  PackageModel
+  SourceControl
   SourceKitLSPAPI
-  SwiftASN1)
+  SPMBuildCore
+  SwiftASN1
+  TSCBasic
+  Workspace)
 
 target_link_libraries(BuildServerIntegration PRIVATE
   SKUtilities

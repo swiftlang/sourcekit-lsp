@@ -19,6 +19,7 @@ target_link_libraries(ClangLanguageService PUBLIC
 
 target_link_libraries(ClangLanguageService PRIVATE
   BuildServerIntegration
+  IndexStoreDB
   LanguageServerProtocolExtensions
   SwiftToolsProtocols::LanguageServerProtocolTransport
   SwiftToolsProtocols::SKLogging
