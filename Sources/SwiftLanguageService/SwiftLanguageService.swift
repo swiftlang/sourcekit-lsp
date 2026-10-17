@@ -118,6 +118,16 @@ package struct SwiftCompileCommand: Sendable, Equatable, Hashable {
     }
     return features
   }
+
+  package var swiftLanguageVersion: SwiftVersion? {
+    var iterator = compilerArgs.makeIterator()
+    while let arg = iterator.next() {
+      if arg == "-swift-version", let version = iterator.next() {
+        return SwiftVersion(version)
+      }
+    }
+    return nil
+  }
 }
 
 package actor SwiftLanguageService: LanguageService, Sendable {
@@ -294,6 +304,7 @@ package actor SwiftLanguageService: LanguageService, Sendable {
     self.diagnosticReportManager = DiagnosticReportManager(
       sourcekitd: self.sourcekitd,
       options: options,
+      toolchain: toolchain,
       syntaxTreeManager: syntaxTreeManager,
       documentManager: sourceKitLSPServer.documentManager,
       clientHasDiagnosticsCodeDescriptionSupport: await capabilityRegistry.clientHasDiagnosticsCodeDescriptionSupport,

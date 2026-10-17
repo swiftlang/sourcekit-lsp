@@ -24,6 +24,62 @@ import Android
 #endif
 
 final class ToolchainRegistryTests: SourceKitLSPTestCase {
+  func testSupportedSwiftFeaturesParsing() throws {
+    let features = try SupportedSwiftFeatures(
+      jsonData: Data(
+        """
+        [
+          {"name": "ExistentialAny", "kind": "upcoming"},
+          {"name": "ConciseMagicFile", "kind": "upcoming", "enabled_in": "6"},
+          {"name": "Embedded", "kind": "experimental"},
+          {"name": "Ignored", "kind": "unknown"}
+        ]
+        """.utf8
+      )
+    )
+
+    XCTAssertEqual(features.upcoming.map(\.name), ["ExistentialAny", "ConciseMagicFile"])
+    XCTAssertEqual(features.upcoming.first { $0.name == "ConciseMagicFile" }?.enabledIn, SwiftVersion(6, 0))
+    XCTAssertEqual(features.experimental.map(\.name), ["Embedded"])
+  }
+
+  func testSupportedSwiftFeaturesMalformedOutput() {
+    XCTAssertThrowsError(try SupportedSwiftFeatures(jsonData: Data("not json".utf8)))
+  }
+
+  func testSupportedSwiftFeaturesAreCached() async throws {
+    try await withTestScratchDir { tempDir in
+      let swiftc = tempDir.appending(component: "swiftc")
+      let counter = tempDir.appending(component: "counter")
+      try """
+      #!/bin/sh
+      count=0
+      if [ -f "\(counter.filePath)" ]; then
+        count=$(cat "\(counter.filePath)")
+      fi
+      echo $((count + 1)) > "\(counter.filePath)"
+      printf '[{"name":"ExistentialAny","kind":"upcoming"}]'
+      """.write(to: swiftc, atomically: true, encoding: .utf8)
+      try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: swiftc.filePath)
+
+      let toolchain = Toolchain(
+        identifier: "test",
+        displayName: "test",
+        path: tempDir,
+        swiftc: swiftc
+      )
+
+      let first = await toolchain.supportedSwiftFeatures
+      let second = await toolchain.supportedSwiftFeatures
+      XCTAssertEqual(first, second)
+      XCTAssertEqual(first?.upcoming.map(\.name), ["ExistentialAny"])
+      XCTAssertEqual(
+        try String(contentsOf: counter, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines),
+        "1"
+      )
+    }
+  }
+
   func testDefaultSingleToolchain() async throws {
     let tr = ToolchainRegistry(toolchains: [
       Toolchain(identifier: "a", displayName: "a", path: URL(fileURLWithPath: "/dummy"))
