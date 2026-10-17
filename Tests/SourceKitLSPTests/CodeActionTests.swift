@@ -528,6 +528,58 @@ final class CodeActionTests: SourceKitLSPTestCase {
     try await fulfillmentOfOrThrow(editReceived)
   }
 
+  func testShowObjCSelectorCodeActionResult() async throws {
+    try SkipUnless.platformIsDarwin("Non-Darwin platforms don't support Objective-C")
+    try await SkipUnless.sourcekitdSupportsObjCSelector()
+
+    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
+      """
+      import Foundation
+
+      class Foo: NSObject {
+        @objc func b1️⃣ar(baz: Int) {}
+        func no2️⃣tExposedToObjC() {}
+      }
+      """,
+      uri: uri
+    )
+
+    let objcActions = try await testClient.send(
+      CodeActionRequest(
+        range: Range(positions["1️⃣"]),
+        context: .init(),
+        textDocument: TextDocumentIdentifier(uri)
+      )
+    )
+    guard
+      let command = objcActions?.codeActions?
+        .first(where: { $0.title == "Show Objective-C Selector" })?
+        .command
+    else {
+      XCTFail("Expected a 'Show Objective-C Selector' action, got \(objcActions?.codeActions ?? [])")
+      return
+    }
+
+    let response = try await testClient.send(
+      ExecuteCommandRequest(command: command.command, arguments: command.arguments)
+    )
+    XCTAssertEqual(response, .string("barWithBaz:"))
+
+    let notification = try await testClient.nextNotification(ofType: ShowMessageNotification.self)
+    XCTAssertEqual(notification.message, "barWithBaz:")
+
+    let nonObjCActions = try await testClient.send(
+      CodeActionRequest(
+        range: Range(positions["2️⃣"]),
+        context: .init(),
+        textDocument: TextDocumentIdentifier(uri)
+      )
+    )
+    XCTAssertFalse(nonObjCActions?.codeActions?.contains { $0.title == "Show Objective-C Selector" } ?? false)
+  }
+
   func testAddDocumentationCodeActionResult() async throws {
     let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
     let uri = DocumentURI(for: .swift)

@@ -52,6 +52,7 @@ extension SwiftLanguageService {
       SemanticRefactorCommand.self,
       ExpandMacroCommand.self,
       RemoveUnusedImportsCommand.self,
+      ShowObjCSelectorCommand.self,
     ].map { (command: any SwiftCommand.Type) in
       command.identifier
     }

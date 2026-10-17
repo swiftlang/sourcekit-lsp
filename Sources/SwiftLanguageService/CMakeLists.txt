@@ -32,6 +32,8 @@ add_library(SwiftLanguageService STATIC
   SemanticRefactorCommand.swift
   SemanticRefactoring.swift
   SemanticTokens.swift
+  ShowObjCSelector.swift
+  ShowObjCSelectorCommand.swift
   SignatureHelp.swift
   SwiftCodeLensScanner.swift
   SwiftCommand.swift
