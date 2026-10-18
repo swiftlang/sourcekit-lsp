@@ -40,6 +40,7 @@ The specific refactorings available depend on what code is selected or where the
 | **Convert To IfLet Expression** | Select a guard-let statement |
 | **Convert To Switch Statement** | Select an if/else-if chain comparing the same value |
 | **Migrate to shorthand 'if let' syntax** | Cursor on `if let x = x` |
+| **Convert to 'for-in' loop** | Cursor or selection inside a standalone `Sequence.forEach` call, including its closure; requires code action resolve support |
 
 ### Macros
 
@@ -124,9 +125,4 @@ If you're not seeing expected refactorings, you can:
 
 ## Adding New Refactorings
 
-Refactoring capabilities come from two places:
-
-1. **sourcekitd**: Part of the Swift toolchain compiler infrastructure
-2. **SwiftSyntax**: The `swift-syntax` library's `SwiftRefactor` module
-
-To add purely syntactic refactorings, you can contribute to [swift-syntax](https://github.com/swiftlang/swift-syntax). Semantic refactorings require changes to [sourcekitd](https://github.com/swiftlang/swift).
+For guidance on proposing and implementing code actions, see the [contributor documentation](../Contributor%20Documentation/Code%20Action.md).
