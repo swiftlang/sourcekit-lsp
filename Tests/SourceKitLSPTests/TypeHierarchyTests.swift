@@ -290,6 +290,32 @@ final class TypeHierarchyTests: SourceKitLSPTestCase {
     )
     XCTAssertNil(response)
   }
+
+  func testSupertypesOfClientConstructedItem() async throws {
+    let project = try await IndexedSingleSwiftFileTestProject(
+      """
+      class 1️⃣MyClass {}
+      class MySubclass: MyClass {}
+      """
+    )
+
+    // Only `data` identifies the symbol; the remaining fields are placeholders.
+    var item = TypeHierarchyItem(
+      name: "",
+      kind: .null,
+      tags: nil,
+      uri: project.fileURI,
+      range: Position(line: 0, utf16index: 0)..<Position(line: 0, utf16index: 0),
+      selectionRange: Position(line: 0, utf16index: 0)..<Position(line: 0, utf16index: 0)
+    )
+    item.sourceKitData = SourceKitSymbolIdentifier(usr: "s:4test10MySubclassC", uri: project.fileURI)
+
+    let supertypes = try await project.testClient.send(TypeHierarchySupertypesRequest(item: item))
+    assertEqualIgnoringData(
+      supertypes,
+      [TypeHierarchyItem(name: "MyClass", kind: .class, location: "1️⃣", in: project)]
+    )
+  }
 }
 
 // MARK: - Utilities

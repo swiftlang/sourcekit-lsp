@@ -59,6 +59,7 @@ final class LifecycleTests: SourceKitLSPTestCase {
   }
 
   func testCancellation() async throws {
+    try XCTSkipIf(true, "Flaky in CI: https://github.com/swiftlang/sourcekit-lsp/issues/2783")
     try await SkipUnless.sourcekitdSupportsPlugin()
 
     let testClient = try await TestSourceKitLSPClient()

@@ -412,7 +412,10 @@ package actor SourceKitLSPServer {
           continue
         }
       }
-      throw ResponseError.unknown("No language service implements \(type(of: request).method)")
+      throw ResponseError(
+        code: .requestNotImplemented,
+        message: "No language service implements \(type(of: request).method)"
+      )
     }
   }
 
@@ -730,6 +733,8 @@ extension SourceKitLSPServer: QueueBasedMessageHandler {
       await request.reply { try await subtypes(request.params) }
     case let request as RequestAndReply<TypeHierarchySupertypesRequest>:
       await request.reply { try await supertypes(request.params) }
+    case let request as RequestAndReply<WorkspaceReferencesRequest>:
+      await request.reply { try await workspaceReferences(request.params) }
     case let request as RequestAndReply<WorkspaceSymbolNamesRequest>:
       await request.reply { try await workspaceSymbolNames(request.params) }
     case let request as RequestAndReply<WorkspaceSymbolInfoRequest>:
@@ -1028,8 +1033,9 @@ extension SourceKitLSPServer {
     addCapabilities(GetReferenceDocumentRequest.method, ["version": 1])
     addCapabilities(DidChangeActiveDocumentNotification.method, ["version": 1])
     addCapabilities(SynchronizeRequest.method, ["version": 1])
-    addCapabilities(WorkspaceSymbolNamesRequest.method, ["version": 1])
-    addCapabilities(WorkspaceSymbolInfoRequest.method, ["version": 1])
+    addCapabilities(WorkspaceSymbolNamesRequest.method, ["version": 2])
+    addCapabilities(WorkspaceSymbolInfoRequest.method, ["version": 2])
+    addCapabilities(WorkspaceReferencesRequest.method, ["version": 1])
     if let toolchain = await toolchainRegistry.preferredToolchain(containing: [\.swiftc]), toolchain.swiftPlay != nil {
       addCapabilities(WorkspacePlaygroundsRefreshRequest.method, ["version": 1])
       addCapabilities(WorkspacePlaygroundsRequest.method, ["version": 1])
@@ -1566,294 +1572,25 @@ extension SourceKitLSPServer {
     return try await languageService.signatureHelp(req)
   }
 
-  /// Handle a workspace/symbolNames request, returning the name list.
+  /// Handle a `workspace/symbolNames` request, returning the name list.
   func workspaceSymbolNames(_ req: WorkspaceSymbolNamesRequest) async throws -> WorkspaceSymbolNamesResponse {
-    var symbols = await self.workspaces
-      .concurrentMap { workspace in
-        await orLog("Getting symbol names in workspace") {
-          try await workspace.uncheckedIndex?.allSymbolNames() ?? []
-        } ?? []
-      }
-      .flatMap { $0 }
-    if !symbols.isSortedAndUnique {
-      symbols.sortAndDedupe()
-    }
-    return WorkspaceSymbolNamesResponse(names: symbols)
-  }
-
-  /// Map a `SymbolOccurrence` from the index to a `WorkspaceSymbolItem`, or `nil` if it has no
-  /// representable location.
-  ///
-  /// - Parameter referenceDocumentMainFile: The project file whose build settings are used to open the
-  ///   symbol's generated interface. **Passing a non-`nil` value changes the shape of the result**: the
-  ///   symbol is returned as a `WorkspaceSymbol` with a `sourcekit-lsp://generated-swift-interface`
-  ///   reference-document location (its range resolved lazily via `workspaceSymbol/resolve`) and the USR
-  ///   in `data`, instead of a `SymbolInformation` with a plain `file://` location. A non-`nil` value must
-  ///   therefore only be passed when the client supports **both** `workspace/getReferenceDocument` and
-  ///   `workspaceSymbol/resolve`; enforcing that is the caller's responsibility.
-  private nonisolated func workspaceSymbolItem(
-    for symbolOccurrence: SymbolOccurrence,
-    in index: CheckedIndex,
-    copiedFileMap: CopiedFileMap,
-    referenceDocumentMainFile: DocumentURI?
-  ) throws -> WorkspaceSymbolItem? {
-    let containerNames = try index.containerNames(of: symbolOccurrence)
-    let containerName: String? =
-      if !containerNames.isEmpty {
-        switch symbolOccurrence.symbol.language {
-        case .cxx, .c, .objc: containerNames.joined(separator: "::")
-        case .swift: containerNames.joined(separator: ".")
-        }
-      } else {
-        nil
-      }
-
-    if let referenceDocumentMainFile {
-      let (interfaceModuleName, groupName) = Self.splitModuleNameAndGroup(symbolOccurrence.location.moduleName)
-      let urlData = GeneratedInterfaceDocumentURLData(
-        moduleName: interfaceModuleName,
-        groupName: groupName,
-        primaryFile: referenceDocumentMainFile
-      )
-      let usr = symbolOccurrence.symbol.usr
-      // Include the interface path and module name in `data` so clients can render the candidate without
-      // parsing the opaque location URI.
-      let data = SourceKitWorkspaceSymbolData(
-        usr: usr,
-        interfaceURI: symbolOccurrence.location.uri,
-        moduleName: symbolOccurrence.location.moduleName
-      )
-      return WorkspaceSymbolItem.workspaceSymbol(
-        WorkspaceSymbol(
-          name: symbolOccurrence.symbol.name,
-          kind: symbolOccurrence.symbol.kind.asLspSymbolKind(),
-          containerName: containerName,
-          location: .uri(.init(uri: try urlData.uri)),
-          data: data.encodeToLSPAny()
-        )
-      )
-    }
-
-    guard let symbolLocation = symbolOccurrence.location.lspLocation else { return nil }
-    let location = symbolLocation.adjusted(for: copiedFileMap)
-    return WorkspaceSymbolItem.symbolInformation(
-      SymbolInformation(
-        name: symbolOccurrence.symbol.name,
-        kind: symbolOccurrence.symbol.kind.asLspSymbolKind(),
-        deprecated: nil,
-        location: location,
-        containerName: containerName
-      )
-    )
-  }
-
-  /// Split an index module name into its module and optional group components.
-  private nonisolated static func splitModuleNameAndGroup(
-    _ fullModuleName: String
-  ) -> (module: String, group: String?) {
-    // A dotted index module name is ambiguous: `Foo.Bar` could be module `Foo` with group `Bar`, or a real
-    // submodule named `Foo.Bar`, and SourceKit-LSP can't tell the two apart. In practice only the `Swift`
-    // module is divided into groups (and it has no submodules), so only there is the trailing component
-    // treated as a group; every other module name is kept whole.
-    let swiftModulePrefix = "Swift."
-    guard fullModuleName.hasPrefix(swiftModulePrefix) else {
-      return (fullModuleName, nil)
-    }
-    return ("Swift", String(fullModuleName.dropFirst(swiftModulePrefix.count)))
-  }
-
-  /// For each distinct SDK interface (`.swiftinterface`/`.swiftmodule`) among `symbols`, resolve the main
-  /// file — a project file that imports the module, found via `mainFiles(containing:)` — whose build
-  /// settings are used to open the generated interface. The lookup runs once per interface so a
-  /// `workspace/symbol` response with many members of the same module doesn't repeat it. Interfaces with no
-  /// main file are omitted, so callers skip those symbols.
-  private func generatedInterfaceMainFiles(
-    for symbols: [SymbolOccurrence],
-    in workspace: Workspace
-  ) async throws -> [DocumentURI: DocumentURI] {
-    var mainFiles: [DocumentURI: DocumentURI] = [:]
-    for symbol in symbols {
-      let path = symbol.location.path
-      guard path.hasSuffix(".swiftinterface") || path.hasSuffix(".swiftmodule"),
-        let interfaceURI = symbol.location.uri,
-        mainFiles[interfaceURI] == nil
-      else {
-        continue
-      }
-      try Task.checkCancellation()
-      let mainFile = await workspace.buildServerManager
-        .mainFiles(containing: interfaceURI)
-        .sorted(by: { $0.arbitrarySchemeURL.absoluteString < $1.arbitrarySchemeURL.absoluteString })
-        .first
-      if let mainFile {
-        mainFiles[interfaceURI] = mainFile
-      }
-    }
-    return mainFiles
+    return WorkspaceSymbolNamesResponse(names: await symbolNames(containerName: req.containerName))
   }
 
   /// Handle a `workspace/symbolInfo` request.
-  ///
-  /// For each name in `req.names`, looks up all canonical occurrences in every workspace index and
-  /// converts them to `WorkspaceSymbolItem` values:
-  /// - Source-file symbols get a `file://` URI with the exact 0-based line/column from the index.
-  /// - SDK/stdlib symbols (index location ends in `.swiftinterface` or `.swiftmodule`) get a
-  ///   `WorkspaceSymbol` with `location: .uri(file:// URL?module=...)` and the USR in `data`, provided
-  ///   the client advertises `workspace.symbol.resolveSupport`. The client should call
-  ///   `workspaceSymbol/resolve` to obtain the exact location within the interface.
-  ///   Without that capability the raw `file://` URI from the index record is returned instead.
-  ///
-  /// Every requested name is present as a key in the response, mapping to an empty array when there
-  /// are no occurrences.
   func workspaceSymbolInfo(_ req: WorkspaceSymbolInfoRequest) async throws -> WorkspaceSymbolInfoResponse {
-    // Emitting a generated-interface reference document requires both that the client can open it and that
-    // it will call `workspaceSymbol/resolve` to fill in the range.
-    let canUseGeneratedInterfaceReferenceDocument =
-      (self.capabilityRegistry?.clientHasWorkspaceGetReferenceDocumentSupport ?? false)
-      && (self.capabilityRegistry?.clientSupportsWorkspaceSymbolResolve ?? false)
-
-    let groupedResultPerWorkspace = await workspaces.concurrentMap { workspace -> [String: [WorkspaceSymbolItem]] in
-      guard let index = await workspace.index(checkedFor: .deletedFiles) else {
-        return [:]
-      }
-      var occurrencesByName: [String: [SymbolOccurrence]] = [:]
-      for name in req.names {
-        if Task.isCancelled { return [:] }
-        var symbols: [SymbolOccurrence] = []
-        _ = orLog("Getting symbol occurrences") {
-          try index.forEachCanonicalSymbolOccurrence(byName: name) { symbolOccurrence in
-            symbols.append(symbolOccurrence)
-            return true
-          }
-        }
-        occurrencesByName[name] = symbols
-      }
-
-      var mainFiles: [DocumentURI: DocumentURI] = [:]
-      if canUseGeneratedInterfaceReferenceDocument {
-        let occurrences = occurrencesByName.values.flatMap { $0 }
-        mainFiles =
-          await orLog("Resolving generated interface main files") {
-            try await self.generatedInterfaceMainFiles(for: occurrences, in: workspace)
-          } ?? [:]
-      }
-      if Task.isCancelled { return [:] }
-
-      var result: [String: [WorkspaceSymbolItem]] = [:]
-      let copiedFileMap = await workspace.buildServerManager.cachedCopiedFileMap
-      for name in req.names {
-        result[name] = (occurrencesByName[name] ?? []).compactMap { symbol in
-          orLog("Getting symbol information") {
-            try self.workspaceSymbolItem(
-              for: symbol,
-              in: index,
-              copiedFileMap: copiedFileMap,
-              referenceDocumentMainFile: symbol.location.uri.flatMap { mainFiles[$0] }
-            )
-          }
-        }
-      }
-      return result
-    }
-
-    try Task.checkCancellation()
-
-    // Flatten the result.
-    var result: [WorkspaceSymbolItem] = []
-    for name in req.names {
-      for grouped in groupedResultPerWorkspace {
-        if let items = grouped[name] {
-          result.append(contentsOf: items)
-        }
-      }
-    }
-    return WorkspaceSymbolInfoResponse(results: result)
+    return WorkspaceSymbolInfoResponse(results: try await symbolItems(forNames: req.names))
   }
 
   /// Handle a `workspaceSymbol/resolve` request.
-  ///
-  /// If the symbol has a `location: .uri(sourcekit-lsp://generated-swift-interface?...)` (as emitted by
-  /// `workspace/symbol` and `workspace/symbolInfo` for SDK/stdlib symbols), opens the generated Swift
-  /// interface, resolves the symbol position using `data["usr"]`, and returns the symbol with the exact
-  /// range. Symbols with an already-resolved `location: .location(...)` are returned unchanged.
   func workspaceSymbolResolve(_ req: WorkspaceSymbolResolveRequest) async throws -> WorkspaceSymbol {
-    var symbol = req.workspaceSymbol
-    guard
-      case .uri(let uriOnly) = symbol.location,
-      let referenceURL = try? ReferenceDocumentURL(from: uriOnly.uri),
-      case .generatedInterface(let urlData) = referenceURL
-    else {
-      return symbol
-    }
-
-    // A USR is always present in practice; this only guards against a malformed `data` payload with an
-    // empty USR string, treating it as absent so we don't run a position lookup that can't match.
-    let usr = (symbol.sourceKitData?.usr).flatMap { $0.isEmpty ? nil : $0 }
-    let buildSettingsFile = urlData.buildSettingsFrom
-    guard let workspace = await self.workspaceForDocument(uri: buildSettingsFile) else {
-      return symbol
-    }
-    let languageService = try await workspace.primaryLanguageService(for: buildSettingsFile, .swift)
-    let details = await orLog("Opening generated interface in workspaceSymbol/resolve") {
-      try await languageService.openGeneratedInterface(
-        document: buildSettingsFile,
-        moduleName: urlData.moduleName,
-        groupName: urlData.groupName,
-        symbolUSR: usr
-      )
-    }
-    symbol.location = .location(
-      Location(uri: uriOnly.uri, range: Range(details?.position ?? Position(line: 0, utf16index: 0)))
-    )
-    return symbol
+    return try await resolveGeneratedInterfaceLocation(of: req.workspaceSymbol)
   }
 
-  /// Handle a workspace/symbol request, returning the SymbolInformation.
+  /// Handle a `workspace/symbol` request, returning the SymbolInformation.
   /// - returns: An array with SymbolInformation for each matching symbol in the workspace.
   func workspaceSymbols(_ req: WorkspaceSymbolsRequest) async throws -> [WorkspaceSymbolItem]? {
-    // Ignore short queries since they are:
-    // - noisy and slow, since they can match many symbols
-    // - normally unintentional, triggered when the user types slowly or if the editor doesn't
-    //   debounce events while the user is typing
-    guard req.query.count >= minWorkspaceSymbolPatternLength else {
-      return []
-    }
-    var items: [WorkspaceSymbolItem] = []
-    for workspace in workspaces {
-      guard let index = await workspace.index(checkedFor: .deletedFiles) else {
-        continue
-      }
-      let copiedFileMap = await workspace.buildServerManager.cachedCopiedFileMap
-      var symbols: [SymbolOccurrence] = []
-      try index.forEachCanonicalSymbolOccurrence(
-        containing: req.query,
-        anchorStart: false,
-        anchorEnd: false,
-        subsequence: true,
-        ignoreCase: true
-      ) { symbol in
-        if Task.isCancelled {
-          return false
-        }
-        guard !symbol.location.isSystem && !symbol.roles.contains(.accessorOf) else {
-          return true
-        }
-        symbols.append(symbol)
-        return true
-      }
-      try Task.checkCancellation()
-      // `workspace/symbol` filters out system symbols above, so no result points into a generated
-      // interface and there is no main file to resolve.
-      items += try symbols.sorted(by: <).compactMap {
-        try self.workspaceSymbolItem(
-          for: $0,
-          in: index,
-          copiedFileMap: copiedFileMap,
-          referenceDocumentMainFile: nil
-        )
-      }
-    }
-    return items
+    return try await symbolItems(matching: req.query)
   }
 
   /// Forwards a SymbolInfoRequest to the appropriate toolchain service for this document.
@@ -2267,18 +2004,73 @@ extension SourceKitLSPServer {
     guard let index = await workspaceForDocument(uri: req.textDocument.uri)?.index(checkedFor: .deletedFiles) else {
       return nil
     }
-    let locations = try symbols.flatMap { (symbol) -> [Location] in
-      guard let usr = symbol.usr else { return [] }
-      var occurrences = try index.occurrences(ofUSR: usr, roles: .baseOf)
-      if occurrences.isEmpty {
-        occurrences = try index.occurrences(relatedToUSR: usr, roles: .overrideOf)
-      }
 
-      return occurrences.compactMap { $0.location.lspLocation }
+    // Report baseOf locations used for type hierarchies (subclasses / protocol conformers). For overrideOf
+    // occurrences, keep explicit definition/declaration locations and remap pure-implicit sites to their primary
+    // definition when possible (e.g. a protocol requirement satisfied in a type body with a separate conformance
+    // extension). If no primary occurrence is indexed, report one representative implicit location.
+    // See https://github.com/swiftlang/sourcekit-lsp/issues/1600
+    var resultLocations: [Location] = []
+    var overrideOccurrences: [SymbolOccurrence] = []
+
+    for symbol in symbols {
+      guard let usr = symbol.usr else { continue }
+      let baseOccurrences = try index.occurrences(ofUSR: usr, roles: .baseOf)
+      resultLocations += baseOccurrences.compactMap { $0.location.lspLocation }
+      overrideOccurrences += try index.occurrences(relatedToUSR: usr, roles: .overrideOf)
     }
+
+    /// Prefer implicit occurrences in extensions because they identify where a conformance is introduced.
+    ///
+    /// For example, when a class conforms to a protocol in an extension, subclasses inherit that conformance and can
+    /// produce implicit occurrences for the same requirement. If no indexed definition or declaration is available,
+    /// reporting the extension is more useful than reporting one of those subclasses.
+    func preferredImplicitOccurrence(_ lhs: SymbolOccurrence, _ rhs: SymbolOccurrence) -> SymbolOccurrence {
+      let lhsIsContainedByExtension = lhs.relations.contains {
+        $0.roles.contains(.containedBy) && $0.symbol.kind == .extension
+      }
+      let rhsIsContainedByExtension = rhs.relations.contains {
+        $0.roles.contains(.containedBy) && $0.symbol.kind == .extension
+      }
+      if lhsIsContainedByExtension != rhsIsContainedByExtension {
+        return lhsIsContainedByExtension ? lhs : rhs
+      }
+      return min(lhs, rhs)
+    }
+
+    // Retain one deterministic fallback occurrence for each USR that needs primary-definition lookup.
+    var implicitOccurrencesNeedingLookup: [String: SymbolOccurrence] = [:]
+
+    for occurrence in overrideOccurrences {
+      if occurrence.roles.contains(.definition) || occurrence.roles.contains(.declaration) {
+        // Preserve every explicit declaration/definition location (important for C++ where
+        // in-class declaration and out-of-line definition share a USR).
+        if let location = occurrence.location.lspLocation {
+          resultLocations.append(location)
+        }
+      } else if occurrence.roles.contains(.implicit) {
+        let usr = occurrence.symbol.usr
+        implicitOccurrencesNeedingLookup[usr] = preferredImplicitOccurrence(
+          implicitOccurrencesNeedingLookup[usr] ?? occurrence,
+          occurrence
+        )
+      } else {
+        logger.fault(
+          "Ignoring override occurrence \(occurrence.symbol.usr) with unexpected roles \(occurrence.roles)"
+        )
+      }
+    }
+
+    for (implicitUSR, implicitOccurrence) in implicitOccurrencesNeedingLookup {
+      let occurrence = try index.primaryDefinitionOrDeclarationOccurrence(ofUSR: implicitUSR) ?? implicitOccurrence
+      if let location = occurrence.location.lspLocation {
+        resultLocations.append(location)
+      }
+    }
+
     let copiedFileMap = await workspace.buildServerManager.cachedCopiedFileMap
-    let remappedLocations = locations.adjusted(for: copiedFileMap)
-    return .locations(remappedLocations.sorted())
+    let remappedLocations = resultLocations.adjusted(for: copiedFileMap)
+    return .locations(remappedLocations.unique.sorted())
   }
 
   func references(
@@ -2295,12 +2087,7 @@ extension SourceKitLSPServer {
     let index = await workspaceForDocument(uri: req.textDocument.uri)?.index(checkedFor: .deletedFiles)
     let indexLocations = try symbols.flatMap { symbol -> [Location] in
       guard let usr = symbol.usr, let index else { return [] }
-      logger.info("Finding references for USR \(usr)")
-      var roles: SymbolRole = [.reference]
-      if req.context.includeDeclaration {
-        roles.formUnion([.declaration, .definition])
-      }
-      return try index.occurrences(ofUSR: usr, roles: roles).compactMap { $0.location.lspLocation }
+      return try indexReferences(ofUSR: usr, includeDeclaration: req.context.includeDeclaration, index: index)
     }
 
     var locations = indexLocations
@@ -2327,6 +2114,30 @@ extension SourceKitLSPServer {
     return remappedLocations.unique.sorted()
   }
 
+  func workspaceReferences(_ req: WorkspaceReferencesRequest) async throws -> [Location] {
+    guard let workspace = await self.workspaceForDocument(uri: req.symbol.uri),
+      let index = await workspace.index(checkedFor: .deletedFiles)
+    else {
+      return []
+    }
+    let locations = try indexReferences(
+      ofUSR: req.symbol.usr,
+      includeDeclaration: req.includeDeclaration ?? false,
+      index: index
+    )
+    let copiedFileMap = await workspace.buildServerManager.cachedCopiedFileMap
+    return locations.adjusted(for: copiedFileMap).unique.sorted()
+  }
+
+  private func indexReferences(ofUSR usr: String, includeDeclaration: Bool, index: CheckedIndex) throws -> [Location] {
+    logger.info("Finding references for USR \(usr)")
+    var roles: SymbolRole = [.reference]
+    if includeDeclaration {
+      roles.formUnion([.declaration, .definition])
+    }
+    return try index.occurrences(ofUSR: usr, roles: roles).compactMap { $0.location.lspLocation }
+  }
+
   private func indexToLSPCallHierarchyItem(
     definition: SymbolOccurrence,
     index: CheckedIndex
@@ -2344,8 +2155,8 @@ extension SourceKitLSPServer {
       uri: location.uri,
       range: location.range,
       selectionRange: location.range,
-      // We encode usr and uri for incoming/outgoing call lookups in the implementation-specific data field
-      data: HierarchyItemData(uri: location.uri, usr: symbol.usr).encodeToLSPAny()
+      // Identifies the symbol for incoming/outgoing call lookups
+      data: SourceKitSymbolIdentifier(usr: symbol.usr, uri: location.uri).encodeToLSPAny()
     )
   }
 
@@ -2395,7 +2206,7 @@ extension SourceKitLSPServer {
   }
 
   func incomingCalls(_ req: CallHierarchyIncomingCallsRequest) async throws -> [CallHierarchyIncomingCall]? {
-    guard let data = HierarchyItemData(fromLSPAny: req.item.data),
+    guard let data = req.item.sourceKitData,
       let workspace = await self.workspaceForDocument(uri: data.uri),
       let index = await workspace.index(checkedFor: .deletedFiles)
     else {
@@ -2460,7 +2271,7 @@ extension SourceKitLSPServer {
   }
 
   func outgoingCalls(_ req: CallHierarchyOutgoingCallsRequest) async throws -> [CallHierarchyOutgoingCall]? {
-    guard let data = HierarchyItemData(fromLSPAny: req.item.data),
+    guard let data = req.item.sourceKitData,
       let workspace = await self.workspaceForDocument(uri: data.uri),
       let index = await workspace.index(checkedFor: .deletedFiles)
     else {
@@ -2549,8 +2360,8 @@ extension SourceKitLSPServer {
       uri: location.uri,
       range: location.range,
       selectionRange: location.range,
-      // We encode usr and uri for incoming/outgoing type lookups in the implementation-specific data field
-      data: HierarchyItemData(uri: location.uri, usr: symbol.usr).encodeToLSPAny()
+      // Identifies the symbol for supertype/subtype lookups
+      data: SourceKitSymbolIdentifier(usr: symbol.usr, uri: location.uri).encodeToLSPAny()
     )
   }
 
@@ -2638,7 +2449,7 @@ extension SourceKitLSPServer {
   }
 
   func supertypes(_ req: TypeHierarchySupertypesRequest) async throws -> [TypeHierarchyItem]? {
-    guard let data = HierarchyItemData(fromLSPAny: req.item.data),
+    guard let data = req.item.sourceKitData,
       let workspace = await self.workspaceForDocument(uri: data.uri),
       let index = await workspace.index(checkedFor: .deletedFiles)
     else {
@@ -2696,7 +2507,7 @@ extension SourceKitLSPServer {
   }
 
   func subtypes(_ req: TypeHierarchySubtypesRequest) async throws -> [TypeHierarchyItem]? {
-    guard let data = HierarchyItemData(fromLSPAny: req.item.data),
+    guard let data = req.item.sourceKitData,
       let workspace = await self.workspaceForDocument(uri: data.uri),
       let index = await workspace.index(checkedFor: .deletedFiles)
     else {
@@ -2798,24 +2609,6 @@ extension SourceKitLSPServer {
     }
   }
 }
-
-private func languageClass(for language: Language) -> [Language] {
-  switch language {
-  case .c, .cpp, .objective_c, .objective_cpp:
-    return [.c, .cpp, .objective_c, .objective_cpp]
-  case .swift:
-    return [.swift]
-  default:
-    return [language]
-  }
-}
-
-/// Minimum supported pattern length for a `workspace/symbol` request, smaller pattern
-/// strings are not queried and instead we return no results.
-private let minWorkspaceSymbolPatternLength = 3
-
-/// The maximum number of results to return from a `workspace/symbol` request.
-private let maxWorkspaceSymbolResults = 4096
 
 package typealias Diagnostic = LanguageServerProtocol.Diagnostic
 

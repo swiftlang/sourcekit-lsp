@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import Foundation
 @_spi(SourceKitLSP) import LanguageServerProtocol
 @_spi(SourceKitLSP) import LanguageServerProtocolExtensions
 @_spi(SourceKitLSP) import SKLogging
@@ -119,6 +120,8 @@ actor IndexProgressManager {
     case .upToDate:
       // Nothing left to index. Reset the target count and dismiss the work done progress.
       queuedIndexTasks = 0
+      // Log the modules report before ending the progress so that clients record it with the indexing it covers.
+      await logModulesReport(sourceKitLSPServer)
       await workDoneProgress?.end()
       workDoneProgress = nil
       return
@@ -137,5 +140,31 @@ actor IndexProgressManager {
         percentage: percentage
       )
     }
+  }
+
+  /// Logs a summary of the module variants that index invocations loaded since the last report to the index log.
+  private func logModulesReport(_ sourceKitLSPServer: SourceKitLSPServer) async {
+    let reports = await sourceKitLSPServer.workspaces.asyncCompactMap {
+      await $0.semanticIndexManager?.takeModulesReport()
+    }
+    guard !reports.isEmpty else {
+      return
+    }
+    let taskID = "modules-report-\(UUID().uuidString)"
+    sourceKitLSPServer.logMessageToIndexLog(
+      message: "",
+      type: .info,
+      structure: .begin(StructuredLogBegin(title: "Generating Modules Report", taskID: taskID))
+    )
+    sourceKitLSPServer.logMessageToIndexLog(
+      message: reports.joined(separator: "\n"),
+      type: .info,
+      structure: .report(StructuredLogReport(taskID: taskID))
+    )
+    sourceKitLSPServer.logMessageToIndexLog(
+      message: "",
+      type: .info,
+      structure: .end(StructuredLogEnd(taskID: taskID))
+    )
   }
 }

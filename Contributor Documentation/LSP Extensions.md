@@ -43,6 +43,26 @@ Added field (this is an extension from clangd that SourceKit-LSP re-exposes):
 codeActions: CodeAction[]?
 ```
 
+## `CallHierarchyItem` and `TypeHierarchyItem`
+
+For items returned by SourceKit-LSP, `data` contains a `SourceKitSymbolIdentifier`. `callHierarchy/incomingCalls`, `callHierarchy/outgoingCalls`, `typeHierarchy/supertypes` and `typeHierarchy/subtypes` only use `data` to identify the symbol, so a client that already knows a symbol's USR can construct an item without `textDocument/prepareCallHierarchy` or `textDocument/prepareTypeHierarchy`. The remaining fields of such an item are required by LSP but are not used by SourceKit-LSP.
+
+```ts
+/**
+ * Identifies a symbol in the index of a SourceKit-LSP workspace.
+ *
+ * Clients may construct it themselves. SourceKit-LSP ignores unknown fields; clients should preserve fields they
+ * don't know when passing a server-provided value back.
+ */
+export interface SourceKitSymbolIdentifier {
+  /** The USR of the symbol. */
+  usr: string;
+
+  /** Any document in the workspace whose index should be queried. Only used to select the workspace. */
+  uri: DocumentURI;
+}
+```
+
 ## Semantic token modifiers
 
 Added the following cases from clangd
@@ -103,9 +123,96 @@ interface SKCompletionOptions {
 }
 ```
 
+Added field on returned completion items:
+
+The `data` field of a returned `CompletionItem` carries SourceKit-specific metadata. Its client-facing shape is:
+
+```ts
+interface SourceKitCompletionItemData {
+  /**
+   * The module that defines the completion (sourcekitd's `key.modulename`).
+   */
+  module?: string;
+
+  /**
+   * Groups overloads of the same declaration (sourcekitd's `key.group_id`).
+   */
+  groupID?: int;
+
+  /**
+   * Whether the completion comes from a system module (sourcekitd's `key.is_system`).
+   */
+  isSystem?: bool;
+
+  /**
+   * Whether the completion has an associated diagnostic (sourcekitd's `key.has_diagnostic`).
+   */
+  hasDiagnostic?: bool;
+
+  /**
+   * The annotated-description XML for the completion's label, as produced by sourcekitd.
+   */
+  annotatedDescription?: string;
+
+  /**
+   * The annotated-description XML for the completion's type name, as produced by sourcekitd.
+   */
+  annotatedTypeName?: string;
+
+  /**
+   * The semantic score that sourcekitd assigned to this completion (sourcekitd's
+   * `key.semantic_score`), indicating how relevant the completion is in the current context.
+   */
+  semanticScore?: double;
+
+  /**
+   * The USRs associated with the completion (sourcekitd's `key.associated_usrs`).
+   * Populated during `completionItem/resolve`.
+   */
+  associatedUSRs?: string[];
+
+  /**
+   * The completion's brief documentation (sourcekitd's `key.doc.brief`).
+   * Populated during `completionItem/resolve`.
+   */
+  docBrief?: string;
+
+  /**
+   * The completion's full doc-comment XML (sourcekitd's `key.doc.full_as_xml`).
+   * Populated during `completionItem/resolve`.
+   */
+  docFullAsXML?: string;
+
+  /**
+   * The diagnostic associated with the completion, if any.
+   * Populated during `completionItem/resolve` when `hasDiagnostic` is set.
+   */
+  diagnostic?: SourceKitCompletionItemDiagnostic;
+}
+```
+
+with
+
+```ts
+interface SourceKitCompletionItemDiagnostic {
+  /**
+   * The severity of the diagnostic.
+   */
+  severity?: DiagnosticSeverity;
+
+  /**
+   * The diagnostic message.
+   */
+  message: string;
+}
+```
+
+`data` may also contain server-internal routing fields used to resolve the item in a subsequent
+`completionItem/resolve` request. Clients should ignore any keys they do not recognize.
+
 ## `sourcekit/textDocument/doccDocumentation`
 
-New request that generates documentation for a symbol at a given cursor location.
+Request that generates documentation for a symbol at a given cursor location.
 
 > [!NOTE]
 > This request was previously named `textDocument/doccDocumentation`. The old name is still accepted for backward compatibility.
@@ -158,7 +265,7 @@ export interface DoccDocumentationResponse {
 
 ## `textDocument/symbolInfo`
 
-New request for semantic information about the symbol at a given location.
+Request for semantic information about the symbol at a given location.
 
 This request looks up the symbol (if any) at a given text document location and returns
 SymbolDetails for that location, including information such as the symbol's USR. The symbolInfo
@@ -290,7 +397,7 @@ interface SymbolDetails {
 
 ## `sourcekit/textDocument/tests`
 
-New request that returns symbols for all the test classes and test methods within a file.
+Request that returns symbols for all the test classes and test methods within a file.
 
 > [!NOTE]
 > This request was previously named `textDocument/tests`. The old name is still accepted for backward compatibility.
@@ -400,7 +507,7 @@ export interface IsIndexingResult {
 
 ## `sourcekit/workspace/symbolInfo`
 
-New request that returns structured location information for a list of exact symbol names.
+Request that returns structured location information for a list of exact symbol names.
 
 Unlike the standard `workspace/symbol` request (which accepts a fuzzy query string), this request takes exact names — typically obtained from `sourcekit/workspace/symbolNames` — and returns all index occurrences for each name across every workspace.
 
@@ -409,6 +516,8 @@ For each name the response contains zero or more `WorkspaceSymbolItem` values:
 - SDK/stdlib symbols carry a `WorkspaceSymbol` with `location: .uri(...)` pointing at a `sourcekit-lsp://generated-swift-interface` reference-document URL (no range). Its `data` is a `SourceKitWorkspaceSymbolData` (see below). Call `workspaceSymbol/resolve` to fill in the exact `Location` range within the generated interface and `sourcekit/workspace/getReferenceDocument` to retrieve the interface's contents. The client must advertise both `workspace.symbol.resolveSupport` and the `sourcekit/workspace/getReferenceDocument` capability; without them, the raw `file://` URI of the `.swiftinterface`/`.swiftmodule` file is returned as `SymbolInformation` instead.
 
 Every requested name is present in the response as a flat array; items carry their name in the `name` field of the `SymbolInformation` or `WorkspaceSymbol`.
+
+A name containing `.` or `::`, such as one returned by `sourcekit/workspace/symbolNames` with a `containerName`, is resolved as a qualified name. It must spell every enclosing container and is compared case-sensitively and with the separator it was written with, so `Container.init(_:)` does not resolve to `Outer.Container.init(_:)` and `Foo::bar` does not resolve to a Swift `Foo.bar`. The items for a qualified name carry the qualified name in their `name` field.
 
 > [!IMPORTANT]
 > This request is experimental and may be modified or removed in future versions of SourceKit-LSP without notice. Do not rely on it.
@@ -419,7 +528,7 @@ Every requested name is present in the response as a flat array; items carry the
 ```ts
 export interface WorkspaceSymbolInfoParams {
   /**
-   * Symbol names to resolve.
+   * Symbol names to resolve. A name containing `.` or `::` is resolved as a fully-qualified name.
    */
   names: string[];
 }
@@ -452,9 +561,11 @@ export interface SourceKitWorkspaceSymbolData {
 
 ## `sourcekit/workspace/symbolNames`
 
-New request that returns the flat, deduplicated list of every symbol name in the workspace index, including names from indexed system modules (stdlib, SDK frameworks).
+Request that returns the flat, deduplicated list of every symbol name in the workspace index, including names from indexed system modules (stdlib, SDK frameworks).
 
 Clients use this list to drive a local search UI (fuzzy matching, prefix filtering, etc.) without a round-trip per keystroke. After the user selects a name, send a `sourcekit/workspace/symbolInfo` request to resolve it to concrete locations.
+
+When `containerName` is set, the response instead lists the fully-qualified names of the members of the named container(s), which lets a client filter a qualified query such as `Container.val` locally. Every name in the response can be passed verbatim to `sourcekit/workspace/symbolInfo`.
 
 > [!IMPORTANT]
 > This request is experimental and may be modified or removed in future versions of SourceKit-LSP without notice. Do not rely on it.
@@ -463,12 +574,29 @@ Clients use this list to drive a local search UI (fuzzy matching, prefix filteri
 - result: `WorkspaceSymbolNamesResult`
 
 ```ts
-export interface WorkspaceSymbolNamesParams {}
+export interface WorkspaceSymbolNamesParams {
+  /**
+   * When set, the response contains the fully-qualified names of the members of the container(s) named by this
+   * value instead of every symbol name in the workspace.
+   *
+   * The value may name a chain of containers separated by `.` or `::`, e.g. `Outer.Inner`. The innermost name must
+   * match a container name in full, and the enclosing names are matched as a suffix of the container's chain, all
+   * case-insensitively, so `Inner` also matches a container declared as `Outer.Inner`.
+   *
+   * The value need not be a name the server returned: it is typically the text a user typed before the last separator
+   * of a qualified query, such as `container` for `container.val`.
+   *
+   * Only the direct members of the container and its extensions are returned, never the container itself. Inherited
+   * members and accessors are not included.
+   */
+  containerName?: string;
+}
 
 export interface WorkspaceSymbolNamesResult {
   /**
    * Flat, deduplicated list of all symbol names in the workspace index,
-   * including names from system modules (stdlib, SDK).
+   * including names from system modules (stdlib, SDK), or the fully-qualified
+   * names of a container's members if `containerName` was set.
    */
   names: string[];
 }
@@ -476,7 +604,7 @@ export interface WorkspaceSymbolNamesResult {
 
 ## `sourcekit/window/didChangeActiveDocument`
 
-New notification from the client to the server, telling SourceKit-LSP which document is the currently active primary document.
+Notification from the client to the server, telling SourceKit-LSP which document is the currently active primary document.
 
 This notification should only be called for documents that the editor has opened in SourceKit-LSP using the `textDocument/didOpen` notification.
 
@@ -564,7 +692,7 @@ export interface StructuredLogEnd {
 
 ## `sourcekit/workspace/setOptions`
 
-New request to modify runtime options of SourceKit-LSP.
+Request to modify runtime options of SourceKit-LSP.
 
 Any options not specified in this request will be left as-is.
 
@@ -588,7 +716,7 @@ export interface SetOptionsParams {
 
 ## `sourcekit/workspace/sourceKitOptions`
 
-New request from the client to the server to retrieve the compiler arguments that SourceKit-LSP uses to process the document.
+Request from the client to the server to retrieve the compiler arguments that SourceKit-LSP uses to process the document.
 
 This request does not require the document to be opened in SourceKit-LSP. This is also why it has the `workspace/` instead of the `textDocument/` prefix.
 
@@ -616,7 +744,7 @@ export interface SourceKitOptionsRequest {
    * The target URI must match the URI that is used by the BSP server to identify the target. This option thus only
    * makes sense to specify if the client also controls the BSP server.
    *
-   * When this is `null`, SourceKit-LSP returns the compiler arguments it uses when the the document is opened in the
+   * When this is `null`, SourceKit-LSP returns the compiler arguments it uses when the document is opened in the
    * client, ie. it infers a canonical target for the document.
    */
   target?: DocumentURI;
@@ -688,7 +816,7 @@ export interface SourceKitOptionsResult {
 
 ## `sourcekit/workspace/outputPaths`
 
-New request from the client to the server to retrieve the output paths of a target (see the `buildTarget/outputPaths` BSP request).
+Request from the client to the server to retrieve the output paths of a target (see the `buildTarget/outputPaths` BSP request).
 
 This request will only succeed if the build server supports the `buildTarget/outputPaths` request.
 
@@ -795,14 +923,14 @@ export interface PeekDocumentsResult {
 
 ## `sourcekit/workspace/playgrounds`
 
-New request for returning the list of all #Playground macros in the workspace.
+Request for returning the list of all #Playground macros in the workspace.
 
 Primarily designed to allow editors to provide a list of available playgrounds in the project workspace and allow
 jumping to the locations where the #Playground macro was expanded.
 
 The request fetches the list of all macros found in the workspace, returning the location, identifier, and optional label
 when available for each #Playground macro expansion. If you want to keep the list of playgrounds up to date without needing to
-call `sourcekit/workspace/playgrounds` each time a document is changed, you can filter for `swift.play` CodeLens returned by the `textDocument/codelens` request.
+call `sourcekit/workspace/playgrounds` each time a document is changed, you can filter for `swift.play` CodeLens returned by the `textDocument/codeLens` request.
 
 SourceKit-LSP will advertise `sourcekit/workspace/playgrounds` in its experimental server capabilities if it supports it.
 
@@ -839,6 +967,30 @@ export interface Playground {
    * The location of where the #Playground macro was used in the source code.
    */
   location: Location
+}
+```
+
+## `sourcekit/workspace/references`
+
+Request that returns all references to a symbol identified by its USR.
+
+Unlike `textDocument/references`, the symbol is not looked up from a source position, so the request does not require the client to open a document. The USR can be obtained from `textDocument/symbolInfo` or from the `data` of a call or type hierarchy item (see `SourceKitSymbolIdentifier`). Only indexed occurrences are returned; references to local symbols, which are not indexed, require `textDocument/references`.
+
+SourceKit-LSP will advertise `sourcekit/workspace/references` in its experimental server capabilities if it supports it.
+
+> [!IMPORTANT]
+> This request is experimental and may be modified or removed in future versions of SourceKit-LSP without notice. Do not rely on it.
+
+- params: `WorkspaceReferenceParams`
+- result: `Location[]`
+
+```ts
+export interface WorkspaceReferenceParams {
+  /** The symbol to find references to. */
+  symbol: SourceKitSymbolIdentifier;
+
+  /** Whether to include the declaration and definition of the symbol. Defaults to `false`. */
+  includeDeclaration?: boolean;
 }
 ```
 
@@ -889,7 +1041,7 @@ export interface SynchronizeParams {
 
 ## `sourcekit/workspace/tests`
 
-New request that returns symbols for all the test classes and test methods within the current workspace.
+Request that returns symbols for all the test classes and test methods within the current workspace.
 
 > [!NOTE]
 > This request was previously named `workspace/tests`. The old name is still accepted for backward compatibility.
@@ -903,7 +1055,7 @@ export interface WorkspaceTestsParams {}
 
 ## `sourcekit/workspace/triggerReindex`
 
-New request to re-index all files open in the SourceKit-LSP server.
+Request to re-index all files open in the SourceKit-LSP server.
 
 Users should not need to rely on this request. The index should always be updated automatically in the background. Having to invoke this request means there is a bug in SourceKit-LSP's automatic re-indexing. It does, however, offer a workaround to re-index files when such a bug occurs where otherwise there would be no workaround.
 
@@ -920,7 +1072,7 @@ export interface TriggerReindexParams {}
 
 ## Languages
 
-Added a new language with the identifier `tutorial` to support the `*.tutorial` files that
+Added a language with the identifier `tutorial` to support the `*.tutorial` files that
 Swift DocC uses to define tutorials and tutorial overviews in its documentation catalogs.
 It is expected that editors send document events for `tutorial` and `markdown` files if
 they wish to request information about these files from SourceKit-LSP.

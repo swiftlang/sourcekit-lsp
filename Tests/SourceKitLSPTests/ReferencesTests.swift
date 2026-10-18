@@ -328,4 +328,75 @@ final class ReferencesTests: SourceKitLSPTestCase {
     XCTAssertEqual(Set(response.map(\.uri)), [libURI, otherURI])
     XCTAssertEqual(Set(response.map(\.range.lowerBound)), [libPositions["1️⃣"], otherPositions["2️⃣"]])
   }
+
+  func testWorkspaceReferences() async throws {
+    let project = try await IndexedSingleSwiftFileTestProject(
+      """
+      func 1️⃣foo() {}
+
+      func bar() {
+        2️⃣foo()
+        3️⃣foo()
+      }
+      """
+    )
+    let symbolInfo = try await project.testClient.send(
+      SymbolInfoRequest(textDocument: TextDocumentIdentifier(project.fileURI), position: project.positions["1️⃣"])
+    )
+    let usr = try XCTUnwrap(symbolInfo.first?.usr)
+    let symbol = SourceKitSymbolIdentifier(usr: usr, uri: project.fileURI)
+
+    let references = try await project.testClient.send(WorkspaceReferencesRequest(symbol: symbol))
+    XCTAssertEqual(
+      references,
+      [
+        Location(uri: project.fileURI, range: Range(project.positions["2️⃣"])),
+        Location(uri: project.fileURI, range: Range(project.positions["3️⃣"])),
+      ]
+    )
+
+    let referencesAndDeclaration = try await project.testClient.send(
+      WorkspaceReferencesRequest(symbol: symbol, includeDeclaration: true)
+    )
+    XCTAssertEqual(
+      referencesAndDeclaration,
+      [
+        Location(uri: project.fileURI, range: Range(project.positions["1️⃣"])),
+        Location(uri: project.fileURI, range: Range(project.positions["2️⃣"])),
+        Location(uri: project.fileURI, range: Range(project.positions["3️⃣"])),
+      ]
+    )
+  }
+
+  func testWorkspaceReferencesWithoutOpenDocuments() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Lib.swift": """
+        func 1️⃣foo() {}
+        """,
+        "Caller.swift": """
+        func bar() {
+          2️⃣foo()
+        }
+        """,
+        "Unrelated.swift": "",
+      ],
+      enableBackgroundIndexing: true
+    )
+
+    // The workspace is selected by a document that neither declares nor references the symbol.
+    let response = try await project.testClient.send(
+      WorkspaceReferencesRequest(
+        symbol: SourceKitSymbolIdentifier(usr: "s:9MyLibrary3fooyyF", uri: try project.uri(for: "Unrelated.swift")),
+        includeDeclaration: true
+      )
+    )
+    XCTAssertEqual(
+      Set(response),
+      [
+        try project.location(from: "1️⃣", to: "1️⃣", in: "Lib.swift"),
+        try project.location(from: "2️⃣", to: "2️⃣", in: "Caller.swift"),
+      ]
+    )
+  }
 }

@@ -12,18 +12,6 @@
 
 @_spi(SourceKitLSP) import LanguageServerProtocol
 
-/// Metadata stored in `CallHierarchyItem.data` and `TypeHierarchyItem.data` to support
-/// incoming/outgoing call and supertype/subtype lookups.
-struct HierarchyItemData: Codable, Hashable, LSPAnyCodable {
-  var uri: DocumentURI
-  var usr: String
-
-  init(uri: DocumentURI, usr: String) {
-    self.uri = uri
-    self.usr = usr
-  }
-}
-
 /// Metadata stored in `CompletionItem.data` and `InlayHint.data` at the server level to route
 /// resolve requests to the correct language service.
 struct ResolveItemData: Codable, Hashable, LSPAnyCodable {

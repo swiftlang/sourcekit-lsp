@@ -161,6 +161,11 @@ package struct BuildServerConfig: Codable {
     if let sdk = options.swiftPMOrDefault.sdk {
       args.append(contentsOf: ["--sdk", try resolvedRelativeToProjectRoot(sdk)])
     }
+    if let pkgConfigPaths = options.swiftPMOrDefault.pkgConfigPaths {
+      for pkgConfigPath in pkgConfigPaths {
+        args.append(contentsOf: ["--pkg-config-path", try resolvedRelativeToProjectRoot(pkgConfigPath)])
+      }
+    }
     if let traits = options.swiftPMOrDefault.traits {
       args.append(contentsOf: ["--traits", traits.joined(separator: ",")])
     }

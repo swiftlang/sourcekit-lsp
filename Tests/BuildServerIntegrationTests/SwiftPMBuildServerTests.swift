@@ -59,35 +59,16 @@ fileprivate extension SourceKitLSPOptions {
   }
 }
 
-let swiftPMHasExperimentalBuildServer: Bool = {
-  @Sendable func impl() async throws -> Bool {
-    if ProcessEnv.block["SWIFTCI_USE_LOCAL_DEPS"] != nil {
-      // In general, don't skip tests in CI. Toolchain should be up-to-date.
-      return false
-    }
-    let swift = try await unwrap(ToolchainRegistry.forTesting.default?.swift).deletingLastPathComponent()
-      .appending(component: "swift")
-    let output = try await Process.run(
-      arguments: [
-        try swift.filePath,
-        "package",
-        "experimental-build-server",
-        "--help",
-      ],
-      // "swift package experimental-build-server --help" times out without a working directory. Set a nonsensical
-      // working directory to make it finish faster.
-      workingDirectory: TSCBasic.AbsolutePath(validating: testScratchDir().filePath)
-    )
-    return try output.utf8stderrOutput().contains("Usage: swift package experimental-build-server")
-  }
-
-  // We need to decide whether to run the experimental build server tests synchronously. If more tests start relying on
-  // this, we need to find a better solution.
-  nonisolated(unsafe) var result: Result<Bool, any Error>!
-  let sema = WrappedSemaphore(name: "swiftPMHasExperimentalBuildServer")
-  let task = Task { @Sendable in
+/// Compute a value that is derived from the toolchain synchronously.
+///
+/// The build servers that a test runs against are listed in `@Test(arguments:)`, which is evaluated synchronously, so
+/// the toolchain queries that decide the list have to block.
+private func computedSynchronously<T: Sendable>(name: String, _ body: @Sendable @escaping () async throws -> T) -> T {
+  nonisolated(unsafe) var result: Result<T, any Error>!
+  let sema = WrappedSemaphore(name: name)
+  Task { @Sendable in
     do {
-      result = .success(try await impl())
+      result = .success(try await body())
     } catch {
       result = .failure(error)
     }
@@ -95,12 +76,56 @@ let swiftPMHasExperimentalBuildServer: Bool = {
   }
   try! sema.waitOrThrow()
   return try! result.get()
-}()
+}
 
-private let buildServerOptionsToTest: [SourceKitLSPOptions] =
-  swiftPMHasExperimentalBuildServer
-  ? [.forTestingNativeSwiftPMBuildServer, .forTestingExperimentalSwiftPMBuildServer]
-  : [.forTestingNativeSwiftPMBuildServer]
+let swiftPMHasExperimentalBuildServer: Bool = computedSynchronously(name: "swiftPMHasExperimentalBuildServer") {
+  if ProcessEnv.block["SWIFTCI_USE_LOCAL_DEPS"] != nil {
+    // In general, don't skip tests in CI. Toolchain should be up-to-date.
+    return false
+  }
+  let swift = try await unwrap(ToolchainRegistry.forTesting.default?.swift).deletingLastPathComponent()
+    .appending(component: "swift")
+  let output = try await Process.run(
+    arguments: [
+      try swift.filePath,
+      "package",
+      "experimental-build-server",
+      "--help",
+    ],
+    // "swift package experimental-build-server --help" times out without a working directory. Set a nonsensical
+    // working directory to make it finish faster.
+    workingDirectory: TSCBasic.AbsolutePath(validating: testScratchDir().filePath)
+  )
+  return try output.utf8stderrOutput().contains("Usage: swift package experimental-build-server")
+}
+
+/// The Swift version of the toolchain used for testing or `nil` if it could not be determined.
+private let testingToolchainSwiftVersion: SwiftVersion? = computedSynchronously(
+  name: "testingToolchainSwiftVersion"
+) {
+  try await ToolchainRegistry.forTesting.default?.swiftVersion
+}
+
+/// The build server configurations that a test should be run with.
+///
+/// The out-of-process build server is included if the toolchain used for testing has one. Tests that rely on build
+/// server behavior which was added during the development of a Swift version pass that version as
+/// `requiredSwiftVersion`, so that they only exercise the out-of-process build server with a toolchain that can have
+/// that behavior.
+private func buildServerOptionsToTest(
+  requiring requiredSwiftVersion: SwiftVersion? = nil
+) -> [SourceKitLSPOptions] {
+  let native: [SourceKitLSPOptions] = [.forTestingNativeSwiftPMBuildServer]
+  guard swiftPMHasExperimentalBuildServer else {
+    return native
+  }
+  if let requiredSwiftVersion {
+    guard let testingToolchainSwiftVersion, testingToolchainSwiftVersion >= requiredSwiftVersion else {
+      return native
+    }
+  }
+  return native + [.forTestingExperimentalSwiftPMBuildServer]
+}
 
 @Suite(.serialized, .configureLogging)
 struct SwiftPMBuildServerTests {
@@ -137,13 +162,15 @@ struct SwiftPMBuildServerTests {
         ]
       )
       let packageRoot = tempDir.appending(component: "pkg")
+      let connection = LocalConnection(receiverName: "dummy")
+      let handler = IgnoringMessageHandler()
+      connection.start(handler: handler)
       await expectThrowsError(
         try await SwiftPMBuildServer(
           projectRoot: packageRoot,
           toolchainRegistry: ToolchainRegistry(toolchains: []),
           options: SourceKitLSPOptions(),
-          connectionToSourceKitLSP: LocalConnection(receiverName: "dummy"),
-          testHooks: SwiftPMTestHooks()
+          connectionToSourceKitLSP: connection
         )
       )
     }
@@ -173,12 +200,14 @@ struct SwiftPMBuildServerTests {
         ),
         backgroundIndexing: false
       )
+      let connection = LocalConnection(receiverName: "dummy")
+      let handler = IgnoringMessageHandler()
+      connection.start(handler: handler)
       let swiftpmBuildServer = try await SwiftPMBuildServer(
         projectRoot: packageRoot,
         toolchainRegistry: .forTesting,
         options: options,
-        connectionToSourceKitLSP: LocalConnection(receiverName: "dummy"),
-        testHooks: SwiftPMTestHooks()
+        connectionToSourceKitLSP: connection
       )
 
       let dataPath = await swiftpmBuildServer.destinationBuildParameters.dataPath
@@ -208,7 +237,7 @@ struct SwiftPMBuildServerTests {
     }
   }
 
-  @Test(arguments: buildServerOptionsToTest)
+  @Test(arguments: buildServerOptionsToTest())
   func testBasicSwiftArgs(options: SourceKitLSPOptions) async throws {
     try await withTestScratchDir { tempDir in
       try FileManager.default.createFiles(
@@ -354,7 +383,7 @@ struct SwiftPMBuildServerTests {
     }
   }
 
-  @Test(arguments: buildServerOptionsToTest)
+  @Test(arguments: buildServerOptionsToTest(requiring: SwiftVersion(6, 5)))
   func testBuildSetup(options: SourceKitLSPOptions) async throws {
     try await withTestScratchDir { tempDir in
       try FileManager.default.createFiles(
@@ -451,7 +480,7 @@ struct SwiftPMBuildServerTests {
     }
   }
 
-  @Test(arguments: buildServerOptionsToTest)
+  @Test(arguments: buildServerOptionsToTest())
   func testMultiFileSwift(options: SourceKitLSPOptions) async throws {
     try await withTestScratchDir { tempDir in
       try FileManager.default.createFiles(
@@ -507,7 +536,7 @@ struct SwiftPMBuildServerTests {
     }
   }
 
-  @Test(arguments: buildServerOptionsToTest)
+  @Test(arguments: buildServerOptionsToTest())
   func testMultiTargetSwift(options: SourceKitLSPOptions) async throws {
     try await withTestScratchDir { tempDir in
       try FileManager.default.createFiles(
@@ -579,7 +608,7 @@ struct SwiftPMBuildServerTests {
     }
   }
 
-  @Test(arguments: buildServerOptionsToTest)
+  @Test(arguments: buildServerOptionsToTest())
   func testUnknownFile(options: SourceKitLSPOptions) async throws {
     try await withTestScratchDir { tempDir in
       try FileManager.default.createFiles(
@@ -638,7 +667,7 @@ struct SwiftPMBuildServerTests {
     }
   }
 
-  @Test(arguments: buildServerOptionsToTest)
+  @Test(arguments: buildServerOptionsToTest())
   func testBasicCXXArgs(options: SourceKitLSPOptions) async throws {
     try await withTestScratchDir { tempDir in
       try FileManager.default.createFiles(
@@ -750,7 +779,7 @@ struct SwiftPMBuildServerTests {
     }
   }
 
-  @Test(arguments: buildServerOptionsToTest)
+  @Test(arguments: buildServerOptionsToTest())
   func testDeploymentTargetSwift(options: SourceKitLSPOptions) async throws {
     try await withTestScratchDir { tempDir in
       try FileManager.default.createFiles(
@@ -811,7 +840,7 @@ struct SwiftPMBuildServerTests {
     }
   }
 
-  @Test(arguments: buildServerOptionsToTest)
+  @Test(arguments: buildServerOptionsToTest(requiring: SwiftVersion(6, 5)))
   func testSymlinkInWorkspaceSwift(options: SourceKitLSPOptions) async throws {
     try await withTestScratchDir { tempDir in
       try FileManager.default.createFiles(
@@ -889,7 +918,7 @@ struct SwiftPMBuildServerTests {
     }
   }
 
-  @Test(arguments: buildServerOptionsToTest)
+  @Test(arguments: buildServerOptionsToTest(requiring: SwiftVersion(6, 5)))
   func testSymlinkInWorkspaceCXX(options: SourceKitLSPOptions) async throws {
     try await withTestScratchDir { tempDir in
       try FileManager.default.createFiles(
@@ -949,7 +978,7 @@ struct SwiftPMBuildServerTests {
     }
   }
 
-  @Test(arguments: buildServerOptionsToTest)
+  @Test(arguments: buildServerOptionsToTest())
   func testSwiftDerivedSources(options: SourceKitLSPOptions) async throws {
     try await withTestScratchDir { tempDir in
       try FileManager.default.createFiles(
@@ -1126,11 +1155,11 @@ struct SwiftPMBuildServerTests {
       ],
       capabilities: ClientCapabilities(window: WindowClientCapabilities(workDoneProgress: true)),
       hooks: Hooks(
-        buildServerHooks: BuildServerHooks(
-          swiftPMTestHooks: SwiftPMTestHooks(reloadPackageDidStart: {
+        buildServerHooks: BuildServerHooks(preHandleNotificationFromBuildServer: { notification in
+          if notification is TaskFinishNotification {
             didReceiveWorkDoneProgressNotification.waitOrXCTFail()
-          })
-        )
+          }
+        })
       ),
       pollIndex: false,
       preInitialization: { testClient in
@@ -1140,7 +1169,12 @@ struct SwiftPMBuildServerTests {
       }
     )
     let begin = try await project.testClient.nextNotification(ofType: WorkDoneProgress.self)
-    #expect(begin.value == .begin(WorkDoneProgressBegin(title: "SourceKit-LSP: Reloading Package")))
+    guard case .begin(let beginValue) = begin.value else {
+      Issue.record("Expected a 'begin' work done progress, got \(begin.value)")
+      return
+    }
+    #expect(beginValue.title.hasSuffix("Reloading Package"))
+
     didReceiveWorkDoneProgressNotification.signal()
 
     let end = try await project.testClient.nextNotification(ofType: WorkDoneProgress.self)
@@ -1299,8 +1333,10 @@ struct SwiftPMBuildServerTests {
     #expect(diagnostics.isEmpty)
   }
 
-  @Test func testPkgConfigDirectories() async throws {
-    var options = try await SourceKitLSPOptions.testDefault(experimentalFeatures: [.sourceKitOptionsRequest])
+  @Test(arguments: buildServerOptionsToTest())
+  func testPkgConfigDirectories(options: SourceKitLSPOptions) async throws {
+    var options = options
+    options.experimentalFeatures = [.sourceKitOptionsRequest]
     options.swiftPMOrDefault.pkgConfigPaths = ["pcfiles"]
     let project = try await SwiftPMTestProject(
       files: [
@@ -1359,7 +1395,7 @@ struct SwiftPMBuildServerTests {
   private func makeServerWithBinaryTargetAndWaitForInitialLoad(
     in tempDir: URL,
     options: SourceKitLSPOptions = SourceKitLSPOptions(),
-    reloadPackageDidStart: (@Sendable () async -> Void)? = nil
+    connectionToSourceKitLSP: any Connection
   ) async throws -> (server: SwiftPMBuildServer, projectRoot: URL) {
     let artifactBundleName = "MyBinaryTool.artifactbundle"
     let zipName = "\(artifactBundleName).zip"
@@ -1408,8 +1444,7 @@ struct SwiftPMBuildServerTests {
       projectRoot: projectRoot,
       toolchainRegistry: .forTesting,
       options: options,
-      connectionToSourceKitLSP: LocalConnection(receiverName: "dummy"),
-      testHooks: SwiftPMTestHooks(reloadPackageDidStart: reloadPackageDidStart)
+      connectionToSourceKitLSP: connectionToSourceKitLSP
     )
     _ = await server.waitForBuildSystemUpdates(request: WorkspaceWaitForBuildSystemUpdatesRequest())
     return (server, projectRoot)
@@ -1426,18 +1461,13 @@ struct SwiftPMBuildServerTests {
   @Test
   func testBinaryTargetArtifactEventsDoNotTriggerPackageReload() async throws {
     try await withTestScratchDir { tempDir in
-      let packageInitialized = ThreadSafeBox<Bool>(initialValue: false)
-      let unexpectedReloadStarted = ThreadSafeBox<Bool>(initialValue: false)
+      let packageReloads = PackageReloadCountingMessageHandler()
 
       let (server, projectRoot) = try await makeServerWithBinaryTargetAndWaitForInitialLoad(
         in: tempDir,
-        reloadPackageDidStart: {
-          if packageInitialized.value {
-            unexpectedReloadStarted.withLock { $0 = true }
-          }
-        }
+        connectionToSourceKitLSP: LocalConnection(receiverName: "dummy", handler: packageReloads)
       )
-      packageInitialized.withLock { $0 = true }
+      let reloadsAfterInitialLoad = packageReloads.count
 
       // SwiftPM extracts the artifact bundle to:
       //   <scratch>/artifacts/<package-identity>/<target-name>/<artifact-name>/
@@ -1462,7 +1492,7 @@ struct SwiftPMBuildServerTests {
       )
 
       _ = await server.waitForBuildSystemUpdates(request: WorkspaceWaitForBuildSystemUpdatesRequest())
-      #expect(!unexpectedReloadStarted.value)
+      #expect(packageReloads.count == reloadsAfterInitialLoad)
     }
   }
 
@@ -1479,19 +1509,14 @@ struct SwiftPMBuildServerTests {
     try await withTestScratchDir { tempDir in
       let customScratch = tempDir.appending(component: "custom-scratch")
 
-      let packageInitialized = ThreadSafeBox<Bool>(initialValue: false)
-      let unexpectedReloadStarted = ThreadSafeBox<Bool>(initialValue: false)
+      let packageReloads = PackageReloadCountingMessageHandler()
 
       let (server, projectRoot) = try await makeServerWithBinaryTargetAndWaitForInitialLoad(
         in: tempDir,
         options: SourceKitLSPOptions(swiftPM: .init(scratchPath: try customScratch.filePath)),
-        reloadPackageDidStart: {
-          if packageInitialized.value {
-            unexpectedReloadStarted.withLock { $0 = true }
-          }
-        }
+        connectionToSourceKitLSP: LocalConnection(receiverName: "dummy", handler: packageReloads)
       )
-      packageInitialized.withLock { $0 = true }
+      let reloadsAfterInitialLoad = packageReloads.count
 
       // With a custom scratch path, SwiftPM extracts to <custom-scratch>/artifacts/.
       // Simulate the delete-and-re-expand cycle for those paths.
@@ -1529,7 +1554,7 @@ struct SwiftPMBuildServerTests {
       )
 
       _ = await server.waitForBuildSystemUpdates(request: WorkspaceWaitForBuildSystemUpdatesRequest())
-      #expect(!unexpectedReloadStarted.value)
+      #expect(packageReloads.count == reloadsAfterInitialLoad)
     }
   }
 
@@ -1847,3 +1872,38 @@ fileprivate extension BuildServerSpec {
   }
 }
 #endif
+
+private final class PackageReloadCountingMessageHandler: MessageHandler {
+  private let reloads = ThreadSafeBox<Int>(initialValue: 0)
+
+  var count: Int { reloads.value }
+
+  func handle(_ notification: some NotificationType) {
+    guard let notification = notification as? TaskStartNotification,
+      notification.taskId == SwiftPMBuildServer.packageReloadingTaskID
+    else {
+      return
+    }
+    reloads.withLock { $0 += 1 }
+  }
+
+  func handle<Request: RequestType>(
+    _ request: Request,
+    id: RequestID,
+    reply: @Sendable @escaping (LSPResult<Request.Response>) -> Void
+  ) {
+    reply(.failure(.methodNotFound(Request.method)))
+  }
+}
+
+private final class IgnoringMessageHandler: MessageHandler {
+  func handle(_ notification: some NotificationType) {
+  }
+
+  func handle<Request: RequestType>(
+    _ request: Request,
+    id: RequestID,
+    reply: @Sendable @escaping (LSPResult<Request.Response>) -> Void
+  ) {
+  }
+}

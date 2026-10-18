@@ -17,7 +17,9 @@ add_library(SwiftSyntaxCodeActions STATIC
   FormatRawStringLiteral.swift
   GenerateEnumCaseAccessors.swift
   IndentationRemover.swift
+  InlineVariable.swift
   IntegerLiteralUtilities.swift
+  InvertIfCondition.swift
   MigrateToNewIfLetSyntax.swift
   OpaqueParameterToGeneric.swift
   PackageManifestEdits.swift
@@ -27,6 +29,7 @@ add_library(SwiftSyntaxCodeActions STATIC
   SyntaxCodeActionProvider.swift
   SyntaxCodeActions.swift
   SyntaxRefactoringCodeActionProvider.swift
+  ToggleTestDisabled.swift
 )
 set_target_properties(SwiftSyntaxCodeActions PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Swift_MODULE_DIRECTORY})
@@ -40,6 +43,7 @@ target_link_libraries(SwiftSyntaxCodeActions PRIVATE
   SwiftToolsProtocols::SKLogging
   SwiftExtensions
   SwiftSyntax::SwiftBasicFormat
+  SwiftSyntax::SwiftLexicalLookup
   SwiftSyntax::SwiftOperators
   SwiftSyntax::SwiftParser
   SwiftSyntax::SwiftRefactor
