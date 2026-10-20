@@ -405,13 +405,13 @@ package final actor UncheckedIndex: Sendable {
   }
 
   /// Import the units for the given output paths into indexstore-db. Returns after the import has finished.
-  package nonisolated func processUnitsForOutputPathsAndWait(_ outputPaths: some Collection<String>) {
+  package nonisolated func processUnitsForOutputPaths(_ outputPaths: some Collection<String> & Sendable) async {
     guard let underlyingIndexStoreDB else {
       logger.error("Not processing units for output paths because the index was closed")
       return
     }
 
-    underlyingIndexStoreDB.processUnitsForOutputPathsAndWait(outputPaths)
+    await underlyingIndexStoreDB.processUnitsForOutputPaths(outputPaths)
   }
 }
 
