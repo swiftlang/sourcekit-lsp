@@ -250,20 +250,6 @@ package actor DocumentationLanguageService: LanguageService, Sendable {
     case block(text: String, start: Position)
   }
 
-  /// Converts a UTF-16 offset within `line` into the corresponding UTF-8 byte offset.
-  /// Needed because DocumentSnapshot/LSP positions are UTF-16-based but
-  /// Markdown.SourceLocation.column is UTF-8-byte-based.
-  private func utf8Offset(inLine line: String, forUTF16Offset utf16Offset: Int) -> Int {
-    let utf16View = line.utf16
-    guard
-      let utf16Index = utf16View.index(utf16View.startIndex, offsetBy: utf16Offset, limitedBy: utf16View.endIndex),
-      let stringIndex = utf16Index.samePosition(in: line)
-    else {
-      return line.utf8.count
-    }
-    return line.utf8.distance(from: line.startIndex, to: stringIndex)
-  }
-
   private func docCommentGroups(
     in trivia: Trivia,
     tokenStart: AbsolutePosition,
@@ -405,8 +391,9 @@ package actor DocumentationLanguageService: LanguageService, Sendable {
       guard let (strippedLines, target) = resolveTarget(for: group, cursorPosition: position) else { continue }
 
       let combinedText = strippedLines.map(\.text).joined(separator: "\n")
-      let utf8Column = utf8Offset(inLine: strippedLines[target.line].text, forUTF16Offset: target.utf16index) + 1
-      let markdownTarget = Markdown.SourceLocation(line: target.line + 1, column: utf8Column, source: nil)
+      let lineTable = LineTable(combinedText)
+      let utf8Column = lineTable.utf8ColumnAt(line: target.line, utf16Column: target.utf16index)
+      let markdownTarget = Markdown.SourceLocation(line: target.line + 1, column: utf8Column + 1, source: nil)
 
       let document = Markdown.Document(parsing: combinedText, options: [.parseSymbolLinks])
       var locator = SymbolLocator(target: markdownTarget)
