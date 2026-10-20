@@ -164,6 +164,8 @@ def get_swiftpm_options(swift_exec: str, args: argparse.Namespace, suppress_verb
         else:
             fatal_error("cannot cross-compile for %s" % args.cross_compile_host)
 
+    swiftpm_args += args.extra_swiftpm_flags
+
     return swiftpm_args
 
 
@@ -330,6 +332,7 @@ def parse_args() -> argparse.Namespace:
         parser.add_argument('--cross-compile-host', help='cross-compile for another host instead')
         parser.add_argument('--cross-compile-config', help='an SPM JSON destination file containing Swift cross-compilation flags')
         parser.add_argument('--multiroot-data-file', help='path to an Xcode workspace to create a unified build of all of Swift\'s SwiftPM projects')
+        parser.add_argument('--extra-swiftpm-flag', action='append', default=[], dest='extra_swiftpm_flags', help='additional flag to pass to SwiftPM invocations')
 
     if sys.version_info >= (3, 7, 0):
         subparsers = parser.add_subparsers(title='subcommands', dest='action', required=True, metavar='action')
