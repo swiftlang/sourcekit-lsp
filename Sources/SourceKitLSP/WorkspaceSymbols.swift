@@ -575,20 +575,33 @@ extension SourceKitLSPServer {
     }
     try Task.checkCancellation()
 
+    for typeUSR in matchedContainerUSRs {
+      try Task.checkCancellation()
+      result.formUnion(try extensionUSRs(ofTypeUSR: typeUSR, includeSystemSymbols: includeSystemSymbols, in: index))
+    }
+    return result
+  }
+
+  /// The USRs of the extensions of the type with the given USR.
+  ///
+  /// System (SDK/stdlib) extensions are only included if `includeSystemSymbols` is `true`.
+  nonisolated func extensionUSRs(
+    ofTypeUSR typeUSR: String,
+    includeSystemSymbols: Bool,
+    in index: CheckedIndex
+  ) throws -> Set<String> {
     // Filtering the occurrences by the `.extendedBy` role restricts the lookup to the `extension` sites
     // instead of returning every reference of the type.
     //
     // The extension site's location distinguishes the user's extensions from the SDK's, so system
     // extensions are skipped before any of their members are enumerated.
-    for typeUSR in matchedContainerUSRs {
-      try Task.checkCancellation()
-      for occurrence in try index.occurrences(ofUSR: typeUSR, roles: .extendedBy) {
-        guard includeSystemSymbols || !occurrence.location.isSystem else {
-          continue
-        }
-        for relation in occurrence.relations where relation.roles.contains(.extendedBy) {
-          result.insert(relation.symbol.usr)
-        }
+    var result: Set<String> = []
+    for occurrence in try index.occurrences(ofUSR: typeUSR, roles: .extendedBy) {
+      guard includeSystemSymbols || !occurrence.location.isSystem else {
+        continue
+      }
+      for relation in occurrence.relations where relation.roles.contains(.extendedBy) {
+        result.insert(relation.symbol.usr)
       }
     }
     return result
@@ -603,7 +616,7 @@ extension SourceKitLSPServer {
   /// If `resolvePrimaryDefinitions` is `true`, a C-family member is returned as its primary definition or
   /// declaration rather than the occurrence it was found through. That is a lookup per member, so callers
   /// that don't use the occurrence's location pass `false`.
-  private nonisolated func members(
+  nonisolated func members(
     ofContainerUSRs containerUSRs: Set<String>,
     matching filter: MemberFilter,
     includeSystemSymbols: Bool,

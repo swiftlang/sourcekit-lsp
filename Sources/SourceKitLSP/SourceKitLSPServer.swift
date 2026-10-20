@@ -733,6 +733,8 @@ extension SourceKitLSPServer: QueueBasedMessageHandler {
       await request.reply { try await subtypes(request.params) }
     case let request as RequestAndReply<TypeHierarchySupertypesRequest>:
       await request.reply { try await supertypes(request.params) }
+    case let request as RequestAndReply<WorkspaceMembersRequest>:
+      await request.reply { try await workspaceMembers(request.params) }
     case let request as RequestAndReply<WorkspaceReferencesRequest>:
       await request.reply { try await workspaceReferences(request.params) }
     case let request as RequestAndReply<WorkspaceSymbolNamesRequest>:
@@ -1036,6 +1038,7 @@ extension SourceKitLSPServer {
     addCapabilities(WorkspaceSymbolNamesRequest.method, ["version": 2])
     addCapabilities(WorkspaceSymbolInfoRequest.method, ["version": 2])
     addCapabilities(WorkspaceReferencesRequest.method, ["version": 1])
+    addCapabilities(WorkspaceMembersRequest.method, ["version": 1])
     if let toolchain = await toolchainRegistry.preferredToolchain(containing: [\.swiftc]), toolchain.swiftPlay != nil {
       addCapabilities(WorkspacePlaygroundsRefreshRequest.method, ["version": 1])
       addCapabilities(WorkspacePlaygroundsRequest.method, ["version": 1])
@@ -2129,6 +2132,39 @@ extension SourceKitLSPServer {
     return locations.adjusted(for: copiedFileMap).unique.sorted()
   }
 
+  func workspaceMembers(_ req: WorkspaceMembersRequest) async throws -> [SourceKitSymbolMember] {
+    guard let workspace = await self.workspaceForDocument(uri: req.symbol.uri),
+      let index = await workspace.index(checkedFor: .deletedFiles)
+    else {
+      return []
+    }
+    // Collect the members declared in the type itself and in all of its extensions.
+    let containerUSRs = try extensionUSRs(ofTypeUSR: req.symbol.usr, includeSystemSymbols: false, in: index)
+      .union([req.symbol.usr])
+    let copiedFileMap = await workspace.buildServerManager.cachedCopiedFileMap
+    return try members(
+      ofContainerUSRs: containerUSRs,
+      matching: .all,
+      includeSystemSymbols: false,
+      resolvePrimaryDefinitions: true,
+      in: index
+    )
+    .compactMap { member -> SourceKitSymbolMember? in
+      guard !member.roles.contains(.implicit), let location = member.location.lspLocation else {
+        return nil
+      }
+      let adjustedLocation = location.adjusted(for: copiedFileMap)
+      return SourceKitSymbolMember(
+        name: member.symbol.name,
+        kind: member.symbol.kind.asLspSymbolKind(),
+        location: adjustedLocation,
+        symbol: SourceKitSymbolIdentifier(usr: member.symbol.usr, uri: adjustedLocation.uri),
+        tags: member.symbol.kind.sourceKitSymbolTags
+      )
+    }
+    .sorted { $0.location < $1.location }
+  }
+
   private func indexReferences(ofUSR usr: String, includeDeclaration: Bool, index: CheckedIndex) throws -> [Location] {
     logger.info("Finding references for USR \(usr)")
     var roles: SymbolRole = [.reference]
@@ -2665,6 +2701,20 @@ fileprivate extension CheckedIndex {
 }
 
 extension IndexSymbolKind {
+  /// The `static`/`class` tag of a type member of this kind, or `nil` for other kinds.
+  var sourceKitSymbolTags: [SourceKitSymbolTag]? {
+    switch self {
+    case .staticMethod, .staticProperty:
+      return [.static]
+    case .classMethod, .classProperty:
+      return [.class]
+    case .unknown, .module, .namespace, .namespaceAlias, .macro, .enum, .struct, .class, .protocol, .extension, .union,
+      .typealias, .function, .variable, .field, .enumConstant, .instanceMethod, .instanceProperty, .constructor,
+      .destructor, .conversionFunction, .parameter, .using, .concept, .commentTag:
+      return nil
+    }
+  }
+
   func asLspSymbolKind() -> SymbolKind {
     switch self {
     case .class:

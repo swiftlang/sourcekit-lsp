@@ -240,6 +240,8 @@ package enum MessageHandlingDependencyTracker: QueueBasedMessageHandlerDependenc
       self = .freestanding
     case is WorkspaceFoldersRequest:
       self = .freestanding
+    case is WorkspaceMembersRequest:
+      self = .freestanding
     case is WorkspaceReferencesRequest:
       self = .freestanding
     case is WorkspaceSemanticTokensRefreshRequest:
