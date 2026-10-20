@@ -262,7 +262,7 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
         case .notSupported: return nil
         }
       }
-      index.processUnitsForOutputPathsAndWait(outputPaths)
+      await index.processUnitsForOutputPaths(outputPaths)
       await hooks.updateIndexStoreTaskDidFinish?(self)
       logger.log(
         "Finished updating index store in \(Date().timeIntervalSince(startDate) * 1000, privacy: .public)ms: \(filesToIndexDescription)"
