@@ -15,6 +15,7 @@ import SKLogging
 import SKTestSupport
 import SwiftExtensions
 import TSCBasic
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
 
 final class TypeHierarchyTests: SourceKitLSPTestCase {
@@ -114,58 +115,102 @@ final class TypeHierarchyTests: SourceKitLSPTestCase {
     )
   }
 
-  func testExtensionsWithConformancesAsSubtypes() async throws {
+  func testOwnExtensionsAreNotSubtypes() async throws {
     let project = try await IndexedSingleSwiftFileTestProject(
       """
       protocol MyProtocol {}
       enum 1️⃣MyEnum {}
-      extension 2️⃣MyEnum {
+      extension MyEnum {
         func foo() {}
       }
-      extension 3️⃣MyEnum: MyProtocol {}
+      extension MyEnum: MyProtocol {}
       """
     )
 
     let item = try await project.prepareTypeHierarchy(at: "1️⃣")
     let subtypes = try await project.testClient.send(TypeHierarchySubtypesRequest(item: item))
-    assertEqualIgnoringData(
-      subtypes,
-      [
-        TypeHierarchyItem(name: "MyEnum", kind: .null, detail: "Extension at test.swift:3", location: "2️⃣", in: project),
-        TypeHierarchyItem(
-          name: "MyEnum: MyProtocol",
-          kind: .null,
-          detail: "Extension at test.swift:6",
-          location: "3️⃣",
-          in: project
-        ),
-      ]
-    )
+    assertEqualIgnoringData(subtypes, [])
   }
 
   func testRetroactiveConformancesAsSubtypes() async throws {
     let project = try await IndexedSingleSwiftFileTestProject(
       """
       protocol 1️⃣MyProtocol {}
-      struct MyStruct {}
-      extension 2️⃣MyStruct: MyProtocol {}
+      enum Outer {
+        struct MyStruct {}
+      }
+      extension Outer.2️⃣MyStruct: MyProtocol {}
       """
     )
 
     let item = try await project.prepareTypeHierarchy(at: "1️⃣")
-    let subtypes = try await project.testClient.send(TypeHierarchySubtypesRequest(item: item))
+    let response = try await project.testClient.send(TypeHierarchySubtypesRequest(item: item))
+    let subtypes = try XCTUnwrap(response)
+    // The item identifies the conforming type and is located at the extension that declares the conformance.
     assertEqualIgnoringData(
       subtypes,
       [
         TypeHierarchyItem(
-          name: "MyStruct: MyProtocol",
-          kind: .null,
-          detail: "Extension at test.swift:3",
+          name: "Outer.MyStruct",
+          kind: .struct,
+          detail: "Extension at test.swift:5",
           location: "2️⃣",
           in: project
         )
       ]
     )
+    XCTAssertEqual(subtypes.first?.sourceKitData?.usr, "s:4test5OuterO8MyStructV")
+  }
+
+  func testSubtypesOfRetroactiveConformance() async throws {
+    let project = try await IndexedSingleSwiftFileTestProject(
+      """
+      protocol 1️⃣MyProtocol {}
+      class MyClass {}
+      extension MyClass: MyProtocol {}
+      class 2️⃣MySubclass: MyClass {}
+      """
+    )
+
+    let item = try await project.prepareTypeHierarchy(at: "1️⃣")
+    let conformers = try await project.testClient.send(TypeHierarchySubtypesRequest(item: item))
+    let conformer = try XCTUnwrap(conformers?.only)
+    let subtypes = try await project.testClient.send(TypeHierarchySubtypesRequest(item: conformer))
+    assertEqualIgnoringData(
+      subtypes,
+      [TypeHierarchyItem(name: "MySubclass", kind: .class, location: "2️⃣", in: project)]
+    )
+  }
+
+  func testSubtypeDeclaredMoreThanOnceIsReportedOnce() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "MyLibrary/include/empty.h": "",
+        "MyLibrary/Test.m": """
+        @protocol 1️⃣MyProtocol
+        @end
+
+        @interface 2️⃣MyClass <MyProtocol>
+        @end
+
+        @interface MyClass (MyCategory) <MyProtocol>
+        @end
+        """,
+      ],
+      enableBackgroundIndexing: true
+    )
+    let (uri, positions) = try project.openDocument("Test.m")
+    let items = try await project.testClient.send(
+      TypeHierarchyPrepareRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+    let item = try XCTUnwrap(items?.only)
+
+    // The class's own declaration is preferred over the category's.
+    let subtypes = try await project.testClient.send(TypeHierarchySubtypesRequest(item: item))
+    XCTAssertEqual(subtypes?.map(\.name), ["MyClass"])
+    XCTAssertEqual(subtypes?.map(\.kind), [.class])
+    XCTAssertEqual(subtypes?.map(\.range.lowerBound), [positions["2️⃣"]])
+    XCTAssertEqual(subtypes?.map(\.sourceKitData?.usr), ["c:objc(cs)MyClass"])
   }
 
   func testSupertypesFromCall() async throws {
