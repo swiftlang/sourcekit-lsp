@@ -161,7 +161,7 @@ package actor SwiftLanguageService: LanguageService, Sendable {
 
   let inlayHintManager: InlayHintManager
 
-  let syntaxTreeManager = SyntaxTreeManager()
+  let syntaxTreeManager: SyntaxTreeManager
 
   /// The `semanticIndexManager` of the workspace this language service was created for.
   private let semanticIndexManagerTask: Task<SemanticIndexManager?, Never>
@@ -237,6 +237,7 @@ package actor SwiftLanguageService: LanguageService, Sendable {
     }
     self.sourcekitdPath = sourcekitd
     self.sourceKitLSPServer = sourceKitLSPServer
+    self.syntaxTreeManager = sourceKitLSPServer.syntaxTreeManager
     self.toolchain = toolchain
     let pluginPaths: PluginPaths?
     if let clientPlugin = options.sourcekitdOrDefault.clientPlugin,

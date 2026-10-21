@@ -28,6 +28,7 @@ add_library(SourceKitLSP STATIC
   SourceKitLSPServer.swift
   SymbolLocation+LSPConversions.swift
   SyntacticIndex.swift
+  SyntaxTreeManager.swift
   TestDiscovery.swift
   TextEdit+IsNoop.swift
   Workspace.swift
@@ -48,6 +49,7 @@ target_link_libraries(SourceKitLSP PUBLIC
   SwiftToolsProtocols::ToolsProtocolsSwiftExtensions
   ToolchainRegistry
   IndexStoreDB
+  SwiftSyntax::SwiftParser
   SwiftSyntax::SwiftSyntax
 )
 target_link_libraries(SourceKitLSP PRIVATE

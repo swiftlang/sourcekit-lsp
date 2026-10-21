@@ -416,7 +416,7 @@ var targets: [Target] = [
       .product(name: "Markdown", package: "swift-markdown"),
       .product(name: "SKLogging", package: "swift-tools-protocols"),
       .product(name: "ToolsProtocolsSwiftExtensions", package: "swift-tools-protocols"),
-    ] + swiftSyntaxDependencies(["SwiftSyntax"]),
+    ] + swiftSyntaxDependencies(["SwiftParser", "SwiftSyntax"]),
     exclude: ["CMakeLists.txt"],
   ),
 
