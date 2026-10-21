@@ -351,7 +351,7 @@ package final actor SemanticIndexManager {
         // Polling for unit changes is a costly operation since it iterates through all the unit files on the file
         // system but if existing unit files are not known to the index, we might re-index those files even if they are
         // up-to-date. This operation is worth the cost during initial indexing and during the manual re-index command.
-        index.pollForUnitChangesAndWait()
+        await index.pollForUnitChanges()
         await hooks.buildGraphGenerationDidFinish?()
         // TODO: Ideally this would be a type like any Collection<DocumentURI> & Sendable but that doesn't work due to
         // https://github.com/swiftlang/swift/issues/75602
@@ -403,7 +403,7 @@ package final actor SemanticIndexManager {
         await indexTask.value
       }
     }
-    index.pollForUnitChangesAndWait()
+    await index.pollForUnitChanges()
     logger.debug("Done waiting for up-to-date index")
   }
 
@@ -425,7 +425,7 @@ package final actor SemanticIndexManager {
       indexFilesWithUpToDateUnit: false,
       priority: nil
     ).value
-    index.pollForUnitChangesAndWait()
+    await index.pollForUnitChanges()
     logger.debug("Done waiting for up-to-date index")
   }
 
@@ -876,7 +876,7 @@ package final actor SemanticIndexManager {
   /// If `waitForBuildGraphGenerationTasks` is `true` and there are any tasks in progress that wait for an up-to-date
   /// build graph, wait for those to finish. This is helpful so to avoid the following: We receive a build target change
   /// notification before the initial background indexing has finished. If indexstore-db hasn't been initialized with
-  /// `pollForUnitChangesAndWait` yet, we might not know that the changed targets' files' index is actually up-to-date
+  /// `pollForUnitChanges` yet, we might not know that the changed targets' files' index is actually up-to-date
   /// and would thus schedule an unnecessary re-index of the file.
   ///
   /// The returned task finishes when all files are indexed.

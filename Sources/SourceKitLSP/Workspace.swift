@@ -750,7 +750,7 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
         logger.debug("Skipping wait for background index in synchronize as it's disabled")
 
         // Might have index while building, so still need to poll for any changes
-        await uncheckedIndex?.pollForUnitChangesAndWait()
+        await uncheckedIndex?.pollForUnitChanges()
       }
     }
   }

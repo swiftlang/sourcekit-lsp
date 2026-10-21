@@ -395,13 +395,13 @@ package final actor UncheckedIndex: Sendable {
   }
 
   /// Wait for IndexStoreDB to be updated based on new unit files written to disk.
-  package nonisolated func pollForUnitChangesAndWait() {
+  package nonisolated func pollForUnitChanges() async {
     guard let underlyingIndexStoreDB else {
       logger.error("Not polling for unit changes because the index was closed")
       return
     }
 
-    underlyingIndexStoreDB.pollForUnitChangesAndWait()
+    await underlyingIndexStoreDB.pollForUnitChanges()
   }
 
   /// Import the units for the given output paths into indexstore-db. Returns after the import has finished.
