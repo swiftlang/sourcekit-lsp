@@ -77,6 +77,8 @@ package actor SourceKitLSPServer {
 
   package nonisolated let documentManager = DocumentManager()
 
+  package nonisolated let syntaxTreeManager = SyntaxTreeManager()
+
   /// The `TaskScheduler` that schedules all background indexing tasks.
   ///
   /// Shared process-wide to ensure the scheduled index operations across multiple workspaces don't exceed the maximum

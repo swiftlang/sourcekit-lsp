@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2020 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2026 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -10,15 +10,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-@_spi(SourceKitLSP) import LanguageServerProtocol
+@_spi(SourceKitLSP) package import LanguageServerProtocol
 import SKUtilities
-import SourceKitLSP
-@_spi(ExperimentalLanguageFeatures) import SwiftParser
-import SwiftSyntax
+@_spi(ExperimentalLanguageFeatures) package import SwiftParser
+package import SwiftSyntax
 
 /// Keeps track of SwiftSyntax trees for document snapshots and computes the
 /// SwiftSyntax trees on demand.
-actor SyntaxTreeManager {
+package actor SyntaxTreeManager {
   /// A task that parses a SwiftSyntax tree from a source file, producing both
   /// the syntax tree and the lookahead ranges that are needed for a subsequent
   /// incremental parse.
@@ -40,8 +39,10 @@ actor SyntaxTreeManager {
   /// - Important: For testing only
   private var reusedNodeCallback: ReusedNodeCallback?
 
+  package init() {}
+
   /// - Important: For testing only
-  func setReusedNodeCallback(_ callback: ReusedNodeCallback?) {
+  package func setReusedNodeCallback(_ callback: ReusedNodeCallback?) {
     self.reusedNodeCallback = callback
   }
 
@@ -51,7 +52,7 @@ actor SyntaxTreeManager {
   /// The features will be used for subsequent parse operations on that document.
   /// If the features differ from the previously stored ones, any cached syntax trees for the document are invalidated
   /// so that they will be re-parsed with the new features on next access.
-  func setExperimentalFeatures(_ features: Parser.LanguageFeatures, for uri: DocumentURI) {
+  package func setExperimentalFeatures(_ features: Parser.LanguageFeatures, for uri: DocumentURI) {
     let previousFeatures = experimentalFeaturesPerDocument[uri] ?? []
     if previousFeatures != features {
       experimentalFeaturesPerDocument[uri] = features
@@ -78,7 +79,7 @@ actor SyntaxTreeManager {
   }
 
   /// Get the SwiftSyntax tree for the given document snapshot.
-  func syntaxTree(for snapshot: DocumentSnapshot) async -> SourceFileSyntax {
+  package func syntaxTree(for snapshot: DocumentSnapshot) async -> SourceFileSyntax {
     return await incrementalParseResult(for: snapshot).tree
   }
 
@@ -112,7 +113,11 @@ actor SyntaxTreeManager {
   ///
   /// If we computed a syntax tree for the pre-edit snapshot, we will perform an
   /// incremental parse to compute the syntax tree for the post-edit snapshot.
-  func registerEdit(preEditSnapshot: DocumentSnapshot, postEditSnapshot: DocumentSnapshot, edits: ConcurrentEdits) {
+  package func registerEdit(
+    preEditSnapshot: DocumentSnapshot,
+    postEditSnapshot: DocumentSnapshot,
+    edits: ConcurrentEdits
+  ) {
     guard let preEditTreeComputation = computation(for: preEditSnapshot.id) else {
       // We don't have the old tree and thus can't perform an incremental parse.
       // So there's nothing to do. We will perform a full parse once we request
@@ -143,7 +148,7 @@ actor SyntaxTreeManager {
   }
 
   /// Remove all cached syntax trees for the given document, eg. when the document is closed.
-  func clearSyntaxTrees(for uri: DocumentURI) {
+  package func clearSyntaxTrees(for uri: DocumentURI) {
     syntaxTreeComputations.removeAll(where: { $0.uri == uri })
   }
 
@@ -151,7 +156,7 @@ actor SyntaxTreeManager {
   ///
   /// This should be called when a document is closed to match the `setExperimentalFeatures` call
   /// made when the document is opened.
-  func clearExperimentalFeatures(for uri: DocumentURI) {
+  package func clearExperimentalFeatures(for uri: DocumentURI) {
     experimentalFeaturesPerDocument.removeValue(forKey: uri)
   }
 }

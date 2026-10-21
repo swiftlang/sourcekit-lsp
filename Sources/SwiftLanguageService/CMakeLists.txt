@@ -43,7 +43,6 @@ add_library(SwiftLanguageService STATIC
   SyntaxHighlightingToken.swift
   SyntaxHighlightingTokenParser.swift
   SyntaxHighlightingTokens.swift
-  SyntaxTreeManager.swift
   TestDiscovery.swift
   TypeDefinition.swift
   VariableTypeInfo.swift
