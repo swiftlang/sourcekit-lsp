@@ -28,6 +28,7 @@ actor MacroExpansionManager {
     let snapshotID: DocumentSnapshot.ID
     let range: Range<Position>
     let buildSettings: SwiftCompileCommand?
+    let actionUID: String
   }
 
   init(swiftLanguageService: SwiftLanguageService?) {
@@ -43,23 +44,48 @@ actor MacroExpansionManager {
   ///   for that because it's unlikely that a macro will expand to more than 10 levels.
   private var cache = LRUCache<CacheKey, [RefactoringEdit]>(capacity: 10)
 
-  /// Return the text of the macro expansion referenced by `macroExpansionURLData`.
+  /// The sourcekitd refactoring actions that produce peekable expansion buffers.
+  ///
+  /// A cursor position is only ever applicable to a single one of them. Expanding a
+  /// macro requires the cursor to be on the macro, and expanding a derived conformance
+  /// requires it to be on a protocol in the inheritance clause.
+  private static let expansionActionUIDs = [
+    ExpandMacroCommand.actionString,
+    ExpandDerivedConformanceCommand.actionString,
+  ]
+
+  /// Return the text of the expansion referenced by `macroExpansionURLData`.
   func macroExpansion(
     for macroExpansionURLData: MacroExpansionReferenceDocumentURLData
   ) async throws -> String {
-    let expansions = try await macroExpansions(
-      in: macroExpansionURLData.parent,
-      at: macroExpansionURLData.parentSelectionRange
-    )
-    guard let expansion = expansions.filter({ $0.bufferName == macroExpansionURLData.bufferName }).only else {
-      throw ResponseError.unknown("Failed to find macro expansion for \(macroExpansionURLData.bufferName).")
+    for actionUID in Self.expansionActionUIDs {
+      let edits: [RefactoringEdit]
+      do {
+        edits = try await expansions(
+          in: macroExpansionURLData.parent,
+          at: macroExpansionURLData.parentSelectionRange,
+          actionUID: actionUID
+        )
+      } catch {
+        logger.debug("Failed to run \(actionUID) for \(macroExpansionURLData.bufferName): \(error.forLogging)")
+        continue
+      }
+      if let expansion = edits.filter({ $0.bufferName == macroExpansionURLData.bufferName }).only {
+        return expansion.newText
+      }
     }
-    return expansion.newText
+    throw ResponseError.unknown("Failed to find macro expansion for \(macroExpansionURLData.bufferName).")
   }
 
-  func macroExpansions(
+  /// Run the sourcekitd refactoring action `actionUID` at `range` and return the buffers it expands to.
+  ///
+  /// `actionUID` is one of the expansion-producing refactorings, like
+  /// `source.refactoring.kind.expand.macro` or
+  /// `source.refactoring.kind.expand.derived_conformance`.
+  func expansions(
     in uri: DocumentURI,
-    at range: Range<Position>
+    at range: Range<Position>,
+    actionUID: String
   ) async throws -> [RefactoringEdit] {
     guard let swiftLanguageService else {
       // `SwiftLanguageService` has been destructed. We are tearing down the language server. Nothing left to do.
@@ -69,20 +95,30 @@ actor MacroExpansionManager {
     let snapshot = try await swiftLanguageService.latestSnapshot(for: uri)
     let compileCommand = await swiftLanguageService.compileCommand(for: uri, fallbackAfterTimeout: false)
 
-    let cacheKey = CacheKey(snapshotID: snapshot.id, range: range, buildSettings: compileCommand)
+    let cacheKey = CacheKey(
+      snapshotID: snapshot.id,
+      range: range,
+      buildSettings: compileCommand,
+      actionUID: actionUID
+    )
     if let valueFromCache = cache[cacheKey] {
       return valueFromCache
     }
-    let macroExpansions = try await macroExpansionsImpl(in: snapshot, at: range, buildSettings: compileCommand)
-    cache[cacheKey] = macroExpansions
-
-    return macroExpansions
+    let edits = try await expansionsImpl(
+      in: snapshot,
+      at: range,
+      buildSettings: compileCommand,
+      actionUID: actionUID
+    )
+    cache[cacheKey] = edits
+    return edits
   }
 
-  private func macroExpansionsImpl(
+  private func expansionsImpl(
     in snapshot: DocumentSnapshot,
     at range: Range<Position>,
-    buildSettings: SwiftCompileCommand?
+    buildSettings: SwiftCompileCommand?,
+    actionUID: String
   ) async throws -> [RefactoringEdit] {
     guard let swiftLanguageService else {
       // `SwiftLanguageService` has been destructed. We are tearing down the language server. Nothing left to do.
@@ -106,7 +142,7 @@ actor MacroExpansionManager {
       keys.line: line + 1,
       keys.column: utf8Column + 1,
       keys.length: length,
-      keys.actionUID: swiftLanguageService.sourcekitd.api.uid_get_from_cstr("source.refactoring.kind.expand.macro")!,
+      keys.actionUID: swiftLanguageService.sourcekitd.api.uid_get_from_cstr(actionUID)!,
       keys.compilerArgs: buildSettings?.compilerArgs as [any SKDRequestValue]?,
     ])
 
@@ -126,16 +162,21 @@ actor MacroExpansionManager {
 }
 
 extension SwiftLanguageService {
-  /// Handles the `ExpandMacroCommand`.
+  /// Handles the `ExpandMacroCommand` and `ExpandDerivedConformanceCommand`.
   ///
   /// Makes a `PeekDocumentsRequest` or `ShowDocumentRequest`, containing the
-  /// location of each macro expansion, to the client depending on whether the
+  /// location of each expansion, to the client depending on whether the
   /// client supports the `experimental["workspace/peekDocuments"]` capability.
   ///
   /// - Parameters:
-  ///   - expandMacroCommand: The `ExpandMacroCommand` that triggered this request.
-  func expandMacro(
-    _ expandMacroCommand: ExpandMacroCommand
+  ///   - actionUID: The sourcekitd refactoring action that produces the expansions, like
+  ///     `source.refactoring.kind.expand.macro`.
+  ///   - positionRange: The range that was selected when the command was triggered.
+  ///   - textDocument: The document in which the command was triggered.
+  func expand(
+    actionUID: String,
+    positionRange: Range<Position>,
+    textDocument: TextDocumentIdentifier
   ) async throws {
     guard let sourceKitLSPServer else {
       // `SourceKitLSPServer` has been destructed. We are tearing down the
@@ -144,66 +185,67 @@ extension SwiftLanguageService {
     }
 
     let parentFileDisplayName =
-      switch try? ReferenceDocumentURL(from: expandMacroCommand.textDocument.uri) {
+      switch try? ReferenceDocumentURL(from: textDocument.uri) {
       case .macroExpansion(let data):
         data.bufferName
       case .generatedInterface(let data):
         data.displayName
       case nil:
-        expandMacroCommand.textDocument.uri.fileURL?.lastPathComponent ?? expandMacroCommand.textDocument.uri.pseudoPath
+        textDocument.uri.fileURL?.lastPathComponent ?? textDocument.uri.pseudoPath
       }
 
-    let expansions = try await macroExpansionManager.macroExpansions(
-      in: expandMacroCommand.textDocument.uri,
-      at: expandMacroCommand.positionRange
+    let expansions = try await macroExpansionManager.expansions(
+      in: textDocument.uri,
+      at: positionRange,
+      actionUID: actionUID
     )
 
     var completeExpansionFileContent = ""
     var completeExpansionDirectoryName = ""
 
-    var macroExpansionReferenceDocumentURLs: [ReferenceDocumentURL] = []
-    for macroEdit in expansions {
-      if let bufferName = macroEdit.bufferName {
-        let macroExpansionReferenceDocumentURLData =
+    var expansionReferenceDocumentURLs: [ReferenceDocumentURL] = []
+    for expansionEdit in expansions {
+      if let bufferName = expansionEdit.bufferName {
+        let expansionReferenceDocumentURL =
           ReferenceDocumentURL.macroExpansion(
             MacroExpansionReferenceDocumentURLData(
-              macroExpansionEditRange: macroEdit.range,
-              parent: expandMacroCommand.textDocument.uri,
-              parentSelectionRange: expandMacroCommand.positionRange,
+              macroExpansionEditRange: expansionEdit.range,
+              parent: textDocument.uri,
+              parentSelectionRange: positionRange,
               bufferName: bufferName
             )
           )
 
-        macroExpansionReferenceDocumentURLs.append(macroExpansionReferenceDocumentURLData)
+        expansionReferenceDocumentURLs.append(expansionReferenceDocumentURL)
 
         completeExpansionDirectoryName += "\(bufferName)-"
 
         let editContent =
           """
-          // \(parentFileDisplayName) @ \(macroEdit.range.lowerBound.line + 1):\(macroEdit.range.lowerBound.utf16index + 1) - \(macroEdit.range.upperBound.line + 1):\(macroEdit.range.upperBound.utf16index + 1)
-          \(macroEdit.newText)
+          // \(parentFileDisplayName) @ \(expansionEdit.range.lowerBound.line + 1):\(expansionEdit.range.lowerBound.utf16index + 1) - \(expansionEdit.range.upperBound.line + 1):\(expansionEdit.range.upperBound.utf16index + 1)
+          \(expansionEdit.newText)
 
 
           """
         completeExpansionFileContent += editContent
-      } else if !macroEdit.newText.isEmpty {
-        logger.fault("Unable to retrieve some parts of macro expansion")
+      } else if !expansionEdit.newText.isEmpty {
+        logger.fault("Unable to retrieve some parts of the expansion")
       }
     }
 
     if self.capabilityRegistry.clientHasExperimentalCapability(PeekDocumentsRequest.method),
       self.capabilityRegistry.clientHasWorkspaceGetReferenceDocumentSupport
     {
-      let expansionURIs = try macroExpansionReferenceDocumentURLs.map { try $0.uri }
+      let expansionURIs = try expansionReferenceDocumentURLs.map { try $0.uri }
 
-      let uri = expandMacroCommand.textDocument.uri.primaryFile ?? expandMacroCommand.textDocument.uri
+      let uri = textDocument.uri.primaryFile ?? textDocument.uri
 
       let position =
-        switch try? ReferenceDocumentURL(from: expandMacroCommand.textDocument.uri) {
+        switch try? ReferenceDocumentURL(from: textDocument.uri) {
         case .macroExpansion(let data):
           data.primaryFileSelectionRange.lowerBound
         case .generatedInterface, nil:
-          expandMacroCommand.positionRange.lowerBound
+          positionRange.lowerBound
         }
 
       Task {
@@ -218,7 +260,7 @@ extension SwiftLanguageService {
         }
 
         if let response, !response.success {
-          logger.error("client refused to peek macro")
+          logger.error("client refused to peek expansion")
         }
       }
     } else {
