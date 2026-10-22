@@ -559,7 +559,8 @@ var targets: [Target] = [
   .testTarget(
     name: "SwiftSyntaxCodeActionsTests",
     dependencies: [
-      "SwiftSyntaxCodeActions"
+      "SwiftSyntaxCodeActions",
+      "SKTestSupport",
     ]
       + swiftSyntaxDependencies([
         "SwiftParser",
