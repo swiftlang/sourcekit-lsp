@@ -355,7 +355,8 @@ class CodeCompletionSession {
       keys.hideByName: 0,
       keys.addInnerOperators: 0,
       keys.topNonLiteral: 0,
-      keys.addCallWithNoDefaultArgs: 1,
+      // Clients that opted in to extended completion items derive the no-default-args variants themselves.
+      keys.addCallWithNoDefaultArgs: clientSupportsExtendedCompletionItems ? 0 : 1,
       // Filtering options.
       keys.filterText: filterText,
       // `requestLimit` is read by sourcekitd's built-in completion, `maxResults` by the SourceKit plugin.

@@ -1726,24 +1726,39 @@ final class SwiftCompletionTests: SourceKitLSPTestCase {
   }
 
   func testCallDefaultedArguments() async throws {
-    let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI(for: .swift)
-    let positions = testClient.openDocument(
-      """
+    let source = """
       struct Foo {
         func makeBool(value: Bool = true) -> Bool { value }
       }
       func test(foo: Foo) {
         foo.make1️⃣
       }
-      """,
-      uri: uri
-    )
+      """
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(source, uri: uri)
 
     let completions = try await testClient.send(
       CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
     )
     XCTAssertEqual(completions.items.map(\.insertText), ["makeBool()", "makeBool(value: )"])
+
+    // Clients that opted in to extended completion items get only the full call and derive the variant without
+    // defaulted arguments from the annotated description.
+    try await SkipUnless.sourcekitdSupportsPlugin()
+    let extendedClient = try await TestSourceKitLSPClient(capabilities: extendedCompletionItemsCapabilities)
+    let extendedUri = DocumentURI(for: .swift)
+    let extendedPositions = extendedClient.openDocument(source, uri: extendedUri)
+    let extendedCompletions = try await extendedClient.send(
+      CompletionRequest(textDocument: TextDocumentIdentifier(extendedUri), position: extendedPositions["1️⃣"])
+    )
+    XCTAssertEqual(extendedCompletions.items.map(\.insertText), ["makeBool(value: )"])
+    let makeBoolData = try XCTUnwrap(SourceKitCompletionItemData(fromLSPAny: extendedCompletions.items.first?.data))
+    let annotatedDescription = try XCTUnwrap(makeBoolData.annotatedDescription)
+    XCTAssertTrue(
+      annotatedDescription.contains("callarg.default"),
+      "Expected a defaulted-argument marker, got: \(annotatedDescription)"
+    )
   }
 
   func testCompletionUsingCompileFlagsTxt() async throws {
