@@ -346,6 +346,8 @@ class CodeCompletionSession {
   private func optionsDictionary(
     filterText: String
   ) -> SKDRequestDictionary {
+    // Clients that opted in to extended completion items get a larger result limit.
+    let maxResults = clientSupportsExtendedCompletionItems ? 2000 : 200
     let dict = sourcekitd.dictionary([
       // Sorting and priority options.
       keys.hideUnderscores: 0,
@@ -356,7 +358,9 @@ class CodeCompletionSession {
       keys.addCallWithNoDefaultArgs: 1,
       // Filtering options.
       keys.filterText: filterText,
-      keys.requestLimit: 200,
+      // `requestLimit` is read by sourcekitd's built-in completion, `maxResults` by the SourceKit plugin.
+      keys.requestLimit: maxResults,
+      keys.maxResults: maxResults,
       keys.useNewAPI: 1,
       // When the client opts in to extended completion items, request annotated-description XML for the label and
       // type name so we can surface it (and reconstruct the plain label/detail from it).
