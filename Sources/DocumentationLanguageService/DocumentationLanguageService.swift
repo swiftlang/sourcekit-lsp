@@ -22,7 +22,7 @@ import SemanticIndex
 package import SourceKitLSP
 import SwiftExtensions
 import SwiftParser
-package import SwiftSyntax
+@_spi(SourceKitLSP) package import SwiftSyntax
 package import ToolchainRegistry
 
 package actor DocumentationLanguageService: LanguageService, Sendable {
@@ -240,162 +240,29 @@ package actor DocumentationLanguageService: LanguageService, Sendable {
     return symbol
   }
 
-  private struct DocCCommentLine {
-    let text: String
-    let start: Position
-  }
-
-  private enum DocTriviaGroup {
-    case lines([DocCCommentLine])
-    case block(text: String, start: Position)
-  }
-
-  private func docCommentGroups(
-    in trivia: Trivia,
-    tokenStart: AbsolutePosition,
-    snapshot: DocumentSnapshot
-  ) -> [DocTriviaGroup] {
-    var groups: [DocTriviaGroup] = []
-    var pendingLines: [DocCCommentLine] = []
-    var offset = tokenStart.utf8Offset
-    var newlinesSinceLastDoc = 0
-
-    func flushPendingLines() {
-      guard !pendingLines.isEmpty else { return }
-      groups.append(.lines(pendingLines))
-      pendingLines.removeAll()
-    }
-
-    for piece in trivia.pieces {
-      defer { offset += piece.sourceLength.utf8Length }
-      switch piece {
-      case .docLineComment(let text):
-        if newlinesSinceLastDoc > 1 { flushPendingLines() }
-        let position = snapshot.positionOf(utf8Offset: offset)
-        pendingLines.append(DocCCommentLine(text: text, start: position))
-        newlinesSinceLastDoc = 0
-      case .docBlockComment(let text):
-        flushPendingLines()
-        let position = snapshot.positionOf(utf8Offset: offset)
-        groups.append(.block(text: text, start: position))
-        newlinesSinceLastDoc = 0
-      case .newlines(let n), .carriageReturns(let n), .carriageReturnLineFeeds(let n):
-        newlinesSinceLastDoc += n
-      case .spaces, .tabs:
-        break
-      default:
-        flushPendingLines()
-        newlinesSinceLastDoc = 0
-      }
-    }
-    flushPendingLines()
-    return groups
-  }
-  
-  /// A line of documentation text after stripping its comment delimiters/prefix.
-  /// `strippedPrefixCount` is the number of UTF-16 code units removed from the
-  /// beginning of the original line to produce `text`.
-  private struct StrippedLine {
-    let text: String
-    let strippedPrefixCount: Int
-  }
-
-  /// Strips `///` and any leading whitespace from each line comment piece.
-  private func stripLineCommentDelimiters(
-    _ lines: [DocCCommentLine]
-  ) -> [StrippedLine] {
-    return lines.map { line in
-      var text = Substring(line.text)
-      var stripped = 0
-
-      if text.hasPrefix("///") {
-        text.removeFirst(3)
-        stripped += 3
-      }
-      let beforeIndent = text.utf16.count
-      let trimmed = text.drop { $0 == " " || $0 == "\t" }
-      stripped += beforeIndent - trimmed.utf16.count
-      text = trimmed
-      return StrippedLine(text: String(text), strippedPrefixCount: stripped)
-    }
-  }
-
-  /// Strips `/**`, `*/`, and per-line leading `*`/whitespace from a block comment.
-  private func stripBlockCommentDelimiters(_ text: String) -> [StrippedLine] {
-    let lines = text.components(separatedBy: "\n")
-    return lines.enumerated().map { index, rawLine in
-      var line = Substring(rawLine)
-      var stripped = 0
-
-      if index == 0, line.hasPrefix("/**") {
-        line.removeFirst(3)
-        stripped += 3
-      }
-      if index == lines.count - 1, line.hasSuffix("*/") {
-        line.removeLast(2)
-      }
-      let beforeStar = line.utf16.count
-      var afterStar = line.drop { $0 == " " || $0 == "\t" }
-      if afterStar.hasPrefix("*") {
-        afterStar.removeFirst()
-        if afterStar.hasPrefix(" ") { afterStar.removeFirst() }
-        stripped += beforeStar - afterStar.utf16.count
-        line = afterStar
-      }
-      let beforeIndent = line.utf16.count
-      let trimmed = line.drop { $0 == " " || $0 == "\t" }
-      stripped += beforeIndent - trimmed.utf16.count
-      line = trimmed
-      return StrippedLine(text: String(line), strippedPrefixCount: stripped)
-    }
-  }
-
-  private func resolveTarget(
-    for group: DocTriviaGroup,
-    cursorPosition: Position
-  ) -> (strippedLines: [StrippedLine], target: Position)? {
-    switch group {
-    case .lines(let lines):
-      guard let lineIndex = lines.firstIndex(where: { $0.start.line == cursorPosition.line }) else {
-        return nil
-      }
-      let strippedLines = stripLineCommentDelimiters(lines)
-      let relativeUTF16 = cursorPosition.utf16index - lines[lineIndex].start.utf16index
-      let localColumn = max(0, relativeUTF16 - strippedLines[lineIndex].strippedPrefixCount)
-      return (strippedLines, Position(line: lineIndex, utf16index: localColumn))
-
-    case .block(let text, let start):
-      let strippedLines = stripBlockCommentDelimiters(text)
-      let lineIndex = cursorPosition.line - start.line
-      guard strippedLines.indices.contains(lineIndex) else { return nil }
-      let columnBase = lineIndex == 0 ? start.utf16index : 0
-      let relativeUTF16 = cursorPosition.utf16index - columnBase
-      let localColumn = max(0, relativeUTF16 - strippedLines[lineIndex].strippedPrefixCount)
-      return (strippedLines, Position(line: lineIndex, utf16index: localColumn))
-    }
-  }
-
   private func extractSymbolFromDocComment(snapshot: DocumentSnapshot, at position: Position) -> String? {
     let sourceFile = SwiftParser.Parser.parse(source: snapshot.text)
-    let absolutePosition = snapshot.absolutePosition(of: position)
-    guard let token = sourceFile.token(at: absolutePosition) else { return nil }
+    let cursor = snapshot.absolutePosition(of: position)
+    guard let token = sourceFile.token(at: cursor) else { return nil }
 
-    let leadingGroups = docCommentGroups(in: token.leadingTrivia, tokenStart: token.position, snapshot: snapshot)
-    let trailingGroups = docCommentGroups(
-      in: token.trailingTrivia,
-      tokenStart: token.endPositionBeforeTrailingTrivia,
-      snapshot: snapshot
-    )
+    let candidates = [
+      token.leadingTrivia.docCommentLines(startingAt: token.position),
+      token.trailingTrivia.docCommentLines(startingAt: token.endPositionBeforeTrailingTrivia),
+    ]
 
-    for group in leadingGroups + trailingGroups {
-      guard let (strippedLines, target) = resolveTarget(for: group, cursorPosition: position) else { continue }
+    for case let lines? in candidates {
+      guard
+        let lineIndex = lines.firstIndex(where: {
+          $0.position.utf8Offset <= cursor.utf8Offset
+            && cursor.utf8Offset <= $0.position.utf8Offset + $0.text.utf8.count
+        })
+      else { continue }
 
-      let combinedText = strippedLines.map(\.text).joined(separator: "\n")
-      let lineTable = LineTable(combinedText)
-      let utf8Column = lineTable.utf8ColumnAt(line: target.line, utf16Column: target.utf16index)
-      let markdownTarget = Markdown.SourceLocation(line: target.line + 1, column: utf8Column + 1, source: nil)
+      let utf8Column = cursor.utf8Offset - lines[lineIndex].position.utf8Offset
+      let markdownTarget = Markdown.SourceLocation(line: lineIndex + 1, column: utf8Column + 1, source: nil)
 
-      let document = Markdown.Document(parsing: combinedText, options: [.parseSymbolLinks])
+      let text = lines.map(\.text).joined(separator: "\n")
+      let document = Markdown.Document(parsing: text, options: [.parseSymbolLinks])
       var locator = SymbolLocator(target: markdownTarget)
       locator.visit(document)
       return locator.found
