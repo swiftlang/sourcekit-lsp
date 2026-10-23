@@ -16,6 +16,7 @@ import Foundation
 import SourceKitD
 import SourceKitLSP
 import SwiftBasicFormat
+import ToolchainRegistry
 
 extension SwiftLanguageService {
   package func completion(_ req: CompletionRequest) async throws -> CompletionList {
@@ -27,6 +28,17 @@ extension SwiftLanguageService {
     let filterText = String(snapshot.text[snapshot.index(of: completionPos)..<snapshot.index(of: req.position)])
 
     let compileCommand = await compileCommand(for: snapshot.uri, fallbackAfterTimeout: false)
+
+    if let supportedFeatures = await toolchain.supportedSwiftFeatures,
+      let completionList = PackageManifestFeatureSupport.completion(
+        in: snapshot,
+        syntaxTree: tree,
+        position: req.position,
+        supportedFeatures: supportedFeatures
+      )
+    {
+      return completionList
+    }
 
     let inferredIndentationWidth = BasicFormat.inferIndentation(of: await syntaxTreeManager.syntaxTree(for: snapshot))
 
