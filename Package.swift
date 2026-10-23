@@ -207,7 +207,7 @@ var targets: [Target] = [
       .product(name: "SKLogging", package: "swift-tools-protocols"),
       .product(name: "SwiftDocC", package: "swift-docc"),
       .product(name: "SymbolKit", package: "swift-docc-symbolkit"),
-    ],
+    ] + swiftSyntaxDependencies(["SwiftSyntax"]),
     exclude: [],
   ),
 

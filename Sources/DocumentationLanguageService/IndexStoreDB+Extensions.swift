@@ -23,8 +23,11 @@ extension CheckedIndex {
   ///
   /// If the `DocCSymbolLink` has an ambiguous definition, the most important role of this function is to deterministically return
   /// the same result every time.
+  ///
+  /// If `matchingSuffix` is `true`, the symbol link may omit leading path components, eg. the module name.
   func primaryDefinitionOrDeclarationOccurrence(
     ofDocCSymbolLink symbolLink: DocCSymbolLink,
+    matchingSuffix: Bool = false,
     fetchSymbolGraph: @Sendable (SymbolLocation) async throws -> String?
   ) async throws -> SymbolOccurrence? {
     guard let topLevelSymbolName = symbolLink.components.last?.name else {
@@ -40,7 +43,7 @@ extension CheckedIndex {
     var result: [SymbolOccurrence] = []
     for occurrence in topLevelSymbolOccurrences {
       let info = try await doccSymbolInformation(ofUSR: occurrence.symbol.usr, fetchSymbolGraph: fetchSymbolGraph)
-      if info.matches(symbolLink) {
+      if matchingSuffix ? info.matches(suffix: symbolLink) : info.matches(symbolLink) {
         result.append(occurrence)
       }
     }
