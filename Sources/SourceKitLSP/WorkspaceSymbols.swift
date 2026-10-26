@@ -386,12 +386,7 @@ extension SourceKitLSPServer {
     }
 
     if let referenceDocumentMainFile {
-      let (interfaceModuleName, groupName) = Self.splitModuleNameAndGroup(symbolOccurrence.location.moduleName)
-      let urlData = GeneratedInterfaceDocumentURLData(
-        moduleName: interfaceModuleName,
-        groupName: groupName,
-        primaryFile: referenceDocumentMainFile
-      )
+      let interfaceURI = try Self.generatedInterfaceURI(of: symbolOccurrence, mainFile: referenceDocumentMainFile)
       let usr = symbolOccurrence.symbol.usr
       // Include the interface path and module name in `data` so clients can render the candidate without
       // parsing the opaque location URI.
@@ -405,7 +400,7 @@ extension SourceKitLSPServer {
           name: name,
           kind: symbolOccurrence.symbol.kind.asLspSymbolKind(),
           containerName: displayContainerName,
-          location: .uri(.init(uri: try urlData.uri)),
+          location: .uri(.init(uri: interfaceURI)),
           data: data.encodeToLSPAny()
         )
       )
@@ -459,6 +454,20 @@ extension SourceKitLSPServer {
     }
   }
 
+  /// The `sourcekit-lsp://generated-swift-interface` URI of the generated interface that declares
+  /// `symbolOccurrence`, opened with the build settings of `mainFile`.
+  nonisolated static func generatedInterfaceURI(
+    of symbolOccurrence: SymbolOccurrence,
+    mainFile: DocumentURI
+  ) throws -> DocumentURI {
+    let (interfaceModuleName, groupName) = splitModuleNameAndGroup(symbolOccurrence.location.moduleName)
+    return try GeneratedInterfaceDocumentURLData(
+      moduleName: interfaceModuleName,
+      groupName: groupName,
+      primaryFile: mainFile
+    ).uri
+  }
+
   /// Split an index module name into its module and optional group components.
   private nonisolated static func splitModuleNameAndGroup(
     _ fullModuleName: String
@@ -482,7 +491,7 @@ extension SourceKitLSPServer {
   /// settings are used to open the generated interface. The lookup runs once per interface so a
   /// `workspace/symbol` response with many members of the same module doesn't repeat it. Interfaces with no
   /// main file are omitted, so callers skip those symbols.
-  private func generatedInterfaceMainFiles(
+  func generatedInterfaceMainFiles(
     for symbols: [SymbolOccurrence],
     in workspace: Workspace
   ) async throws -> [DocumentURI: DocumentURI] {
