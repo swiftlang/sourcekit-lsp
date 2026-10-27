@@ -361,11 +361,7 @@ extension ToolchainRegistry {
 extension ToolchainRegistry {
   /// The path of the current Xcode.app/Contents/Developer.
   package static var _currentXcodeDeveloperPath: URL? {
-    #if os(macOS)
     guard let str = try? Process.checkNonZeroExit(args: "/usr/bin/xcode-select", "-p") else { return nil }
     return URL(fileURLWithPath: str.trimmingCharacters(in: .whitespacesAndNewlines))
-    #else
-    return nil
-    #endif
   }
 }
