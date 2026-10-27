@@ -42,7 +42,16 @@ extension CheckedIndex {
     // Determine which of the symbol occurrences actually matches the symbol link
     var result: [SymbolOccurrence] = []
     for occurrence in topLevelSymbolOccurrences {
-      let info = try await doccSymbolInformation(ofUSR: occurrence.symbol.usr, fetchSymbolGraph: fetchSymbolGraph)
+      let info: DocCSymbolInformation
+      do {
+        info = try await doccSymbolInformation(ofUSR: occurrence.symbol.usr, fetchSymbolGraph: fetchSymbolGraph)
+      } catch {
+        try Task.checkCancellation()
+        logger.debug(
+          "Skipping \(occurrence.symbol.usr) for DocC symbol link '\(symbolLink.linkString)': \(error.forLogging)"
+        )
+        continue
+      }
       if matchingSuffix ? info.matches(suffix: symbolLink) : info.matches(symbolLink) {
         result.append(occurrence)
       }

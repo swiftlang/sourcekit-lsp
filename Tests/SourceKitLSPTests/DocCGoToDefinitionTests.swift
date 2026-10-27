@@ -373,6 +373,46 @@ final class DocCGoToDefinitionTests: SourceKitLSPTestCase {
     )
   }
 
+  func testJumpToDefinitionIgnoresSymbolWithoutSymbolGraph() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        // C symbols do not support retrieving their symbol graph node
+        "CLib/include/CLib.h": "",
+        "CLib/Point.c": """
+        struct Point {
+          int x;
+        };
+        """,
+        "MyLibrary/Point.swift": """
+        public struct 1️⃣Point {}
+
+        /// See ``2️⃣Point``
+        public func usePoint() {}
+        """,
+      ],
+      manifest: """
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+            .target(name: "CLib"),
+            .target(name: "MyLibrary"),
+          ]
+        )
+        """,
+      enableBackgroundIndexing: true
+    )
+
+    let (uri, positions) = try project.openDocument("Point.swift")
+
+    let response = try await project.testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
+    )
+    XCTAssertEqual(
+      response,
+      .locations([Location(uri: uri, range: Range(positions["1️⃣"]))])
+    )
+  }
+
   // MARK: Overload disambiguation
 
   /// A symbol link that includes parameter/return disambiguation should resolve to the
