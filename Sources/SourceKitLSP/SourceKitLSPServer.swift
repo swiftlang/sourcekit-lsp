@@ -670,6 +670,8 @@ extension SourceKitLSPServer: QueueBasedMessageHandler {
       await self.handleRequest(for: request, requestHandler: self.typeDefinition)
     case let request as RequestAndReply<DoccDocumentationRequest>:
       await self.handleRequest(for: request, requestHandler: self.doccDocumentation)
+    case let request as RequestAndReply<DocCSymbolLinkDefinitionRequest>:
+      await self.handleRequest(for: request, requestHandler: self.doccSymbolLinkDefinition)
     case let request as RequestAndReply<DocumentColorRequest>:
       await self.handleRequest(for: request, requestHandler: self.documentColor)
     case let request as RequestAndReply<DocumentDiagnosticsRequest>:
@@ -1566,6 +1568,14 @@ extension SourceKitLSPServer {
     languageService: any LanguageService
   ) async throws -> DoccDocumentationResponse {
     return try await languageService.doccDocumentation(req)
+  }
+
+  func doccSymbolLinkDefinition(
+    _ req: DocCSymbolLinkDefinitionRequest,
+    workspace: Workspace,
+    languageService: any LanguageService
+  ) async throws -> LocationsOrLocationLinksResponse? {
+    return try await languageService.doccSymbolLinkDefinition(req)
   }
 
   func hover(
