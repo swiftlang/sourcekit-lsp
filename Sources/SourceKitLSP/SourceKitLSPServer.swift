@@ -2383,13 +2383,28 @@ extension SourceKitLSPServer {
   ///
   /// If `definition` is an extension, the item identifies the extended type but is located at the extension, which
   /// is where the extension's conformances are declared.
+  ///
+  /// If `generatedInterfaceMainFile` is set, `definition` is declared in a binary module and the
+  /// item is located in the module's generated Swift interface, opened with the build settings of
+  /// that file. The item's range is the start of the interface: the symbol's position is only known
+  /// once the interface is generated, which is too expensive to do for every item.
   private func indexToLSPTypeHierarchyItem(
     definition: SymbolOccurrence,
     moduleName: String?,
+    generatedInterfaceMainFile: DocumentURI?,
     index: CheckedIndex
   ) throws -> TypeHierarchyItem? {
-    guard let location = definition.location.lspLocation else {
+    guard let indexLocation = definition.location.lspLocation else {
       return nil
+    }
+    let location: Location
+    if let generatedInterfaceMainFile {
+      location = Location(
+        uri: try Self.generatedInterfaceURI(of: definition, mainFile: generatedInterfaceMainFile),
+        range: Range(Position(line: 0, utf16index: 0))
+      )
+    } else {
+      location = indexLocation
     }
 
     let type: Symbol
@@ -2436,6 +2451,21 @@ extension SourceKitLSPServer {
     )
   }
 
+  /// For the definitions declared in a binary module, the main files with whose build settings their
+  /// generated interfaces are opened, keyed by interface URI. Empty if the client can't open generated
+  /// interfaces as reference documents, in which case items keep the interface file's location.
+  private func generatedInterfaceMainFiles(
+    forTypeHierarchyDefinitions definitions: [SymbolOccurrence],
+    in workspace: Workspace
+  ) async -> [DocumentURI: DocumentURI] {
+    guard capabilityRegistry?.clientHasWorkspaceGetReferenceDocumentSupport ?? false else {
+      return [:]
+    }
+    return await orLog("Resolving generated interface main files") {
+      try await generatedInterfaceMainFiles(for: definitions, in: workspace)
+    } ?? [:]
+  }
+
   func prepareTypeHierarchy(
     _ req: TypeHierarchyPrepareRequest,
     workspace: Workspace,
@@ -2468,17 +2498,18 @@ extension SourceKitLSPServer {
     func indexToLSPTypeHierarchyItem2(
       definition: SymbolOccurrence,
       moduleName: String?,
+      generatedInterfaceMainFile: DocumentURI?,
       index: CheckedIndex
     ) throws -> TypeHierarchyItem? {
       return try self.indexToLSPTypeHierarchyItem(
         definition: definition,
         moduleName: moduleName,
+        generatedInterfaceMainFile: generatedInterfaceMainFile,
         index: index
       )
     }
 
-    var typeHierarchyItems: [TypeHierarchyItem] = []
-    let copiedFileMap = await workspace.buildServerManager.cachedCopiedFileMap
+    var definitions: [SymbolOccurrence] = []
     for usr in usrs {
       guard let info = try index.primaryDefinitionOrDeclarationOccurrence(ofUSR: usr) else {
         continue
@@ -2498,9 +2529,21 @@ extension SourceKitLSPServer {
       guard info.location.lspLocation != nil else {
         continue
       }
+      definitions.append(info)
+    }
 
-      let moduleName = info.location.moduleName
-      guard let item = try indexToLSPTypeHierarchyItem2(definition: info, moduleName: moduleName, index: index) else {
+    let mainFiles = await generatedInterfaceMainFiles(forTypeHierarchyDefinitions: definitions, in: workspace)
+    var typeHierarchyItems: [TypeHierarchyItem] = []
+    let copiedFileMap = await workspace.buildServerManager.cachedCopiedFileMap
+    for info in definitions {
+      guard
+        let item = try indexToLSPTypeHierarchyItem2(
+          definition: info,
+          moduleName: info.location.moduleName,
+          generatedInterfaceMainFile: info.location.uri.flatMap { mainFiles[$0] },
+          index: index
+        )
+      else {
         continue
       }
       typeHierarchyItems.append(item.adjusted(for: copiedFileMap))
@@ -2548,27 +2591,35 @@ extension SourceKitLSPServer {
     func indexToLSPTypeHierarchyItem2(
       definition: SymbolOccurrence,
       moduleName: String?,
+      generatedInterfaceMainFile: DocumentURI?,
       index: CheckedIndex
     ) throws -> TypeHierarchyItem? {
       return try self.indexToLSPTypeHierarchyItem(
         definition: definition,
         moduleName: moduleName,
+        generatedInterfaceMainFile: generatedInterfaceMainFile,
         index: index
       )
     }
 
-    // Convert occurrences to type hierarchy items
+    // Resolve the supertypes' definitions to find their locations
     let occurs = baseOccurs + retroactiveConformanceOccurs
+    let definitions = try occurs.compactMap { occurrence in
+      try index.primaryDefinitionOrDeclarationOccurrence(ofUSR: occurrence.symbol.usr)
+    }
+
+    // Convert the definitions to type hierarchy items
+    let mainFiles = await generatedInterfaceMainFiles(forTypeHierarchyDefinitions: definitions, in: workspace)
     var types: [TypeHierarchyItem] = []
     let copiedFileMap = await workspace.buildServerManager.cachedCopiedFileMap
-    for occurrence in occurs {
-      // Resolve the supertype's definition to find its location
-      guard let definition = try index.primaryDefinitionOrDeclarationOccurrence(ofUSR: occurrence.symbol.usr) else {
-        continue
-      }
-
-      let moduleName = definition.location.moduleName
-      guard let item = try indexToLSPTypeHierarchyItem2(definition: definition, moduleName: moduleName, index: index)
+    for definition in definitions {
+      guard
+        let item = try indexToLSPTypeHierarchyItem2(
+          definition: definition,
+          moduleName: definition.location.moduleName,
+          generatedInterfaceMainFile: definition.location.uri.flatMap { mainFiles[$0] },
+          index: index
+        )
       else {
         continue
       }
@@ -2593,36 +2644,43 @@ extension SourceKitLSPServer {
     func indexToLSPTypeHierarchyItem2(
       definition: SymbolOccurrence,
       moduleName: String?,
+      generatedInterfaceMainFile: DocumentURI?,
       index: CheckedIndex
     ) throws -> TypeHierarchyItem? {
       return try self.indexToLSPTypeHierarchyItem(
         definition: definition,
         moduleName: moduleName,
+        generatedInterfaceMainFile: generatedInterfaceMainFile,
         index: index
       )
     }
 
-    // Convert occurrences to type hierarchy items. An item for an extension identifies the extended type, so items
-    // are keyed by the USR in their data.
-    var types: [String: (item: TypeHierarchyItem, isExtension: Bool)] = [:]
-    let copiedFileMap = await workspace.buildServerManager.cachedCopiedFileMap
-    for occurrence in occurs {
+    // Resolve the definitions of the subtypes and extensions to find their locations
+    let definitions = try occurs.compactMap { occurrence -> SymbolOccurrence? in
       if occurrence.relations.count > 1 {
         // An occurrence with a `baseOf` relation is an occurrence inside an inheritance clause. Such an occurrence can
         // only be the source of a single type, namely the one that the inheritance clause belongs to.
         logger.fault("Expected at most one baseOf relation but got \(occurrence.relations.count)")
       }
       guard let related = occurrence.relations.sorted().first else {
-        continue
+        return nil
       }
+      return try index.primaryDefinitionOrDeclarationOccurrence(ofUSR: related.symbol.usr)
+    }
 
-      // Resolve the definition of the subtype or extension to find its location
-      guard let definition = try index.primaryDefinitionOrDeclarationOccurrence(ofUSR: related.symbol.usr) else {
-        continue
-      }
-
-      let moduleName = definition.location.moduleName
-      guard let item = try indexToLSPTypeHierarchyItem2(definition: definition, moduleName: moduleName, index: index),
+    // Convert the definitions to type hierarchy items. An item for an extension identifies the extended type, so items
+    // are keyed by the USR in their data.
+    let mainFiles = await generatedInterfaceMainFiles(forTypeHierarchyDefinitions: definitions, in: workspace)
+    var types: [String: (item: TypeHierarchyItem, isExtension: Bool)] = [:]
+    let copiedFileMap = await workspace.buildServerManager.cachedCopiedFileMap
+    for definition in definitions {
+      guard
+        let item = try indexToLSPTypeHierarchyItem2(
+          definition: definition,
+          moduleName: definition.location.moduleName,
+          generatedInterfaceMainFile: definition.location.uri.flatMap { mainFiles[$0] },
+          index: index
+        ),
         let usr = item.sourceKitData?.usr
       else {
         continue

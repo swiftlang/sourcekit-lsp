@@ -13,6 +13,7 @@
 @_spi(SourceKitLSP) import LanguageServerProtocol
 import SKLogging
 import SKTestSupport
+import SKUtilities
 import SwiftExtensions
 import TSCBasic
 @_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
@@ -334,6 +335,76 @@ final class TypeHierarchyTests: SourceKitLSPTestCase {
       TypeHierarchyPrepareRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
     )
     XCTAssertNil(response)
+  }
+
+  func testSystemSupertypeIsLocatedInGeneratedInterface() async throws {
+    let project = try await IndexedSingleSwiftFileTestProject(
+      """
+      struct 1️⃣MyStruct: Equatable {}
+      """,
+      capabilities: ClientCapabilities(
+        experimental: [GetReferenceDocumentRequest.method: .dictionary(["supported": .bool(true)])]
+      ),
+      indexSystemModules: true
+    )
+    let item = try await project.prepareTypeHierarchy(at: "1️⃣")
+    let supertypes = try await project.testClient.send(TypeHierarchySupertypesRequest(item: item))
+    let equatable = try XCTUnwrap(supertypes?.first { $0.name == "Equatable" })
+
+    // The item points at the start of the generated interface, since the position of the symbol in it is
+    // only known once the interface is generated.
+    let components = try XCTUnwrap(URLComponents(string: equatable.uri.arbitrarySchemeURL.absoluteString))
+    XCTAssertEqual(components.scheme, "sourcekit-lsp")
+    XCTAssertEqual(components.host, "generated-swift-interface")
+    XCTAssertEqual(equatable.range, Range(Position(line: 0, utf16index: 0)))
+
+    // `workspaceSymbol/resolve` finds the position of the symbol from the item's URI and data.
+    let resolved = try await project.testClient.send(
+      WorkspaceSymbolResolveRequest(
+        workspaceSymbol: WorkspaceSymbol(
+          name: equatable.name,
+          kind: equatable.kind,
+          location: .uri(.init(uri: equatable.uri)),
+          data: equatable.data
+        )
+      )
+    )
+    guard case .location(let location) = resolved.location else {
+      XCTFail("Expected .location after resolve, got \(resolved.location)")
+      return
+    }
+    let referenceDocument = try await project.testClient.send(GetReferenceDocumentRequest(uri: location.uri))
+    let resolvedLine = try XCTUnwrap(LineTable(referenceDocument.content).line(at: location.range.lowerBound.line))
+    XCTAssert(
+      resolvedLine.contains("protocol Equatable"),
+      "Line at the resolved position should declare `Equatable`, got: '\(resolvedLine)'"
+    )
+
+    // The item's data selects the workspace through the generated interface URI.
+    let subtypes = try await project.testClient.send(TypeHierarchySubtypesRequest(item: equatable))
+    XCTAssert(
+      subtypes?.contains { $0.name == "MyStruct" } ?? false,
+      "Expected `MyStruct` among the subtypes of `Equatable`, got \(String(describing: subtypes?.map(\.name)))"
+    )
+  }
+
+  func testSystemSupertypeWithoutGeneratedInterfaceSupport() async throws {
+    let project = try await IndexedSingleSwiftFileTestProject(
+      """
+      struct 1️⃣MyStruct: Equatable {}
+      """,
+      indexSystemModules: true
+    )
+    let item = try await project.prepareTypeHierarchy(at: "1️⃣")
+    let supertypes = try await project.testClient.send(TypeHierarchySupertypesRequest(item: item))
+    let equatable = try XCTUnwrap(supertypes?.first { $0.name == "Equatable" })
+
+    // Without generated-interface support, the item points at the module's interface file.
+    let path = try XCTUnwrap(equatable.uri.fileURL?.path)
+    XCTAssert(
+      path.hasSuffix(".swiftinterface") || path.hasSuffix(".swiftmodule"),
+      "Expected the module's interface file, got \(path)"
+    )
   }
 
   func testSupertypesOfClientConstructedItem() async throws {

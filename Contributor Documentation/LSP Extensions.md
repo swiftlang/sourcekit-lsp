@@ -47,6 +47,8 @@ codeActions: CodeAction[]?
 
 For items returned by SourceKit-LSP, `data` contains a `SourceKitSymbolIdentifier`. `callHierarchy/incomingCalls`, `callHierarchy/outgoingCalls`, `typeHierarchy/supertypes` and `typeHierarchy/subtypes` only use `data` to identify the symbol, so a client that already knows a symbol's USR can construct an item without `textDocument/prepareCallHierarchy` or `textDocument/prepareTypeHierarchy`. The remaining fields of such an item are required by LSP but are not used by SourceKit-LSP.
 
+A type hierarchy item declared in a binary module is located in its generated interface if the client supports `workspace/getReferenceDocument`. Its range is the start of the interface; the position of the symbol can be resolved by sending `workspaceSymbol/resolve` with a `WorkspaceSymbol` whose `location` is the item's `uri` and whose `data` is the item's `data`.
+
 ```ts
 /**
  * Identifies a symbol in the index of a SourceKit-LSP workspace.
