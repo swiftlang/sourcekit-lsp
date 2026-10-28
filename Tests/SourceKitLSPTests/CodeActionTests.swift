@@ -4559,6 +4559,157 @@ final class CodeActionTests: SourceKitLSPTestCase {
       atMarker: "1️⃣"
     )
   }
+
+  func testExpandTernaryExprInVariableInitializer() async throws {
+    try await assertCodeActions(
+      """
+      func test(a: Int, b: Int) {
+        1️⃣let x = 2️⃣a < 5 ? a : b3️⃣
+        print(x)
+        print(x)
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Expand Ternary Expression",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["2️⃣"]..<positions["3️⃣"],
+                  newText: """
+                    if a < 5 {
+                        a
+                      } else {
+                        b
+                      }
+                    """
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testExpandTernaryExprSupersedesSourcekitdRefactoring() async throws {
+    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
+      """
+      func test(a: Int, b: Int) {
+        1️⃣let x = a < 5 ? a : b2️⃣
+      }
+      """,
+      uri: uri
+    )
+    let result = try await testClient.send(
+      CodeActionRequest(
+        range: positions["1️⃣"]..<positions["2️⃣"],
+        context: CodeActionContext(),
+        textDocument: TextDocumentIdentifier(uri)
+      )
+    )
+    let titles = (result?.codeActions ?? []).map(\.title)
+    XCTAssertEqual(titles.filter { $0 == "Expand Ternary Expression" }.count, 1, "\(titles)")
+  }
+
+  func testExpandTernaryExprInReturnStatement() async throws {
+    try await assertCodeActions(
+      """
+      func test(a: Bool) -> Int {
+        return 1️⃣a ? 1 : 22️⃣
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Expand Ternary Expression",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: """
+                    if a {
+                          1
+                      } else {
+                          2
+                      }
+                    """
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testExpandTernaryExprInMemberInitializer() async throws {
+    try await assertCodeActions(
+      """
+      struct S {
+        var x = 1️⃣Bool.random() ? 1 : 22️⃣
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Expand Ternary Expression",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: """
+                    if Bool.random() {
+                          1
+                      } else {
+                          2
+                      }
+                    """
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testExpandTernaryExprNotOfferedInFunctionArgument() async throws {
+    try await assertNoCodeAction(
+      titled: "Expand Ternary Expression",
+      in: """
+        func test(a: Bool) {
+          print(1️⃣a ? 1 : 2)
+        }
+        """,
+      atMarker: "1️⃣"
+    )
+  }
+
+  func testExpandTernaryExprNotOfferedInDefaultArgument() async throws {
+    try await assertNoCodeAction(
+      titled: "Expand Ternary Expression",
+      in: """
+        func test(a: Int = 1️⃣Bool.random() ? 1 : 2) {}
+        """,
+      atMarker: "1️⃣"
+    )
+  }
 }
 
 private extension CodeActionRequestResponse {
