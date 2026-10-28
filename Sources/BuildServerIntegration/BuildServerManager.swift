@@ -289,17 +289,14 @@ private extension BuildServerSpec {
         selectedBuildSystem = .swiftbuild
       case (.native, _):
         selectedBuildSystem = .native
-      // If there is no explicit preference and we're background indexing, use the toolchain version to pick a default.
+      // If there is no explicit preference and we're background indexing, default to native
+      // for now.
       case (nil, true):
-        selectedBuildSystem = await SwiftPMBuildSystem.defaultBuildSystem(toolchainRegistry: toolchainRegistry)
+        selectedBuildSystem = .native
       // If there is no explicit preference and we're not background indexing, we should
       // attempt to match the user's manually intiated builds to maximize compatibility.
       case (nil, false):
-        if let inferredBuildSystem {
-          selectedBuildSystem = inferredBuildSystem
-        } else {
-          selectedBuildSystem = await SwiftPMBuildSystem.defaultBuildSystem(toolchainRegistry: toolchainRegistry)
-        }
+        selectedBuildSystem = inferredBuildSystem ?? .native
       }
       // Choose the appropiate adapter based on the build system we just selected.
       switch selectedBuildSystem {
@@ -2134,15 +2131,5 @@ private extension OnBuildLogMessageNotification {
     case nil:
       return nil
     }
-  }
-}
-
-extension SwiftPMBuildSystem {
-  package static func defaultBuildSystem(toolchainRegistry: ToolchainRegistry) async -> SwiftPMBuildSystem {
-    let toolchain = await toolchainRegistry.preferredToolchain(containing: [\.swift])
-    guard let swiftVersion = try? await toolchain?.swiftVersion, swiftVersion >= SwiftVersion(6, 5) else {
-      return .native
-    }
-    return .swiftbuild
   }
 }
