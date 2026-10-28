@@ -636,16 +636,16 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     let result: ProcessResult
     do {
       let workingDirectory = try invocation.workingDirectoryPath
-      result = try await withTimeout(timeout) {
-        try await Process.runUsingResponseFileIfTooManyArguments(
-          arguments: processArguments,
-          workingDirectory: workingDirectory,
-          outputRedirection: .stream(
-            stdout: { @Sendable bytes in stdoutHandler.handleDataFromPipe(Data(bytes)) },
-            stderr: { @Sendable bytes in stderrHandler.handleDataFromPipe(Data(bytes)) }
-          )
-        )
-      }
+      result = try await Process.runUsingResponseFileIfTooManyArguments(
+        arguments: processArguments,
+        workingDirectory: workingDirectory,
+        outputRedirection: .stream(
+          stdout: { @Sendable bytes in stdoutHandler.handleDataFromPipe(Data(bytes)) },
+          stderr: { @Sendable bytes in stderrHandler.handleDataFromPipe(Data(bytes)) }
+        ),
+        onCancellation: .compilerInvocation,
+        timeout: timeout
+      )
     } catch {
       logMessageToIndexLog(
         "Finished with error in \(start.duration(to: .now)): \(error)",
@@ -759,13 +759,17 @@ fileprivate extension Process {
   static func runUsingResponseFileIfTooManyArguments(
     arguments: [String],
     workingDirectory: AbsolutePath?,
-    outputRedirection: OutputRedirection = .collect(redirectStderr: false)
+    outputRedirection: OutputRedirection = .collect(redirectStderr: false),
+    onCancellation: ProcessCancellationBehavior,
+    timeout: Duration
   ) async throws -> ProcessResult {
     do {
       return try await Process.run(
         arguments: arguments,
         workingDirectory: workingDirectory,
-        outputRedirection: outputRedirection
+        outputRedirection: outputRedirection,
+        onCancellation: onCancellation,
+        timeout: timeout
       )
     } catch {
       let argumentListTooLong: Bool
@@ -810,7 +814,9 @@ fileprivate extension Process {
       return try await Process.run(
         arguments: arguments.prefix(1) + ["@\(responseFile.filePath)"],
         workingDirectory: workingDirectory,
-        outputRedirection: outputRedirection
+        outputRedirection: outputRedirection,
+        onCancellation: onCancellation,
+        timeout: timeout
       )
     }
   }

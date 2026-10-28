@@ -27,13 +27,73 @@ import WinSDK
 import Android
 #endif
 
+/// What happens to a running process when the task that waits for it is cancelled.
+package enum ProcessCancellationBehavior: Sendable {
+  /// Send a `SIGINT` to the process and terminate it if it doesn't exit within 2 seconds.
+  case terminate
+
+  /// Let the process run until it exits on its own.
+  ///
+  /// The task that waits for the process keeps waiting, so it only finishes once the process has
+  /// exited.
+  case waitForExit
+
+  /// The behavior for compiler invocations.
+  ///
+  /// On Windows, a compiler holds a lock file in the module cache while it builds an implicit
+  /// module and only removes it when it exits normally. Other compilers can't tell that the owner
+  /// of a lock file has been terminated, so they wait for the full lock timeout before building the
+  /// module themselves. Terminating compilers when a task is cancelled would thus regularly stall
+  /// unrelated compiler invocations that share the module cache.
+  ///
+  /// This also applies when the process is the `swiftc` driver: for a single job, the driver runs
+  /// the frontend in a job object that terminates the frontend together with the driver.
+  package static var compilerInvocation: ProcessCancellationBehavior {
+    #if os(Windows)
+    return .waitForExit
+    #else
+    return .terminate
+    #endif
+  }
+}
+
 extension Process {
   /// Wait for the process to exit. If the task gets cancelled, during this time, send a `SIGINT` to the process.
   /// Should the process not terminate on SIGINT after 2 seconds, it is terminated using `SIGKILL`.
   @discardableResult
   package func waitUntilExitStoppingProcessOnTaskCancellation() async throws -> ProcessResult {
+    return try await waitUntilExit(onCancellation: .terminate, timeout: nil)
+  }
+
+  /// Wait for the process to exit.
+  ///
+  /// - Parameters:
+  ///   - onCancellation: What to do with the process if the task gets cancelled while waiting.
+  ///   - timeout: If the process hasn't exited after this duration, it is terminated regardless of
+  ///     `onCancellation` and this function throws a `TimeoutError`.
+  @discardableResult
+  package func waitUntilExit(
+    onCancellation: ProcessCancellationBehavior,
+    timeout: Duration?
+  ) async throws -> ProcessResult {
     let hasExited = ThreadSafeBox<Bool>(initialValue: false)
-    return try await withTaskCancellationHandler {
+    let timedOut = ThreadSafeBox<Bool>(initialValue: false)
+    let timeoutTask: Task<Void, Never>? = timeout.map { timeout in
+      Task {
+        do {
+          try await Task.sleep(for: timeout)
+        } catch {
+          return
+        }
+        timedOut.withLock { $0 = true }
+        logger.debug("Terminating process because it did not exit within \(timeout): \(self.arguments)")
+        self.terminate(unlessExited: hasExited)
+      }
+    }
+    defer {
+      timeoutTask?.cancel()
+    }
+    let result = try await withTaskCancellationHandler {
       defer {
         hasExited.withLock { $0 = true }
       }
@@ -41,22 +101,38 @@ extension Process {
       logger.debug("Process exited: \(self.arguments)")
       return result
     } onCancel: {
-      logger.debug("Terminating process using SIGINT because task was cancelled: \(self.arguments)")
-      signal(SIGINT)
-      Task {
-        // Give the process 2 seconds to react to a SIGINT. If that doesn't work, terminate the process.
-        try await Task.sleep(for: .seconds(2))
-        if !hasExited.value {
-          logger.debug("Terminating process using SIGKILL because it did not honor SIGINT: \(self.arguments)")
-          // TODO: We should also terminate all child processes (https://github.com/swiftlang/sourcekit-lsp/issues/2080)
-          #if os(Windows)
-          // Windows does not define SIGKILL. Process.signal sends a `terminate` to the underlying Foundation process
-          // for any signal that is not SIGINT. Use `SIGABRT` to terminate the process.
-          signal(SIGABRT)
-          #else
-          signal(SIGKILL)
-          #endif
-        }
+      switch onCancellation {
+      case .terminate:
+        logger.debug("Terminating process because task was cancelled: \(self.arguments)")
+        self.terminate(unlessExited: hasExited)
+      case .waitForExit:
+        logger.debug("Waiting for process to exit even though task was cancelled: \(self.arguments)")
+      }
+    }
+    if timedOut.value {
+      throw TimeoutError(handle: nil)
+    }
+    return result
+  }
+
+  /// Send a `SIGINT` to the process. Should the process not terminate on SIGINT after 2 seconds,
+  /// terminate it using `SIGKILL`.
+  private func terminate(unlessExited hasExited: ThreadSafeBox<Bool>) {
+    logger.debug("Terminating process using SIGINT: \(self.arguments)")
+    signal(SIGINT)
+    Task {
+      // Give the process 2 seconds to react to a SIGINT. If that doesn't work, terminate the process.
+      try await Task.sleep(for: .seconds(2))
+      if !hasExited.value {
+        logger.debug("Terminating process using SIGKILL because it did not honor SIGINT: \(self.arguments)")
+        // TODO: We should also terminate all child processes (https://github.com/swiftlang/sourcekit-lsp/issues/2080)
+        #if os(Windows)
+        // Windows does not define SIGKILL. Process.signal sends a `terminate` to the underlying Foundation process
+        // for any signal that is not SIGINT. Use `SIGABRT` to terminate the process.
+        signal(SIGABRT)
+        #else
+        signal(SIGKILL)
+        #endif
       }
     }
   }
@@ -142,9 +218,14 @@ extension Process {
     )
   }
 
-  /// Runs a new process with the given parameters and waits for it to exit, sending SIGINT if this task is cancelled.
+  /// Runs a new process with the given parameters and waits for it to exit.
   ///
   /// The process's priority tracks the priority of the current task.
+  ///
+  /// - Parameters:
+  ///   - onCancellation: What to do with the process if this task is cancelled while it is running.
+  ///   - timeout: If the process hasn't exited after this duration, it is terminated regardless of
+  ///     `onCancellation` and this function throws a `TimeoutError`.
   @discardableResult
   package static func run(
     arguments: [String],
@@ -152,7 +233,9 @@ extension Process {
     workingDirectory: AbsolutePath?,
     outputRedirection: OutputRedirection = .collect(redirectStderr: false),
     startNewProcessGroup: Bool = true,
-    loggingHandler: LoggingHandler? = .none
+    loggingHandler: LoggingHandler? = .none,
+    onCancellation: ProcessCancellationBehavior = .terminate,
+    timeout: Duration? = nil
   ) async throws -> ProcessResult {
     let process = try Self.launch(
       arguments: arguments,
@@ -164,7 +247,7 @@ extension Process {
     )
     return try await withTaskPriorityChangedHandler(initialPriority: Task.currentPriority) { @Sendable in
       setProcessPriority(pid: process.processID, newPriority: Task.currentPriority)
-      return try await process.waitUntilExitStoppingProcessOnTaskCancellation()
+      return try await process.waitUntilExit(onCancellation: onCancellation, timeout: timeout)
     } taskPriorityChanged: { newPriority in
       setProcessPriority(pid: process.processID, newPriority: newPriority)
     }
