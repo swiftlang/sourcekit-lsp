@@ -1493,10 +1493,8 @@ extension SourceKitLSPServer {
     let target: BuildTargetIdentifier?
     if let requestedTarget = request.target {
       target = BuildTargetIdentifier(uri: requestedTarget)
-    } else if let canonicalTarget = await workspace.buildServerManager.canonicalTarget(for: uri) {
-      target = canonicalTarget
     } else {
-      target = nil
+      target = await workspace.buildServerManager.canonicalTargetIncludingMainFile(for: uri, language: nil)
     }
     let didPrepareTarget: Bool?
     if request.prepareTarget, let target, let semanticIndexManager = await workspace.semanticIndexManager {
