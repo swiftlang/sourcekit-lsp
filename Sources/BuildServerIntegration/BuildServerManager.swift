@@ -1093,6 +1093,22 @@ package actor BuildServerManager: QueueBasedMessageHandler {
       .first
   }
 
+  /// Returns the canonical target of `document` or, if no target contains it, the canonical target of the main file
+  /// that includes it. This is the target whose build settings `buildSettingsInferredFromMainFile` uses.
+  package func canonicalTargetIncludingMainFile(
+    for document: DocumentURI,
+    language: Language?
+  ) async -> BuildTargetIdentifier? {
+    if let target = await canonicalTarget(for: document) {
+      return target
+    }
+    let mainFile = await mainFile(for: document, language: language)
+    guard mainFile != document else {
+      return nil
+    }
+    return await canonicalTarget(for: mainFile)
+  }
+
   /// Returns the target's module name as parsed from the `BuildTargetIdentifier`'s compiler arguments.
   package func moduleName(for document: DocumentURI, in target: BuildTargetIdentifier) async -> String? {
     guard let language = await self.defaultLanguage(for: document, in: target),

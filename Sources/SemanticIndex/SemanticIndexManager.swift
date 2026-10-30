@@ -666,7 +666,7 @@ package final actor SemanticIndexManager {
   ///
   /// If file's target is known to be up-to-date, this returns almost immediately.
   package func prepareFileForEditorFunctionality(_ uri: DocumentURI) async {
-    guard let target = await buildServerManager.canonicalTarget(for: uri) else {
+    guard let target = await buildServerManager.canonicalTargetIncludingMainFile(for: uri, language: nil) else {
       return
     }
     if Task.isCancelled {
