@@ -18,6 +18,7 @@ import Foundation
 import SKLogging
 import SKTestSupport
 import TSCBasic
+import Testing
 import XCTest
 
 final class LegacyBuildServerTests: SourceKitLSPTestCase {

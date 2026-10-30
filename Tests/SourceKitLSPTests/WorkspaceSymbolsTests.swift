@@ -14,6 +14,7 @@
 import SKLogging
 import SKTestSupport
 import SKUtilities
+import Testing
 import XCTest
 
 class WorkspaceSymbolsTests: SourceKitLSPTestCase {
