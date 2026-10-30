@@ -4062,6 +4062,796 @@ final class CodeActionTests: SourceKitLSPTestCase {
     )
   }
 
+  func testGenerateMemberwiseInitializer() async throws {
+    try await assertCodeActions(
+      """
+      struct 1️⃣Place {2️⃣
+        let street: String
+        var floor: Int = 3
+        var apartment: String?
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Generate Memberwise Initializer",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["2️⃣"]..<positions["2️⃣"],
+                  newText: """
+
+                      internal init(street: String, floor: Int = 3, apartment: String? = nil) {
+                        self.street = street
+                        self.floor = floor
+                        self.apartment = apartment
+                      }
+
+                    """
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testGenerateMemberwiseInitializerForClass() async throws {
+    try await assertCodeActions(
+      """
+      class 1️⃣Person {2️⃣
+        var name: String
+        private var age: Int
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Generate Memberwise Initializer",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["2️⃣"]..<positions["2️⃣"],
+                  newText: """
+
+                      internal init(name: String, age: Int) {
+                        self.name = name
+                        self.age = age
+                      }
+
+                    """
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testGenerateMemberwiseInitializerForActor() async throws {
+    try await assertCodeActions(
+      """
+      actor 1️⃣Counter {2️⃣
+        var count: Int
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Generate Memberwise Initializer",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["2️⃣"]..<positions["2️⃣"],
+                  newText: """
+
+                      internal init(count: Int) {
+                        self.count = count
+                      }
+
+                    """
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testGenerateMemberwiseInitializerSkipsComputedProperties() async throws {
+    try await assertCodeActions(
+      """
+      struct 1️⃣Person {2️⃣
+        var computed: String { "hi" }
+        var getSet: String {
+          get { "hi" }
+          set {}
+        }
+        var observed: String = "ds" {
+          didSet { print("didSet") }
+        }
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Generate Memberwise Initializer",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["2️⃣"]..<positions["2️⃣"],
+                  newText: """
+
+                      internal init(observed: String = "ds") {
+                        self.observed = observed
+                      }
+
+                    """
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testGenerateMemberwiseInitializerSkipsStaticLazyAndInitializedLetProperties() async throws {
+    try await assertCodeActions(
+      """
+      struct 1️⃣Person {2️⃣
+        static var count = 0
+        lazy var idea: Idea = { fatalError() }()
+        let line = #line
+        func method() {}
+        var name: String
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Generate Memberwise Initializer",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["2️⃣"]..<positions["2️⃣"],
+                  newText: """
+
+                      internal init(name: String) {
+                        self.name = name
+                      }
+
+                    """
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testGenerateMemberwiseInitializerWithMultipleBindings() async throws {
+    try await assertCodeActions(
+      """
+      struct 1️⃣Place {2️⃣
+        var x, y: Int
+        var a: Int = 1, b: Int = 2
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Generate Memberwise Initializer",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["2️⃣"]..<positions["2️⃣"],
+                  newText: """
+
+                      internal init(x: Int, y: Int, a: Int = 1, b: Int = 2) {
+                        self.x = x
+                        self.y = y
+                        self.a = a
+                        self.b = b
+                      }
+
+                    """
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testGenerateMemberwiseInitializerWithOptionals() async throws {
+    try await assertCodeActions(
+      """
+      struct 1️⃣Place {2️⃣
+        var a: String!
+        var b: Optional<String>
+        var c: Swift.Optional<String>
+        var d: (() -> Void)!
+        var e: Int? = 5
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Generate Memberwise Initializer",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["2️⃣"]..<positions["2️⃣"],
+                  newText: """
+
+                      internal init(a: String? = nil, b: Optional<String> = nil, c: Swift.Optional<String> = nil, d: (() -> Void)? = nil, e: Int? = 5) {
+                        self.a = a
+                        self.b = b
+                        self.c = c
+                        self.d = d
+                        self.e = e
+                      }
+
+                    """
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testGenerateMemberwiseInitializerWithFunctionTypes() async throws {
+    try await assertCodeActions(
+      """
+      struct 1️⃣Place {2️⃣
+        var a: () -> Void
+        var b: @Sendable (Int) -> Void
+        var c: (() -> Void) = {}
+        var d: (() -> Void)?
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Generate Memberwise Initializer",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["2️⃣"]..<positions["2️⃣"],
+                  newText: """
+
+                      internal init(a: @escaping () -> Void, b: @escaping @Sendable (Int) -> Void, c: @escaping (() -> Void) = {}, d: (() -> Void)? = nil) {
+                        self.a = a
+                        self.b = b
+                        self.c = c
+                        self.d = d
+                      }
+
+                    """
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testGenerateMemberwiseInitializerWithPropertyWrapper() async throws {
+    try await assertCodeActions(
+      """
+      struct 1️⃣Place {2️⃣
+        @MyWrapper var wrapped: String = ""
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Generate Memberwise Initializer",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["2️⃣"]..<positions["2️⃣"],
+                  newText: """
+
+                      internal init(wrapped: String = "") {
+                        self.wrapped = wrapped
+                      }
+
+                    """
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testGenerateMemberwiseInitializerWithEscapedIdentifiers() async throws {
+    try await assertCodeActions(
+      """
+      struct 1️⃣Place {2️⃣
+        var `protocol`: String
+        var `some raw identifier`: Int
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Generate Memberwise Initializer",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["2️⃣"]..<positions["2️⃣"],
+                  newText: """
+
+                      internal init(`protocol`: String, `some raw identifier`: Int) {
+                        self.`protocol` = `protocol`
+                        self.`some raw identifier` = `some raw identifier`
+                      }
+
+                    """
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testGenerateMemberwiseInitializerWithInitAccessor() async throws {
+    try await assertCodeActions(
+      """
+      struct 1️⃣Angle {2️⃣
+        private var _radians: Double
+        var degrees: Double {
+          @storageRestrictions(initializes: _radians)
+          init(initialValue) {
+            _radians = initialValue * .pi / 180
+          }
+          get { _radians * 180 / .pi }
+        }
+        var name: String
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Generate Memberwise Initializer",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["2️⃣"]..<positions["2️⃣"],
+                  newText: """
+
+                      internal init(degrees: Double, name: String) {
+                        self.degrees = degrees
+                        self.name = name
+                      }
+
+                    """
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testGenerateMemberwiseInitializerWithMultiLineDefaultValue() async throws {
+    try await assertCodeActions(
+      """
+      struct 1️⃣Place {2️⃣
+        var location: () -> Int = {
+          return 1
+        }
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Generate Memberwise Initializer",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["2️⃣"]..<positions["2️⃣"],
+                  newText: """
+
+                      internal init(location: @escaping () -> Int = {
+                        return 1
+                      }) {
+                        self.location = location
+                      }
+
+                    """
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testGenerateMemberwiseInitializerForGenericType() async throws {
+    try await assertCodeActions(
+      """
+      struct 1️⃣Box<Value: Equatable> {2️⃣
+        var value: Value
+        var values: [Value] = []
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Generate Memberwise Initializer",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["2️⃣"]..<positions["2️⃣"],
+                  newText: """
+
+                      internal init(value: Value, values: [Value] = []) {
+                        self.value = value
+                        self.values = values
+                      }
+
+                    """
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testGenerateMemberwiseInitializerInNestedTypeInfersIndentation() async throws {
+    try await assertCodeActions(
+      """
+      enum Namespace {
+          struct 1️⃣Place {2️⃣
+              // The street
+              let street: String
+          }
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Generate Memberwise Initializer",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["2️⃣"]..<positions["2️⃣"],
+                  newText: """
+
+                            internal init(street: String) {
+                                self.street = street
+                            }
+
+                    """
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testGenerateMemberwiseInitializerWithTuplePattern() async throws {
+    try await assertCodeActions(
+      """
+      struct 1️⃣Place {2️⃣
+        var (x, y): (Int, Int)
+        let (a, b) = (1, 2)
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Generate Memberwise Initializer",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["2️⃣"]..<positions["2️⃣"],
+                  newText: """
+
+                      internal init(x: Int, y: Int) {
+                        self.x = x
+                        self.y = y
+                      }
+
+                    """
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testGenerateMemberwiseInitializerWithCommentAfterOpeningBrace() async throws {
+    try await assertCodeActions(
+      """
+      struct 1️⃣Place { // MARK: Stored properties2️⃣
+        var floor: Int
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Generate Memberwise Initializer",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["2️⃣"]..<positions["2️⃣"],
+                  newText: """
+
+                      internal init(floor: Int) {
+                        self.floor = floor
+                      }
+
+                    """
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testGenerateMemberwiseInitializerWithoutTypeAnnotationWithoutResolveSupport() async throws {
+    try await assertCodeActions(
+      """
+      struct 1️⃣Place {2️⃣
+        var floor = 3
+      }
+      """,
+      markers: ["1️⃣"],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Generate Memberwise Initializer",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["2️⃣"]..<positions["2️⃣"],
+                  newText: """
+
+                      internal init(floor: <#Type#> = 3) {
+                        self.floor = floor
+                      }
+
+                    """
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testGenerateMemberwiseInitializerWithoutTypeAnnotationWithResolveSupport() async throws {
+    var capabilities = clientCapabilitiesWithCodeActionSupport
+    capabilities.textDocument?.codeAction?.resolveSupport = .init(properties: ["edit"])
+    let testClient = try await TestSourceKitLSPClient(capabilities: capabilities)
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
+      """
+      struct 1️⃣Place {2️⃣
+        var street: String
+        var floor = 3, name = "Home"
+        var location = { 1 }
+      }
+      """,
+      uri: uri
+    )
+    let actions = try await testClient.send(
+      CodeActionRequest(
+        range: Range(positions["1️⃣"]),
+        context: CodeActionContext(),
+        textDocument: TextDocumentIdentifier(uri)
+      )
+    )
+    // sourcekitd offers a refactoring with the same name, which should be suppressed in favor of this one.
+    let generateAction = try XCTUnwrap(
+      actions?.codeActions?.filter { $0.title == "Generate Memberwise Initializer" }.only
+    )
+    XCTAssertNil(generateAction.edit)
+
+    let resolved = try await testClient.send(CodeActionResolveRequest(codeAction: generateAction))
+    XCTAssertEqual(
+      resolved.edit,
+      WorkspaceEdit(
+        changes: [
+          uri: [
+            TextEdit(
+              range: positions["2️⃣"]..<positions["2️⃣"],
+              newText: """
+
+                  internal init(street: String, floor: Int = 3, name: String = "Home", location: @escaping () -> Int = { 1 }) {
+                    self.street = street
+                    self.floor = floor
+                    self.name = name
+                    self.location = location
+                  }
+
+                """
+            )
+          ]
+        ]
+      )
+    )
+  }
+
+  func testGenerateMemberwiseInitializerWithTuplePatternWithResolveSupport() async throws {
+    var capabilities = clientCapabilitiesWithCodeActionSupport
+    capabilities.textDocument?.codeAction?.resolveSupport = .init(properties: ["edit"])
+    let testClient = try await TestSourceKitLSPClient(capabilities: capabilities)
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
+      """
+      struct 1️⃣Size {2️⃣
+        var (width, height) = (1, 2.5)
+      }
+      """,
+      uri: uri
+    )
+    let actions = try await testClient.send(
+      CodeActionRequest(
+        range: Range(positions["1️⃣"]),
+        context: CodeActionContext(),
+        textDocument: TextDocumentIdentifier(uri)
+      )
+    )
+    let generateAction = try XCTUnwrap(
+      actions?.codeActions?.filter { $0.title == "Generate Memberwise Initializer" }.only
+    )
+    XCTAssertNil(generateAction.edit)
+
+    let resolved = try await testClient.send(CodeActionResolveRequest(codeAction: generateAction))
+    XCTAssertEqual(
+      resolved.edit,
+      WorkspaceEdit(
+        changes: [
+          uri: [
+            TextEdit(
+              range: positions["2️⃣"]..<positions["2️⃣"],
+              newText: """
+
+                  internal init(width: Int, height: Double) {
+                    self.width = width
+                    self.height = height
+                  }
+
+                """
+            )
+          ]
+        ]
+      )
+    )
+  }
+
+  func testGenerateMemberwiseInitializerNotOfferedInsideTypeBody() async throws {
+    try await assertNoCodeAction(
+      titled: "Generate Memberwise Initializer",
+      in: """
+        struct Place {
+          1️⃣var floor = 3
+        }
+        """,
+      atMarker: "1️⃣"
+    )
+  }
+
+  func testGenerateMemberwiseInitializerNotOfferedWithoutStoredProperties() async throws {
+    try await assertNoCodeAction(
+      titled: "Generate Memberwise Initializer",
+      in: """
+        struct 1️⃣Place {
+          var floor: Int { 3 }
+          lazy var idea: Idea = { fatalError() }()
+        }
+        """,
+      atMarker: "1️⃣"
+    )
+  }
+
+  func testGenerateMemberwiseInitializerNotOfferedForEnum() async throws {
+    try await assertNoCodeAction(
+      titled: "Generate Memberwise Initializer",
+      in: """
+        enum 1️⃣Direction {
+          case up
+        }
+        """,
+      atMarker: "1️⃣"
+    )
+  }
+
   func testInlineVariableBasic() async throws {
     try await assertCodeActions(
       """
