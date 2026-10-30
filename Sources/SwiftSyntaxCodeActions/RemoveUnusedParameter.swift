@@ -124,7 +124,10 @@ struct RemoveUnusedParameter: SyntaxCodeActionProvider {
     if firstName.tokenKind == .wildcard, secondName != nil {
       newParam =
         parameter
-        .with(\.firstName, .wildcardToken(leadingTrivia: firstName.leadingTrivia, trailingTrivia: []))
+        .with(
+          \.firstName,
+          .wildcardToken(leadingTrivia: firstName.leadingTrivia, trailingTrivia: secondName?.trailingTrivia ?? [])
+        )
         .with(\.secondName, nil)
     } else if let second = secondName {
       newParam =
@@ -133,7 +136,8 @@ struct RemoveUnusedParameter: SyntaxCodeActionProvider {
     } else {
       newParam =
         parameter
-        .with(\.secondName, .wildcardToken(leadingTrivia: .space))
+        .with(\.firstName, firstName.with(\.trailingTrivia, []))
+        .with(\.secondName, .wildcardToken(leadingTrivia: .space, trailingTrivia: firstName.trailingTrivia))
     }
 
     let edit = SourceEdit(range: parameter.range, replacement: newParam.description)
@@ -162,6 +166,22 @@ private final class ParameterUsageFinder: SyntaxVisitor {
     super.init(viewMode: .sourceAccurate)
   }
 
+  private func checkLookup(at node: some SyntaxProtocol, for identifier: Identifier) {
+    let lookupResults = node.lookup(identifier)
+    for result in lookupResults {
+      switch result {
+      case .fromScope(_, let names):
+        guard !names.isEmpty else { continue }
+        if names.contains(where: { $0.syntax.id == targetParameterId }) {
+          isUsed = true
+        }
+        return
+      default:
+        continue
+      }
+    }
+  }
+
   override func visit(_ node: DeclReferenceExprSyntax) -> SyntaxVisitorContinueKind {
     if isUsed {
       return .skipChildren
@@ -173,22 +193,43 @@ private final class ParameterUsageFinder: SyntaxVisitor {
       return .visitChildren
     }
 
-    let lookupResults = node.lookup(nodeIdentifier)
-    for result in lookupResults {
-      switch result {
-      case .fromScope(_, let names):
-        guard !names.isEmpty else { continue }
-        if names.contains(where: { $0.syntax.id == targetParameterId }) {
-          isUsed = true
-          return .skipChildren
-        } else {
-          // The identifier resolves to another declaration in an inner scope, shadowing the parameter.
-          return .visitChildren
-        }
-      default:
-        continue
-      }
+    checkLookup(at: node, for: nodeIdentifier)
+    return isUsed ? .skipChildren : .visitChildren
+  }
+
+  override func visit(_ node: OptionalBindingConditionSyntax) -> SyntaxVisitorContinueKind {
+    if isUsed {
+      return .skipChildren
     }
-    return .visitChildren
+
+    // A shorthand optional binding condition like `if let x { ... }` or `guard let x else { ... }`
+    // has no explicit initializer (`node.initializer == nil`), but implicitly references `x`
+    // from the enclosing scope.
+    if node.initializer == nil,
+      let identifierPattern = node.pattern.as(IdentifierPatternSyntax.self),
+      let patternIdentifier = Identifier(identifierPattern.identifier),
+      patternIdentifier == targetIdentifier
+    {
+      checkLookup(at: node, for: patternIdentifier)
+    }
+
+    return isUsed ? .skipChildren : .visitChildren
+  }
+
+  override func visit(_ node: ClosureCaptureSyntax) -> SyntaxVisitorContinueKind {
+    if isUsed {
+      return .skipChildren
+    }
+
+    // A closure capture without explicit initializer (e.g., `[x]`, `[weak x]`)
+    // implicitly captures `x` from the enclosing scope.
+    if node.initializer == nil,
+      let captureIdentifier = Identifier(node.name),
+      captureIdentifier == targetIdentifier
+    {
+      checkLookup(at: node, for: captureIdentifier)
+    }
+
+    return isUsed ? .skipChildren : .visitChildren
   }
 }
