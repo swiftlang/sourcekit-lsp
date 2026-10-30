@@ -14,6 +14,7 @@
 @_spi(SourceKitLSP) import LanguageServerProtocolTransport
 @_spi(SourceKitLSP) import SKLogging
 import SKTestSupport
+import Testing
 import XCTest
 
 final class PublishDiagnosticsTests: SourceKitLSPTestCase {

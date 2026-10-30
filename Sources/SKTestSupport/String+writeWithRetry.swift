@@ -12,6 +12,7 @@
 
 package import Foundation
 @_spi(SourceKitLSP) import SKLogging
+import Testing
 
 extension String {
   /// Write this string to the given URL using UTF-8 encoding.

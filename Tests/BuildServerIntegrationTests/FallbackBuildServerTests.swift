@@ -18,6 +18,7 @@ import SKOptions
 import SKTestSupport
 import SourceKitLSP
 import TSCBasic
+import Testing
 import XCTest
 
 final class FallbackBuildServerTests: SourceKitLSPTestCase {

@@ -12,10 +12,11 @@
 
 import BuildServerIntegration
 @_spi(SourceKitLSP) import BuildServerProtocol
+import Foundation
 @_spi(SourceKitLSP) import LanguageServerProtocol
 @_spi(SourceKitLSP) import SKLogging
 import SemanticIndex
-import XCTest
+import Testing
 
 enum BuildDestination {
   case host
@@ -156,7 +157,7 @@ actor ExpectedIndexTaskTracker {
       return
     }
     guard let expectedTargetsToPrepare = expectedPreparations.first else {
-      XCTFail("Didn't expect a preparation but received \(taskDescription.targetsToPrepare)")
+      Issue.record("Didn't expect a preparation but received \(taskDescription.targetsToPrepare)")
       return
     }
     guard
@@ -166,7 +167,7 @@ actor ExpectedIndexTaskTracker {
         })
       })
     else {
-      XCTFail("Received unexpected preparation of \(taskDescription.targetsToPrepare)")
+      Issue.record("Received unexpected preparation of \(taskDescription.targetsToPrepare)")
       return
     }
     var remainingExpectedTargetsToPrepare: [ExpectedPreparation] = []
@@ -219,13 +220,15 @@ actor ExpectedIndexTaskTracker {
       return
     }
     guard let expectedFilesToIndex = expectedIndexStoreUpdates.first else {
-      XCTFail("Didn't expect an index store update but received \(taskDescription.filesToIndex.map(\.file.sourceFile))")
+      Issue.record(
+        "Didn't expect an index store update but received \(taskDescription.filesToIndex.map(\.file.sourceFile))"
+      )
       return
     }
     guard
       Set(taskDescription.filesToIndex.map(\.sourceFileName)).isSubset(of: expectedFilesToIndex.map(\.sourceFileName))
     else {
-      XCTFail("Received unexpected index store update of \(taskDescription.filesToIndex.map(\.file.sourceFile))")
+      Issue.record("Received unexpected index store update of \(taskDescription.filesToIndex.map(\.file.sourceFile))")
       return
     }
     var remainingExpectedFilesToIndex: [ExpectedIndexStoreUpdate] = []
@@ -249,7 +252,7 @@ actor ExpectedIndexTaskTracker {
 
   deinit {
     if let expectedPreparations = self.expectedPreparations {
-      XCTAssert(
+      #expect(
         expectedPreparations.isEmpty,
         "ExpectedPreparationTracker destroyed with unfulfilled expected preparations: \(expectedPreparations)."
       )

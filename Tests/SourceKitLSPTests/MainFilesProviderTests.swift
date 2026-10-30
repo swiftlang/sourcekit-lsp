@@ -16,6 +16,7 @@
 import SKTestSupport
 import SourceKitLSP
 import SwiftExtensions
+import Testing
 @_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
 

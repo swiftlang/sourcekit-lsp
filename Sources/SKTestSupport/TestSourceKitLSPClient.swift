@@ -23,6 +23,7 @@ package import SourceKitLSP
 import SwiftExtensions
 package import SwiftSyntax
 import Synchronization
+import Testing
 package import ToolchainRegistry
 @_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
@@ -215,7 +216,7 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
       }
       capabilities.textDocument!.diagnostic = .init(dynamicRegistration: true)
       self.handleSingleRequest { (request: RegisterCapabilityRequest) in
-        XCTAssertEqual(request.registrations.only?.method, DocumentDiagnosticsRequest.method)
+        assertEqual(request.registrations.only?.method, DocumentDiagnosticsRequest.method)
         return VoidResponse()
       }
     }
@@ -263,7 +264,7 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
     // Make sure the working directory hasn't changed. This guards against
     // an in-process sourcekitd setting the scratch directory as the current
     // working directory, which will break subsequent tests.
-    XCTAssertEqual(self.workingDirectory, FileManager.default.currentDirectoryPath)
+    assertEqual(self.workingDirectory, FileManager.default.currentDirectoryPath)
   }
 
   // MARK: - Sending messages
@@ -377,7 +378,7 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
         satisfying: predicate,
         timeout: duration
       )
-      XCTFail("Did not expect to receive notification but received \(notification)")
+      recordFailure("Did not expect to receive notification but received \(notification)")
     } catch is NotificationTimeoutError {}
   }
 

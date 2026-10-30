@@ -12,8 +12,8 @@
 
 @_spi(SourceKitLSP) import SKLogging
 import SwiftExtensions
+package import Testing
 @_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
-import XCTest
 
 /// Runs the body repeatedly once per second until it returns `true`, giving up after `timeout`.
 ///
@@ -26,7 +26,8 @@ package func repeatUntilExpectedResult(
   sleepInterval: Duration = .seconds(1),
   _ body: () async throws -> Bool,
   file: StaticString = #filePath,
-  line: UInt = #line
+  line: UInt = #line,
+  sourceLocation: SourceLocation = #_sourceLocation
 ) async throws {
   for _ in 0..<Int(timeout.seconds / sleepInterval.seconds) {
     if try await body() {
@@ -34,5 +35,5 @@ package func repeatUntilExpectedResult(
     }
     try await Task.sleep(for: sleepInterval)
   }
-  XCTFail("Failed to get expected result", file: file, line: line)
+  recordFailure("Failed to get expected result", file: file, line: line, sourceLocation: sourceLocation)
 }

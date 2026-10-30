@@ -24,6 +24,7 @@ import SwiftExtensions
 import SwiftLanguageService
 import SwiftSyntax
 import TSCExtensions
+import Testing
 import ToolchainRegistry
 @_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
@@ -46,7 +47,7 @@ package actor SkipUnless {
   /// For any feature that has already been evaluated, the result of whether or not it should be skipped.
   private var checkCache: [String: FeatureCheckResult] = [:]
 
-  /// Throw an `XCTSkip` if any of the following conditions hold
+  /// Skip the test if any of the following conditions hold
   ///  - The Swift version of the toolchain used for testing (`ToolchainRegistry.forTesting.default`) is older than
   ///    `swiftVersion`
   ///  - The Swift version of the toolchain used for testing is equal to `swiftVersion` and `featureCheck` returns
@@ -97,6 +98,7 @@ package actor SkipUnless {
     featureName: String = #function,
     file: StaticString,
     line: UInt,
+    sourceLocation: Testing.SourceLocation = #_sourceLocation,
     featureCheck: () async throws -> FeatureCheckResult
   ) async throws {
     let checkResult: FeatureCheckResult
@@ -111,23 +113,27 @@ package actor SkipUnless {
     checkCache[featureName] = checkResult
 
     if case .featureUnsupported(let skipMessage) = checkResult {
-      throw XCTSkip(skipMessage, file: file, line: line)
+      try skipTest(skipMessage, file: file, line: line, sourceLocation: sourceLocation)
     }
   }
 
   /// A long test is a test that takes longer than 1-2s to execute.
   package static func longTestsEnabled() throws {
     if let value = ProcessInfo.processInfo.environment["SKIP_LONG_TESTS"], value == "1" || value == "YES" {
-      throw XCTSkip("Long tests disabled using the `SKIP_LONG_TESTS` environment variable")
+      try skipTest("Long tests disabled using the `SKIP_LONG_TESTS` environment variable")
     }
   }
 
   package static func platformIsDarwin(_ message: String) throws {
-    try XCTSkipUnless(Platform.current == .darwin, message)
+    if Platform.current != .darwin {
+      try skipTest(message)
+    }
   }
 
   package static func platformIsWindows(_ message: String) throws {
-    try XCTSkipUnless(Platform.current == .windows, message)
+    if Platform.current != .windows {
+      try skipTest(message)
+    }
   }
 
   package static func platformSupportsTaskPriorityElevation() throws {
@@ -135,7 +141,7 @@ package actor SkipUnless {
     guard #available(macOS 14.0, *) else {
       // Priority elevation was implemented by https://github.com/apple/swift/pull/63019, which is available in the
       // Swift 5.9 runtime included in macOS 14.0+
-      throw XCTSkip("Priority elevation of tasks is only supported on macOS 14 and above")
+      try skipTest("Priority elevation of tasks is only supported on macOS 14 and above")
     }
     #endif
   }
@@ -255,7 +261,7 @@ package actor SkipUnless {
           $0.label == "sourcekitdSupportsFullDocumentationInCompletion()"
         })
       else {
-        XCTFail("Expected to find completion for 'sourcekitdSupportsFullDocumentationInCompletion'")
+        recordFailure("Expected to find completion for 'sourcekitdSupportsFullDocumentationInCompletion'")
         return false
       }
       let resolvedItem = try await testClient.send(

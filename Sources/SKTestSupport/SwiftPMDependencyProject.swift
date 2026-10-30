@@ -14,6 +14,7 @@ package import Foundation
 @_spi(SourceKitLSP) import LanguageServerProtocolExtensions
 import SwiftExtensions
 import TSCExtensions
+import Testing
 @_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
 
@@ -41,7 +42,7 @@ package class SwiftPMDependencyProject {
     guard let git = await findTool(name: "git") else {
       if ProcessEnv.block["SWIFTCI_USE_LOCAL_DEPS"] == nil {
         // Never skip the test in CI, similar to what SkipUnless does.
-        throw XCTSkip("git cannot be found")
+        try skipTest("git cannot be found")
       }
       throw Error.cannotFindGit
     }

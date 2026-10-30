@@ -19,6 +19,7 @@ import SourceKitD
 import SourceKitLSP
 import SwiftExtensions
 @_spi(Testing) import SwiftLanguageService
+import Testing
 @_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
 
