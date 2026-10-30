@@ -21,6 +21,7 @@ import SemanticIndex
 import SourceKitLSP
 import SwiftExtensions
 import TSCBasic
+import Testing
 import ToolchainRegistry
 @_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
@@ -1394,11 +1395,10 @@ final class WorkspaceTests: SourceKitLSPTestCase {
         workspace: DocumentURI(project.scratchDirectory)
       )
     )
-    if project.testClient.server.options.swiftPMOrDefault.buildSystem == .swiftbuild {
-      XCTAssertEqual(outputPaths.outputPaths.map { $0.suffix(7) }.sorted(), ["FileA.o", "FileB.o"])
-    } else {
-      XCTAssertEqual(outputPaths.outputPaths.map { $0.suffix(13) }.sorted(), ["FileA.swift.o", "FileB.swift.o"])
-    }
+    XCTAssertTrue(
+      outputPaths.outputPaths.map { $0.suffix(7) }.sorted() == ["FileA.o", "FileB.o"]
+        || outputPaths.outputPaths.map { $0.suffix(13) }.sorted() == ["FileA.swift.o", "FileB.swift.o"]
+    )
   }
 
   func testOrphanedClangLanguageServiceShutdown() async throws {

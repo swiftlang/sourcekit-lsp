@@ -17,6 +17,7 @@ import SKTestSupport
 import SwiftExtensions
 import TSCBasic
 import TSCExtensions
+import Testing
 import ToolchainRegistry
 @_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
