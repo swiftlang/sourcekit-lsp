@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 package import Dispatch
-import XCTest
+package import Testing
 
 /// Wrapper around `DispatchSemaphore` so that Swift Concurrency doesn't complain about the usage of semaphores in the
 /// tests.
@@ -50,7 +50,7 @@ package struct WrappedSemaphore: Sendable {
     }
   }
 
-  /// Wait for a signal and emit an XCTFail if the semaphore is not signaled within `timeout`.
+  /// Wait for a signal and record a test failure if the semaphore is not signaled within `timeout`.
   package func waitOrXCTFail(
     timeout: DispatchTime = DispatchTime.now() + .seconds(Int(defaultTimeout)),
     file: StaticString = #filePath,
@@ -60,7 +60,20 @@ package struct WrappedSemaphore: Sendable {
     case .success:
       break
     case .timedOut:
-      XCTFail("\(name) timed out", file: file, line: line)
+      recordFailure("\(name) timed out", file: file, line: line)
+    }
+  }
+
+  /// Wait for a signal and record a Swift Testing issue if the semaphore is not signaled within `timeout`.
+  package func waitOrRecordIssue(
+    timeout: DispatchTime = DispatchTime.now() + .seconds(Int(defaultTimeout)),
+    sourceLocation: SourceLocation = #_sourceLocation
+  ) {
+    switch self.wait(timeout: timeout) {
+    case .success:
+      break
+    case .timedOut:
+      Issue.record("\(name) timed out", sourceLocation: sourceLocation)
     }
   }
 }

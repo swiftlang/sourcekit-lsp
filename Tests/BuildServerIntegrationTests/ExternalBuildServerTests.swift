@@ -21,6 +21,7 @@ import SKTestSupport
 import SourceKitLSP
 import SwiftExtensions
 import TSCBasic
+import Testing
 import XCTest
 
 #if os(Windows)
