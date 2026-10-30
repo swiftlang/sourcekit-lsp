@@ -12,8 +12,8 @@
 
 import SwiftExtensions
 import Synchronization
+package import Testing
 @_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
-import XCTest
 
 /// A semaphore that, once signaled, will pass on every `wait` call. Ie. the semaphore only needs to be signaled once
 /// and from that point onwards it can be acquired as many times as necessary.
@@ -33,24 +33,33 @@ package final class MultiEntrySemaphore: Sendable {
   }
 
   package func waitOrThrow() async throws {
-    do {
-      try await repeatUntilExpectedResult(sleepInterval: .seconds(0.01)) {
-        signaled.load(ordering: .acquiring)
-      }
-    } catch {
-      struct TimeoutError: Error, CustomStringConvertible {
-        let name: String
-        var description: String { "\(name) timed out" }
-      }
-      throw TimeoutError(name: "\(name) timed out")
+    struct TimeoutError: Error, CustomStringConvertible {
+      let name: String
+      var description: String { "\(name) timed out" }
     }
+    let sleepInterval = Duration.seconds(0.01)
+    for _ in 0..<Int(defaultTimeoutDuration.seconds / sleepInterval.seconds) {
+      if signaled.load(ordering: .acquiring) {
+        return
+      }
+      try await Task.sleep(for: sleepInterval)
+    }
+    throw TimeoutError(name: name)
   }
 
   package func waitOrXCTFail(file: StaticString = #filePath, line: UInt = #line) async {
     do {
       try await waitOrThrow()
     } catch {
-      XCTFail("\(error)", file: file, line: line)
+      recordFailure("\(error)", file: file, line: line)
+    }
+  }
+
+  package func waitOrRecordIssue(sourceLocation: SourceLocation = #_sourceLocation) async {
+    do {
+      try await waitOrThrow()
+    } catch {
+      Issue.record("\(error)", sourceLocation: sourceLocation)
     }
   }
 }

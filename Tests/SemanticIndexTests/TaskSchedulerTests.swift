@@ -14,6 +14,7 @@
 import SKTestSupport
 import SemanticIndex
 import SwiftExtensions
+import Testing
 @_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
 

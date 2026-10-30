@@ -38,3 +38,17 @@ extension Trait where Self == ConfigureLoggingTrait {
     Self()
   }
 }
+
+#if os(Windows)
+extension Trait where Self == ParallelizationTrait {
+  package static var serializedIfOnWindows: Self {
+    .serialized
+  }
+}
+#else
+extension Trait where Self == ConditionTrait {
+  package static var serializedIfOnWindows: Self {
+    .enabled(if: true)
+  }
+}
+#endif
