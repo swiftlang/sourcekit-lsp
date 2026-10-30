@@ -41,7 +41,8 @@ package actor DocumentationLanguageService: LanguageService, Sendable {
 
   package static var experimentalCapabilities: [String: LSPAny] {
     return [
-      DoccDocumentationRequest.method: ["version": 1]
+      DoccDocumentationRequest.method: ["version": 1],
+      DocCSymbolLinkDefinitionRequest.method: ["version": 1],
     ]
   }
 
@@ -108,7 +109,7 @@ package actor DocumentationLanguageService: LanguageService, Sendable {
 
   package func definition(_ req: DefinitionRequest) async throws -> LocationsOrLocationLinksResponse? {
     guard let sourceKitLSPServer else {
-      logger.debug("sourceKit-LSP server could not be resolved")
+      logger.debug("SourceKit-LSP server could not be resolved")
       return nil
     }
 
@@ -134,8 +135,31 @@ package actor DocumentationLanguageService: LanguageService, Sendable {
       return nil
     }
 
-    guard let workspace = await sourceKitLSPServer.workspaceForDocument(uri: req.textDocument.uri) else {
-      logger.debug("No workspace found for document \(req.textDocument.uri)")
+    return try await definition(of: symbolLink, in: req.textDocument.uri)
+  }
+
+  package func doccSymbolLinkDefinition(
+    _ req: DocCSymbolLinkDefinitionRequest
+  ) async throws -> LocationsOrLocationLinksResponse? {
+    guard let symbolLink = DocCSymbolLink(linkString: req.symbolLink) else {
+      logger.debug("Failed to parse DocC symbol link from '\(req.symbolLink)'")
+      return nil
+    }
+    return try await definition(of: symbolLink, in: req.textDocument.uri)
+  }
+
+  /// The definition of the symbol that the DocC symbol link in the provided document resolves to.
+  private func definition(
+    of symbolLink: DocCSymbolLink,
+    in uri: DocumentURI
+  ) async throws -> LocationsOrLocationLinksResponse? {
+    guard let sourceKitLSPServer else {
+      logger.debug("SourceKit-LSP server could not be resolved")
+      return nil
+    }
+
+    guard let workspace = await sourceKitLSPServer.workspaceForDocument(uri: uri) else {
+      logger.debug("No workspace found for document \(uri)")
       return nil
     }
 
@@ -159,7 +183,7 @@ package actor DocumentationLanguageService: LanguageService, Sendable {
     }
 
     guard let targetLocation = occurrence?.location.lspLocation else {
-      logger.debug("No definition occurrence found in the index for symbol link '\(clickedSymbol)'")
+      logger.debug("No definition occurrence found in the index for symbol link '\(symbolLink.linkString)'")
       return nil
     }
     return .locations([targetLocation])

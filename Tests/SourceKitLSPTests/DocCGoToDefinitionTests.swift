@@ -373,6 +373,46 @@ final class DocCGoToDefinitionTests: SourceKitLSPTestCase {
     )
   }
 
+  func testJumpToDefinitionIgnoresSymbolWithoutSymbolGraph() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        // C symbols do not support retrieving their symbol graph node
+        "CLib/include/CLib.h": "",
+        "CLib/Point.c": """
+        struct Point {
+          int x;
+        };
+        """,
+        "MyLibrary/Point.swift": """
+        public struct 1️⃣Point {}
+
+        /// See ``2️⃣Point``
+        public func usePoint() {}
+        """,
+      ],
+      manifest: """
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+            .target(name: "CLib"),
+            .target(name: "MyLibrary"),
+          ]
+        )
+        """,
+      enableBackgroundIndexing: true
+    )
+
+    let (uri, positions) = try project.openDocument("Point.swift")
+
+    let response = try await project.testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
+    )
+    XCTAssertEqual(
+      response,
+      .locations([Location(uri: uri, range: Range(positions["1️⃣"]))])
+    )
+  }
+
   // MARK: Overload disambiguation
 
   /// A symbol link that includes parameter/return disambiguation should resolve to the
@@ -431,6 +471,54 @@ final class DocCGoToDefinitionTests: SourceKitLSPTestCase {
       instanceResponse,
       .locations([Location(uri: project.fileURI, range: Range(project.positions["2️⃣"]))])
     )
+  }
+
+  // MARK: Documentation preview
+
+  func testPreviewSymbolLinkDefinitionCapability() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let experimentalCapabilities = testClient.initializeResult?.capabilities.experimental
+    switch experimentalCapabilities {
+    case .dictionary(let dict):
+      XCTAssertEqual(dict[DocCSymbolLinkDefinitionRequest.method], ["version": 1])
+    default:
+      XCTFail("Experimental capabilities expected to be a dictionary, got \(experimentalCapabilities as Any)")
+    }
+  }
+
+  func testPreviewSymbolLinkDefinition() async throws {
+    let project = try await IndexedSingleSwiftFileTestProject(
+      """
+      public struct Foo {
+        public func 1️⃣bar() {}
+      }
+
+      /// See ``Foo/bar()``.
+      public func useFoo() {}
+      """
+    )
+
+    let response = try await project.testClient.send(
+      DocCSymbolLinkDefinitionRequest(textDocument: TextDocumentIdentifier(project.fileURI), symbolLink: "Foo/bar()")
+    )
+    XCTAssertEqual(
+      response,
+      .locations([Location(uri: project.fileURI, range: Range(project.positions["1️⃣"]))])
+    )
+  }
+
+  func testPreviewSymbolLinkDefinitionIsNilForUnresolvedSymbolLink() async throws {
+    let project = try await IndexedSingleSwiftFileTestProject(
+      """
+      /// See ``Missing``.
+      public func useFoo() {}
+      """
+    )
+
+    let response = try await project.testClient.send(
+      DocCSymbolLinkDefinitionRequest(textDocument: TextDocumentIdentifier(project.fileURI), symbolLink: "Missing")
+    )
+    XCTAssertNil(response)
   }
   #endif
 }
