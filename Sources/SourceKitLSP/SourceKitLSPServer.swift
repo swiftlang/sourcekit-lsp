@@ -452,21 +452,61 @@ package actor SourceKitLSPServer {
         continue
       }
 
-      // Close the document properly in the document manager and build server manager to start with a clean sheet when
-      // re-opening it.
       // This closes and re-opens the document in all of its language services, not just the crashed language service
       // but since crashing language services should be rare, this is acceptable.
-      let closeNotification = DidCloseTextDocumentNotification(textDocument: TextDocumentIdentifier(documentUri))
-      await self.closeDocument(closeNotification, workspace: workspace)
-
-      let textDocument = TextDocumentItem(
-        uri: documentUri,
-        language: snapshot.language,
-        version: snapshot.version,
-        text: snapshot.text
-      )
-      await self.openDocument(DidOpenTextDocumentNotification(textDocument: textDocument), workspace: workspace)
+      await closeAndReopenDocument(snapshot, workspace: workspace)
     }
+  }
+
+  /// Re-open open documents in `workspace` whose language services would be different if the document was opened now,
+  /// eg. because the build server reported the toolchain of the document's target after the document was opened.
+  package func reopenDocumentsWithChangedLanguageServices(in workspace: Workspace) async {
+    for documentUri in self.documentManager.openDocuments {
+      guard await self.workspaceForDocument(uri: documentUri) === workspace,
+        await languageServicesChanged(for: documentUri, in: workspace) != nil
+      else {
+        continue
+      }
+      // Schedule the re-open so that it doesn't interleave with other requests or edits to the document.
+      self.handle(ReopenTextDocumentNotification(textDocument: TextDocumentIdentifier(documentUri)))
+    }
+  }
+
+  /// If the language services of the open document `uri` differ from the ones it would get if it was opened now,
+  /// returns the toolchain of the new language services.
+  private func languageServicesChanged(for uri: DocumentURI, in workspace: Workspace) async -> Toolchain? {
+    // Reference documents (eg. generated interfaces) share the language services of their build settings file. Moving
+    // one of them, or a file that has one open, to new language services would split documents that must stay together.
+    let openDocuments = self.documentManager.openDocuments
+    guard uri.buildSettingsFile == uri,
+      !openDocuments.contains(where: { $0 != uri && $0.buildSettingsFile == uri })
+    else {
+      return nil
+    }
+    guard let snapshot = try? self.documentManager.latestSnapshot(uri),
+      let (newServices, toolchain) = await workspace.computeLanguageServices(for: uri, snapshot.language),
+      !newServices.isEmpty,
+      !newServices.elementsEqual(workspace.languageServices(forOpenDocument: uri), by: ===)
+    else {
+      return nil
+    }
+    return toolchain
+  }
+
+  /// Close the document properly in the document manager and build server manager, then re-open it to start with a
+  /// clean sheet.
+  private func closeAndReopenDocument(_ snapshot: DocumentSnapshot, workspace: Workspace) async {
+    let documentUri = snapshot.uri
+    let closeNotification = DidCloseTextDocumentNotification(textDocument: TextDocumentIdentifier(documentUri))
+    await self.closeDocument(closeNotification, workspace: workspace)
+
+    let textDocument = TextDocumentItem(
+      uri: documentUri,
+      language: snapshot.language,
+      version: snapshot.version,
+      text: snapshot.text
+    )
+    await self.openDocument(DidOpenTextDocumentNotification(textDocument: textDocument), workspace: workspace)
   }
 
 }
@@ -1296,6 +1336,23 @@ extension SourceKitLSPServer {
       logger.error(
         "Received reopen notification for file '\(uri.forLogging)' without a corresponding workspace, ignoring..."
       )
+      return
+    }
+
+    if let toolchain = await languageServicesChanged(for: uri, in: workspace),
+      let snapshot = try? documentManager.latestSnapshot(uri)
+    {
+      logger.log(
+        """
+        Language services for \(uri.forLogging) changed, re-opening it with toolchain at \
+        \(toolchain.path.description) (\(toolchain.identifier, privacy: .public))
+        """
+      )
+      await closeAndReopenDocument(snapshot, workspace: workspace)
+      // The client still shows diagnostics and semantic tokens computed by the old language services.
+      for languageService in workspace.languageServices(forOpenDocument: uri) {
+        await languageService.refreshDiagnosticsAndSemanticTokens()
+      }
       return
     }
 

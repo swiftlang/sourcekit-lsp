@@ -85,7 +85,7 @@ final class SourcekitdCoreInjectorTests: SourceKitLSPTestCase {
 /// calling `initialize()`, simulating a pre-initialized connection supplied by an embedding host.
 /// It uses a unique fake `path` so the `SourceKitDRegistry` never deduplicates it with the
 /// shared instance, ensuring `SourceKitD.init(core:)` is actually called with this core.
-private final class InjectedSourceKitDCore: SourceKitDCore, Sendable {
+final class InjectedSourceKitDCore: SourceKitDCore, Sendable {
   let dlHandle: DLHandle
   /// Unique path so this core is never found in `SourceKitDRegistry.shared`.
   let path: URL

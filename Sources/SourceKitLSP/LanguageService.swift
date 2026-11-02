@@ -172,6 +172,10 @@ package protocol LanguageService: AnyObject, Sendable {
   /// Only intended for `SwiftLanguageService`.
   func reopenDocument(_ notification: ReopenTextDocumentNotification) async
 
+  /// Ask the client to re-request diagnostics and semantic tokens, eg. because documents were moved to this language
+  /// service from another one.
+  func refreshDiagnosticsAndSemanticTokens() async
+
   func changeDocument(
     _ notification: DidChangeTextDocumentNotification,
     preEditSnapshot: DocumentSnapshot,
@@ -384,6 +388,8 @@ package extension LanguageService {
   func didSaveDocument(_ notification: DidSaveTextDocumentNotification) async {}
 
   func filesDidChange(_ events: [FileEvent]) async {}
+
+  func refreshDiagnosticsAndSemanticTokens() async {}
 
   func documentUpdatedBuildSettings(_ uri: DocumentURI) async {}
 

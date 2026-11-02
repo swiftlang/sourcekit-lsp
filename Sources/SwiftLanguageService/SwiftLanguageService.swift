@@ -531,6 +531,10 @@ extension SwiftLanguageService {
     }
   }
 
+  package func refreshDiagnosticsAndSemanticTokens() async {
+    await refreshDiagnosticsAndSemanticTokensDebouncer.scheduleCall()
+  }
+
   package func documentUpdatedBuildSettings(_ uri: DocumentURI) async {
     guard (try? documentManager.openDocuments.contains(uri)) ?? false else {
       return

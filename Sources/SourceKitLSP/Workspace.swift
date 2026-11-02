@@ -23,7 +23,7 @@ package import SemanticIndex
 import SwiftExtensions
 import Synchronization
 import TSCExtensions
-import ToolchainRegistry
+package import ToolchainRegistry
 @_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 import struct TSCBasic.AbsolutePath
@@ -550,16 +550,9 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
       return cached
     }
 
-    let toolchain = await buildServerManager.toolchain(
-      for: await buildServerManager.canonicalTarget(for: uri),
-      language: language
-    )
-    guard let toolchain else {
-      logger.error("Failed to determine toolchain for \(uri)")
+    guard let (services, toolchain) = await computeLanguageServices(for: uri, language) else {
       return []
     }
-
-    let services = await languageServicesForToolchain(toolchain, language)
 
     if services.isEmpty {
       logger.error("No language service found to handle \(uri.forLogging)")
@@ -573,6 +566,25 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
     }
 
     return services
+  }
+
+  /// Find or create language services for the given URI and language based on the current build targets, ignoring
+  /// the language services cached for open documents.
+  ///
+  /// Returns `nil` if no toolchain could be determined.
+  package func computeLanguageServices(
+    for uri: DocumentURI,
+    _ language: Language
+  ) async -> (services: [any LanguageService], toolchain: Toolchain)? {
+    let toolchain = await buildServerManager.toolchain(
+      for: await buildServerManager.canonicalTarget(for: uri),
+      language: language
+    )
+    guard let toolchain else {
+      logger.error("Failed to determine toolchain for \(uri)")
+      return nil
+    }
+    return (await languageServicesForToolchain(toolchain, language), toolchain)
   }
 
   /// Find or create the primary language service for the given URI and language.
@@ -687,6 +699,8 @@ package final class Workspace: Sendable, BuildServerManagerDelegate {
 
   package func buildTargetsChanged(_ changedTargets: Set<BuildTargetIdentifier>?) async {
     await sourceKitLSPServer?.fileHandlingCapabilityChanged()
+    // The build server may only now report the toolchain of a target whose documents are already open.
+    await sourceKitLSPServer?.reopenDocumentsWithChangedLanguageServices(in: self)
     await semanticIndexManager?.buildTargetsChanged(changedTargets)
     await orLog("Scheduling syntactic file re-indexing") {
       await syntacticIndex.buildTargetsChanged(changedTargets)
