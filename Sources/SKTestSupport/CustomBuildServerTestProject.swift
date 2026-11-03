@@ -20,7 +20,7 @@ package import Foundation
 package import SKOptions
 package import SourceKitLSP
 import SwiftExtensions
-import ToolchainRegistry
+package import ToolchainRegistry
 @_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
 
@@ -278,6 +278,7 @@ package final class CustomBuildServerTestProject<BuildServer: CustomBuildServer>
     buildServer buildServerType: BuildServer.Type,
     capabilities: ClientCapabilities = ClientCapabilities(),
     options: SourceKitLSPOptions? = nil,
+    toolchainRegistry: ToolchainRegistry = .forTesting,
     hooks: Hooks = Hooks(),
     enableBackgroundIndexing: Bool = false,
     usePullDiagnostics: Bool = true,
@@ -297,6 +298,7 @@ package final class CustomBuildServerTestProject<BuildServer: CustomBuildServer>
       files: files,
       capabilities: capabilities,
       options: options,
+      toolchainRegistry: toolchainRegistry,
       hooks: hooks,
       enableBackgroundIndexing: enableBackgroundIndexing,
       usePullDiagnostics: usePullDiagnostics,
