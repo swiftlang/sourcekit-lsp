@@ -3976,7 +3976,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
             edit: WorkspaceEdit(
               changes: [
                 uri: [
-                  TextEdit(range: positions["1️⃣"]..<positions["3️⃣"], newText: "\n  var x: <#Type#>{ 25 }")
+                  TextEdit(range: positions["1️⃣"]..<positions["3️⃣"], newText: "\n  var x: <#Type#> { 25 }")
                 ]
               ],
             )
@@ -4017,7 +4017,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
       WorkspaceEdit(
         changes: [
           uri: [
-            TextEdit(range: positions["1️⃣"]..<positions["3️⃣"], newText: "\n  var x: Int{ 25 }")
+            TextEdit(range: positions["1️⃣"]..<positions["3️⃣"], newText: "\n  var x: Int { 25 }")
           ]
         ],
       )
@@ -4055,10 +4055,60 @@ final class CodeActionTests: SourceKitLSPTestCase {
       WorkspaceEdit(
         changes: [
           uri: [
-            TextEdit(range: positions["1️⃣"]..<positions["3️⃣"], newText: "\n  var x: <#Type#>{ invalid }")
+            TextEdit(range: positions["1️⃣"]..<positions["3️⃣"], newText: "\n  var x: <#Type#> { invalid }")
           ]
         ],
       )
+    )
+  }
+
+  func testConvertStoredPropertyToComputedNotOfferedForAttributedPropertyWithResolveSupport() async throws {
+    var capabilities = clientCapabilitiesWithCodeActionSupport
+    capabilities.textDocument?.codeAction?.resolveSupport = .init(properties: ["edit"])
+    let testClient = try await TestSourceKitLSPClient(capabilities: capabilities)
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
+      """
+      struct S {
+        1️⃣@State private var isOn = false2️⃣
+      }
+      """,
+      uri: uri
+    )
+    let actions = try await testClient.send(
+      CodeActionRequest(
+        range: positions["1️⃣"]..<positions["2️⃣"],
+        context: CodeActionContext(),
+        textDocument: TextDocumentIdentifier(uri)
+      )
+    )
+    XCTAssertFalse(
+      actions?.codeActions?.contains(where: { $0.title == "Convert Stored Property to Computed Property" }) ?? false
+    )
+  }
+
+  func testConvertStoredPropertyToComputedNotOfferedForSetterAccessModifier() async throws {
+    try await assertNoCodeAction(
+      titled: "Convert Stored Property to Computed Property",
+      in: """
+        struct S {
+          private(set) 1️⃣var value = 0
+        }
+        """,
+      atMarker: "1️⃣"
+    )
+  }
+
+  func testConvertStoredPropertyToComputedNotOfferedForEffectfulInitializer() async throws {
+    try await assertNoCodeAction(
+      titled: "Convert Stored Property to Computed Property",
+      in: """
+        func fetchNumber() async throws -> Int { 0 }
+        func load() async throws {
+          1️⃣let n = try await fetchNumber()
+        }
+        """,
+      atMarker: "1️⃣"
     )
   }
 
