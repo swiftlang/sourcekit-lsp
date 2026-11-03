@@ -40,6 +40,7 @@ extension SwiftLanguageService {
       compileCommand: compileCommand,
       clientCapabilities: capabilityRegistry.clientCapabilities,
       clientSupportsExtendedCompletionItems: capabilityRegistry.clientSupportsExtendedCompletionItems,
+      clientSupportsSourceKitPlaceholders: capabilityRegistry.clientSupportsSourceKitPlaceholdersInCompletion,
       filterText: filterText
     )
   }

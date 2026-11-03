@@ -137,6 +137,12 @@ package final actor CapabilityRegistry {
     return clientHasExperimentalCapability("sourcekit-lsp.completion.extendedItems")
   }
 
+  /// Whether the client wants Swift completion insert text to keep sourcekitd's `<#…#>` / `<#T##…#>` editor
+  /// placeholders verbatim as plain text, without closure expansion or conversion to LSP snippets.
+  package nonisolated var clientSupportsSourceKitPlaceholdersInCompletion: Bool {
+    return clientHasExperimentalCapability("sourcekit-lsp.completion.sourceKitPlaceholders")
+  }
+
   /// Whether the client supports `workspaceSymbol/resolve` and will resolve `location` or `location.range`.
   package nonisolated var clientSupportsWorkspaceSymbolResolve: Bool {
     guard let properties = clientCapabilities.workspace?.symbol?.resolveSupport?.properties else {
