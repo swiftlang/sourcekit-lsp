@@ -288,7 +288,7 @@ package final class CustomBuildServerTestProject<BuildServer: CustomBuildServer>
     testName: String = #function
   ) async throws {
     var hooks = hooks
-    XCTAssertNil(hooks.buildServerHooks.injectBuildServer)
+    assertNil(hooks.buildServerHooks.injectBuildServer)
     hooks.buildServerHooks.injectBuildServer = { [buildServerBox] projectRoot, connectionToSourceKitLSP in
       let buildServer = BuildServer(projectRoot: projectRoot, connectionToSourceKitLSP: connectionToSourceKitLSP)
       buildServerBox.withLock { $0 = buildServer }
@@ -314,6 +314,6 @@ package final class CustomBuildServerTestProject<BuildServer: CustomBuildServer>
   }
 
   package func buildServer(file: StaticString = #filePath, line: UInt = #line) throws -> BuildServer {
-    try XCTUnwrap(buildServerBox.value, "Accessing build server before it has been created", file: file, line: line)
+    try unwrap(buildServerBox.value, "Accessing build server before it has been created", file: file, line: line)
   }
 }

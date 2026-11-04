@@ -10,7 +10,51 @@
 //
 //===----------------------------------------------------------------------===//
 
+package import Testing
 package import XCTest
+
+package func recordFailure(
+  _ message: String,
+  file: StaticString = #filePath,
+  line: UInt = #line,
+  sourceLocation: SourceLocation = #_sourceLocation
+) {
+  if Test.current != nil {
+    Issue.record(Comment(rawValue: message), sourceLocation: sourceLocation)
+  } else {
+    XCTFail(message, file: file, line: line)
+  }
+}
+
+package func requireNonNil<T>(
+  _ value: T?,
+  _ message: @autoclosure () -> String = "",
+  file: StaticString = #filePath,
+  line: UInt = #line,
+  sourceLocation: SourceLocation = #_sourceLocation
+) throws -> T {
+  if Test.current != nil {
+    let message = message()
+    return try #require(
+      value,
+      message.isEmpty ? nil : Comment(rawValue: message),
+      sourceLocation: sourceLocation
+    )
+  }
+  return try XCTUnwrap(value, message(), file: file, line: line)
+}
+
+package func skipTest(
+  _ message: String,
+  file: StaticString = #filePath,
+  line: UInt = #line,
+  sourceLocation: SourceLocation = #_sourceLocation
+) throws -> Never {
+  if Test.current != nil {
+    try Test.cancel(Comment(rawValue: message), sourceLocation: sourceLocation)
+  }
+  throw XCTSkip(message, file: file, line: line)
+}
 
 /// Same as `XCTAssertNoThrow` but executes the trailing closure.
 package func assertNoThrow<T>(
@@ -19,7 +63,15 @@ package func assertNoThrow<T>(
   file: StaticString = #filePath,
   line: UInt = #line
 ) {
-  XCTAssertNoThrow(try expression(), message(), file: file, line: line)
+  do {
+    _ = try expression()
+  } catch {
+    recordFailure(
+      failureMessage("Expression was not expected to throw but threw \(error)", message()),
+      file: file,
+      line: line
+    )
+  }
 }
 
 /// Same as `assertNoThrow` but allows the closure to be `async`.
@@ -32,7 +84,11 @@ package func assertNoThrow<T>(
   do {
     _ = try await expression()
   } catch {
-    XCTFail("Expression was not expected to throw but threw \(error)", file: file, line: line)
+    recordFailure(
+      failureMessage("Expression was not expected to throw but threw \(error)", message()),
+      file: file,
+      line: line
+    )
   }
 }
 
@@ -53,7 +109,11 @@ package func assertThrowsError<T>(
     didThrow = true
   }
   if !didThrow {
-    XCTFail("Expression was expected to throw but did not throw", file: file, line: line)
+    recordFailure(
+      failureMessage("Expression was expected to throw but did not throw", message()),
+      file: file,
+      line: line
+    )
   }
 }
 
@@ -66,12 +126,13 @@ public func assertThrowsError<T>(
 ) async {
   await assertThrowsError(try await expression(), file: file, line: line) { error in
     let errorString = String(reflecting: error)
-    XCTAssert(
-      try! expectedMessage.firstMatch(in: errorString) != nil,
-      "Expected error to contain '\(expectedMessage)' but received '\(errorString)'",
-      file: file,
-      line: line
-    )
+    if try! expectedMessage.firstMatch(in: errorString) == nil {
+      recordFailure(
+        "Expected error to contain '\(expectedMessage)' but received '\(errorString)'",
+        file: file,
+        line: line
+      )
+    }
   }
 }
 
@@ -84,7 +145,13 @@ package func assertEqual<T: Equatable>(
   file: StaticString = #filePath,
   line: UInt = #line
 ) {
-  XCTAssertEqual(expression1, expression2, message(), file: file, line: line)
+  if expression1 != expression2 {
+    recordFailure(
+      failureMessage("(\"\(expression1)\") is not equal to (\"\(expression2)\")", message()),
+      file: file,
+      line: line
+    )
+  }
 }
 
 /// Same as `XCTAssertTrue` but doesn't take autoclosures and thus `expression` can contain `await`.
@@ -94,7 +161,9 @@ package func assertTrue(
   file: StaticString = #filePath,
   line: UInt = #line
 ) {
-  XCTAssertTrue(expression, message(), file: file, line: line)
+  if !expression {
+    recordFailure(failureMessage("Expected true", message()), file: file, line: line)
+  }
 }
 
 /// Same as `XCTAssertNil` but doesn't take autoclosures and thus `expression`
@@ -105,7 +174,9 @@ package func assertNil<T>(
   file: StaticString = #filePath,
   line: UInt = #line
 ) {
-  XCTAssertNil(expression, message(), file: file, line: line)
+  if let expression {
+    recordFailure(failureMessage("(\"\(expression)\") is not nil", message()), file: file, line: line)
+  }
 }
 
 /// Same as `XCTAssertNotNil` but doesn't take autoclosures and thus `expression`
@@ -116,7 +187,9 @@ package func assertNotNil<T>(
   file: StaticString = #filePath,
   line: UInt = #line
 ) {
-  XCTAssertNotNil(expression, message(), file: file, line: line)
+  if expression == nil {
+    recordFailure(failureMessage("Expected non-nil value of type \(T.self)", message()), file: file, line: line)
+  }
 }
 
 /// Check that the string contains the given substring.
@@ -126,7 +199,9 @@ package func assertContains(
   file: StaticString = #filePath,
   line: UInt = #line
 ) {
-  XCTAssert(string.contains(substring), "Expected to contain '\(substring)': \(string)", file: file, line: line)
+  if !string.contains(substring) {
+    recordFailure("Expected to contain '\(substring)': \(string)", file: file, line: line)
+  }
 }
 
 /// Check that the sequence contains the given element.
@@ -136,7 +211,9 @@ package func assertContains<Element: Equatable>(
   file: StaticString = #filePath,
   line: UInt = #line
 ) {
-  XCTAssert(sequence.contains(element), "Expected to contain '\(element)': \(sequence)", file: file, line: line)
+  if !sequence.contains(element) {
+    recordFailure("Expected to contain '\(element)': \(sequence)", file: file, line: line)
+  }
 }
 
 /// Same as `XCTUnwrap` but doesn't take autoclosures and thus `expression`
@@ -147,7 +224,14 @@ package func unwrap<T>(
   file: StaticString = #filePath,
   line: UInt = #line
 ) throws -> T {
-  return try XCTUnwrap(expression, file: file, line: line)
+  return try requireNonNil(expression, message(), file: file, line: line)
+}
+
+private func failureMessage(_ failure: String, _ message: String) -> String {
+  if message.isEmpty {
+    return failure
+  }
+  return "\(failure) - \(message)"
 }
 
 package struct ExpectationNotFulfilledError: Error, CustomStringConvertible {

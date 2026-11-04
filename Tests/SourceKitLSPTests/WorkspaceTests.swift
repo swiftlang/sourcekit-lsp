@@ -21,6 +21,7 @@ import SemanticIndex
 import SourceKitLSP
 import SwiftExtensions
 import TSCBasic
+import Testing
 import ToolchainRegistry
 @_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest

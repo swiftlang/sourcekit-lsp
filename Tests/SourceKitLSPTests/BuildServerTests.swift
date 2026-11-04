@@ -23,6 +23,7 @@ import SourceKitD
 import SwiftExtensions
 @_spi(Testing) import SwiftLanguageService
 import TSCBasic
+import Testing
 import ToolchainRegistry
 import XCTest
 
