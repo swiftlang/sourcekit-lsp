@@ -1304,6 +1304,78 @@ final class WorkspaceTests: SourceKitLSPTestCase {
     try XCTAssertEqual(XCTUnwrap(prepareUpToDateAgain).didPrepareTarget, false)
   }
 
+  func testSourceKitOptionsForFileOutsideTargetsUsesTargetOfMainFile() async throws {
+    final class BuildServer: CustomBuildServer {
+      let inProgressRequestsTracker = CustomBuildServerInProgressRequestTracker()
+      private let projectRoot: URL
+      private let libTarget = BuildTargetIdentifier(uri: try! URI(string: "build://lib"))
+
+      private var sources: [SourceItem] {
+        [
+          sourceItem(
+            for: projectRoot.appending(component: "Lib.c"),
+            outputPath: fakeOutputPath(for: "Lib.c", in: "Lib")
+          )
+        ]
+      }
+
+      init(projectRoot: URL, connectionToSourceKitLSP: any LanguageServerProtocol.Connection) {
+        self.projectRoot = projectRoot
+      }
+
+      func initializeBuildRequest(_ request: InitializeBuildRequest) async throws -> InitializeBuildResponse {
+        return try initializationResponseSupportingBackgroundIndexing(
+          projectRoot: projectRoot,
+          outputPathsProvider: true
+        )
+      }
+
+      func workspaceBuildTargetsRequest(
+        _ request: WorkspaceBuildTargetsRequest
+      ) async throws -> WorkspaceBuildTargetsResponse {
+        WorkspaceBuildTargetsResponse(targets: [BuildTarget(id: libTarget, languageIds: [.c], dependencies: [])])
+      }
+
+      func buildTargetSourcesRequest(_ request: BuildTargetSourcesRequest) async throws -> BuildTargetSourcesResponse {
+        BuildTargetSourcesResponse(items: [SourcesItem(target: libTarget, sources: sources)])
+      }
+
+      func textDocumentSourceKitOptionsRequest(
+        _ request: TextDocumentSourceKitOptionsRequest
+      ) async throws -> TextDocumentSourceKitOptionsResponse? {
+        let sourceInfo = try XCTUnwrap(sources.first(where: { $0.uri == request.textDocument.uri }))
+        return TextDocumentSourceKitOptionsResponse(compilerArguments: [
+          sourceInfo.uri.pseudoPath, "-index-unit-output-path", try XCTUnwrap(sourceInfo.sourceKitData?.outputPath),
+          "-DLIB",
+        ])
+      }
+    }
+
+    let project = try await CustomBuildServerTestProject(
+      files: [
+        "Header.h": "void test() {}",
+        "Lib.c": """
+        #include "Header.h"
+        """,
+      ],
+      buildServer: BuildServer.self,
+      options: .testDefault(experimentalFeatures: [.sourceKitOptionsRequest]),
+      enableBackgroundIndexing: true
+    )
+
+    // `Header.h` is not a source of any target. Its build settings and preparation come from the target of `Lib.c`,
+    // which includes it. Background indexing has already prepared that target, so it is up to date.
+    let options = try await project.testClient.send(
+      SourceKitOptionsRequest(
+        textDocument: TextDocumentIdentifier(try project.uri(for: "Header.h")),
+        prepareTarget: true,
+        allowFallbackSettings: false
+      )
+    )
+    assertContains(try XCTUnwrap(options).compilerArguments, "-DLIB")
+    try XCTAssertEqual(XCTUnwrap(options).didPrepareTarget, false)
+  }
+
   func testBuildServerUsesStandardizedFileUrlsInsteadOfRealpath() async throws {
     try SkipUnless.platformIsDarwin("The realpath vs standardized path difference only exists on macOS")
 
