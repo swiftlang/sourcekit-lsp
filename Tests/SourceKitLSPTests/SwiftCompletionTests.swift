@@ -1293,6 +1293,49 @@ final class SwiftCompletionTests: SourceKitLSPTestCase {
     )
   }
 
+  func testSourceKitPlaceholdersAreKeptVerbatim() async throws {
+    try await SkipUnless.sourcekitdSupportsPlugin()
+
+    let testClient = try await TestSourceKitLSPClient(
+      capabilities: ClientCapabilities(
+        textDocument: snippetCapabilities.textDocument,
+        experimental: ["sourcekit-lsp.completion.sourceKitPlaceholders": ["supported": true]]
+      )
+    )
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
+      """
+      struct MyArray {
+          func myMap(_ body: (Int) -> Bool) {}
+      }
+      func test(x: MyArray) {
+          x.1️⃣
+      }
+      func test2() {
+          2️⃣
+      }
+      """,
+      uri: uri
+    )
+    let completions = try await testClient.send(
+      CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+    let myMap = try XCTUnwrap(completions.items.first { $0.label.contains("myMap") })
+    XCTAssertEqual(myMap.insertText, "myMap(<#T##body: (Int) -> Bool##(Int) -> Bool#>)")
+    XCTAssertEqual(myMap.insertTextFormat, .plain)
+    XCTAssertEqual(
+      myMap.textEdit,
+      .textEdit(TextEdit(range: Range(positions["1️⃣"]), newText: "myMap(<#T##body: (Int) -> Bool##(Int) -> Bool#>)"))
+    )
+
+    let keywordCompletions = try await testClient.send(
+      CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
+    )
+    let ifKeyword = try XCTUnwrap(keywordCompletions.items.first { $0.label == "if" })
+    XCTAssertEqual(ifKeyword.insertText, "if")
+    XCTAssertEqual(ifKeyword.insertTextFormat, .plain)
+  }
+
   func testCompletionWithExistingTrailingClosureDoesNotTrimAtSnippetBrace() async throws {
     try await SkipUnless.sourcekitdSupportsPlugin()
 

@@ -149,6 +149,7 @@ class CodeCompletionSession {
     compileCommand: SwiftCompileCommand?,
     clientCapabilities: ClientCapabilities,
     clientSupportsExtendedCompletionItems: Bool,
+    clientSupportsSourceKitPlaceholders: Bool,
     filterText: String
   ) async throws -> CompletionList {
     let task = completionQueue.asyncThrowing {
@@ -178,7 +179,8 @@ class CodeCompletionSession {
         position: completionPosition,
         compileCommand: compileCommand,
         clientCapabilities: clientCapabilities,
-        clientSupportsExtendedCompletionItems: clientSupportsExtendedCompletionItems
+        clientSupportsExtendedCompletionItems: clientSupportsExtendedCompletionItems,
+        clientSupportsSourceKitPlaceholders: clientSupportsSourceKitPlaceholders
       )
       completionSessions[ObjectIdentifier(sourcekitd)] = session
       return try await session.open(filterText: filterText, requestContext: requestContext, in: snapshot)
@@ -238,6 +240,9 @@ class CodeCompletionSession {
   private let clientSupportsInsertReplaceEdits: Bool
   private let clientSupportsDocumentationResolve: Bool
   private let clientSupportsExtendedCompletionItems: Bool
+  /// Whether insert text keeps sourcekitd's `<#…#>` placeholders verbatim as plain text instead of expanding closure
+  /// placeholders and rewriting placeholders to LSP snippets.
+  private let clientSupportsSourceKitPlaceholders: Bool
   private var state: State = .closed
 
   private enum State {
@@ -256,7 +261,8 @@ class CodeCompletionSession {
     position: Position,
     compileCommand: SwiftCompileCommand?,
     clientCapabilities: ClientCapabilities,
-    clientSupportsExtendedCompletionItems: Bool
+    clientSupportsExtendedCompletionItems: Bool,
+    clientSupportsSourceKitPlaceholders: Bool
   ) {
     self.id = CompletionSessionID.next()
     self.sourcekitd = sourcekitd
@@ -272,6 +278,7 @@ class CodeCompletionSession {
       clientCapabilities.textDocument?.completion?.completionItem?.resolveSupport?.properties.contains("documentation")
       ?? false
     self.clientSupportsExtendedCompletionItems = clientSupportsExtendedCompletionItems
+    self.clientSupportsSourceKitPlaceholders = clientSupportsSourceKitPlaceholders
   }
 
   private func open(
@@ -523,7 +530,7 @@ class CodeCompletionSession {
         typeName = typeName.map { plainText(fromAnnotatedCompletionXML: $0) }
       }
 
-      if let closureExpanded = expandClosurePlaceholders(insertText: insertText) {
+      if !clientSupportsSourceKitPlaceholders, let closureExpanded = expandClosurePlaceholders(insertText: insertText) {
         insertText = closureExpanded
       } else if let multilineFormatted = formatMultiLineCompletion(insertText: insertText) {
         insertText = multilineFormatted
@@ -601,7 +608,9 @@ class CodeCompletionSession {
 
       // Check if this is a keyword that should be converted to a snippet. If so, prefer the snippet text
       // as the completion insert text and only compute the `TextEdit` once below.
-      if completionKind == .keyword, let snippetText = keywordSnippet(for: name) {
+      if clientSupportsSourceKitPlaceholders {
+        // The client expands sourcekitd's placeholders itself, so keep them in the plain-text insert text.
+      } else if completionKind == .keyword, let snippetText = keywordSnippet(for: name) {
         insertText = snippetText
         insertTextFormat = .snippet
       } else {
