@@ -130,6 +130,12 @@ package actor SkipUnless {
     try XCTSkipUnless(Platform.current == .windows, message)
   }
 
+  /// Skip the test unless sourcekitd runs in a separate process, eg. because the test crashes sourcekitd.
+  package static func sourcekitdIsOutOfProcess() async throws {
+    let sourcekitd = try await unwrap(ToolchainRegistry.forTesting.default?.sourcekitd)
+    try XCTSkipIf(sourcekitd.lastPathComponent.contains("InProc"), "sourcekitd runs in-process")
+  }
+
   package static func platformSupportsTaskPriorityElevation() throws {
     #if os(macOS)
     guard #available(macOS 14.0, *) else {

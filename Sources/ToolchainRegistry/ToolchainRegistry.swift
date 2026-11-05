@@ -22,6 +22,10 @@ package import enum TSCBasic.ProcessEnv
 package import struct TSCBasic.ProcessEnvironmentKey
 package import func TSCBasic.getEnvSearchPaths
 
+#if canImport(Darwin)
+import Security
+#endif
+
 /// Set of known toolchains.
 ///
 /// Most users will use the `shared` ToolchainRegistry, although it's possible to create more. A
@@ -152,9 +156,35 @@ package final actor ToolchainRegistry {
   /// A toolchain registry used for testing that scans for toolchains based on environment variables and Xcode
   /// installations but not next to the `sourcekit-lsp` binary because there is no `sourcekit-lsp` binary during
   /// testing.
+  ///
+  /// sourcekitd is run in-process if the `SOURCEKIT_LSP_RUN_SOURCEKITD_IN_PROCESS` environment variable is set or if
+  /// the XPC service of the default toolchain's sourcekitd can't load the locally built SourceKit plugins.
   package static var forTesting: ToolchainRegistry {
-    ToolchainRegistry()
+    ToolchainRegistry(preferInProcessSourceKitD: preferInProcessSourceKitDForTesting)
   }
+
+  private static let preferInProcessSourceKitDForTesting: Bool = {
+    if ProcessEnv.block["SOURCEKIT_LSP_RUN_SOURCEKITD_IN_PROCESS"] != nil {
+      return true
+    }
+    #if canImport(Darwin)
+    guard let sourcekitd = ToolchainRegistry(preferInProcessSourceKitD: false).defaultToolchain?.sourcekitd else {
+      return false
+    }
+    let sourceKitService = sourcekitd.deletingLastPathComponent()
+      .appending(components: "XPCServices", "SourceKitService.xpc")
+    if isSignedByApple(sourceKitService) {
+      logger.log(
+        """
+        Running sourcekitd in-process because \(sourceKitService.path) is signed by Apple and thus can't load the \
+        locally built SourceKit plugins
+        """
+      )
+      return true
+    }
+    #endif
+    return false
+  }()
 
   /// Creates a toolchain registry populated by scanning for toolchains according to the given paths
   /// and variables.
@@ -241,17 +271,22 @@ package final actor ToolchainRegistry {
   ///
   /// The default toolchain must be only of the registered toolchains.
   package var `default`: Toolchain? {
+    return defaultToolchain
+  }
+
+  /// Implementation of `default` that only accesses immutable state so that it can be used from nonisolated contexts.
+  private nonisolated var defaultToolchain: Toolchain? {
     // Toolchains discovered from the `SOURCEKIT_TOOLCHAIN_PATH` environment variable or relative to sourcekit-lsp's
     // install path always take precedence over Xcode toolchains.
     if let (toolchain, reason) = toolchainsAndReasons.first, reason < .xcode {
       return toolchain
     }
     // Try finding the Xcode default toolchain.
-    if let tc = toolchainsByIdentifier[darwinToolchainIdentifier]?.first {
+    if let tc = toolchainsByIdentifier[darwinToolchainOverride ?? Self.darwinDefaultToolchainIdentifier]?.first {
       return tc
     }
     var result: Toolchain? = nil
-    for toolchain in toolchains {
+    for (toolchain, _) in toolchainsAndReasons {
       if result == nil || toolchain.isProperSuperset(of: result!) {
         result = toolchain
       }
@@ -365,3 +400,20 @@ extension ToolchainRegistry {
     return URL(fileURLWithPath: str.trimmingCharacters(in: .whitespacesAndNewlines))
   }
 }
+
+#if canImport(Darwin)
+/// Whether the code at `url` is signed by Apple itself, as opposed to a third-party developer.
+///
+/// Such code generally can't load ad-hoc signed libraries, either because it runs as a platform binary or because it
+/// enforces library validation.
+private func isSignedByApple(_ url: URL) -> Bool {
+  var staticCode: SecStaticCode?
+  var requirement: SecRequirement?
+  guard SecStaticCodeCreateWithPath(url as CFURL, [], &staticCode) == errSecSuccess, let staticCode,
+    SecRequirementCreateWithString("anchor apple" as CFString, [], &requirement) == errSecSuccess, let requirement
+  else {
+    return false
+  }
+  return SecStaticCodeCheckValidity(staticCode, [], requirement) == errSecSuccess
+}
+#endif

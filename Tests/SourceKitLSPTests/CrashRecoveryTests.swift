@@ -45,7 +45,7 @@ fileprivate extension HoverResponse {
 
 final class CrashRecoveryTests: SourceKitLSPTestCase {
   func testSourcekitdCrashRecovery() async throws {
-    try SkipUnless.platformIsDarwin("Linux and Windows use in-process sourcekitd")
+    try await SkipUnless.sourcekitdIsOutOfProcess()
     try SkipUnless.longTestsEnabled()
 
     let testClient = try await TestSourceKitLSPClient(
@@ -304,7 +304,7 @@ final class CrashRecoveryTests: SourceKitLSPTestCase {
   }
 
   func testPullDiagnosticsAfterCrash() async throws {
-    try SkipUnless.platformIsDarwin("Linux and Windows use in-process sourcekitd")
+    try await SkipUnless.sourcekitdIsOutOfProcess()
     try SkipUnless.longTestsEnabled()
 
     // Ensure that we don't cache the diagnostic report from the crashed sourcekitd and don't emit any of the internal
@@ -337,7 +337,7 @@ final class CrashRecoveryTests: SourceKitLSPTestCase {
 
   func testRestartSourceKitDIfItDoesntReply() async throws {
     try SkipUnless.longTestsEnabled()
-    try SkipUnless.platformIsDarwin("Linux and Windows use in-process sourcekitd")
+    try await SkipUnless.sourcekitdIsOutOfProcess()
 
     let sourcekitdTerminatedExpectation = self.expectation(description: "sourcekitd terminated")
 
