@@ -516,6 +516,10 @@ package actor BuildServerManager: QueueBasedMessageHandler {
 
   private var cachedTargetSources = RequestCache<BuildTargetSourcesRequest>()
 
+  /// The languages that the build server specifies for the source files in each target. A `nil` language means that the
+  /// build server specified conflicting languages for the file.
+  private let cachedLanguagesInTarget = Cache<BuildTargetIdentifier, [DocumentURI: Language?]>()
+
   /// `SourceFilesAndDirectories` is a global property that only gets reset when the build targets change and thus
   /// has no real key.
   private struct SourceFilesAndDirectoriesKey: Hashable {}
@@ -840,6 +844,13 @@ package actor BuildServerManager: QueueBasedMessageHandler {
         }
         return !changedTargets.intersection(cacheKey.targets).isEmpty
       }
+      self.cachedLanguagesInTarget.clear(isolation: self) { target in
+        guard let changedTargets else {
+          // All targets might have changed
+          return true
+        }
+        return changedTargets.contains(target)
+      }
     case .buildTargetsReceivedResultAfterTimeout(let request, let newResult):
       changedTargets = nil
 
@@ -849,6 +860,7 @@ package actor BuildServerManager: QueueBasedMessageHandler {
       //   the file within the target
       // - cachedTargetSources: Similar to cachedAdjustedSourceKitOptions, we would not have requested sources for
       //   targets that we didn't know about and if we did, they wouldn't be affected
+      // - cachedLanguagesInTarget: Derived from cachedTargetSources.
       self.cachedBuildTargets.set(request, to: newResult)
     case .sourceFilesReceivedResultAfterTimeout(let request, let newResult):
       changedTargets = Set(request.targets)
@@ -858,6 +870,7 @@ package actor BuildServerManager: QueueBasedMessageHandler {
       // - cachedBuildTargets: Getting a result for the source files in a target doesn't change anything about the
       //   target's existence.
       self.cachedTargetSources.set(request, to: newResult)
+      self.cachedLanguagesInTarget.clear(isolation: self) { request.targets.contains($0) }
     }
     // Clear caches that capture global state and are affected by all changes
     self.cachedSourceFilesAndDirectories.clearAll(isolation: self)
@@ -974,20 +987,27 @@ package actor BuildServerManager: QueueBasedMessageHandler {
     for document: DocumentURI,
     in target: BuildTargetIdentifier
   ) async throws -> Language? {
-    let sourcesItems = try await self.sourceFiles(in: [target])
-    let sourceFiles = sourcesItems.flatMap(\.sources)
-    var result: Language? = nil
-    for sourceFile in sourceFiles where sourceFile.uri == document {
-      guard let language = sourceFile.sourceKitData?.language else {
-        continue
+    let languages = try await cachedLanguagesInTarget.get(target, isolation: self) { target in
+      let sourceFiles = try await self.sourceFiles(in: [target]).flatMap(\.sources)
+      var languages: [DocumentURI: Language?] = [:]
+      languages.reserveCapacity(sourceFiles.count)
+      for sourceFile in sourceFiles {
+        guard let language = sourceFile.sourceKitData?.language else {
+          continue
+        }
+        switch languages[sourceFile.uri] {
+        case nil:
+          languages[sourceFile.uri] = language
+        case let existing?:
+          if let existing, existing != language {
+            logger.error("Conflicting languages for \(sourceFile.uri.forLogging) in \(target)")
+            languages.updateValue(nil, forKey: sourceFile.uri)
+          }
+        }
       }
-      if result != nil && result != language {
-        logger.error("Conflicting languages for \(document.forLogging) in \(target)")
-        return nil
-      }
-      result = language
+      return languages
     }
-    return result
+    return languages[document] ?? nil
   }
 
   /// Returns the language that a document should be interpreted in for background tasks where the editor doesn't

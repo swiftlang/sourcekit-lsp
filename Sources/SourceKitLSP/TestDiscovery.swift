@@ -549,12 +549,18 @@ fileprivate extension [AnnotatedTestItem] {
   }
 
   func prefixTestsWithModuleName(workspace: Workspace) async -> Self {
-    return await self.asyncMap({
-      return AnnotatedTestItem(
-        testItem: await $0.testItem.prefixIDWithModuleName(workspace: workspace),
-        isExtension: $0.isExtension
+    var moduleNames: [DocumentURI: String?] = [:]
+    var result: Self = []
+    result.reserveCapacity(self.count)
+    for item in self {
+      result.append(
+        AnnotatedTestItem(
+          testItem: await item.testItem.prefixIDWithModuleName(workspace: workspace, moduleNames: &moduleNames),
+          isExtension: item.isExtension
+        )
       )
-    })
+    }
+    return result
   }
 }
 
@@ -607,16 +613,35 @@ extension TestItem {
     return "\(self.id)/\(filename):\(position.line + 1):\(position.utf16index + columnOffset)"
   }
 
-  fileprivate func prefixIDWithModuleName(workspace: Workspace) async -> TestItem {
-    guard let canonicalTarget = await workspace.buildServerManager.canonicalTarget(for: self.location.uri),
-      let moduleName = await workspace.buildServerManager.moduleName(for: self.location.uri, in: canonicalTarget)
-    else {
+  /// `moduleNames` caches the module name of each file so that it is only computed once per file.
+  fileprivate func prefixIDWithModuleName(
+    workspace: Workspace,
+    moduleNames: inout [DocumentURI: String?]
+  ) async -> TestItem {
+    let uri = self.location.uri
+    let moduleName: String?
+    if let cached = moduleNames[uri] {
+      moduleName = cached
+    } else {
+      if let canonicalTarget = await workspace.buildServerManager.canonicalTarget(for: uri) {
+        moduleName = await workspace.buildServerManager.moduleName(for: uri, in: canonicalTarget)
+      } else {
+        moduleName = nil
+      }
+      moduleNames[uri] = .some(moduleName)
+    }
+    guard let moduleName else {
       return self
     }
 
     var newTest = self
     newTest.id = "\(moduleName).\(newTest.id)"
-    newTest.children = await newTest.children.asyncMap({ await $0.prefixIDWithModuleName(workspace: workspace) })
+    var children: [TestItem] = []
+    children.reserveCapacity(newTest.children.count)
+    for child in newTest.children {
+      children.append(await child.prefixIDWithModuleName(workspace: workspace, moduleNames: &moduleNames))
+    }
+    newTest.children = children
     return newTest
   }
 }
