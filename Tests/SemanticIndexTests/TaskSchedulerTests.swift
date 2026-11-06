@@ -104,6 +104,68 @@ final class TaskSchedulerTests: SourceKitLSPTestCase {
     )
   }
 
+  func testTasksExecuteInPriorityOrderAndInSchedulingOrderWithinPriority() async throws {
+    await runTaskScheduler(
+      highPriorityTasks: 1,
+      lowPriorityTasks: 1,
+      scheduleTasks: { scheduler, taskExecutionRecorder in
+        for i in 0..<10 {
+          for id in [TaskID.lowPriority(i), TaskID.highPriority(i)] {
+            await scheduler.schedule(priority: id.isLowPriority ? .low : .high, id: id) {
+              await taskExecutionRecorder.run(taskID: id, duration: .milliseconds(10))
+            }
+          }
+        }
+      },
+      validate: { (recordings: [Set<TaskID>]) in
+        // With a single execution slot, every task that starts executing is the only element of its recording.
+        let executionOrder = recordings.filter { $0.count == 1 }.compactMap(\.first)
+        XCTAssertEqual(executionOrder, (0..<10).map(TaskID.highPriority) + (0..<10).map(TaskID.lowPriority))
+      }
+    )
+  }
+
+  func testTasksBehindBlockedTasksExecuteInSchedulingOrder() async throws {
+    let taskScheduler = TaskScheduler<ClosureTaskDescription>(maxConcurrentTasksByPriority: [(.low, 2)])
+    let executionOrder = ThreadSafeBox<[TaskID]>(initialValue: [])
+    let releaseBlocker = WrappedSemaphore(name: "Release blocker")
+    let blockerID = TaskID.highPriority(0)
+
+    await taskScheduler.schedule(priority: .low, id: blockerID) {
+      releaseBlocker.waitOrXCTFail()
+    }
+    // These tasks wait for the blocker, so they stay at the front of the queue while the tasks behind them execute.
+    for i in 1...3 {
+      let id = TaskID.highPriority(i)
+      await taskScheduler.schedule(
+        priority: .low,
+        id: id,
+        body: { executionOrder.withLock { $0.append(id) } },
+        dependencies: { currentlyExecutingTasks in
+          currentlyExecutingTasks.filter { $0.taskId == blockerID }.map { .waitAndElevatePriorityOfDependency($0) }
+        }
+      )
+    }
+    for i in 0..<10 {
+      let id = TaskID.lowPriority(i)
+      await taskScheduler.schedule(priority: .low, id: id) {
+        executionOrder.withLock { $0.append(id) }
+      }
+    }
+
+    try await repeatUntilExpectedResult(sleepInterval: .milliseconds(10)) {
+      executionOrder.value.count == 10
+    }
+    releaseBlocker.signal()
+    try await repeatUntilExpectedResult(sleepInterval: .milliseconds(10)) {
+      executionOrder.value.count == 13
+    }
+    // The tasks behind the blocked tasks execute one at a time while the blocker executes. The blocked tasks can execute
+    // concurrently once the blocker finished, so their order isn't deterministic.
+    XCTAssertEqual(Array(executionOrder.value.prefix(10)), (0..<10).map(TaskID.lowPriority))
+    XCTAssertEqual(Set(executionOrder.value.dropFirst(10)), Set((1...3).map(TaskID.highPriority)))
+  }
+
   func testDependencyDeclarationIsRespected() async {
     await runTaskScheduler(
       scheduleTasks: { scheduler, taskExecutionRecorder in
