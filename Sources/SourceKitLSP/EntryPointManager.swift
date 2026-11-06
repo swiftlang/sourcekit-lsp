@@ -19,7 +19,12 @@ actor EntryPointManager {
 
   // Implicitly-unwrapped because initializing it requires capturing `self`.
   private nonisolated(unsafe) var refreshDebouncer: Debouncer<Void>!
-  private var currentRefreshTask: Task<Void, any Error>?
+
+  /// The task performing refreshes, if a refresh is in progress.
+  private var currentRefreshTask: Task<Void, Never>?
+
+  /// Whether a refresh was requested while `currentRefreshTask` was running.
+  private var needsAnotherRefresh = false
 
   // Collected entry points in the workspaces.
   private(set) var latestWorkspaceTests: [TestItem] = []
@@ -68,20 +73,25 @@ actor EntryPointManager {
   }
 
   private func refreshImpl() {
-    self.currentRefreshTask?.cancel()
+    guard currentRefreshTask == nil else {
+      // The in-progress refresh might miss the latest changes. Refresh again once it finishes instead of cancelling it,
+      // so that refreshes don't run concurrently and a steady stream of changes can't keep every refresh from finishing.
+      needsAnotherRefresh = true
+      return
+    }
+    currentRefreshTask = Task { [weak self] in
+      await self?.runRefreshes()
+    }
+  }
 
-    self.currentRefreshTask = Task { [weak self] in
-      guard let self else {
-        return
-      }
-      try Task.checkCancellation()
-
+  private func runRefreshes() async {
+    repeat {
+      needsAnotherRefresh = false
       async let testsTask: Void = self.refreshTestsImpl()
       async let playgroundsTask: Void = self.refreshPlaygroundsImpl()
       _ = await (testsTask, playgroundsTask)
-
-      // No need to clear 'self.currentRefreshTask'; the next call to `refresh()` will cancel and replace it.
-    }
+    } while needsAnotherRefresh
+    currentRefreshTask = nil
   }
 
   private func refreshTestsImpl() async {
@@ -91,7 +101,7 @@ actor EntryPointManager {
     }
     let newTests = await TestDiscovery(sourceKitLSPServer: sourceKitLSPServer).workspaceTests()
     // Never modify the result here. modify 'workspaceTests()' if needed so other clients can gent the same result.
-    if !Task.isCancelled, newTests != latestWorkspaceTests {
+    if newTests != latestWorkspaceTests {
       self.latestWorkspaceTests = newTests
       onWorkspaceTestsChanged()
     }
@@ -103,7 +113,7 @@ actor EntryPointManager {
     }
     let newPlaygrounds = await PlaygroundDiscovery(sourceKitLSPServer: sourceKitLSPServer).workspacePlaygrounds()
     // Never modify the result here. modify 'workspacePlaygrounds()' if needed so other clients can get the same results.
-    if !Task.isCancelled, newPlaygrounds != latestPlaygrounds {
+    if newPlaygrounds != latestPlaygrounds {
       self.latestPlaygrounds = newPlaygrounds
       onWorkspacePlaygroundsChanged()
     }
