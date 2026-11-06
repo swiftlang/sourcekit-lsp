@@ -237,9 +237,15 @@ struct TestDiscovery {
 
     async let testsFromSyntacticIndex = workspace.syntacticIndex.tests()
 
-    // Maps each file path to a minimum required index timestamp.
-    // `.distantPast` means "accept semantic index results regardless of age".
-    var filePathsToUseSemanticIndex: [String: Date] = [:]
+    /// Which semantic index results to accept for a file.
+    enum SemanticIndexRequirement {
+      /// Accept semantic index results regardless of age.
+      case anyAge
+      /// Only accept semantic index results that are not older than the modification date of the file.
+      case notOlderThanFile(URL)
+    }
+
+    var filePathsToUseSemanticIndex: [String: SemanticIndexRequirement] = [:]
     for uri in testFiles {
       guard let fileURL = uri.fileURL, let filePath = try? fileURL.filePath else {
         continue
@@ -254,21 +260,33 @@ struct TestDiscovery {
           // The file has in-memory modifications, so the semantic index is out-of-date. Don't use it.
         } else {
           // Syntactic discovery not supported. Fallback to the semantic index even if it's outdated.
-          filePathsToUseSemanticIndex[filePath] = .distantPast
+          filePathsToUseSemanticIndex[filePath] = .anyAge
         }
       } else {
         // Other test files. Use syntactic index primarily.
         if let tests = await testsFromSyntacticIndex[uri] ?? nil {
           syntacticTests += tests
           // Supplement with semantic index if it's up to date.
-          filePathsToUseSemanticIndex[filePath] = orLog("Retrieving modification date for \(fileURL)") {
-            try fileURL.fileModificationDate
-          }
+          filePathsToUseSemanticIndex[filePath] = .notOlderThanFile(fileURL)
         } else {
           // Syntactic discovery not supported. Fallback to the semantic index even if it's outdated.
-          filePathsToUseSemanticIndex[filePath] = .distantPast
+          filePathsToUseSemanticIndex[filePath] = .anyAge
         }
       }
+    }
+
+    // Looking up a file's modification date is expensive, so only do it for files with semantic test definitions and
+    // only once per file.
+    var fileModificationDates: [String: Date?] = [:]
+    func fileModificationDate(of fileURL: URL, path: String) -> Date? {
+      if let cached = fileModificationDates[path] {
+        return cached
+      }
+      let date = orLog("Retrieving modification date for \(fileURL)") {
+        try fileURL.fileModificationDate
+      }
+      fileModificationDates[path] = .some(date)
+      return date
     }
 
     // Collect tests from semantic index.
@@ -280,14 +298,18 @@ struct TestDiscovery {
       }
 
       // Only use up-to-date items.
-      guard
-        let fileModifiedDate = filePathsToUseSemanticIndex[symbolOccurrence.location.path],
-        symbolOccurrence.location.timestamp >= fileModifiedDate
-      else {
+      let path = symbolOccurrence.location.path
+      switch filePathsToUseSemanticIndex[path] {
+      case nil:
         return false
+      case .anyAge:
+        return true
+      case .notOlderThanFile(let fileURL):
+        guard let fileModifiedDate = fileModificationDate(of: fileURL, path: path) else {
+          return false
+        }
+        return symbolOccurrence.location.timestamp >= fileModifiedDate
       }
-
-      return true
     }
     let semanticTests = try testItems(
       for: symbolOccurrences ?? [],
