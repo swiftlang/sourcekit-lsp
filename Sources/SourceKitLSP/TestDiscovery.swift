@@ -311,7 +311,7 @@ struct TestDiscovery {
       }
       .flatMap(\.self)
       .mergingTestsInExtensions()
-      .sorted { $0.location < $1.location }
+      .sortedByLocation()
       .deduplicatingIds()
   }
 
@@ -324,7 +324,7 @@ struct TestDiscovery {
     return try await documentTestsWithoutMergingExtensions(uri, workspace: workspace, languageService: languageService)
       .prefixTestsWithModuleName(workspace: workspace)
       .mergingTestsInExtensions()
-      .sorted { $0.location < $1.location }
+      .sortedByLocation()
       .deduplicatingIds()
   }
 
@@ -533,7 +533,11 @@ fileprivate extension [AnnotatedTestItem] {
 
     // Sort the tests by location, prioritizing TestItems not in extensions.
     let sortedItems = itemDict.values
-      .sorted { ($0.isExtension != $1.isExtension) ? !$0.isExtension : ($0.testItem.location < $1.testItem.location) }
+      .map { (item: $0, locationKey: LocationSortKey($0.testItem.location)) }
+      .sorted {
+        ($0.item.isExtension != $1.item.isExtension) ? !$0.item.isExtension : ($0.locationKey < $1.locationKey)
+      }
+      .map(\.item)
 
     let result = sortedItems.map {
       guard !$0.testItem.children.isEmpty, mergedIds.contains($0.testItem.id) else {
@@ -558,7 +562,43 @@ fileprivate extension [AnnotatedTestItem] {
   }
 }
 
+/// The values that `Location.<` compares, computed once per location.
+///
+/// Comparing `DocumentURI`s computes their file system paths, which is expensive, so sorting by `Location` directly
+/// computes them twice for every comparison.
+private struct LocationSortKey {
+  private let scheme: String?
+  private let pseudoPath: String
+  private let uriString: String
+  private let range: Range<Position>
+
+  init(_ location: Location) {
+    self.scheme = location.uri.scheme
+    self.pseudoPath = location.uri.pseudoPath
+    self.uriString = location.uri.stringValue
+    self.range = location.range
+  }
+
+  /// Same ordering as `Location.<`.
+  static func < (lhs: LocationSortKey, rhs: LocationSortKey) -> Bool {
+    if lhs.scheme != rhs.scheme || lhs.pseudoPath != rhs.pseudoPath {
+      return lhs.uriString < rhs.uriString
+    }
+    if lhs.range.lowerBound != rhs.range.lowerBound {
+      return lhs.range.lowerBound < rhs.range.lowerBound
+    }
+    return lhs.range.upperBound < rhs.range.upperBound
+  }
+}
+
 fileprivate extension [TestItem] {
+  /// Equivalent to `sorted { $0.location < $1.location }`.
+  func sortedByLocation() -> [TestItem] {
+    return self.map { (item: $0, locationKey: LocationSortKey($0.location)) }
+      .sorted { $0.locationKey < $1.locationKey }
+      .map(\.item)
+  }
+
   /// If multiple testItems share the same ID we add more context to make it unique.
   /// Two tests can share the same ID when two swift testing tests accept
   /// arguments of different types, i.e:
