@@ -258,7 +258,7 @@ struct TestDiscovery {
         }
       } else {
         // Other test files. Use syntactic index primarily.
-        if let tests = await testsFromSyntacticIndex[uri] {
+        if let tests = await testsFromSyntacticIndex[uri] ?? nil {
           syntacticTests += tests
           // Supplement with semantic index if it's up to date.
           filePathsToUseSemanticIndex[filePath] = orLog("Retrieving modification date for \(fileURL)") {
