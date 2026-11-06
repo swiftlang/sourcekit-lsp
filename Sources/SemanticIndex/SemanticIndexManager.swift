@@ -164,6 +164,29 @@ package enum TargetPreparationPurpose: Comparable {
   case forEditorFunctionality
 }
 
+/// The callbacks to call when the execution state of a preparation task changes.
+private final class PreparationTaskStateCallbacks {
+  var callbacks: [(QueuedTask<AnyIndexTaskDescription>, TaskExecutionState) async -> Void]
+
+  init(_ callback: @escaping (QueuedTask<AnyIndexTaskDescription>, TaskExecutionState) async -> Void) {
+    self.callbacks = [callback]
+  }
+
+  func callAll(_ task: QueuedTask<AnyIndexTaskDescription>, _ newState: TaskExecutionState) async {
+    for callback in callbacks {
+      await callback(task, newState)
+    }
+  }
+}
+
+/// An entry in `SemanticIndexManager.pendingPreparationTasksForIndexing`.
+private struct PendingPreparationTask {
+  let task: QueuedTask<AnyIndexTaskDescription>
+
+  /// Callers that reuse `task` add their callbacks here.
+  let stateCallbacks: PreparationTaskStateCallbacks
+}
+
 /// An entry in `SemanticIndexManager.inProgressPreparationTasks`.
 private struct InProgressPreparationTask {
   let task: OpaqueQueuedIndexTask
@@ -203,6 +226,15 @@ package final actor SemanticIndexManager {
   ///
   /// After a preparation task finishes, it is removed from this dictionary.
   private var inProgressPreparationTasks: [BuildTargetIdentifier: InProgressPreparationTask] = [:]
+
+  /// Preparation tasks for indexing that haven't started executing yet, so that further requests to prepare the same
+  /// targets for indexing can wait for them instead of scheduling another preparation.
+  ///
+  /// Unlike preparation for editor functionality, preparation for indexing is only awaited by index tasks, which are
+  /// only cancelled when shutting down, so it can be shared between them.
+  ///
+  /// A task is only added once it has been scheduled, so a concurrent request might still schedule another one.
+  private var pendingPreparationTasksForIndexing: [BuildTargetIdentifier: PendingPreparationTask] = [:]
 
   /// The files that are currently being index, either waiting for their target to be prepared, waiting for the index
   /// store update task to be scheduled in the task scheduler or which currently have an index store update running.
@@ -327,6 +359,7 @@ package final actor SemanticIndexManager {
     }
     inProgressIndexTasks = [:]
     inProgressPreparationTasks = [:]
+    pendingPreparationTasksForIndexing = [:]
     inProgressPrepareForEditorTask?.task.cancel()
     inProgressPrepareForEditorTask = nil
     for task in fileOrBuildTargetChangedTasks.values {
@@ -712,28 +745,54 @@ package final actor SemanticIndexManager {
       return nil
     }
 
-    let taskDescription = AnyIndexTaskDescription(
-      PreparationTaskDescription(
-        targetsToPrepare: targetsToPrepare,
-        buildServerManager: self.buildServerManager,
-        preparationUpToDateTracker: preparationUpToDateTracker,
-        logMessageToIndexLog: logMessageToIndexLog,
-        hooks: hooks,
-        purpose: purpose
-      )
+    if purpose == .forIndexing,
+      let pending = pendingPreparationTasksForIndexing[targetsToPrepare[0]],
+      targetsToPrepare.allSatisfy({ pendingPreparationTasksForIndexing[$0]?.task === pending.task }),
+      !pending.task.isExecuting
+    {
+      // Wait for the preparation that hasn't started yet instead of scheduling another one, which would just find the
+      // targets up-to-date after waiting for the first one.
+      let pendingTask = pending.task
+      pendingTask.elevatePriority(to: priority ?? Task.currentPriority)
+      pending.stateCallbacks.callbacks.append(executionStatusChangedCallback)
+      logger.debug("Reusing \(pendingTask.description.forLogging) for preparing \(targetsToPrepare)")
+      if let pendingPreparation = pendingTask.description.wrapped as? PreparationTaskDescription {
+        await hooks.preparationWasRequested?(pendingPreparation, false)
+      }
+      return pendingTask
+    }
+
+    let preparation = PreparationTaskDescription(
+      targetsToPrepare: targetsToPrepare,
+      buildServerManager: self.buildServerManager,
+      preparationUpToDateTracker: preparationUpToDateTracker,
+      logMessageToIndexLog: logMessageToIndexLog,
+      hooks: hooks,
+      purpose: purpose
     )
+    let taskDescription = AnyIndexTaskDescription(preparation)
     if Task.isCancelled {
       return nil
     }
+
+    let stateCallbacks = PreparationTaskStateCallbacks(executionStatusChangedCallback)
     let preparationTask = await indexTaskScheduler.schedule(priority: priority, taskDescription) { task, newState in
-      await executionStatusChangedCallback(task, newState)
-      guard case .finished = newState else {
-        self.indexProgressStatusDidChange()
-        return
-      }
-      for target in targetsToPrepare {
-        if self.inProgressPreparationTasks[target]?.task == OpaqueQueuedIndexTask(task) {
-          self.inProgressPreparationTasks[target] = nil
+      await stateCallbacks.callAll(task, newState)
+      switch newState {
+      case .executing:
+        // The targets might change while they are being prepared, so don't reuse this task once it started executing.
+        for target in targetsToPrepare {
+          if self.pendingPreparationTasksForIndexing[target]?.task === task {
+            self.pendingPreparationTasksForIndexing[target] = nil
+          }
+        }
+      case .cancelledToBeRescheduled:
+        break
+      case .finished:
+        for target in targetsToPrepare {
+          if self.inProgressPreparationTasks[target]?.task == OpaqueQueuedIndexTask(task) {
+            self.inProgressPreparationTasks[target] = nil
+          }
         }
       }
       self.indexProgressStatusDidChange()
@@ -745,6 +804,14 @@ package final actor SemanticIndexManager {
     logger.debug(
       "Scheduled \(preparationTask.description.forLogging) at priority \(preparationTask.priority.rawValue, privacy: .public) (caller priority \(Task.currentPriority.rawValue, privacy: .public))"
     )
+    if purpose == .forIndexing {
+      for target in targetsToPrepare {
+        pendingPreparationTasksForIndexing[target] = PendingPreparationTask(
+          task: preparationTask,
+          stateCallbacks: stateCallbacks
+        )
+      }
+    }
     for target in targetsToPrepare {
       // If we are preparing the same target for indexing and editor functionality, pick editor functionality as the
       // purpose because it is more significant.
@@ -759,6 +826,7 @@ package final actor SemanticIndexManager {
         purpose: mergedPurpose
       )
     }
+    await hooks.preparationWasRequested?(preparation, true)
     return preparationTask
   }
 
