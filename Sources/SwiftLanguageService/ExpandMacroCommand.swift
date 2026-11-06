@@ -20,7 +20,7 @@ package struct ExpandMacroCommand: SwiftCommand {
   package var title = "Expand Macro"
 
   /// The sourcekitd identifier of the refactoring action.
-  package var actionString = "source.refactoring.kind.expand.macro"
+  package static let actionString = "source.refactoring.kind.expand.macro"
 
   /// The range to expand.
   @CustomCodable<PositionRange>
