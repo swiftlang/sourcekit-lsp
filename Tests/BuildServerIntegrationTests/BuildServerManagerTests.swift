@@ -102,7 +102,86 @@ private func createBuildServerManager(
   return (manager, buildServer)
 }
 
+/// A build server with two top-level targets that both depend on a shared target.
+fileprivate actor SharedDependencyBuildServer: CustomBuildServer {
+  static let topLevelA = BuildTargetIdentifier(uri: try! URI(string: "test://topLevelA"))
+  static let topLevelB = BuildTargetIdentifier(uri: try! URI(string: "test://topLevelB"))
+  static let shared = BuildTargetIdentifier(uri: try! URI(string: "test://shared"))
+
+  let inProgressRequestsTracker = CustomBuildServerInProgressRequestTracker()
+
+  init(projectRoot: URL, connectionToSourceKitLSP: any Connection) {}
+
+  func workspaceBuildTargetsRequest(
+    _ request: WorkspaceBuildTargetsRequest
+  ) async throws -> WorkspaceBuildTargetsResponse {
+    return WorkspaceBuildTargetsResponse(targets: [
+      BuildTarget(
+        id: Self.topLevelA,
+        capabilities: BuildTargetCapabilities(),
+        languageIds: [],
+        dependencies: [Self.shared]
+      ),
+      BuildTarget(
+        id: Self.topLevelB,
+        capabilities: BuildTargetCapabilities(),
+        languageIds: [],
+        dependencies: [Self.shared]
+      ),
+      BuildTarget(id: Self.shared, capabilities: BuildTargetCapabilities(), languageIds: [], dependencies: []),
+    ])
+  }
+
+  func buildTargetSourcesRequest(_ request: BuildTargetSourcesRequest) -> BuildTargetSourcesResponse {
+    return BuildTargetSourcesResponse(items: [])
+  }
+
+  func textDocumentSourceKitOptionsRequest(
+    _ request: TextDocumentSourceKitOptionsRequest
+  ) async throws -> TextDocumentSourceKitOptionsResponse? {
+    return nil
+  }
+}
+
 final class BuildServerManagerTests: SourceKitLSPTestCase {
+  func testTargetsSortedForIndexingContainEachTargetOnce() async throws {
+    let dummyPath = URL(fileURLWithPath: "/")
+    let spec = BuildServerSpec(
+      kind: .injected({ projectRoot, connectionToSourceKitLSP in
+        LocalConnection(
+          receiverName: "SharedDependencyBuildServer",
+          handler: SharedDependencyBuildServer(
+            projectRoot: projectRoot,
+            connectionToSourceKitLSP: connectionToSourceKitLSP
+          )
+        )
+      }),
+      projectRoot: dummyPath,
+      configPath: dummyPath
+    )
+    let manager = await BuildServerManager(
+      buildServerSpec: spec,
+      toolchainRegistry: ToolchainRegistry.forTesting,
+      options: SourceKitLSPOptions(),
+      connectionToClient: DummyBuildServerManagerConnectionToClient(),
+      buildServerHooks: BuildServerHooks(),
+      createMainFilesProvider: { _, _ in nil }
+    )
+
+    let sortedTargets = try await manager.targetsSortedForIndexing([
+      SharedDependencyBuildServer.shared,
+      SharedDependencyBuildServer.topLevelA,
+      SharedDependencyBuildServer.topLevelB,
+    ])
+    XCTAssertEqual(
+      sortedTargets,
+      [
+        SharedDependencyBuildServer.topLevelA, SharedDependencyBuildServer.shared,
+        SharedDependencyBuildServer.topLevelB,
+      ]
+    )
+  }
+
   func testMainFiles() async throws {
     let a = try DocumentURI(string: "bsm:a")
     let b = try DocumentURI(string: "bsm:b")

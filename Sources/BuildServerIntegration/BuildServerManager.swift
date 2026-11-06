@@ -1530,7 +1530,7 @@ package actor BuildServerManager: QueueBasedMessageHandler {
       visited.insert(target)
 
       let transitiveDependencies = transitiveClosure(of: [target]) { Set(buildTargets[$0]?.target.dependencies ?? []) }
-      let dependenciesInWorkList = workList.filter { transitiveDependencies.contains($0) }
+      let dependenciesInWorkList = workList.filter { transitiveDependencies.contains($0) && !visited.contains($0) }
       sorted += dependenciesInWorkList
       visited.formUnion(dependenciesInWorkList)
     }
