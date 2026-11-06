@@ -37,6 +37,11 @@ package struct IndexHooks: Sendable {
 
   package var buildGraphGenerationDidFinish: (@Sendable () async -> Void)?
 
+  /// A callback that is called when targets are requested to be prepared for indexing or editor functionality and
+  /// aren't up-to-date. `isNewTask` is `false` if the request reuses a preparation task that was already scheduled.
+  package var preparationWasRequested:
+    (@Sendable (_ task: PreparationTaskDescription, _ isNewTask: Bool) async -> Void)?
+
   package var preparationTaskDidStart: (@Sendable (PreparationTaskDescription) async -> Void)?
 
   package var preparationTaskDidFinish: (@Sendable (PreparationTaskDescription) async -> Void)?
@@ -54,6 +59,7 @@ package struct IndexHooks: Sendable {
     indexInjector: (any IndexInjector)? = nil,
     buildGraphGenerationDidStart: (@Sendable () async -> Void)? = nil,
     buildGraphGenerationDidFinish: (@Sendable () async -> Void)? = nil,
+    preparationWasRequested: (@Sendable (_ task: PreparationTaskDescription, _ isNewTask: Bool) async -> Void)? = nil,
     preparationTaskDidStart: (@Sendable (PreparationTaskDescription) async -> Void)? = nil,
     preparationTaskDidFinish: (@Sendable (PreparationTaskDescription) async -> Void)? = nil,
     updateIndexStoreTaskDidStart: (@Sendable (UpdateIndexStoreTaskDescription) async -> Void)? = nil,
@@ -63,6 +69,7 @@ package struct IndexHooks: Sendable {
     self.indexInjector = indexInjector
     self.buildGraphGenerationDidStart = buildGraphGenerationDidStart
     self.buildGraphGenerationDidFinish = buildGraphGenerationDidFinish
+    self.preparationWasRequested = preparationWasRequested
     self.preparationTaskDidStart = preparationTaskDidStart
     self.preparationTaskDidFinish = preparationTaskDidFinish
     self.updateIndexStoreTaskDidStart = updateIndexStoreTaskDidStart
