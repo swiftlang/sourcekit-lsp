@@ -314,6 +314,76 @@ package actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
   }
 }
 
+/// The tasks that haven't been scheduled for execution yet, ordered by descending priority after `sortIfNeeded` is
+/// called. Tasks with equal priority keep the order in which they were appended.
+private struct PendingTaskQueue<TaskDescription: TaskDescriptionProtocol>: RandomAccessCollection {
+  /// An `ArraySlice` so that tasks can be removed from the front in constant time. Since a slice keeps its indices even
+  /// when its buffer is reallocated, `startIndex` is the number of tasks removed from the front since `tasks` was last
+  /// rebuilt, which bounds the number of removed tasks that the buffer still references.
+  private var tasks: ArraySlice<QueuedTask<TaskDescription>> = []
+
+  /// Whether `tasks` might not be sorted by descending priority.
+  private var needsSorting: Bool = false
+
+  var startIndex: Int { tasks.startIndex }
+  var endIndex: Int { tasks.endIndex }
+  subscript(position: Int) -> QueuedTask<TaskDescription> { tasks[position] }
+
+  mutating func append(_ task: QueuedTask<TaskDescription>) {
+    if let lastTask = tasks.last, lastTask.priority < task.priority {
+      needsSorting = true
+    }
+    tasks.append(task)
+  }
+
+  /// Must be called when the priority of a task in the queue changed.
+  mutating func priorityDidChange() {
+    needsSorting = true
+  }
+
+  mutating func sortIfNeeded() {
+    if needsSorting {
+      tasks.sort(by: { $0.priority > $1.priority })
+      needsSorting = false
+    }
+  }
+
+  /// Remove the tasks at `indices`, preserving the order of the other tasks.
+  ///
+  /// Tasks are usually started from the front of the queue, so the tasks before the removed ones are moved backwards to
+  /// fill the gaps and the front of `tasks` is dropped in constant time.
+  mutating func remove(atAscendingIndices indices: [Int]) {
+    guard let lastIndex = indices.last else {
+      return
+    }
+    let startIndex = tasks.startIndex
+    // Swap through the buffer because `ArraySlice.swapAt` retains and releases the swapped tasks.
+    let removedCount = tasks.withUnsafeMutableBufferPointer { buffer -> Int in
+      var indicesToRemove = indices[...]
+      var writeIndex = lastIndex - startIndex
+      for readIndex in stride(from: lastIndex - startIndex, through: 0, by: -1) {
+        if indicesToRemove.last == readIndex + startIndex {
+          indicesToRemove.removeLast()
+          continue
+        }
+        buffer.swapAt(writeIndex, readIndex)
+        writeIndex -= 1
+      }
+      return writeIndex + 1
+    }
+    tasks.removeFirst(removedCount)
+    if tasks.startIndex > tasks.count {
+      // Copy the remaining tasks into a new buffer to release the tasks removed from the front.
+      tasks = ArraySlice(Array(tasks))
+    }
+  }
+
+  mutating func removeAll() {
+    tasks = []
+    needsSorting = false
+  }
+}
+
 /// Schedules an unordered list of tasks for execution.
 ///
 /// The key features that `TaskScheduler` provides are:
@@ -337,7 +407,10 @@ package actor TaskScheduler<TaskDescription: TaskDescriptionProtocol> {
   private var currentlyExecutingTasks: [QueuedTask<TaskDescription>] = []
 
   /// The queue of pending tasks that haven't been scheduled for execution yet.
-  private var pendingTasks: [QueuedTask<TaskDescription>] = []
+  private var pendingTasks = PendingTaskQueue<TaskDescription>()
+
+  /// The task spawned to call `poke` and the highest priority requested for it, if that task hasn't run yet.
+  private var scheduledPoke: (task: Task<Void, Never>, priority: TaskPriority)? = nil
 
   /// Whether `shutDown` has been called on the `TaskScheduler` and it should thus schedule any new tasks.
   private var isShutDown: Bool = false
@@ -451,19 +524,54 @@ package actor TaskScheduler<TaskDescription: TaskDescriptionProtocol> {
         Task.detached(priority: newPriority) { [weak self] in
           // If the task's priority got elevated, there might be an execution slot for it now. Poke the scheduler
           // to run the task if possible.
-          await self?.poke()
+          await self?.taskPriorityChanged(to: newPriority)
         }
       },
       executionStateChangedCallback: executionStateChangedCallback
     )
     pendingTasks.append(queuedTask)
-    Task.detached(priority: priority ?? Task.currentPriority) { [weak self] in
-      // Poke the `TaskScheduler` to execute a new task. If the `TaskScheduler` is already working at its capacity
-      // limit, this will not do anything. If there are execution slots available, this will start executing the freshly
-      // queued task.
-      await self?.poke()
-    }
+    // Poke the `TaskScheduler` to execute a new task. If the `TaskScheduler` is already working at its capacity
+    // limit, this will not do anything. If there are execution slots available, this will start executing the freshly
+    // queued task.
+    schedulePoke(priority: queuedTask.priority)
     return queuedTask
+  }
+
+  /// Spawn a task that calls `poke`, or escalate the priority of the one that was spawned and hasn't run yet.
+  ///
+  /// `poke` is not called directly because callers often schedule many tasks in a row and each `poke` walks the pending
+  /// tasks. Deferring it lets a single `poke` handle all tasks scheduled until it runs.
+  private func schedulePoke(priority: TaskPriority) {
+    guard let scheduledPoke else {
+      let task = Task.detached(priority: priority) { [weak self] in
+        guard let self else {
+          return
+        }
+        await self.runScheduledPoke()
+      }
+      scheduledPoke = (task, priority)
+      return
+    }
+    guard priority > scheduledPoke.priority else {
+      return
+    }
+    self.scheduledPoke?.priority = priority
+    if #available(macOS 26, iOS 26, macCatalyst 26, *) {
+      scheduledPoke.task.escalatePriority(to: priority)
+    } else {
+      // Awaiting the task from a higher-priority task escalates its priority.
+      Task(priority: priority) { await scheduledPoke.task.value }
+    }
+  }
+
+  private func runScheduledPoke() {
+    scheduledPoke = nil
+    poke()
+  }
+
+  private func taskPriorityChanged(to newPriority: TaskPriority) {
+    pendingTasks.priorityDidChange()
+    schedulePoke(priority: newPriority)
   }
 
   /// Cancel all in-progress tasks and wait for them to finish, either by honoring the cancellation or finishing their
@@ -555,15 +663,23 @@ package actor TaskScheduler<TaskDescription: TaskDescriptionProtocol> {
     if isShutDown {
       return
     }
-    pendingTasks.sort(by: { $0.priority > $1.priority })
-    for task in pendingTasks {
+    pendingTasks.sortIfNeeded()
+    var currentlyExecutingTaskDetails = currentlyExecutingTasks.map {
+      (priority: $0.priority, estimatedCPUCoreCount: $0.description.estimatedCPUCoreCount)
+    }
+    var currentlyExecutingTaskDescriptions = currentlyExecutingTasks.map(\.description)
+    // Indices in `pendingTasks` of the tasks that started executing, in ascending order. Removed in a single pass when
+    // returning instead of one by one to avoid repeatedly shifting the elements of `pendingTasks`.
+    var startedTaskIndices: [Int] = []
+    defer {
+      pendingTasks.remove(atAscendingIndices: startedTaskIndices)
+    }
+    for (index, task) in zip(pendingTasks.indices, pendingTasks) {
       guard
         Self.canScheduleTask(
           withPriority: task.priority,
           maxConcurrentTasksByPriority: maxConcurrentTasksByPriority,
-          currentlyExecutingTaskDetails: currentlyExecutingTasks.map({
-            ($0.priority, $0.description.estimatedCPUCoreCount)
-          })
+          currentlyExecutingTaskDetails: currentlyExecutingTaskDetails
         )
       else {
         // We don't have any execution slots left. Thus, this poker has nothing to do and is done.
@@ -577,7 +693,7 @@ package actor TaskScheduler<TaskDescription: TaskDescriptionProtocol> {
         }
         return
       }
-      let dependencies = task.description.dependencies(to: currentlyExecutingTasks.map(\.description))
+      let dependencies = task.description.dependencies(to: currentlyExecutingTaskDescriptions)
       let waitForTasks = dependencies.compactMap { (taskDependency) -> QueuedTask<TaskDescription>? in
         switch taskDependency {
         case .cancelAndRescheduleDependency(let taskDescription):
@@ -620,6 +736,9 @@ package actor TaskScheduler<TaskDescription: TaskDescriptionProtocol> {
         for waitForTask in waitForTasks {
           waitForTask.elevatePriority(to: task.priority)
         }
+        currentlyExecutingTaskDetails = currentlyExecutingTasks.map {
+          (priority: $0.priority, estimatedCPUCoreCount: $0.description.estimatedCPUCoreCount)
+        }
         continue
       }
       let rescheduleTasks = dependencies.compactMap { (taskDependency) -> QueuedTask<TaskDescription>? in
@@ -655,7 +774,9 @@ package actor TaskScheduler<TaskDescription: TaskDescriptionProtocol> {
       }
 
       currentlyExecutingTasks.append(task)
-      pendingTasks.removeAll(where: { $0 === task })
+      currentlyExecutingTaskDetails.append((task.priority, task.description.estimatedCPUCoreCount))
+      currentlyExecutingTaskDescriptions.append(task.description)
+      startedTaskIndices.append(index)
       Task.detached(priority: task.priority) {
         // Await the task's return in a task so that this poker can continue checking if there are more execution
         // slots that can be filled with queued tasks.
