@@ -105,7 +105,7 @@ package func definitionLocations(
   }
 
   return DefinitionLocationsResult(
-    locations: occurrences.compactMap { $0.location.lspLocation }.sorted(),
+    locations: occurrences.compactMap { $0.location.lspLocation }.sorted(byLocation: \.self),
     indexOccurrences: occurrences
   )
 }

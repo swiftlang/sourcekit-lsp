@@ -12,6 +12,7 @@ add_library(SourceKitLSP STATIC
   IndexStoreDB+MainFilesProvider.swift
   LanguageService.swift
   LanguageServiceRegistry.swift
+  LocationSortKey.swift
   LogMessageNotification+representingStructureUsingEmojiPrefixIfNecessary.swift
   LSP+CopiedFileMap.swift
   MacroExpansionReferenceDocumentURLData.swift
