@@ -35,6 +35,6 @@ struct PlaygroundDiscovery {
     return await sourceKitLSPServer.workspaces
       .concurrentMap { await self.playgrounds(in: $0) }
       .flatMap { $0 }
-      .sorted { $0.location < $1.location }
+      .sorted(byLocation: \.location)
   }
 }

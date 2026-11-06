@@ -258,7 +258,7 @@ struct TestDiscovery {
         }
       } else {
         // Other test files. Use syntactic index primarily.
-        if let tests = await testsFromSyntacticIndex[uri] {
+        if let tests = await testsFromSyntacticIndex[uri] ?? nil {
           syntacticTests += tests
           // Supplement with semantic index if it's up to date.
           filePathsToUseSemanticIndex[filePath] = orLog("Retrieving modification date for \(fileURL)") {
@@ -311,7 +311,7 @@ struct TestDiscovery {
       }
       .flatMap(\.self)
       .mergingTestsInExtensions()
-      .sorted { $0.location < $1.location }
+      .sorted(byLocation: \.location)
       .deduplicatingIds()
   }
 
@@ -324,7 +324,7 @@ struct TestDiscovery {
     return try await documentTestsWithoutMergingExtensions(uri, workspace: workspace, languageService: languageService)
       .prefixTestsWithModuleName(workspace: workspace)
       .mergingTestsInExtensions()
-      .sorted { $0.location < $1.location }
+      .sorted(byLocation: \.location)
       .deduplicatingIds()
   }
 
@@ -533,7 +533,11 @@ fileprivate extension [AnnotatedTestItem] {
 
     // Sort the tests by location, prioritizing TestItems not in extensions.
     let sortedItems = itemDict.values
-      .sorted { ($0.isExtension != $1.isExtension) ? !$0.isExtension : ($0.testItem.location < $1.testItem.location) }
+      .map { (item: $0, locationKey: LocationSortKey($0.testItem.location)) }
+      .sorted {
+        ($0.item.isExtension != $1.item.isExtension) ? !$0.item.isExtension : ($0.locationKey < $1.locationKey)
+      }
+      .map(\.item)
 
     let result = sortedItems.map {
       guard !$0.testItem.children.isEmpty, mergedIds.contains($0.testItem.id) else {

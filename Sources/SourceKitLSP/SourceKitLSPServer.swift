@@ -2166,7 +2166,7 @@ extension SourceKitLSPServer {
 
     let copiedFileMap = await workspace.buildServerManager.cachedCopiedFileMap
     let remappedLocations = resultLocations.adjusted(for: copiedFileMap)
-    return .locations(remappedLocations.unique.sorted())
+    return .locations(remappedLocations.unique.sorted(byLocation: \.self))
   }
 
   func references(
@@ -2207,7 +2207,7 @@ extension SourceKitLSPServer {
 
     let copiedFileMap = await workspace.buildServerManager.cachedCopiedFileMap
     let remappedLocations = locations.adjusted(for: copiedFileMap)
-    return remappedLocations.unique.sorted()
+    return remappedLocations.unique.sorted(byLocation: \.self)
   }
 
   func workspaceReferences(_ req: WorkspaceReferencesRequest) async throws -> [Location] {
@@ -2222,7 +2222,7 @@ extension SourceKitLSPServer {
       index: index
     )
     let copiedFileMap = await workspace.buildServerManager.cachedCopiedFileMap
-    return locations.adjusted(for: copiedFileMap).unique.sorted()
+    return locations.adjusted(for: copiedFileMap).unique.sorted(byLocation: \.self)
   }
 
   func workspaceMembers(_ req: WorkspaceMembersRequest) async throws -> [SourceKitSymbolMember] {
@@ -2255,7 +2255,7 @@ extension SourceKitLSPServer {
         tags: member.symbol.kind.sourceKitSymbolTags
       )
     }
-    .sorted { $0.location < $1.location }
+    .sorted(byLocation: \.location)
   }
 
   private func indexReferences(ofUSR usr: String, includeDeclaration: Bool, index: CheckedIndex) throws -> [Location] {
@@ -2383,7 +2383,7 @@ extension SourceKitLSPServer {
         continue
       }
 
-      let locations = callsList.compactMap { $0.location.lspLocation }.sorted()
+      let locations = callsList.compactMap { $0.location.lspLocation }.sorted(byLocation: \.self)
       let remappedLocations = locations.adjusted(for: copiedFileMap)
       guard !remappedLocations.isEmpty else {
         continue

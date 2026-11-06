@@ -287,16 +287,15 @@ package actor SyntacticIndex: Sendable {
 
   /// Gets the syntactically indexed tests keyed by document URI.
   ///
-  /// Only files for which syntactic test discovery is supported are included in the result.
-  /// Files not present in the returned dictionary either have not been scanned yet or do not
-  /// support syntactic test discovery.
+  /// The tests are `nil` for files that don't support syntactic test discovery. Files not present in the returned
+  /// dictionary have not been scanned yet.
   ///
   /// This waits for any pending document updates to be indexed before returning a result.
-  nonisolated package func tests() async -> [DocumentURI: [AnnotatedTestItem]] {
-    let readTask = indexingQueue.async(metadata: .read) { () -> [DocumentURI: [AnnotatedTestItem]] in
-      await self.indexedSources.reduce(into: [:]) { result, element in
-        result[element.key] = element.value.tests
-      }
+  nonisolated package func tests() async -> [DocumentURI: [AnnotatedTestItem]?] {
+    let readTask = indexingQueue.async(metadata: .read) { () -> [DocumentURI: [AnnotatedTestItem]?] in
+      // `mapValues` keeps the dictionary's hash table. Building a new dictionary, including with `compactMapValues`,
+      // would hash every `DocumentURI`, which is expensive.
+      await self.indexedSources.mapValues(\.tests)
     }
     return await readTask.value
   }
