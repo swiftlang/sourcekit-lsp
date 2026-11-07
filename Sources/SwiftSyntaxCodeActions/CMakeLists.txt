@@ -22,9 +22,10 @@ add_library(SwiftSyntaxCodeActions STATIC
   MigrateToNewIfLetSyntax.swift
   OpaqueParameterToGeneric.swift
   PackageManifestEdits.swift
-  SwapBinaryOperands.swift
   RemoveRedundantParentheses.swift
   RemoveSeparatorsFromIntegerLiteral.swift
+  RemoveUnusedParameter.swift
+  SwapBinaryOperands.swift
   SyntaxCodeActionProvider.swift
   SyntaxCodeActions.swift
   SyntaxRefactoringCodeActionProvider.swift
