@@ -101,12 +101,6 @@ package struct FileIndexInfo: Sendable, Hashable {
   package let outputPath: OutputPath
 }
 
-/// Status of document indexing / target preparation in `inProgressIndexAndPreparationTasks`.
-package enum IndexTaskStatus: Comparable {
-  case scheduled
-  case executing
-}
-
 /// The current index status that should be displayed to the editor.
 ///
 /// In reality, these status are not exclusive. Eg. the index might be preparing one target for editor functionality,
@@ -115,10 +109,8 @@ package enum IndexTaskStatus: Comparable {
 package enum IndexProgressStatus: Sendable, Equatable {
   case preparingFileForEditorFunctionality
   case generatingBuildGraph
-  case indexing(
-    preparationTasks: [BuildTargetIdentifier: IndexTaskStatus],
-    indexTasks: [FileIndexInfo: IndexTaskStatus]
-  )
+  /// The number of targets being prepared and files being indexed, including the ones that are only scheduled.
+  case indexing(preparationTaskCount: Int, indexTaskCount: Int)
   case upToDate
 
   package func merging(with other: IndexProgressStatus) -> IndexProgressStatus {
@@ -128,12 +120,12 @@ package enum IndexProgressStatus: Sendable, Equatable {
     case (_, .generatingBuildGraph), (.generatingBuildGraph, _):
       return .generatingBuildGraph
     case (
-      .indexing(let selfPreparationTasks, let selfIndexTasks),
-      .indexing(let otherPreparationTasks, let otherIndexTasks)
+      .indexing(let selfPreparationTaskCount, let selfIndexTaskCount),
+      .indexing(let otherPreparationTaskCount, let otherIndexTaskCount)
     ):
       return .indexing(
-        preparationTasks: selfPreparationTasks.merging(otherPreparationTasks) { max($0, $1) },
-        indexTasks: selfIndexTasks.merging(otherIndexTasks) { max($0, $1) }
+        preparationTaskCount: selfPreparationTaskCount + otherPreparationTaskCount,
+        indexTaskCount: selfIndexTaskCount + otherIndexTaskCount
       )
     case (.indexing, .upToDate): return self
     case (.upToDate, .indexing): return other
@@ -288,19 +280,11 @@ package final actor SemanticIndexManager {
     if inProgressPreparationTasks.values.contains(where: { $0.purpose == .forEditorFunctionality }) {
       return .preparingFileForEditorFunctionality
     }
-    let preparationTasks = inProgressPreparationTasks.mapValues { inProgressTask in
-      return inProgressTask.task.isExecuting ? IndexTaskStatus.executing : IndexTaskStatus.scheduled
-    }
-    let indexTasks = inProgressIndexTasks.mapValues { inProgress in
-      switch inProgress.state {
-      case .creatingIndexTask, .waitingForPreparation, .preparing:
-        return IndexTaskStatus.scheduled
-      case .updatingIndexStore(let updateIndexStoreTask, indexTask: _):
-        return updateIndexStoreTask.isExecuting ? IndexTaskStatus.executing : IndexTaskStatus.scheduled
-      }
-    }
-    if !preparationTasks.isEmpty || !indexTasks.isEmpty {
-      return .indexing(preparationTasks: preparationTasks, indexTasks: indexTasks)
+    if !inProgressPreparationTasks.isEmpty || !inProgressIndexTasks.isEmpty {
+      return .indexing(
+        preparationTaskCount: inProgressPreparationTasks.count,
+        indexTaskCount: inProgressIndexTasks.count
+      )
     }
     // Only report the `schedulingIndexing` status when we don't have any in-progress indexing tasks. This way we avoid
     // flickering between indexing progress and `Scheduling indexing` if we trigger an index schedule task while
