@@ -122,12 +122,14 @@ struct SyntaxHighlightingTokenParser {
     case values.refProtocol:
       return (.interface, [])
     case values.declAssociatedType,
-      values.declTypeAlias,
-      values.declGenericTypeParam:
-      return (.typeParameter, [.declaration])
+      values.declTypeAlias:
+      return (.type, [.declaration])
     case values.refAssociatedType,
-      values.refTypeAlias,
-      values.refGenericTypeParam:
+      values.refTypeAlias:
+      return (.type, [])
+    case values.declGenericTypeParam:
+      return (.typeParameter, [.declaration])
+    case values.refGenericTypeParam:
       return (.typeParameter, [])
     case values.declFunctionFree:
       return (.function, [.declaration])
