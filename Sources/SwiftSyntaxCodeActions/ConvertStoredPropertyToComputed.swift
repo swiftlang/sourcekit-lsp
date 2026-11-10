@@ -24,12 +24,47 @@ package struct ConvertStoredPropertyToComputed: SyntaxRefactoringProvider, Resol
   static let title: String = "Convert Stored Property to Computed Property"
 
   static func nodeToRefactor(in scope: SyntaxCodeActionScope) -> VariableDeclSyntax? {
-    return scope.innermostNodeContainingRange?.findParentOfSelf(
+    let variableDecl = scope.innermostNodeContainingRange?.findParentOfSelf(
       ofType: VariableDeclSyntax.self,
       stoppingIf: {
         $0.is(CodeBlockItemSyntax.self) || $0.is(MemberBlockItemSyntax.self) || $0.is(InitializerClauseSyntax.self)
       }
     )
+    // Check this here and not only in `refactor` because if the type needs to be resolved, `refactor` is only called
+    // after the user has already selected the code action.
+    guard let variableDecl, canConvert(variableDecl) else {
+      return nil
+    }
+    return variableDecl
+  }
+
+  /// Whether the variable declaration can be converted without producing code that doesn't compile.
+  private static func canConvert(_ syntax: VariableDeclSyntax) -> Bool {
+    // Attributes like `@State` might be property wrappers or attached macros that require the property to be stored.
+    // We can't tell them apart from attributes that are fine on a computed property (eg. `@MainActor`) syntactically.
+    guard syntax.attributes.isEmpty else {
+      return false
+    }
+    // A computed property with only a getter can't have a setter access level like `private(set)`.
+    guard !syntax.modifiers.contains(where: { $0.detail?.detail.text == "set" }) else {
+      return false
+    }
+    guard let initializer = syntax.bindings.only?.initializer else {
+      return false
+    }
+    // `try` and `await` would require the getter to be `throws` or `async`.
+    return !EffectsFinder.containsEffects(getterBody(of: initializer))
+  }
+
+  /// The syntax that becomes the getter's body: the statements of an immediately-called closure or the initializer's
+  /// value otherwise.
+  private static func getterBody(of initializer: InitializerClauseSyntax) -> Syntax {
+    if let functionExpression = initializer.value.as(FunctionCallExprSyntax.self),
+      let closureExpression = functionExpression.calledExpression.as(ClosureExprSyntax.self)
+    {
+      return Syntax(closureExpression.statements)
+    }
+    return Syntax(initializer.value)
   }
 
   package struct Context {
@@ -80,7 +115,7 @@ package struct ConvertStoredPropertyToComputed: SyntaxRefactoringProvider, Resol
   }
 
   package static func refactor(syntax: VariableDeclSyntax, in context: Context) throws -> VariableDeclSyntax {
-    guard syntax.bindings.count == 1, let binding = syntax.bindings.first, let initializer = binding.initializer else {
+    guard canConvert(syntax), let binding = syntax.bindings.first, let initializer = binding.initializer else {
       throw RefactoringNotApplicableError("unsupported variable declaration")
     }
 
@@ -126,12 +161,12 @@ package struct ConvertStoredPropertyToComputed: SyntaxRefactoringProvider, Resol
     } else if let providedType = context.type {
       typeAnnotation = TypeAnnotationSyntax(
         colon: .colonToken(trailingTrivia: .space),
-        type: providedType
+        type: providedType.with(\.trailingTrivia, .space)
       )
     } else {
       typeAnnotation = TypeAnnotationSyntax(
         colon: .colonToken(trailingTrivia: .space),
-        type: TypeSyntax(stringLiteral: "<#Type#>")
+        type: TypeSyntax(stringLiteral: "<#Type#>").with(\.trailingTrivia, .space)
       )
     }
 
@@ -155,5 +190,34 @@ package struct ConvertStoredPropertyToComputed: SyntaxRefactoringProvider, Resol
       syntax
       .with(\.bindingSpecifier, newBindingSpecifier)
       .with(\.bindings, PatternBindingListSyntax([newBinding]))
+  }
+}
+
+/// Finds `try` and `await` expressions whose effects propagate to the enclosing context.
+private final class EffectsFinder: SyntaxVisitor {
+  private var foundEffects = false
+
+  static func containsEffects(_ node: Syntax) -> Bool {
+    let finder = EffectsFinder(viewMode: .sourceAccurate)
+    finder.walk(node)
+    return finder.foundEffects
+  }
+
+  override func visit(_ node: TryExprSyntax) -> SyntaxVisitorContinueKind {
+    // `try?` and `try!` handle the error themselves.
+    if node.questionOrExclamationMark == nil {
+      foundEffects = true
+    }
+    return .visitChildren
+  }
+
+  override func visit(_ node: AwaitExprSyntax) -> SyntaxVisitorContinueKind {
+    foundEffects = true
+    return .skipChildren
+  }
+
+  override func visit(_ node: ClosureExprSyntax) -> SyntaxVisitorContinueKind {
+    // Effects inside a closure belong to the closure, not to the getter.
+    return .skipChildren
   }
 }
