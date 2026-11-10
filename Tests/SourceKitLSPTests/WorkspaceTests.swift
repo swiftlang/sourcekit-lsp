@@ -184,6 +184,8 @@ final class WorkspaceTests: SourceKitLSPTestCase {
       project.scratchDirectory.appending(components: "PackageB", "Package.swift")
     )
 
+    try await project.testClient.send(SynchronizeRequest(index: true))
+
     project.testClient.openDocument(SwiftPMTestProject.defaultPackageManifest, uri: bPackageManifestUri)
 
     // Ensure that we get proper build settings for Package.swift and no error about `No such module: PackageDescription`
