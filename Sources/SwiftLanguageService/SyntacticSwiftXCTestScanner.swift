@@ -48,27 +48,41 @@ final class SyntacticSwiftXCTestScanner: SyntaxVisitor {
   }
 
   private func findTestMethods(in members: MemberBlockItemListSyntax, containerName: String) -> [TestItem] {
-    return members.compactMap { (member) -> TestItem? in
-      guard let function = member.decl.as(FunctionDeclSyntax.self) else {
-        return nil
-      }
-      guard function.isXCTestFunction else {
-        return nil
-      }
-      let range = snapshot.positionRange(
-        of: function.positionAfterSkippingLeadingTrivia..<function.endPositionBeforeTrailingTrivia
-      )
+    var result: [TestItem] = []
 
-      return TestItem(
-        id: "\(containerName)/\(function.name.text)()",
-        label: "\(function.name.text)()",
-        disabled: false,
-        style: TestStyle.xcTest,
-        location: Location(uri: snapshot.uri, range: range),
-        children: [],
-        tags: []
-      )
+    func collect(in members: MemberBlockItemListSyntax) {
+      for member in members {
+        if let ifConfig = member.decl.as(IfConfigDeclSyntax.self) {
+          // Which clause is active can't be determined syntactically, so scan all of them.
+          for clause in ifConfig.clauses {
+            if case .decls(let clauseMembers) = clause.elements {
+              collect(in: clauseMembers)
+            }
+          }
+          continue
+        }
+        guard let function = member.decl.as(FunctionDeclSyntax.self), function.isXCTestFunction else {
+          continue
+        }
+        let range = snapshot.positionRange(
+          of: function.positionAfterSkippingLeadingTrivia..<function.endPositionBeforeTrailingTrivia
+        )
+        result.append(
+          TestItem(
+            id: "\(containerName)/\(function.name.text)()",
+            label: "\(function.name.text)()",
+            disabled: false,
+            style: TestStyle.xcTest,
+            location: Location(uri: snapshot.uri, range: range),
+            children: [],
+            tags: []
+          )
+        )
+      }
     }
+
+    collect(in: members)
+    return result
   }
 
   func handleClassOrExtension(

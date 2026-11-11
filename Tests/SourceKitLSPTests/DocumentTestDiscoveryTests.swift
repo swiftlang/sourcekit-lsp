@@ -1568,6 +1568,234 @@ final class DocumentTestDiscoveryTests: SourceKitLSPTestCase {
     )
   }
 
+  func testSyntacticXCTestMethodsInIfConfigClauses() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+
+    let positions = testClient.openDocument(
+      """
+      import XCTest
+
+      1️⃣class MyTests: XCTestCase {
+        #if os(macOS)
+        2️⃣func testInIf() {}3️⃣
+        #if DEBUG
+        4️⃣func testInNestedIf() {}5️⃣
+        #endif
+        #elseif os(Linux)
+        6️⃣func testInElseIf() {}7️⃣
+        #else
+        8️⃣func testInElse() {}9️⃣
+        func unrelatedFunc() {}
+        #endif
+      }🔟
+      """,
+      uri: uri
+    )
+
+    let tests = try await testClient.send(DocumentTestsRequest(textDocument: TextDocumentIdentifier(uri)))
+    XCTAssertEqual(
+      tests,
+      [
+        TestItem(
+          id: "MyTests",
+          label: "MyTests",
+          location: Location(uri: uri, range: positions["1️⃣"]..<positions["🔟"]),
+          children: [
+            TestItem(
+              id: "MyTests/testInIf()",
+              label: "testInIf()",
+              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"])
+            ),
+            TestItem(
+              id: "MyTests/testInNestedIf()",
+              label: "testInNestedIf()",
+              location: Location(uri: uri, range: positions["4️⃣"]..<positions["5️⃣"])
+            ),
+            TestItem(
+              id: "MyTests/testInElseIf()",
+              label: "testInElseIf()",
+              location: Location(uri: uri, range: positions["6️⃣"]..<positions["7️⃣"])
+            ),
+            TestItem(
+              id: "MyTests/testInElse()",
+              label: "testInElse()",
+              location: Location(uri: uri, range: positions["8️⃣"]..<positions["9️⃣"])
+            ),
+          ]
+        )
+      ]
+    )
+  }
+
+  func testSyntacticXCTestMethodInMultipleIfConfigClausesIsReportedOnce() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+
+    let positions = testClient.openDocument(
+      """
+      import XCTest
+
+      1️⃣class MyTests: XCTestCase {
+        #if os(macOS)
+        2️⃣func testFoo() {}3️⃣
+        #else
+        func testFoo() throws { throw XCTSkip() }
+        #endif
+      }4️⃣
+      """,
+      uri: uri
+    )
+
+    let tests = try await testClient.send(DocumentTestsRequest(textDocument: TextDocumentIdentifier(uri)))
+    XCTAssertEqual(
+      tests,
+      [
+        TestItem(
+          id: "MyTests",
+          label: "MyTests",
+          location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
+          children: [
+            TestItem(
+              id: "MyTests/testFoo()",
+              label: "testFoo()",
+              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"])
+            )
+          ]
+        )
+      ]
+    )
+  }
+
+  func testXCTestClassInMultipleIfConfigClausesIsMerged() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+
+    let positions = testClient.openDocument(
+      """
+      import XCTest
+
+      #if os(macOS)
+      1️⃣class MyTests: XCTestCase {
+        2️⃣func testFoo() {}3️⃣
+        4️⃣func testMacOnly() {}5️⃣
+      }6️⃣
+      #else
+      class MyTests: XCTestCase {
+        func testFoo() {}
+        7️⃣func testOtherOnly() {}8️⃣
+      }
+      #endif
+      """,
+      uri: uri
+    )
+
+    let tests = try await testClient.send(DocumentTestsRequest(textDocument: TextDocumentIdentifier(uri)))
+    XCTAssertEqual(
+      tests,
+      [
+        TestItem(
+          id: "MyTests",
+          label: "MyTests",
+          location: Location(uri: uri, range: positions["1️⃣"]..<positions["6️⃣"]),
+          children: [
+            TestItem(
+              id: "MyTests/testFoo()",
+              label: "testFoo()",
+              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"])
+            ),
+            TestItem(
+              id: "MyTests/testMacOnly()",
+              label: "testMacOnly()",
+              location: Location(uri: uri, range: positions["4️⃣"]..<positions["5️⃣"])
+            ),
+            TestItem(
+              id: "MyTests/testOtherOnly()",
+              label: "testOtherOnly()",
+              location: Location(uri: uri, range: positions["7️⃣"]..<positions["8️⃣"])
+            ),
+          ]
+        )
+      ]
+    )
+  }
+
+  func testEmptyXCTestClassInMultipleIfConfigClausesIsReportedOnce() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+
+    let positions = testClient.openDocument(
+      """
+      import XCTest
+
+      #if os(macOS)
+      1️⃣class MyTests: XCTestCase {}2️⃣
+      #else
+      class MyTests: XCTestCase {}
+      #endif
+      """,
+      uri: uri
+    )
+
+    let tests = try await testClient.send(DocumentTestsRequest(textDocument: TextDocumentIdentifier(uri)))
+    XCTAssertEqual(
+      tests,
+      [
+        TestItem(
+          id: "MyTests",
+          label: "MyTests",
+          location: Location(uri: uri, range: positions["1️⃣"]..<positions["2️⃣"])
+        )
+      ]
+    )
+  }
+
+  func testXCTestMethodInIfConfigClauseIsReportedAfterInMemoryEdit() async throws {
+    let project = try await IndexedSingleSwiftFileTestProject(
+      """
+      import XCTest
+
+      1️⃣class MyTests: XCTestCase {
+        #if true
+        2️⃣func testInIf() {}3️⃣
+        #endif
+      }4️⃣
+      5️⃣
+      """
+    )
+
+    let expectedTests = [
+      TestItem(
+        id: "MyTests",
+        label: "MyTests",
+        location: Location(uri: project.fileURI, range: project.positions["1️⃣"]..<project.positions["4️⃣"]),
+        children: [
+          TestItem(
+            id: "MyTests/testInIf()",
+            label: "testInIf()",
+            location: Location(uri: project.fileURI, range: project.positions["2️⃣"]..<project.positions["3️⃣"])
+          )
+        ]
+      )
+    ]
+
+    let testsBeforeEdit = try await project.testClient.send(
+      DocumentTestsRequest(textDocument: TextDocumentIdentifier(project.fileURI))
+    )
+    XCTAssertEqual(testsBeforeEdit, expectedTests)
+
+    project.testClient.send(
+      DidChangeTextDocumentNotification(
+        textDocument: VersionedTextDocumentIdentifier(project.fileURI, version: 2),
+        contentChanges: [TextDocumentContentChangeEvent(range: Range(project.positions["5️⃣"]), text: "// edit")]
+      )
+    )
+    let testsAfterEdit = try await project.testClient.send(
+      DocumentTestsRequest(textDocument: TextDocumentIdentifier(project.fileURI))
+    )
+    XCTAssertEqual(testsAfterEdit, expectedTests)
+  }
+
   func testXCTestTestsWithExtension() async throws {
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
