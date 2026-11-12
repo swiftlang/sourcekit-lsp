@@ -506,6 +506,91 @@ final class ConvertToSwitchStmtTests: XCTestCase {
     )
   }
 
+  func testCommentsBetweenBranches() throws {
+    try assertRefactor(
+      """
+      if x == 1 {
+        one()
+      } // done with one
+      // now handle two
+      else if x == 2 /* legacy */ {
+        two()
+      }
+      """,
+      expected: """
+        switch x {
+        case 1:
+          one()
+        // done with one
+        // now handle two
+        case 2: /* legacy */
+          two()
+        default:
+          break
+        }
+        """
+    )
+  }
+
+  func testCommentsAfterElse() throws {
+    try assertRefactor(
+      """
+      if x == 1 {
+        one()
+      } else /* not one */ if x == 2 {
+        two()
+      } else // neither
+      {
+        other()
+      }
+      """,
+      expected: """
+        switch x {
+        case 1:
+          one()
+        /* not one */
+        case 2:
+          two()
+        // neither
+        default:
+          other()
+        }
+        """
+    )
+  }
+
+  func testCommentInCondition() throws {
+    try assertRefactorNotApplicable(
+      """
+      if x == /* one */ 1 {
+        one()
+      } else {
+        other()
+      }
+      """
+    )
+    try assertRefactorNotApplicable(
+      """
+      if /* check x */ x == 1 {
+        one()
+      } else {
+        other()
+      }
+      """
+    )
+    try assertRefactorNotApplicable(
+      """
+      if x == 1 {
+        one()
+      } else if x == 2 ||  // two
+        x == 3
+      {
+        other()
+      }
+      """
+    )
+  }
+
   func testBreakInNestedLoop() throws {
     try assertRefactor(
       """
@@ -537,6 +622,214 @@ final class ConvertToSwitchStmtTests: XCTestCase {
         print("2")
       }
       """
+    )
+  }
+
+  func testContinue() throws {
+    try assertRefactor(
+      """
+      if x == 1 {
+        continue
+      } else {
+        print("other")
+      }
+      """,
+      expected: """
+        switch x {
+        case 1:
+          continue
+        default:
+          print("other")
+        }
+        """
+    )
+  }
+
+  func testFallthrough() throws {
+    try assertRefactorNotApplicable(
+      """
+      if x == 1 {
+        fallthrough
+      } else {
+        print("other")
+      }
+      """
+    )
+    try assertRefactorNotApplicable(
+      """
+      if x == 1 {
+        for element in elements {
+          fallthrough
+        }
+      } else {
+        print("other")
+      }
+      """
+    )
+  }
+
+  func testFallthroughInNestedSwitch() throws {
+    try assertRefactor(
+      """
+      if x == 1 {
+        switch y {
+        case 1:
+          fallthrough
+        default:
+          print("y")
+        }
+      } else {
+        print("other")
+      }
+      """,
+      expected: """
+        switch x {
+        case 1:
+          switch y {
+          case 1:
+            fallthrough
+          default:
+            print("y")
+          }
+        default:
+          print("other")
+        }
+        """
+    )
+  }
+
+  func testParenthesizedConditions() throws {
+    try assertRefactor(
+      """
+      if (e == .first) {
+        print("first")
+      } else if (e == .second) || ((e == .third) || e == .fourth) {
+        print("2-4")
+      } else {
+        print("other")
+      }
+      """,
+      expected: """
+        switch e {
+        case .first:
+          print("first")
+        case .second, .third, .fourth:
+          print("2-4")
+        default:
+          print("other")
+        }
+        """
+    )
+  }
+
+  func testOptionalBindingOfSelf() throws {
+    try assertRefactor(
+      """
+      if let self = self {
+        self.update()
+      } else {
+        print("deallocated")
+      }
+      """,
+      expected: """
+        switch self {
+        case let self?:
+          self.update()
+        default:
+          print("deallocated")
+        }
+        """
+    )
+    try assertRefactor(
+      """
+      if let self {
+        self.update()
+      } else {
+        print("deallocated")
+      }
+      """,
+      expected: """
+        switch self {
+        case let self?:
+          self.update()
+        default:
+          print("deallocated")
+        }
+        """
+    )
+  }
+
+  func testNestedInElseBlock() throws {
+    try assertRefactor(
+      """
+      if x == 1 {
+        print("1")
+      } else {
+        if y == 2 {
+          print("2")
+        } else {
+          print("other")
+        }
+      }
+      """,
+      expected: """
+        switch x {
+        case 1:
+          print("1")
+        default:
+          if y == 2 {
+            print("2")
+          } else {
+            print("other")
+          }
+        }
+        """
+    )
+  }
+
+  func testIfExpression() throws {
+    let variable: DeclSyntax = """
+      let description = if x == 1 { "one" } else if x == 2 { "two" } else { "other" }
+      """
+    let ifExpr = try XCTUnwrap(variable.as(VariableDeclSyntax.self)?.bindings.first?.initializer?.value)
+    try assertRefactor(
+      ifExpr,
+      expected: """
+        switch x {
+        case 1:
+            "one"
+        case 2:
+            "two"
+        default:
+            "other"
+        }
+        """
+    )
+  }
+
+  func testTabIndentation() throws {
+    let function: DeclSyntax = """
+      func test(e: E) {
+      \tif e == .first {
+      \t\tprint("first")
+      \t} else {
+      \t}
+      }
+      """
+    let ifExpr = try XCTUnwrap(
+      function.as(FunctionDeclSyntax.self)?.body?.statements.first?.item.as(ExpressionStmtSyntax.self)?.expression
+    )
+    try assertRefactor(
+      ifExpr,
+      expected: """
+
+        \tswitch e {
+        \tcase .first:
+        \t\tprint("first")
+        \tdefault:
+        \t\tbreak
+        \t}
+        """
     )
   }
 

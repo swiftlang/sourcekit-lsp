@@ -46,45 +46,63 @@ package import SwiftSyntax
 /// }
 /// ```
 package struct ConvertToSwitchStmt: SyntaxRefactoringProvider {
+  package typealias Input = IfExprSyntax
+  package typealias Output = SwitchExprSyntax
+
   package static func refactor(syntax ifExpr: IfExprSyntax, in context: Void = ()) throws -> SwitchExprSyntax {
     guard !ifExpr.hasError else {
       throw RefactoringNotApplicableError("syntax has errors")
     }
 
-    var branches: [(comparisons: [Comparison], body: CodeBlockSyntax)] = []
-    var elseBody: IfExprSyntax.ElseBody? = .ifExpr(ifExpr)
-    while case .ifExpr(let elseIf) = elseBody {
-      guard let condition = elseIf.conditions.only, let comparisons = comparisons(in: condition.condition) else {
+    var ifExprs = [ifExpr]
+    while case .ifExpr(let elseIf) = ifExprs.last?.elseBody {
+      ifExprs.append(elseIf)
+    }
+    let branchComparisons = try ifExprs.map { chainedIf in
+      guard let condition = chainedIf.conditions.only, let comparisons = comparisons(in: condition.condition) else {
         throw RefactoringNotApplicableError("condition can't be converted to a 'case'")
       }
-      branches.append((comparisons, elseIf.body))
-      elseBody = elseIf.elseBody
+      // The patterns of a `case` are built from parts of the condition, which would drop the comment.
+      guard !hasCommentInConditions(chainedIf) else {
+        throw RefactoringNotApplicableError("condition contains a comment")
+      }
+      return comparisons
     }
 
-    let subject = branches[0].comparisons[0].subjects.first { subject in
-      isReference(subject)
-        && branches.allSatisfy { $0.comparisons.allSatisfy { $0.pattern(matching: subject) != nil } }
+    let subject = branchComparisons[0][0].subjects.first { subject in
+      isReference(subject) && branchComparisons.joined().allSatisfy { $0.pattern(matching: subject) != nil }
     }
     guard let subject else {
       throw RefactoringNotApplicableError("conditions don't match the same value")
     }
 
-    // An unlabeled `break` would leave the `switch` statement instead of the loop around the `if` statement.
-    let breakFinder = UnlabeledBreakFinder(viewMode: .sourceAccurate)
-    breakFinder.walk(ifExpr)
-    guard !breakFinder.foundBreak else {
-      throw RefactoringNotApplicableError("'if' statement contains an unlabeled 'break'")
+    // An unlabeled `break` or a `fallthrough` would apply to the new `switch` statement instead of the loop or
+    // `switch` statement around the `if` statement.
+    let controlTransferFinder = SwitchControlTransferFinder(viewMode: .sourceAccurate)
+    controlTransferFinder.walk(ifExpr)
+    guard !controlTransferFinder.foundControlTransfer else {
+      throw RefactoringNotApplicableError("'if' statement contains an unlabeled 'break' or a 'fallthrough'")
     }
 
-    var bodies: [(patterns: [PatternSyntax], body: CodeBlockSyntax?)] = branches.map { branch in
-      (branch.comparisons.compactMap { $0.pattern(matching: subject) }, branch.body)
+    var branches: [Branch] = []
+    var triviaBeforeBranch: Trivia = []
+    for (chainedIf, comparisons) in zip(ifExprs, branchComparisons) {
+      branches.append(
+        Branch(
+          patterns: comparisons.compactMap { $0.pattern(matching: subject) },
+          triviaBeforeBranch: triviaBeforeBranch,
+          triviaBeforeBody: chainedIf.conditions.trailingTrivia + chainedIf.body.leftBrace.leadingTrivia,
+          body: chainedIf.body
+        )
+      )
+      triviaBeforeBranch = triviaBeforeElseBranch(of: chainedIf)
     }
-    let elseBlock: CodeBlockSyntax? = if case .codeBlock(let elseBlock) = elseBody { elseBlock } else { nil }
-    bodies.append(([], elseBlock))
+    let elseBlock: CodeBlockSyntax? = if case .codeBlock(let block) = ifExprs.last?.elseBody { block } else { nil }
+    branches.append(Branch(patterns: [], triviaBeforeBranch: triviaBeforeBranch, triviaBeforeBody: [], body: elseBlock))
 
     let indentation = ifExpr.ifKeyword.indentationOfLine
     // Statements that are added or moved to a new line are indented like the existing statements, if there are any.
-    let indentedStatement = bodies.lazy.compactMap { $0.body?.statements.first }.first {
+    let indentedStatement = branches.lazy.compactMap { $0.body?.statements.first }.first {
       $0.leadingTrivia.contains(where: \.isNewline)
     }
     let bodyIndentation =
@@ -93,20 +111,26 @@ package struct ConvertToSwitchStmt: SyntaxRefactoringProvider {
 
     var cases: [SwitchCaseSyntax] = []
     var triviaBeforeLabel = Trivia.newline + indentation
-    for (patterns, body) in bodies {
-      // A comment after the `{` of the body goes after the `:` of the label.
-      let colon = TokenSyntax.colonToken(
-        trailingTrivia: body?.leftBrace.trailingTrivia.droppingTrailingWhitespace ?? []
-      )
+    for branch in branches {
+      // Comments between two branches go on their own lines in front of the label.
+      for comment in branch.triviaBeforeBranch where comment.isComment {
+        triviaBeforeLabel += [comment, .newlines(1)] + indentation
+      }
+      // Comments in front of and after the `{` of the body go after the `:` of the label.
+      let triviaAfterLabel =
+        branch.triviaBeforeBody.droppingTrailingWhitespace + (branch.body?.leftBrace.trailingTrivia ?? [])
       cases.append(
         SwitchCaseSyntax(
           leadingTrivia: triviaBeforeLabel,
-          label: label(for: patterns, colon: colon),
-          statements: statements(in: body, indentation: bodyIndentation)
+          label: label(
+            for: branch.patterns,
+            colon: .colonToken(trailingTrivia: triviaAfterLabel.droppingTrailingWhitespace)
+          ),
+          statements: statements(in: branch.body, indentation: bodyIndentation)
         )
       )
       // Keep comments in front of the `}` of the body by putting them in front of the next label.
-      if let rightBrace = body?.rightBrace, rightBrace.leadingTrivia.contains(where: \.isNewline) {
+      if let rightBrace = branch.body?.rightBrace, rightBrace.leadingTrivia.contains(where: \.isNewline) {
         triviaBeforeLabel = rightBrace.leadingTrivia
       } else {
         triviaBeforeLabel = .newline + indentation
@@ -121,6 +145,18 @@ package struct ConvertToSwitchStmt: SyntaxRefactoringProvider {
       rightBrace: .rightBraceToken(leadingTrivia: triviaBeforeLabel),
       trailingTrivia: ifExpr.trailingTrivia
     )
+  }
+
+  /// A branch of the `if` statement that becomes a `case` of the `switch` statement.
+  private struct Branch {
+    /// The patterns of the `case`, which are empty for the `default` case.
+    var patterns: [PatternSyntax]
+    /// The trivia between the `}` of the previous branch and the condition or the body of this branch.
+    var triviaBeforeBranch: Trivia
+    /// The trivia between the condition and the `{` of the body.
+    var triviaBeforeBody: Trivia
+    /// The body of the branch or `nil` if the `if` statement doesn't have an `else` branch.
+    var body: CodeBlockSyntax?
   }
 
   /// A comparison in the condition of an `if` statement that can be expressed as the pattern of a `case`.
@@ -163,14 +199,7 @@ package struct ConvertToSwitchStmt: SyntaxRefactoringProvider {
 
   private static func comparisons(in condition: ConditionElementSyntax.Condition) -> [Comparison]? {
     switch condition {
-    case .expression(var expr):
-      // The parser doesn't apply operator precedence, so fold the expression to find the comparisons.
-      if let sequence = expr.as(SequenceExprSyntax.self) {
-        guard let folded = try? OperatorTable.standardOperators.foldSingle(sequence) else {
-          return nil
-        }
-        expr = folded
-      }
+    case .expression(let expr):
       return comparisons(in: expr)
     case .matchingPattern(let matchingPattern):
       guard matchingPattern.typeAnnotation == nil else {
@@ -204,6 +233,16 @@ package struct ConvertToSwitchStmt: SyntaxRefactoringProvider {
 
   /// The comparisons that `expr` consists of, which are combined using `||`.
   private static func comparisons(in expr: ExprSyntax) -> [Comparison]? {
+    // The parser doesn't apply operator precedence, so fold the expression to find the comparisons.
+    if let sequence = expr.as(SequenceExprSyntax.self) {
+      guard let folded = try? OperatorTable.standardOperators.foldSingle(sequence) else {
+        return nil
+      }
+      return comparisons(in: folded)
+    }
+    if let tuple = expr.as(TupleExprSyntax.self), let element = tuple.elements.only, element.label == nil {
+      return comparisons(in: element.expression)
+    }
     guard let infixOperator = expr.as(InfixOperatorExprSyntax.self),
       let binaryOperator = infixOperator.operator.as(BinaryOperatorExprSyntax.self)
     else {
@@ -226,10 +265,27 @@ package struct ConvertToSwitchStmt: SyntaxRefactoringProvider {
     }
   }
 
+  /// Whether there is a comment between the `if` keyword of `ifExpr` and the last token of its conditions.
+  private static func hasCommentInConditions(_ ifExpr: IfExprSyntax) -> Bool {
+    let conditions = ifExpr.conditions.with(\.trailingTrivia, [])
+    let trivia = conditions.tokens(viewMode: .sourceAccurate).reduce(ifExpr.ifKeyword.trailingTrivia) {
+      $0 + $1.trivia
+    }
+    return trivia.contains(where: \.isComment)
+  }
+
+  /// The trivia between the `}` of the body of `ifExpr` and the `if` keyword or the `{` of its `else` branch.
+  private static func triviaBeforeElseBranch(of ifExpr: IfExprSyntax) -> Trivia {
+    guard let elseKeyword = ifExpr.elseKeyword, let elseBody = ifExpr.elseBody else {
+      return []
+    }
+    return ifExpr.body.rightBrace.trailingTrivia + elseKeyword.trivia + elseBody.leadingTrivia
+  }
+
   /// Whether `expr` refers to a variable or a property, like `x` or `x.y`.
   ///
-  /// The `if` statement evaluates the subject for every condition but the `switch` statement only evaluates it once,
-  /// so it shouldn't be an expression that might have side effects.
+  /// An `if` statement with more than one comparison evaluates the subject for every comparison that it checks, but the
+  /// `switch` statement only evaluates it once, so it shouldn't be an expression that might have side effects.
   private static func isReference(_ expr: ExprSyntax) -> Bool {
     if let memberAccess = expr.as(MemberAccessExprSyntax.self) {
       guard let base = memberAccess.base else {
@@ -271,27 +327,50 @@ package struct ConvertToSwitchStmt: SyntaxRefactoringProvider {
   }
 }
 
-/// Finds `break` statements that don't have a label and aren't nested in a loop or `switch` statement.
-private final class UnlabeledBreakFinder: SyntaxVisitor {
-  var foundBreak = false
+/// Finds `fallthrough` and unlabeled `break` statements that would apply to a `switch` statement around the node.
+private final class SwitchControlTransferFinder: SyntaxVisitor {
+  var foundControlTransfer = false
+
+  /// The number of loops around the visited node, which are what an unlabeled `break` leaves.
+  private var loopDepth = 0
 
   override func visit(_ node: BreakStmtSyntax) -> SyntaxVisitorContinueKind {
-    if node.label == nil {
-      foundBreak = true
+    if node.label == nil && loopDepth == 0 {
+      foundControlTransfer = true
     }
     return .skipChildren
   }
 
-  override func visit(_ node: ForStmtSyntax) -> SyntaxVisitorContinueKind {
+  override func visit(_ node: FallthroughStmtSyntax) -> SyntaxVisitorContinueKind {
+    foundControlTransfer = true
     return .skipChildren
+  }
+
+  override func visit(_ node: ForStmtSyntax) -> SyntaxVisitorContinueKind {
+    loopDepth += 1
+    return .visitChildren
+  }
+
+  override func visitPost(_ node: ForStmtSyntax) {
+    loopDepth -= 1
   }
 
   override func visit(_ node: WhileStmtSyntax) -> SyntaxVisitorContinueKind {
-    return .skipChildren
+    loopDepth += 1
+    return .visitChildren
+  }
+
+  override func visitPost(_ node: WhileStmtSyntax) {
+    loopDepth -= 1
   }
 
   override func visit(_ node: RepeatStmtSyntax) -> SyntaxVisitorContinueKind {
-    return .skipChildren
+    loopDepth += 1
+    return .visitChildren
+  }
+
+  override func visitPost(_ node: RepeatStmtSyntax) {
+    loopDepth -= 1
   }
 
   override func visit(_ node: SwitchExprSyntax) -> SyntaxVisitorContinueKind {
@@ -310,6 +389,10 @@ extension ConvertToSwitchStmt: SyntaxRefactoringCodeActionProvider {
     // Convert the entire `if` statement if the code action is requested on one of its `else if` branches.
     while let parent = ifExpr?.parent?.as(IfExprSyntax.self) {
       ifExpr = parent
+    }
+    // A `switch` statement with a single `case` isn't easier to read than the `if` statement.
+    guard ifExpr?.elseBody != nil else {
+      return nil
     }
     return ifExpr
   }
