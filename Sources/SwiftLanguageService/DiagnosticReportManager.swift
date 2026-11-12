@@ -253,13 +253,17 @@ actor DiagnosticReportManager {
 
   private let missingImportDiagnosticIDs: Set<String> = [
     "cannot_find_type_in_scope",
+    "cannot_find_type_in_scope_did_you_mean",
     "cannot_find_in_scope",
+    "cannot_find_in_scope_corrected",
     "use_of_unresolved_identifier",
   ]
 
   private func missingSymbolName(from diagnosticDescription: String) -> String? {
     let components = diagnosticDescription.split(separator: "'", omittingEmptySubsequences: false)
-    guard components.count == 3 else {
+    // The message contains a second quoted name if the compiler suggests a typo correction, eg.
+    // "cannot find 'Foo' in scope; did you mean 'Fooo'?"
+    guard components.count == 3 || components.count == 5 else {
       return nil
     }
 
@@ -279,7 +283,14 @@ actor DiagnosticReportManager {
 
     let existingImports = syntaxTree.statements.compactMap { $0.item.as(ImportDeclSyntax.self) }
     let edit: TextEdit
-    if let lastImport = existingImports.last {
+    if let nextImport = existingImports.first(where: { $0.path.trimmedDescription > moduleName }) {
+      // Keep the imports sorted by inserting before the first import that is ordered after the new one.
+      let insertionPosition = snapshot.position(of: nextImport.positionAfterSkippingLeadingTrivia)
+      edit = TextEdit(
+        range: insertionPosition..<insertionPosition,
+        newText: "import \(moduleName)\n"
+      )
+    } else if let lastImport = existingImports.last {
       let insertionPosition = snapshot.position(of: lastImport.endPosition)
       edit = TextEdit(
         range: insertionPosition..<insertionPosition,
@@ -318,8 +329,13 @@ fileprivate extension CheckedIndex {
   func uniqueModuleProvidingSymbol(named symbolName: String) throws -> String? {
     var moduleName: String?
 
-    try forEachCanonicalSymbolOccurrence(byName: symbolName) { occurrence in
+    let visit = { (occurrence: SymbolOccurrence) -> Bool in
       guard occurrence.roles.contains(.definition) || occurrence.roles.contains(.declaration) else {
+        return true
+      }
+
+      guard !occurrence.relations.contains(where: { $0.roles.contains(.childOf) }) else {
+        // Members can't be found by an unqualified lookup, even if their module is imported.
         return true
       }
 
@@ -336,6 +352,19 @@ fileprivate extension CheckedIndex {
       moduleName = occurrenceModuleName
       return true
     }
+
+    guard try forEachCanonicalSymbolOccurrence(byName: symbolName, body: visit) else {
+      return nil
+    }
+    // Functions are indexed with their argument labels, eg. `foo(_:)`, but the diagnostic only names `foo`.
+    try forEachCanonicalSymbolOccurrence(
+      containing: "\(symbolName)(",
+      anchorStart: true,
+      anchorEnd: false,
+      subsequence: false,
+      ignoreCase: false,
+      body: visit
+    )
 
     return moduleName
   }

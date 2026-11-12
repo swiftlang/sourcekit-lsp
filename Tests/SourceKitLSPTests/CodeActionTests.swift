@@ -2146,6 +2146,178 @@ final class CodeActionTests: SourceKitLSPTestCase {
     )
   }
 
+  func testAddMissingImportInsertsInAlphabeticalOrder() async throws {
+    let (addImportAction, uri, positions) = try await addMissingImportAction(
+      mainFile: """
+        // Some file header
+
+        import LibA
+        2️⃣import ZLib
+
+        let value = 1️⃣ImportedType()
+        """
+    )
+
+    XCTAssertEqual(
+      addImportAction?.edit?.changes?[uri],
+      [TextEdit(range: Range(positions["2️⃣"]), newText: "import MyLibrary\n")]
+    )
+  }
+
+  func testAddMissingImportInsertsBeforeFirstImportAfterFileHeader() async throws {
+    let (addImportAction, uri, positions) = try await addMissingImportAction(
+      mainFile: """
+        // Some file header
+
+        2️⃣import Swift
+
+        let value = 1️⃣ImportedType()
+        """
+    )
+
+    XCTAssertEqual(
+      addImportAction?.edit?.changes?[uri],
+      [TextEdit(range: Range(positions["2️⃣"]), newText: "import MyLibrary\n")]
+    )
+  }
+
+  func testAddMissingImportInsertsAfterLastImport() async throws {
+    let (addImportAction, uri, positions) = try await addMissingImportAction(
+      mainFile: """
+        import LibA
+        import LibB2️⃣
+
+        let value = 1️⃣ImportedType()
+        """
+    )
+
+    XCTAssertEqual(
+      addImportAction?.edit?.changes?[uri],
+      [TextEdit(range: Range(positions["2️⃣"]), newText: "\nimport MyLibrary")]
+    )
+  }
+
+  func testAddMissingImportForDiagnosticWithTypoCorrection() async throws {
+    let (addImportAction, uri, _) = try await addMissingImportAction(
+      mainFile: """
+        struct ImportedTypo {}
+
+        let value = 1️⃣ImportedType()
+        """
+    )
+
+    XCTAssertEqual(
+      addImportAction?.edit?.changes?[uri],
+      [
+        TextEdit(
+          range: Position(line: 0, utf16index: 0)..<Position(line: 0, utf16index: 0),
+          newText: "import MyLibrary\n\n"
+        )
+      ]
+    )
+  }
+
+  func testAddMissingImportForFunction() async throws {
+    let (addImportAction, uri, _) = try await addMissingImportAction(
+      mainFile: """
+        let value = 1️⃣makeImportedType()
+        """
+    )
+
+    XCTAssertEqual(
+      addImportAction?.edit?.changes?[uri],
+      [
+        TextEdit(
+          range: Position(line: 0, utf16index: 0)..<Position(line: 0, utf16index: 0),
+          newText: "import MyLibrary\n\n"
+        )
+      ]
+    )
+  }
+
+  func testAddMissingImportNotAvailableForSymbolMissingFromIndex() async throws {
+    let (addImportAction, _, _) = try await addMissingImportAction(
+      mainFile: """
+        let value = 1️⃣UnknownType()
+        """
+    )
+
+    XCTAssertNil(addImportAction)
+  }
+
+  func testAddMissingImportNotAvailableForMember() async throws {
+    let (addImportAction, _, _) = try await addMissingImportAction(
+      mainFile: """
+        let value = 1️⃣Nested()
+        """
+    )
+
+    XCTAssertNil(addImportAction)
+  }
+
+  /// Opens `mainFile` in a package that has `MyLibrary` and the empty `LibA`, `LibB` and `ZLib` modules as dependencies
+  /// and returns the add missing import code action at the 1️⃣ marker.
+  private func addMissingImportAction(
+    mainFile: String
+  ) async throws -> (action: CodeAction?, uri: DocumentURI, positions: DocumentPositions) {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "MyLibrary/ImportedType.swift": """
+        public struct ImportedType {
+          public init() {}
+          public struct Nested {
+            public init() {}
+          }
+        }
+
+        public func makeImportedType() -> ImportedType {
+          ImportedType()
+        }
+        """,
+        "LibA/LibA.swift": "",
+        "LibB/LibB.swift": "",
+        "ZLib/ZLib.swift": "",
+        "MyApp/main.swift": mainFile,
+      ],
+      manifest: """
+        let package = Package(
+          name: "MissingImport",
+          targets: [
+            .target(name: "MyLibrary"),
+            .target(name: "LibA"),
+            .target(name: "LibB"),
+            .target(name: "ZLib"),
+            .executableTarget(name: "MyApp", dependencies: ["MyLibrary", "LibA", "LibB", "ZLib"]),
+          ]
+        )
+        """,
+      capabilities: clientCapabilitiesWithCodeActionSupport,
+      enableBackgroundIndexing: true
+    )
+
+    let (uri, positions) = try project.openDocument("main.swift")
+
+    let diagnosticReport = try await project.testClient.send(
+      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+    )
+    let diagnostics = try XCTUnwrap(diagnosticReport.fullReport?.items)
+
+    let result = try await project.testClient.send(
+      CodeActionRequest(
+        range: Range(positions["1️⃣"]),
+        context: CodeActionContext(
+          diagnostics: diagnostics,
+          only: [.quickFix],
+          triggerKind: .invoked
+        ),
+        textDocument: TextDocumentIdentifier(uri)
+      )
+    )
+
+    let codeActions = try XCTUnwrap(result?.codeActions)
+    return (codeActions.first { $0.title.hasPrefix("Add import for ") }, uri, positions)
+  }
+
   func testRemoveUnusedImports() async throws {
     let project = try await SwiftPMTestProject(
       files: [
