@@ -1202,7 +1202,8 @@ final class CodeActionTests: SourceKitLSPTestCase {
       1️⃣if 2️⃣let 3️⃣foo = 4️⃣foo {}5️⃣
       """##,
       markers: ["1️⃣", "2️⃣", "3️⃣", "4️⃣"],
-      ranges: [("1️⃣", "4️⃣"), ("1️⃣", "5️⃣")]
+      ranges: [("1️⃣", "4️⃣"), ("1️⃣", "5️⃣")],
+      ignoringCodeActions: ["Convert To Switch Statement"]
     ) { uri, positions in
       [
         CodeAction(
@@ -4554,6 +4555,98 @@ final class CodeActionTests: SourceKitLSPTestCase {
           foo()
         } else if y {
           bar()
+        }
+        """,
+      atMarker: "1️⃣"
+    )
+  }
+
+  func testConvertToSwitchStmt() async throws {
+    try await assertCodeActions(
+      """
+      enum E {
+        case first, second, third
+      }
+
+      func test(e: E) {1️⃣
+        2️⃣if e == .first {
+          print("first")
+        } 3️⃣else if e == .second {
+          print("second")
+        }4️⃣
+      }
+      """,
+      markers: ["2️⃣", "3️⃣"],
+      ranges: [("2️⃣", "4️⃣")],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Convert To Switch Statement",
+          kind: .refactorInline,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["4️⃣"],
+                  newText: """
+
+                      switch e {
+                      case .first:
+                        print("first")
+                      case .second:
+                        print("second")
+                      default:
+                        break
+                      }
+                    """
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testConvertToSwitchStmtSupersedesSourcekitdRefactoring() async throws {
+    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
+      """
+      enum E {
+        case first, second, third
+      }
+
+      func test(e: E) {
+        1️⃣if e == .first {
+          print("first")
+        } else if e == .second {
+          print("second")
+        }2️⃣
+      }
+      """,
+      uri: uri
+    )
+    let result = try await testClient.send(
+      CodeActionRequest(
+        range: positions["1️⃣"]..<positions["2️⃣"],
+        context: CodeActionContext(),
+        textDocument: TextDocumentIdentifier(uri)
+      )
+    )
+    let titles = (result?.codeActions ?? []).map(\.title)
+    XCTAssertEqual(titles.filter { $0 == "Convert To Switch Statement" }.count, 1, "\(titles)")
+  }
+
+  func testConvertToSwitchStmtNotOfferedInsideBody() async throws {
+    try await assertNoCodeAction(
+      titled: "Convert To Switch Statement",
+      in: """
+        func test(x: Int) {
+          if x == 1 {
+            1️⃣print("1")
+          }
         }
         """,
       atMarker: "1️⃣"

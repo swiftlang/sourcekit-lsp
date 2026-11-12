@@ -38,7 +38,7 @@ The specific refactorings available depend on what code is selected or where the
 | **Convert To Ternary Expression** | Select an if/else that assigns or returns a value |
 | **Convert to guard** | Cursor on an `if-let` statement that guarantees an exit from the `if` block |
 | **Convert To IfLet Expression** | Select a guard-let statement |
-| **Convert To Switch Statement** | Select an if/else-if chain comparing the same value |
+| **Convert To Switch Statement** | Cursor on the `if` keyword, an `else` keyword or a condition of an if/else-if chain whose conditions all match the same value |
 | **Migrate to shorthand 'if let' syntax** | Cursor on `if let x = x` |
 | **Invert if condition** | Cursor on an `if` statement with a condition and an `else` block |
 
