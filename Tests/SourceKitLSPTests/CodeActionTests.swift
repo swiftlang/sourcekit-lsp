@@ -2147,7 +2147,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
   }
 
   func testAddMissingImportInsertsInAlphabeticalOrder() async throws {
-    let (addImportAction, uri, positions) = try await addMissingImportAction(
+    let (quickFixes, _, uri, positions) = try await quickFixesForMissingImports(
       mainFile: """
         // Some file header
 
@@ -2159,13 +2159,13 @@ final class CodeActionTests: SourceKitLSPTestCase {
     )
 
     XCTAssertEqual(
-      addImportAction?.edit?.changes?[uri],
+      try addImportAction(in: quickFixes["1️⃣"]).edit?.changes?[uri],
       [TextEdit(range: Range(positions["2️⃣"]), newText: "import MyLibrary\n")]
     )
   }
 
   func testAddMissingImportInsertsBeforeFirstImportAfterFileHeader() async throws {
-    let (addImportAction, uri, positions) = try await addMissingImportAction(
+    let (quickFixes, _, uri, positions) = try await quickFixesForMissingImports(
       mainFile: """
         // Some file header
 
@@ -2176,13 +2176,30 @@ final class CodeActionTests: SourceKitLSPTestCase {
     )
 
     XCTAssertEqual(
-      addImportAction?.edit?.changes?[uri],
+      try addImportAction(in: quickFixes["1️⃣"]).edit?.changes?[uri],
+      [TextEdit(range: Range(positions["2️⃣"]), newText: "import MyLibrary\n")]
+    )
+  }
+
+  func testAddMissingImportInsertsBeforeCommentOfNextImport() async throws {
+    let (quickFixes, _, uri, positions) = try await quickFixesForMissingImports(
+      mainFile: """
+        import LibA
+        2️⃣// Some comment about ZLib
+        import ZLib
+
+        let value = 1️⃣ImportedType()
+        """
+    )
+
+    XCTAssertEqual(
+      try addImportAction(in: quickFixes["1️⃣"]).edit?.changes?[uri],
       [TextEdit(range: Range(positions["2️⃣"]), newText: "import MyLibrary\n")]
     )
   }
 
   func testAddMissingImportInsertsAfterLastImport() async throws {
-    let (addImportAction, uri, positions) = try await addMissingImportAction(
+    let (quickFixes, _, uri, positions) = try await quickFixesForMissingImports(
       mainFile: """
         import LibA
         import LibB2️⃣
@@ -2192,22 +2209,47 @@ final class CodeActionTests: SourceKitLSPTestCase {
     )
 
     XCTAssertEqual(
-      addImportAction?.edit?.changes?[uri],
+      try addImportAction(in: quickFixes["1️⃣"]).edit?.changes?[uri],
       [TextEdit(range: Range(positions["2️⃣"]), newText: "\nimport MyLibrary")]
     )
   }
 
   func testAddMissingImportForDiagnosticWithTypoCorrection() async throws {
-    let (addImportAction, uri, _) = try await addMissingImportAction(
+    let (quickFixes, diagnostics, uri, positions) = try await quickFixesForMissingImports(
       mainFile: """
-        struct ImportedTypo {}
-
-        let value = 1️⃣ImportedType()
+        let value = 1 1️⃣.. 2
         """
     )
 
+    let diagnostic = try XCTUnwrap(diagnostics.first { $0.range.lowerBound == positions["1️⃣"] })
+    XCTAssert(diagnostic.message.contains("did you mean '...'"), "Unexpected message: \(diagnostic.message)")
     XCTAssertEqual(
-      addImportAction?.edit?.changes?[uri],
+      try addImportAction(in: quickFixes["1️⃣"]).edit?.changes?[uri],
+      [
+        TextEdit(
+          range: Position(line: 0, utf16index: 0)..<Position(line: 0, utf16index: 0),
+          newText: "import MyLibrary\n\n"
+        )
+      ]
+    )
+  }
+
+  func testAddMissingImportForTypeWithDifferentNameInSwift() async throws {
+    try SkipUnless.platformIsDarwin("The compiler only suggests 'AnyClass' for 'Class' if it supports Objective-C")
+
+    let (quickFixes, diagnostics, uri, positions) = try await quickFixesForMissingImports(
+      mainFile: """
+        func test(_ value: 1️⃣Class) {}
+        """
+    )
+
+    let diagnostic = try XCTUnwrap(diagnostics.first { $0.range.lowerBound == positions["1️⃣"] })
+    XCTAssert(
+      diagnostic.message.contains("did you mean to use 'AnyClass'"),
+      "Unexpected message: \(diagnostic.message)"
+    )
+    XCTAssertEqual(
+      try addImportAction(in: quickFixes["1️⃣"]).edit?.changes?[uri],
       [
         TextEdit(
           range: Position(line: 0, utf16index: 0)..<Position(line: 0, utf16index: 0),
@@ -2218,64 +2260,104 @@ final class CodeActionTests: SourceKitLSPTestCase {
   }
 
   func testAddMissingImportForFunction() async throws {
-    let (addImportAction, uri, _) = try await addMissingImportAction(
+    let (quickFixes, _, uri, _) = try await quickFixesForMissingImports(
       mainFile: """
         let value = 1️⃣makeImportedType()
-        """
+        let values = 2️⃣makeImportedTypes(count: 2)
+        let sum = 1 3️⃣+++ 2
+        """,
+      markers: ["1️⃣", "2️⃣", "3️⃣"]
     )
 
-    XCTAssertEqual(
-      addImportAction?.edit?.changes?[uri],
-      [
-        TextEdit(
-          range: Position(line: 0, utf16index: 0)..<Position(line: 0, utf16index: 0),
-          newText: "import MyLibrary\n\n"
-        )
-      ]
-    )
+    for marker in ["1️⃣", "2️⃣", "3️⃣"] {
+      XCTAssertEqual(
+        try addImportAction(in: quickFixes[marker]).edit?.changes?[uri],
+        [
+          TextEdit(
+            range: Position(line: 0, utf16index: 0)..<Position(line: 0, utf16index: 0),
+            newText: "import MyLibrary\n\n"
+          )
+        ],
+        "Unexpected edit at \(marker)"
+      )
+    }
   }
 
-  func testAddMissingImportNotAvailableForSymbolMissingFromIndex() async throws {
-    let (addImportAction, _, _) = try await addMissingImportAction(
+  func testAddMissingImportOnlyAvailableForSymbolFoundByUnqualifiedLookup() async throws {
+    let (quickFixes, _, _, _) = try await quickFixesForMissingImports(
       mainFile: """
-        let value = 1️⃣UnknownType()
-        """
+        let value = 1️⃣ImportedType()
+        let missingFromIndex = 2️⃣UnknownType()
+        let memberType = 3️⃣Nested()
+        let method = 4️⃣makeNested()
+        let definedInMultipleModules = 5️⃣makeDuplicate()
+        """,
+      markers: ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣"]
     )
 
-    XCTAssertNil(addImportAction)
+    // Check that the index is able to provide the quick fix, so that the checks below don't pass without an index.
+    _ = try addImportAction(in: quickFixes["1️⃣"])
+    for marker in ["2️⃣", "3️⃣", "4️⃣", "5️⃣"] {
+      let quickFixes = try XCTUnwrap(quickFixes[marker])
+      XCTAssertFalse(
+        quickFixes.contains { $0.title.hasPrefix("Add import for ") },
+        "Unexpected actions at \(marker): \(quickFixes.map(\.title))"
+      )
+    }
   }
 
-  func testAddMissingImportNotAvailableForMember() async throws {
-    let (addImportAction, _, _) = try await addMissingImportAction(
-      mainFile: """
-        let value = 1️⃣Nested()
-        """
-    )
-
-    XCTAssertNil(addImportAction)
-  }
-
-  /// Opens `mainFile` in a package that has `MyLibrary` and the empty `LibA`, `LibB` and `ZLib` modules as dependencies
-  /// and returns the add missing import code action at the 1️⃣ marker.
-  private func addMissingImportAction(
-    mainFile: String
-  ) async throws -> (action: CodeAction?, uri: DocumentURI, positions: DocumentPositions) {
+  /// Opens `mainFile` in a package that has `MyLibrary`, `LibA`, `LibB` and `ZLib` modules as dependencies and returns
+  /// its diagnostics and the quick fixes at `markers`.
+  private func quickFixesForMissingImports(
+    mainFile: String,
+    markers: [String] = ["1️⃣"]
+  ) async throws -> (
+    quickFixes: [String: [CodeAction]], diagnostics: [Diagnostic], uri: DocumentURI, positions: DocumentPositions
+  ) {
     let project = try await SwiftPMTestProject(
       files: [
         "MyLibrary/ImportedType.swift": """
         public struct ImportedType {
           public init() {}
+
           public struct Nested {
             public init() {}
           }
+
+          public func makeNested() -> Nested {
+            Nested()
+          }
         }
+
+        public struct Class {}
 
         public func makeImportedType() -> ImportedType {
           ImportedType()
         }
+
+        public func makeImportedTypes(count: Int) -> [ImportedType] {
+          Array(repeating: ImportedType(), count: count)
+        }
+
+        infix operator +++
+        infix operator ..
+
+        extension Int {
+          public static func +++ (lhs: Int, rhs: Int) -> Int {
+            lhs + rhs
+          }
+
+          public static func .. (lhs: Int, rhs: Int) -> Int {
+            lhs + rhs
+          }
+        }
         """,
-        "LibA/LibA.swift": "",
-        "LibB/LibB.swift": "",
+        "LibA/LibA.swift": """
+        public func makeDuplicate() {}
+        """,
+        "LibB/LibB.swift": """
+        public func makeDuplicate() {}
+        """,
         "ZLib/ZLib.swift": "",
         "MyApp/main.swift": mainFile,
       ],
@@ -2302,20 +2384,36 @@ final class CodeActionTests: SourceKitLSPTestCase {
     )
     let diagnostics = try XCTUnwrap(diagnosticReport.fullReport?.items)
 
-    let result = try await project.testClient.send(
-      CodeActionRequest(
-        range: Range(positions["1️⃣"]),
-        context: CodeActionContext(
-          diagnostics: diagnostics,
-          only: [.quickFix],
-          triggerKind: .invoked
-        ),
-        textDocument: TextDocumentIdentifier(uri)
+    var quickFixes: [String: [CodeAction]] = [:]
+    for marker in markers {
+      let result = try await project.testClient.send(
+        CodeActionRequest(
+          range: Range(positions[marker]),
+          context: CodeActionContext(
+            diagnostics: diagnostics,
+            only: [.quickFix],
+            triggerKind: .invoked
+          ),
+          textDocument: TextDocumentIdentifier(uri)
+        )
       )
-    )
+      quickFixes[marker] = try XCTUnwrap(result?.codeActions)
+    }
+    return (quickFixes, diagnostics, uri, positions)
+  }
 
-    let codeActions = try XCTUnwrap(result?.codeActions)
-    return (codeActions.first { $0.title.hasPrefix("Add import for ") }, uri, positions)
+  private func addImportAction(
+    in quickFixes: [CodeAction]?,
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) throws -> CodeAction {
+    let quickFixes = try XCTUnwrap(quickFixes, file: file, line: line)
+    return try XCTUnwrap(
+      quickFixes.first { $0.title == "Add import for 'MyLibrary'" },
+      "Expected Add import for 'MyLibrary' action. Available actions: \(quickFixes.map(\.title))",
+      file: file,
+      line: line
+    )
   }
 
   func testRemoveUnusedImports() async throws {
