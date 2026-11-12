@@ -208,6 +208,7 @@ final class WorkspaceTestDiscoveryTests: SourceKitLSPTestCase {
     // not inherit from XCTest and thus doesn't have any test methods.
 
     try await SwiftPMTestProject.build(at: project.scratchDirectory)
+    try await project.testClient.send(SynchronizeRequest(index: true))
 
     let testsAfterRebuild = try await project.testClient.send(WorkspaceTestsRequest())
     XCTAssertEqual(testsAfterRebuild, [])
