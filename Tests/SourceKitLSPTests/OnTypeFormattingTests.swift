@@ -91,6 +91,7 @@ final class OnTypeFormattingTests: SourceKitLSPTestCase {
   /// Otherwise could mess up writing code. You'd write {} and try to go into the braces to write more code,
   /// only for on-type formatting to immediately close the braces again.
   func testDoesNothingWhenInAnEmptyLine() async throws {
+    try XCTSkipIf(true, "swift-format collapses excess blank lines: rdar://192509162")
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
 
