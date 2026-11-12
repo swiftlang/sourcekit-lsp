@@ -2151,6 +2151,8 @@ private let supplementalClangIndexingArgs: [String] = [
   // Be less strict - we want to continue and typecheck/index as much as possible
   "-Xclang", "-fallow-pch-with-compiler-errors",
   "-Xclang", "-fallow-pcm-with-compiler-errors",
+  // After the error limit, Clang stops instantiating templates, which changes the USRs of later declarations.
+  "-ferror-limit=0",
   "-Wno-non-modular-include-in-framework-module",
   "-Wno-incomplete-umbrella",
 ]

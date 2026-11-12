@@ -329,6 +329,43 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
     )
   }
 
+  func testIndexCxxFileAfterManyErrors() async throws {
+    let errors = (0..<25).map { "int error\($0) = undeclared\($0);" }.joined(separator: "\n")
+    let project = try await SwiftPMTestProject(
+      files: [
+        "MyLibrary/include/Ptr.h": """
+        template <typename T> struct Deleter {};
+        template <typename T, typename D = Deleter<T>> struct Ptr {};
+        struct Foo {};
+        void takesPtr(Ptr<Foo> p);
+        """,
+        "Definition.cpp": """
+        #include "Ptr.h"
+
+        void 1️⃣takesPtr(Ptr<Foo> p) {}
+        """,
+        "Caller.cpp": """
+        \(errors)
+        #include "Ptr.h"
+
+        void test() {
+          takesPtr(Ptr<Foo>());
+        }
+        """,
+      ],
+      enableBackgroundIndexing: true
+    )
+
+    let (uri, positions) = try project.openDocument("Definition.cpp")
+    let prepare = try await project.testClient.send(
+      CallHierarchyPrepareRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+    let calls = try await project.testClient.send(
+      CallHierarchyIncomingCallsRequest(item: try XCTUnwrap(prepare?.only))
+    )
+    XCTAssertEqual(calls?.map(\.from.name), ["test"])
+  }
+
   func testBackgroundIndexingStatusWorkDoneProgress() async throws {
     let receivedBeginProgressNotification = WrappedSemaphore(
       name: "Received work done progress saying build graph generation"
