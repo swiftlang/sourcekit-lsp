@@ -16,7 +16,7 @@ import Foundation
 @_spi(SourceKitLSP) import LanguageServerProtocolTransport
 @_spi(SourceKitLSP) import SKLogging
 import SKUtilities
-import SourceKitLSP
+package import SourceKitLSP
 import SwiftExtensions
 import SwiftParser
 import SwiftSyntax
@@ -108,7 +108,7 @@ extension CollectionDifference.Change {
 }
 
 /// Compute the text edits that need to be made to transform `original` into `edited`.
-private func edits(from original: DocumentSnapshot, to edited: String) -> [TextEdit] {
+package func formattingEdits(from original: DocumentSnapshot, to edited: String) -> [TextEdit] {
   let difference = edited.utf8.difference(from: original.text.utf8)
 
   let sequentialEdits = difference.map { change in
@@ -129,6 +129,32 @@ private func edits(from original: DocumentSnapshot, to edited: String) -> [TextE
   return concurrentEdits.edits.compactMap {
     TextEdit(range: original.positionRange(of: $0.range), newText: $0.replacement)
   }
+}
+
+/// Builds the command-line arguments passed to `swift-format` (excluding the executable path) to format `snapshot`.
+package func swiftFormatArguments(
+  snapshot: DocumentSnapshot,
+  textDocument: TextDocumentIdentifier,
+  options: FormattingOptions,
+  range: Range<Position>? = nil
+) throws -> [String] {
+  var args = try [
+    "format",
+    "-",  // Read file contents from stdin
+    "--configuration",
+    swiftFormatConfiguration(for: textDocument.uri, options: options),
+  ]
+  if let range {
+    let utf8Range = snapshot.utf8OffsetRange(of: range)
+    // swift-format takes an inclusive range, but Swift's `Range.upperBound` is exclusive.
+    // Also make sure `upperBound` does not go less than `lowerBound`.
+    let utf8UpperBound = max(utf8Range.lowerBound, utf8Range.upperBound - 1)
+    args += [
+      "--offsets",
+      "\(utf8Range.lowerBound):\(utf8UpperBound)",
+    ]
+  }
+  return args
 }
 
 extension SwiftLanguageService {
@@ -183,23 +209,9 @@ extension SwiftLanguageService {
       )
     }
 
-    var args = try [
-      swiftFormat.filePath,
-      "format",
-      "-",  // Read file contents from stdin
-      "--configuration",
-      swiftFormatConfiguration(for: textDocument.uri, options: options),
-    ]
-    if let range {
-      let utf8Range = snapshot.utf8OffsetRange(of: range)
-      // swift-format takes an inclusive range, but Swift's `Range.upperBound` is exclusive.
-      // Also make sure `upperBound` does not go less than `lowerBound`.
-      let utf8UpperBound = max(utf8Range.lowerBound, utf8Range.upperBound - 1)
-      args += [
-        "--offsets",
-        "\(utf8Range.lowerBound):\(utf8UpperBound)",
-      ]
-    }
+    let args =
+      try [swiftFormat.filePath]
+      + swiftFormatArguments(snapshot: snapshot, textDocument: textDocument, options: options, range: range)
     let process = TSCBasic.Process(arguments: args)
     let writeStream: any WritableByteStream
     do {
@@ -270,6 +282,6 @@ extension SwiftLanguageService {
       throw ResponseError.unknown("Failed to decode response from swift-format as UTF-8")
     }
 
-    return edits(from: snapshot, to: formattedString)
+    return formattingEdits(from: snapshot, to: formattedString)
   }
 }
