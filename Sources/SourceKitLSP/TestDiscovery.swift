@@ -608,17 +608,28 @@ fileprivate extension [TestItem] {
   ///
   /// If we encounter one of these cases, we need to deduplicate the ID
   /// by appending `/filename:filename:lineNumber`.
+  ///
+  /// XCTest identifies a test only by its class and method name, so XCTest items that share an ID are alternative
+  /// declarations of the same test, e.g. in different `#if` clauses. Only the first of them is kept, because an ID with
+  /// a location suffix can't be used to run an XCTest.
   func deduplicatingIds() -> [TestItem] {
     var idCounts: [String: Int] = [:]
     for element in self where element.children.isEmpty {
       idCounts[element.id, default: 0] += 1
     }
 
-    return self.map {
+    var seenXCTestIds: Set<String> = []
+    return self.compactMap {
       var newItem = $0
       newItem.children = newItem.children.deduplicatingIds()
       if idCounts[newItem.id, default: 0] > 1 {
-        newItem.id = newItem.ambiguousTestDifferentiator
+        if newItem.style == TestStyle.xcTest {
+          guard seenXCTestIds.insert(newItem.id).inserted else {
+            return nil
+          }
+        } else {
+          newItem.id = newItem.ambiguousTestDifferentiator
+        }
       }
       return newItem
     }
