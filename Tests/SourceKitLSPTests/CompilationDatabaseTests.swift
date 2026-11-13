@@ -11,9 +11,11 @@
 //===----------------------------------------------------------------------===//
 
 import BuildServerIntegration
+@_spi(SourceKitLSP) import BuildServerProtocol
 @_spi(SourceKitLSP) import LanguageServerProtocol
 import SKLogging
 import SKTestSupport
+import SourceKitLSP
 import SwiftExtensions
 import TSCBasic
 import TSCExtensions
@@ -396,7 +398,16 @@ final class CompilationDatabaseTests: SourceKitLSPTestCase {
 
     try await withTestScratchDir { scratchDirectory in
       let toolchainRegistry = try XCTUnwrap(ToolchainRegistry.forTesting)
+      let defaultToolchain = try await unwrap(toolchainRegistry.default)
 
+      // `xcrun` may resolve to a toolchain other than the one under test. In tests, every
+      // toolchain's sourcekitd loads the same copy of the client plugin (the package's, also found
+      // through `DYLD_LIBRARY_PATH`), which can only be initialized by one sourcekitd. Loading the
+      // sourcekitd of the `xcrun` toolchain thus fails if other tests in this process have used the
+      // toolchain under test. Prevent that sourcekitd from being loaded, eg. by the syntactic
+      // index, and check the toolchain of the target instead of requesting semantic functionality
+      // for the file.
+      struct UnexpectedToolchainError: Error {}
       let project = try await MultiFileTestProject(
         files: [
           "test.swift": """
@@ -417,14 +428,29 @@ final class CompilationDatabaseTests: SourceKitLSPTestCase {
           ]
           """,
         ],
-        toolchainRegistry: toolchainRegistry
+        toolchainRegistry: toolchainRegistry,
+        hooks: Hooks(sourcekitdCoreInjector: { toolchainPath in
+          guard toolchainPath == defaultToolchain.path else {
+            throw UnexpectedToolchainError()
+          }
+          return nil
+        })
       )
 
-      let (uri, _) = try project.openDocument("test.swift")
-      let diagnostics = try await project.testClient.send(
-        DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
-      )
-      XCTAssertEqual(diagnostics.fullReport?.items.map(\.message), ["Test warning"])
+      let uri = try project.uri(for: "test.swift")
+      let workspace = try await unwrap(project.testClient.server.workspaceForDocument(uri: uri))
+      let targetIdentifier = try await unwrap(workspace.buildServerManager.canonicalTarget(for: uri))
+      let target = try await unwrap(workspace.buildServerManager.buildTarget(named: targetIdentifier))
+      XCTAssertEqual(target.dataKind, .sourceKit)
+      let toolchain = try unwrap(SourceKitBuildTarget(fromLSPAny: target.data)?.toolchain?.fileURL)
+
+      let xcrunSwiftc = try await Process.run(arguments: ["xcrun", "-f", "swiftc"], workingDirectory: nil)
+        .utf8Output().trimmingCharacters(in: .whitespacesAndNewlines)
+      let xcrunToolchain = URL(fileURLWithPath: xcrunSwiftc)
+        .deletingLastPathComponent()  // swiftc
+        .deletingLastPathComponent()  // bin
+        .deletingLastPathComponent()  // usr
+      XCTAssertEqual(toolchain.resolvingSymlinksInPath().path, xcrunToolchain.resolvingSymlinksInPath().path)
     }
   }
 }
