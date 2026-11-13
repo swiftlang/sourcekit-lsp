@@ -4559,6 +4559,182 @@ final class CodeActionTests: SourceKitLSPTestCase {
       atMarker: "1️⃣"
     )
   }
+
+  func testConvertToTernaryExpr() async throws {
+    try await assertCodeActions(
+      """
+      func f() {
+        1️⃣if condition {
+          x = a
+        } else {
+          x = b
+        }2️⃣
+      }
+      """,
+      markers: [],
+      ranges: [("1️⃣", "2️⃣")],
+      ignoringCodeActions: ["Extract Method", "Invert if condition"]
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Convert To Ternary Expression",
+          kind: .refactorRewrite,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: "x = condition ? a : b"
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testConvertToTernaryExprWithBinding() async throws {
+    try await assertCodeActions(
+      """
+      func f() {
+        1️⃣let x: Int
+        if condition {
+          x = a
+        } else {
+          x = b
+        }2️⃣
+      }
+      """,
+      markers: [],
+      ranges: [("1️⃣", "2️⃣")],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Convert To Ternary Expression",
+          kind: .refactorRewrite,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: "let x: Int = condition ? a : b"
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testConvertToTernaryExprWithTupleDestination() async throws {
+    try await assertCodeActions(
+      """
+      func f() {
+        1️⃣if condition {
+          (x, y) = a
+        } else {
+          (x, y) = b
+        }2️⃣
+      }
+      """,
+      markers: [],
+      ranges: [("1️⃣", "2️⃣")],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Convert To Ternary Expression",
+          kind: .refactorRewrite,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["2️⃣"],
+                  newText: "(x, y) = condition ? a : b"
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testConvertToTernaryExprNotOffered() async throws {
+    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
+    let uri = DocumentURI(for: .swift, testName: #function)
+    let positions = testClient.openDocument(
+      """
+      func noElse() {
+        1️⃣if condition {
+          x = a
+        }2️⃣
+      }
+
+      func differentDestinations() {
+        3️⃣if condition {
+          x = a
+        } else {
+          y = b
+        }4️⃣
+      }
+
+      func elseIf() {
+        5️⃣if condition {
+          x = a
+        } else if other {
+          x = b
+        } else {
+          x = c
+        }6️⃣
+      }
+
+      func multipleAssignments() {
+        7️⃣if condition {
+          x = a
+          foo()
+        } else {
+          x = b
+        }8️⃣
+      }
+
+      func bindingWithInitializer() {
+        9️⃣let x = 1
+        if condition {
+          x = a
+        } else {
+          x = b
+        }🔟
+      }
+
+      func partialSelection() {
+        if condition {
+          0️⃣x = a
+        } else {
+          x = b
+        }ℹ️
+      }
+      """,
+      uri: uri
+    )
+    for (start, end) in [("1️⃣", "2️⃣"), ("3️⃣", "4️⃣"), ("5️⃣", "6️⃣"), ("7️⃣", "8️⃣"), ("9️⃣", "🔟"), ("0️⃣", "ℹ️")] {
+      let result = try await testClient.send(
+        CodeActionRequest(
+          range: positions[start]..<positions[end],
+          context: .init(),
+          textDocument: TextDocumentIdentifier(uri)
+        )
+      )
+      let titles = (result?.codeActions ?? []).map(\.title)
+      XCTAssertFalse(
+        titles.contains("Convert To Ternary Expression"),
+        "did not expect 'Convert To Ternary Expression' for range \(start)-\(end), got: \(titles)"
+      )
+    }
+  }
 }
 
 private extension CodeActionRequestResponse {

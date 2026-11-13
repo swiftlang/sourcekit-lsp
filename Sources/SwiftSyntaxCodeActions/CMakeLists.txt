@@ -11,6 +11,7 @@ add_library(SwiftSyntaxCodeActions STATIC
   ConvertJSONToCodableStruct.swift
   ConvertStoredPropertyToComputed.swift
   ConvertStringConcatenationToStringInterpolation.swift
+  ConvertToTernaryExpr.swift
   ConvertZeroParameterFunctionToComputedProperty.swift
   DeclModifierRemover.swift
   FormatRawStringLiteral.swift
