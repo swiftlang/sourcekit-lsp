@@ -98,20 +98,22 @@ actor IndexProgressManager {
     case .generatingBuildGraph:
       message = "Determining files"
       percentage = 0
-    case .indexing(let preparationTasks, let indexTasks):
-      // We can get into a situation where queuedIndexTasks < indexTasks.count if we haven't processed all
+    case .indexing(let preparationTaskCount, let indexTaskCount):
+      // We can get into a situation where queuedIndexTasks < indexTaskCount if we haven't processed all
       // `indexTasksWereScheduled` calls yet but the semantic index managers already track them in their in-progress tasks.
       // Clip the finished tasks to 0 because showing a negative number there looks stupid.
-      let finishedTasks = max(queuedIndexTasks - indexTasks.count, 0)
-      if indexTasks.isEmpty {
+      let finishedTasks = max(queuedIndexTasks - indexTaskCount, 0)
+      if indexTaskCount == 0 {
         message = "Preparing targets"
-        if preparationTasks.isEmpty {
+        if preparationTaskCount == 0 {
           logger.fault("Indexer status is 'indexing' but there is no update indexstore or preparation task")
         }
       } else {
         message = "\(finishedTasks) / \(queuedIndexTasks)"
       }
-      logger.debug("In-progress index tasks: \(indexTasks.map(\.key.file.sourceFile))")
+      logger.debug(
+        "In-progress index tasks: \(indexTaskCount), preparation tasks: \(preparationTaskCount), queued index tasks: \(self.queuedIndexTasks)"
+      )
       if queuedIndexTasks != 0 {
         percentage = Int(Double(finishedTasks) / Double(queuedIndexTasks) * 100)
       } else {
