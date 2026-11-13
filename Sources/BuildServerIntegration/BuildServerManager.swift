@@ -515,6 +515,12 @@ package actor BuildServerManager: QueueBasedMessageHandler {
 
   private var cachedAdjustedSourceKitOptions = RequestCache<TextDocumentSourceKitOptionsRequest>()
 
+  /// One instance of every compiler argument in `cachedAdjustedSourceKitOptions`.
+  ///
+  /// Files in the same target have mostly the same compiler arguments, so sharing the strings between the cached
+  /// options significantly reduces their memory usage.
+  private var compilerArgumentStrings: Set<String> = []
+
   private var cachedBuildTargets = Cache<WorkspaceBuildTargetsRequest, [BuildTargetIdentifier: BuildTargetInfo]>()
 
   private var cachedTargetSources = RequestCache<BuildTargetSourcesRequest>()
@@ -1184,14 +1190,16 @@ package actor BuildServerManager: QueueBasedMessageHandler {
     )
     let response = try await cachedAdjustedSourceKitOptions.get(request, isolation: self) { request in
       let options = try await buildServerAdapter.send(request)
-      switch language.semanticKind {
-      case .swift:
-        return options?.adjustArgsForSemanticSwiftFunctionality(fileToIndex: document)
-      case .clang:
-        return options?.adjustingArgsForSemanticClangFunctionality()
-      default:
-        return options
-      }
+      let adjustedOptions: TextDocumentSourceKitOptionsResponse? =
+        switch language.semanticKind {
+        case .swift:
+          options?.adjustArgsForSemanticSwiftFunctionality(fileToIndex: document)
+        case .clang:
+          options?.adjustingArgsForSemanticClangFunctionality()
+        default:
+          options
+        }
+      return await self.sharingCompilerArgumentStrings(adjustedOptions)
     }
 
     guard let response else {
@@ -1205,6 +1213,23 @@ package actor BuildServerManager: QueueBasedMessageHandler {
       data: response.data,
       isFallback: false
     )
+  }
+
+  /// Replaces the compiler arguments of `options` by the identical strings in `compilerArgumentStrings`.
+  private func sharingCompilerArgumentStrings(
+    _ options: TextDocumentSourceKitOptionsResponse?
+  ) -> TextDocumentSourceKitOptionsResponse? {
+    guard var options else {
+      return nil
+    }
+    options.compilerArguments = options.compilerArguments.map { argument in
+      // Strings of up to 15 UTF-8 code units are stored inline, so they have no storage that could be shared.
+      guard argument.utf8.count > 15 else {
+        return argument
+      }
+      return compilerArgumentStrings.insert(argument).memberAfterInsert
+    }
+    return options
   }
 
   /// Returns the build settings for the given file in the given target.

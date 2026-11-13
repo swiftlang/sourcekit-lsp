@@ -245,6 +245,41 @@ final class BuildServerManagerTests: SourceKitLSPTestCase {
     await assertEqual(manager.cachedMainFile(for: d), nil)
   }
 
+  func testCachedCompilerArgumentsShareStringStorage() async throws {
+    let a = try DocumentURI(string: "bsm:a.swift")
+    let b = try DocumentURI(string: "bsm:b.swift")
+    let (manager, buildServer) = try await createBuildServerManager(mainFilesProvider: ManualMainFilesProvider([:]))
+
+    // Create a separate string with its own storage for each file, as decoding a build server response would.
+    func sharedArgument() -> String {
+      return String(decoding: Array("-I/path/to/a/directory/that/is/shared/by/all/files".utf8), as: UTF8.self)
+    }
+    await buildServer.setBuildSettings(
+      for: a,
+      to: TextDocumentSourceKitOptionsResponse(compilerArguments: [sharedArgument(), "a.swift"])
+    )
+    await buildServer.setBuildSettings(
+      for: b,
+      to: TextDocumentSourceKitOptionsResponse(compilerArguments: [sharedArgument(), "b.swift"])
+    )
+    await manager.waitForUpToDateBuildGraph()
+
+    func storageOfSharedArgument(in document: DocumentURI) async throws -> UnsafeRawPointer? {
+      let settings = await manager.buildSettings(
+        for: document,
+        in: .dummy,
+        language: .swift,
+        fallbackAfterTimeout: false
+      )
+      let argument = try XCTUnwrap(settings?.compilerArguments.first { $0 == sharedArgument() })
+      return argument.utf8.withContiguousStorageIfAvailable { UnsafeRawPointer($0.baseAddress) } ?? nil
+    }
+    let storageInA = try await storageOfSharedArgument(in: a)
+    let storageInB = try await storageOfSharedArgument(in: b)
+    XCTAssertNotNil(storageInA)
+    XCTAssertEqual(storageInA, storageInB)
+  }
+
   func testSettingsMainFile() async throws {
     let a = try DocumentURI(string: "bsm:a.swift")
     let mainFiles = ManualMainFilesProvider([a: [a]])
