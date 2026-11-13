@@ -176,6 +176,9 @@ actor DiagnosticReportManager {
       syntaxTree = nil
     }
 
+    // A file often has multiple diagnostics about the same missing symbol. Only look each of them up once.
+    var missingImportCodeActions: [MissingSymbol: CodeAction?] = [:]
+
     let diagnostics: [Diagnostic] =
       rawDiagnostics?.compactMap { rawDiagnostic in
         guard
@@ -192,17 +195,23 @@ actor DiagnosticReportManager {
         if let diagnosticID: String = rawDiagnostic[keys.id],
           missingImportDiagnosticIDs.contains(diagnosticID),
           let diagnosticDescription: String = rawDiagnostic[keys.description],
-          let missingSymbol = missingSymbolName(from: diagnosticDescription),
+          let missingSymbol = missingSymbol(diagnosticID: diagnosticID, diagnosticDescription: diagnosticDescription),
           let checkedIndex,
-          let syntaxTree,
-          let codeAction = try? missingImportCodeAction(
-            for: missingSymbol,
-            index: checkedIndex,
-            syntaxTree: syntaxTree,
-            snapshot: snapshot
-          )
+          let syntaxTree
         {
-          diagnostic.codeActions = (diagnostic.codeActions ?? []) + [codeAction]
+          if missingImportCodeActions[missingSymbol] == nil {
+            missingImportCodeActions[missingSymbol] = .some(
+              try? missingImportCodeAction(
+                for: missingSymbol,
+                index: checkedIndex,
+                syntaxTree: syntaxTree,
+                snapshot: snapshot
+              )
+            )
+          }
+          if let codeAction = missingImportCodeActions[missingSymbol] ?? nil {
+            diagnostic.codeActions = (diagnostic.codeActions ?? []) + [codeAction]
+          }
         }
 
         return diagnostic
@@ -253,33 +262,55 @@ actor DiagnosticReportManager {
 
   private let missingImportDiagnosticIDs: Set<String> = [
     "cannot_find_type_in_scope",
+    "cannot_find_type_in_scope_did_you_mean",
     "cannot_find_in_scope",
+    "cannot_find_in_scope_corrected",
     "use_of_unresolved_identifier",
   ]
 
-  private func missingSymbolName(from diagnosticDescription: String) -> String? {
+  /// These diagnostics also quote the name that the compiler suggests to use instead, eg.
+  /// "cannot find 'Foo' in scope; did you mean 'Fooo'?". `cannot_find_in_scope_corrected` is emitted if typo correction
+  /// finds a similar name in scope, `cannot_find_type_in_scope_did_you_mean` if the type has a different name in Swift,
+  /// eg. `AnyClass` for `Class`.
+  private let missingImportDiagnosticIDsWithSuggestedName: Set<String> = [
+    "cannot_find_type_in_scope_did_you_mean",
+    "cannot_find_in_scope_corrected",
+  ]
+
+  private func missingSymbol(diagnosticID: String, diagnosticDescription: String) -> MissingSymbol? {
     let components = diagnosticDescription.split(separator: "'", omittingEmptySubsequences: false)
-    guard components.count == 3 else {
+    let expectedComponentCount = missingImportDiagnosticIDsWithSuggestedName.contains(diagnosticID) ? 5 : 3
+    guard components.count == expectedComponentCount else {
       return nil
     }
 
     let symbolName = String(components[1])
-    return symbolName.isEmpty ? nil : symbolName
+    guard !symbolName.isEmpty else {
+      return nil
+    }
+    return MissingSymbol(name: symbolName, isType: diagnosticID.hasPrefix("cannot_find_type_in_scope"))
   }
 
   private func missingImportCodeAction(
-    for symbolName: String,
+    for missingSymbol: MissingSymbol,
     index: CheckedIndex,
     syntaxTree: SourceFileSyntax,
     snapshot: DocumentSnapshot
   ) throws -> CodeAction? {
-    guard let moduleName = try index.uniqueModuleProvidingSymbol(named: symbolName) else {
+    guard let moduleName = try index.uniqueModuleProviding(missingSymbol) else {
       return nil
     }
 
     let existingImports = syntaxTree.statements.compactMap { $0.item.as(ImportDeclSyntax.self) }
     let edit: TextEdit
-    if let lastImport = existingImports.last {
+    if let nextImport = existingImports.first(where: { $0.path.trimmedDescription > moduleName }) {
+      // Keep the imports sorted by inserting before the first import that is ordered after the new one.
+      let insertionPosition = snapshot.position(of: nextImport.startOfLeadingComments)
+      edit = TextEdit(
+        range: insertionPosition..<insertionPosition,
+        newText: "import \(moduleName)\n"
+      )
+    } else if let lastImport = existingImports.last {
       let insertionPosition = snapshot.position(of: lastImport.endPosition)
       edit = TextEdit(
         range: insertionPosition..<insertionPosition,
@@ -314,12 +345,30 @@ actor DiagnosticReportManager {
   }
 }
 
+/// A symbol that the compiler could not find in scope.
+private struct MissingSymbol: Hashable {
+  let name: String
+
+  /// Whether the symbol is used as a type, in which case it can't be a function.
+  let isType: Bool
+}
+
 fileprivate extension CheckedIndex {
-  func uniqueModuleProvidingSymbol(named symbolName: String) throws -> String? {
+  func uniqueModuleProviding(_ missingSymbol: MissingSymbol) throws -> String? {
     var moduleName: String?
 
-    try forEachCanonicalSymbolOccurrence(byName: symbolName) { occurrence in
+    /// Sets `moduleName` to the module that defines the symbol of `occurrence`. Returns `false` and resets `moduleName`
+    /// if the symbol is defined in multiple modules.
+    func recordModule(of occurrence: SymbolOccurrence) -> Bool {
       guard occurrence.roles.contains(.definition) || occurrence.roles.contains(.declaration) else {
+        return true
+      }
+
+      // An unqualified lookup can't find members, even if their module is imported. The exception are operators,
+      // which are found even if they are declared inside a type.
+      guard
+        occurrence.symbol.isOperator || !occurrence.relations.contains(where: { $0.roles.contains(.childOf) })
+      else {
         return true
       }
 
@@ -337,6 +386,59 @@ fileprivate extension CheckedIndex {
       return true
     }
 
+    guard try forEachCanonicalSymbolOccurrence(byName: missingSymbol.name, body: recordModule) else {
+      return nil
+    }
+    if moduleName != nil || missingSymbol.isType {
+      return moduleName
+    }
+
+    // Functions are indexed with their argument labels, eg. `foo(_:)`, but the diagnostic only names `foo`. The index
+    // can only look up symbols by their full name, so finding the function requires a scan of all symbol names.
+    guard
+      try forEachCanonicalSymbolOccurrence(
+        containing: "\(missingSymbol.name)(",
+        anchorStart: true,
+        anchorEnd: false,
+        subsequence: false,
+        ignoreCase: false,
+        body: recordModule
+      )
+    else {
+      return nil
+    }
     return moduleName
+  }
+}
+
+fileprivate extension Symbol {
+  var isOperator: Bool {
+    switch subKind {
+    case .swiftPrefixOperator, .swiftPostfixOperator, .swiftInfixOperator: return true
+    default: return false
+    }
+  }
+}
+
+fileprivate extension ImportDeclSyntax {
+  /// The start of the comments that are attached to this import, ie. that are not separated from it by an empty line.
+  /// If no comments are attached to the import, the start of the line that contains the import.
+  var startOfLeadingComments: AbsolutePosition {
+    var position = self.position
+    var startOfLeadingComments = position
+    var lineContainsComment = false
+    for piece in leadingTrivia {
+      position += piece.sourceLength
+      switch piece {
+      case .newlines(let count), .carriageReturns(let count), .carriageReturnLineFeeds(let count):
+        if count > 1 || !lineContainsComment {
+          startOfLeadingComments = position
+        }
+        lineContainsComment = false
+      default:
+        lineContainsComment = lineContainsComment || piece.isComment
+      }
+    }
+    return startOfLeadingComments
   }
 }

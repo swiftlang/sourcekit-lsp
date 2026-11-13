@@ -93,6 +93,7 @@ The specific refactorings available depend on what code is selected or where the
 | Action | Trigger |
 |--------|---------|
 | **Remove Unused Imports** | Cursor on an import declaration (only available when file has no errors) |
+| **Add import for '\<module\>'** | Cursor on a "cannot find in scope" error for a symbol that is defined in exactly one module of the index |
 | **Remove Redundant Parentheses** | Cursor on a parenthesized expression that contains a redundant outer set of parentheses |
 | **Swap operands** | Cursor or selection on a supported binary operator in an infix expression |
 
