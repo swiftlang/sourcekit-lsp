@@ -3901,10 +3901,15 @@ final class CodeActionTests: SourceKitLSPTestCase {
   }
 
   /// Assert that no code action with the given title is offered at the given marker.
+  /// - Parameters:
+  ///   - marker: The marker to retrieve code actions at.
+  ///   - endMarker: If specified, code actions are requested for the selection range from `marker`
+  ///     to this marker instead of for the cursor position at `marker`.
   private func assertNoCodeAction(
     titled title: String,
     in markedText: String,
     atMarker marker: String,
+    toMarker endMarker: String? = nil,
     testName: String = #function,
     file: StaticString = #filePath,
     line: UInt = #line
@@ -3915,7 +3920,7 @@ final class CodeActionTests: SourceKitLSPTestCase {
     let position = positions[marker]
     let result = try await testClient.send(
       CodeActionRequest(
-        range: position..<position,
+        range: position..<(endMarker.map { positions[$0] } ?? position),
         context: .init(),
         textDocument: TextDocumentIdentifier(uri)
       )
@@ -3923,7 +3928,10 @@ final class CodeActionTests: SourceKitLSPTestCase {
     let codeActions = result?.codeActions ?? []
     XCTAssertFalse(
       codeActions.contains(where: { $0.title == title }),
-      "did not expect code action titled '\(title)' at marker \(marker), got: \(codeActions.map(\.title))",
+      """
+      did not expect code action titled '\(title)' at \([marker, endMarker].compactMap { $0 }.joined(separator: "-")), \
+      got: \(codeActions.map(\.title))
+      """,
       file: file,
       line: line
     )
@@ -4557,6 +4565,377 @@ final class CodeActionTests: SourceKitLSPTestCase {
         }
         """,
       atMarker: "1️⃣"
+    )
+  }
+
+  func testExtractExpression() async throws {
+    try await assertCodeActions(
+      """
+      func test() {
+        1️⃣print(2️⃣base * height3️⃣)
+      }
+      """,
+      markers: [],
+      ranges: [("2️⃣", "3️⃣")],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Extract expression",
+          kind: .refactorExtract,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["1️⃣"],
+                  newText: "let extractedExpr = base * height\n  "
+                ),
+                TextEdit(range: positions["2️⃣"]..<positions["3️⃣"], newText: "extractedExpr"),
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testExtractExpressionIgnoresWhitespaceAroundSelection() async throws {
+    try await assertCodeActions(
+      """
+      func test() {
+        1️⃣print(2️⃣ 4️⃣base * height5️⃣ 3️⃣)
+      }
+      """,
+      markers: [],
+      ranges: [("2️⃣", "3️⃣")],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Extract expression",
+          kind: .refactorExtract,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["1️⃣"],
+                  newText: "let extractedExpr = base * height\n  "
+                ),
+                TextEdit(range: positions["4️⃣"]..<positions["5️⃣"], newText: "extractedExpr"),
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testExtractExpressionFromReturnStatement() async throws {
+    try await assertCodeActions(
+      """
+      func test() -> Int {
+        1️⃣return 2️⃣offset(for: index)3️⃣ + 1
+      }
+      """,
+      markers: [],
+      ranges: [("2️⃣", "3️⃣")],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Extract expression",
+          kind: .refactorExtract,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["1️⃣"],
+                  newText: "let extractedExpr = offset(for: index)\n  "
+                ),
+                TextEdit(range: positions["2️⃣"]..<positions["3️⃣"], newText: "extractedExpr"),
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testExtractExpressionInClosureWithMultipleStatements() async throws {
+    try await assertCodeActions(
+      """
+      func test() {
+        numbers.forEach { number in
+          1️⃣print(2️⃣number + offset3️⃣)
+          log()
+        }
+      }
+      """,
+      markers: [],
+      ranges: [("2️⃣", "3️⃣")],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Extract expression",
+          kind: .refactorExtract,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["1️⃣"],
+                  newText: "let extractedExpr = number + offset\n    "
+                ),
+                TextEdit(range: positions["2️⃣"]..<positions["3️⃣"], newText: "extractedExpr"),
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testExtractExpressionAvoidsNameCollision() async throws {
+    try await assertCodeActions(
+      """
+      func test() {
+        let extractedExpr = 0
+        1️⃣print(2️⃣base * height3️⃣, extractedExpr)
+      }
+      """,
+      markers: [],
+      ranges: [("2️⃣", "3️⃣")],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Extract expression",
+          kind: .refactorExtract,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["1️⃣"],
+                  newText: "let extractedExpr1 = base * height\n  "
+                ),
+                TextEdit(range: positions["2️⃣"]..<positions["3️⃣"], newText: "extractedExpr1"),
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testExtractExpressionFromFirstConditionOfIfStatement() async throws {
+    try await assertCodeActions(
+      """
+      func test() {
+        1️⃣if isValid(2️⃣a + b3️⃣) {
+          foo()
+        }
+      }
+      """,
+      markers: [],
+      ranges: [("2️⃣", "3️⃣")],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Extract expression",
+          kind: .refactorExtract,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["1️⃣"],
+                  newText: "let extractedExpr = a + b\n  "
+                ),
+                TextEdit(range: positions["2️⃣"]..<positions["3️⃣"], newText: "extractedExpr"),
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testExtractExpressionNotOfferedWithoutSelection() async throws {
+    try await assertNoCodeAction(
+      titled: "Extract expression",
+      in: """
+        func test() {
+          print(base * 1️⃣height)
+        }
+        """,
+      atMarker: "1️⃣"
+    )
+  }
+
+  func testExtractExpressionNotOfferedForLiteral() async throws {
+    try await assertNoCodeAction(
+      titled: "Extract expression",
+      in: """
+        func test() {
+          print(1️⃣422️⃣)
+        }
+        """,
+      atMarker: "1️⃣",
+      toMarker: "2️⃣"
+    )
+  }
+
+  func testExtractExpressionNotOfferedForPartOfExpression() async throws {
+    try await assertNoCodeAction(
+      titled: "Extract expression",
+      in: """
+        func test() {
+          print(1️⃣base * height2️⃣ / 2)
+        }
+        """,
+      atMarker: "1️⃣",
+      toMarker: "2️⃣"
+    )
+  }
+
+  func testExtractExpressionNotOfferedForEntireStatement() async throws {
+    try await assertNoCodeAction(
+      titled: "Extract expression",
+      in: """
+        func test() {
+          1️⃣compute(base)2️⃣
+        }
+        """,
+      atMarker: "1️⃣",
+      toMarker: "2️⃣"
+    )
+  }
+
+  func testExtractExpressionNotOfferedForAssignmentDestination() async throws {
+    try await assertNoCodeAction(
+      titled: "Extract expression",
+      in: """
+        func test() {
+          1️⃣total2️⃣ += a + b
+        }
+        """,
+      atMarker: "1️⃣",
+      toMarker: "2️⃣"
+    )
+  }
+
+  func testExtractExpressionNotOfferedForBaseOfMemberAccess() async throws {
+    try await assertNoCodeAction(
+      titled: "Extract expression",
+      in: """
+        func test() {
+          1️⃣items2️⃣.append(3)
+        }
+        """,
+      atMarker: "1️⃣",
+      toMarker: "2️⃣"
+    )
+  }
+
+  func testExtractExpressionNotOfferedForOperandOfTry() async throws {
+    try await assertNoCodeAction(
+      titled: "Extract expression",
+      in: """
+        func test() throws {
+          print(try 1️⃣compute(base)2️⃣)
+        }
+        """,
+      atMarker: "1️⃣",
+      toMarker: "2️⃣"
+    )
+  }
+
+  func testExtractExpressionNotOfferedInSingleExpressionFunctionBody() async throws {
+    try await assertNoCodeAction(
+      titled: "Extract expression",
+      in: """
+        func test() -> Int {
+          compute(1️⃣a + b2️⃣)
+        }
+        """,
+      atMarker: "1️⃣",
+      toMarker: "2️⃣"
+    )
+  }
+
+  func testExtractExpressionNotOfferedInSingleExpressionClosure() async throws {
+    try await assertNoCodeAction(
+      titled: "Extract expression",
+      in: """
+        func test() {
+          numbers.map { compute(1️⃣$0 + offset2️⃣) }
+        }
+        """,
+      atMarker: "1️⃣",
+      toMarker: "2️⃣"
+    )
+  }
+
+  func testExtractExpressionNotOfferedInBranchOfIfExpression() async throws {
+    try await assertNoCodeAction(
+      titled: "Extract expression",
+      in: """
+        func test(flag: Bool) -> Int {
+          let value = if flag { compute(1️⃣a + b2️⃣) } else { 0 }
+          return value
+        }
+        """,
+      atMarker: "1️⃣",
+      toMarker: "2️⃣"
+    )
+  }
+
+  func testExtractExpressionNotOfferedInLoopCondition() async throws {
+    try await assertNoCodeAction(
+      titled: "Extract expression",
+      in: """
+        func test() {
+          while isReady(1️⃣a + b2️⃣) {
+            foo()
+          }
+        }
+        """,
+      atMarker: "1️⃣",
+      toMarker: "2️⃣"
+    )
+  }
+
+  func testExtractExpressionNotOfferedForConditionAfterBinding() async throws {
+    try await assertNoCodeAction(
+      titled: "Extract expression",
+      in: """
+        func test() {
+          if let value = optional, isValid(1️⃣value + offset2️⃣) {
+            foo()
+          }
+        }
+        """,
+      atMarker: "1️⃣",
+      toMarker: "2️⃣"
+    )
+  }
+
+  func testExtractExpressionNotOfferedForPropertyInitializer() async throws {
+    try await assertNoCodeAction(
+      titled: "Extract expression",
+      in: """
+        struct Test {
+          let value = compute(1️⃣a + b2️⃣)
+        }
+        """,
+      atMarker: "1️⃣",
+      toMarker: "2️⃣"
     )
   }
 }
