@@ -19,6 +19,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from typing import Dict, List
 
 
@@ -216,6 +217,68 @@ def build_single_product(product: str, swift_exec: str, args: argparse.Namespace
     check_call(cmd, additional_env=additional_env, verbose=args.verbose)
 
 
+def summarize_crash_report(report: str) -> str:
+    """
+    Return the exception and the backtraces of all threads from the given macOS `.ips` crash report.
+
+    If the report can't be parsed, return it unchanged.
+    """
+    try:
+        # The first line of the report is a JSON header, the rest is a JSON body.
+        _, body = report.split('\n', 1)
+        crash = json.loads(body)
+        images = crash['usedImages']
+        lines = []
+        if 'exception' in crash:
+            lines.append(f"Exception: {json.dumps(crash['exception'])}")
+        if 'asi' in crash:
+            lines.append(f"Application specific information: {json.dumps(crash['asi'])}")
+        for index, thread in enumerate(crash['threads']):
+            crashed = ' (crashed)' if thread.get('triggered') else ''
+            name = thread.get('name') or thread.get('queue') or ''
+            lines.append(f'Thread {index}{crashed} {name}')
+            for frame in thread.get('frames', []):
+                image = images[frame['imageIndex']]
+                image_name = image.get('name') or os.path.basename(image.get('path', '?'))
+                lines.append(f"  {image_name}: {frame.get('symbol', '?')} + {frame.get('symbolLocation', 0)}")
+        return '\n'.join(lines)
+    except (ValueError, KeyError, IndexError, TypeError):
+        return report
+
+
+def print_test_crash_reports(since: float) -> None:
+    """
+    Print the macOS crash reports of test processes that crashed after the given time.
+
+    `swift test` only reports the signal that terminated a test process. macOS writes a crash report for every crashing
+    process, so print the backtraces from these reports to make crashes in CI actionable.
+    """
+    if platform.system() != 'Darwin':
+        return
+    reports_dir = os.path.expanduser('~/Library/Logs/DiagnosticReports')
+    # Reports get moved to the `Retired` subdirectory after a while.
+    report_paths = []
+    for directory in [reports_dir, os.path.join(reports_dir, 'Retired')]:
+        try:
+            report_paths += [os.path.join(directory, name) for name in os.listdir(directory)]
+        except OSError:
+            pass
+    for report_path in sorted(report_paths, key=os.path.basename):
+        report_name = os.path.basename(report_path)
+        if not report_name.startswith(('xctest', 'swiftpm-testing-helper')) or not report_name.endswith('.ips'):
+            continue
+        try:
+            if os.path.getmtime(report_path) < since:
+                continue
+            with open(report_path, encoding='utf-8', errors='replace') as report_file:
+                report = report_file.read()
+        except OSError:
+            continue
+        print(f'--- Crash report {report_path}')
+        print(summarize_crash_report(report))
+    sys.stdout.flush()
+
+
 def run_tests(swift_exec: str, args: argparse.Namespace) -> None:
     """
     Run all tests in the package
@@ -252,12 +315,22 @@ def run_tests(swift_exec: str, args: argparse.Namespace) -> None:
     with tempfile.TemporaryDirectory() as test_module_cache:
         additional_env['SOURCEKIT_LSP_TEST_MODULE_CACHE'] = f"{test_module_cache}/module-cache"
         # Try running tests in parallel. If that fails, run tests in serial to get capture more readable output.
+        parallel_start = time.time()
         try:
             check_call(cmd + ['--parallel'], additional_env=additional_env, verbose=args.verbose)
         except:
             print('--- Running tests in parallel failed. Re-running tests serially to capture more actionable output.')
+            print_test_crash_reports(since=parallel_start)
             sys.stdout.flush()
-            check_call(cmd, additional_env=additional_env, verbose=args.verbose)
+            serial_start = time.time()
+            try:
+                check_call(cmd, additional_env=additional_env, verbose=args.verbose)
+            except:
+                # Crash reports are written asynchronously. Give the crash report of a test process that crashed at
+                # the end of the test run time to be written.
+                time.sleep(10)
+                print_test_crash_reports(since=serial_start)
+                raise
             # Return with non-zero exit code even if serial test execution succeeds.
             raise SystemExit(1)
 
