@@ -144,8 +144,10 @@ final class ClangdTests: SourceKitLSPTestCase {
       }
     })
 
+    // The timeout also applies to the hover request after the restart, which needs clangd to build
+    // the AST of the file. Leave enough time for that on a loaded machine.
     let testClient = try await TestSourceKitLSPClient(
-      options: SourceKitLSPOptions(semanticServiceRestartTimeout: 1),
+      options: SourceKitLSPOptions(semanticServiceRestartTimeout: 5),
       hooks: hooks
     )
     let uri = DocumentURI(for: .c)
