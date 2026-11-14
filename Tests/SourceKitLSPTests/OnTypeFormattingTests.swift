@@ -17,81 +17,62 @@ import SourceKitLSP
 import XCTest
 
 final class OnTypeFormattingTests: SourceKitLSPTestCase {
-  func testOnlyFormatsSpecifiedLine() async throws {
+  /// End-to-end smoke test verifying that on-type formatting formats only the target line without altering unselected
+  /// lines and reaches a fixed point without assuming specific formatting rules.
+  func testOnTypeFormattingIsolatesTargetLineAndIsIdempotent() async throws {
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
 
-    let positions = testClient.openDocument(
-      """
-      func foo() {
-      if let SomeReallyLongVar = Some.More.Stuff(), let a = myfunc() {
-      1️⃣// do stuff
-      }
-      }
-      """,
-      uri: uri
-    )
-
-    let response = try await testClient.send(
-      DocumentOnTypeFormattingRequest(
-        textDocument: TextDocumentIdentifier(uri),
-        position: positions["1️⃣"],
-        ch: "\n",
-        options: FormattingOptions(tabSize: 2, insertSpaces: true)
-      )
-    )
-
-    let edits = try XCTUnwrap(response)
-    XCTAssertEqual(
-      edits,
-      [
-        TextEdit(range: Range(positions["1️⃣"]), newText: "    ")
-      ]
-    )
-  }
-
-  func testFormatsFullLineAndDoesNotFormatNextLine() async throws {
-    let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI(for: .swift)
-
-    let source = """
-      func foo() {
-      if let SomeReallyLongVar =     Some.More.Stuff(), let a =     myfunc() 1️⃣{
-      }
-      }
-      """
+    let prefix = "func foo() {\n"
+    let suffix = "\nlet   unselectedNextLine   =   1\n}\n}"
+    let source = "\(prefix)if let x =     bar() 1️⃣{\(suffix)"
     let positions = testClient.openDocument(source, uri: uri)
 
+    let options = FormattingOptions(tabSize: 4, insertSpaces: true)
     let response = try await testClient.send(
       DocumentOnTypeFormattingRequest(
         textDocument: TextDocumentIdentifier(uri),
         position: positions["1️⃣"],
         ch: "{",
-        options: FormattingOptions(tabSize: 4, insertSpaces: true)
+        options: options
       )
     )
 
     let edits = try XCTUnwrap(response)
+    XCTAssertFalse(edits.isEmpty)
+    XCTAssert(edits.allSatisfy { $0.newText.allSatisfy(\.isWhitespace) })
+
     let (_, unmarkedSource) = extractMarkers(source)
     let formattedSource = apply(edits: edits, to: unmarkedSource)
+    XCTAssertTrue(formattedSource.hasPrefix(prefix), "Formatted output altered unselected prefix:\n\(formattedSource)")
+    XCTAssertTrue(formattedSource.hasSuffix(suffix), "Formatted output altered unselected suffix:\n\(formattedSource)")
 
-    XCTAssert(edits.allSatisfy { $0.newText.allSatisfy(\.isWhitespace) })
+    let formattedLine = String(formattedSource.dropFirst(prefix.count).dropLast(suffix.count))
     XCTAssertEqual(
-      formattedSource,
-      """
-      func foo() {
-          if let SomeReallyLongVar = Some.More.Stuff(), let a = myfunc() {
-      }
-      }
-      """
+      formattedLine.filter { !$0.isWhitespace },
+      "ifletx=bar(){"
     )
+
+    let secondURI = DocumentURI(for: .swift)
+    let secondPositions = testClient.openDocument(
+      "\(prefix)\(formattedLine)1️⃣\(suffix)",
+      uri: secondURI
+    )
+    let secondResponse = try await testClient.send(
+      DocumentOnTypeFormattingRequest(
+        textDocument: TextDocumentIdentifier(secondURI),
+        position: secondPositions["1️⃣"],
+        ch: "{",
+        options: options
+      )
+    )
+    XCTAssertEqual(secondResponse, [])
   }
 
   /// Should not remove empty lines when formatting is triggered on a new empty line.
   /// Otherwise could mess up writing code. You'd write {} and try to go into the braces to write more code,
   /// only for on-type formatting to immediately close the braces again.
   func testDoesNothingWhenInAnEmptyLine() async throws {
-    try XCTSkipIf(true, "swift-format collapses excess blank lines: rdar://192509162")
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
 
@@ -102,7 +83,7 @@ final class OnTypeFormattingTests: SourceKitLSPTestCase {
 
 
       1️⃣
-
+          2️⃣
 
       }
       }
@@ -110,19 +91,18 @@ final class OnTypeFormattingTests: SourceKitLSPTestCase {
       uri: uri
     )
 
-    let response = try await testClient.send(
-      DocumentOnTypeFormattingRequest(
-        textDocument: TextDocumentIdentifier(uri),
-        position: positions["1️⃣"],
-        ch: "\n",
-        options: FormattingOptions(tabSize: 2, insertSpaces: true)
+    for marker in ["1️⃣", "2️⃣"] {
+      let response = try await testClient.send(
+        DocumentOnTypeFormattingRequest(
+          textDocument: TextDocumentIdentifier(uri),
+          position: positions[marker],
+          ch: "\n",
+          options: FormattingOptions(tabSize: 2, insertSpaces: true)
+        )
       )
-    )
 
-    let edits = try XCTUnwrap(response)
-    XCTAssertEqual(
-      edits,
-      []
-    )
+      let edits = try XCTUnwrap(response)
+      XCTAssertEqual(edits, [])
+    }
   }
 }

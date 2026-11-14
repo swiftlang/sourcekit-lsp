@@ -10,195 +10,167 @@
 //
 //===----------------------------------------------------------------------===//
 
+import Foundation
 @_spi(SourceKitLSP) import LanguageServerProtocol
 @_spi(SourceKitLSP) import SKLogging
 import SKTestSupport
+import SKUtilities
 import SourceKitLSP
 import SwiftExtensions
+import SwiftLanguageService
 import ToolchainRegistry
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
 
 import class TSCBasic.Process
 
+private func makeSnapshot(_ text: String, uri: DocumentURI = DocumentURI(for: .swift)) -> DocumentSnapshot {
+  DocumentSnapshot(
+    uri: uri,
+    language: .swift,
+    version: 0,
+    lineTable: LineTable(text),
+    origin: .openDocument
+  )
+}
+
 final class FormattingTests: SourceKitLSPTestCase {
+  /// End-to-end smoke test exercising the real `swift-format` executable without encoding specific formatting choices:
+  /// formatting an unformatted document must preserve non-whitespace tokens and reach a fixed point (`[]` on a second
+  /// formatting pass).
   func testFormatting() async throws {
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
 
     let source = """
       struct S {
-      var foo:  Int
-      var bar: Int
+      var   foo:  Int
+      var bar:Int
       }
       """
     testClient.openDocument(source, uri: uri)
 
+    let options = FormattingOptions(tabSize: 3, insertSpaces: true)
     let response = try await testClient.send(
       DocumentFormattingRequest(
         textDocument: TextDocumentIdentifier(uri),
-        options: FormattingOptions(tabSize: 3, insertSpaces: true)
+        options: options
       )
     )
 
     let edits = try XCTUnwrap(response)
-    let formattedSource = apply(edits: edits, to: source)
-
+    XCTAssertFalse(edits.isEmpty)
     XCTAssert(edits.allSatisfy { $0.newText.allSatisfy(\.isWhitespace) })
-    XCTAssertEqual(
-      formattedSource,
-      """
-      struct S {
-         var foo: Int
-         var bar: Int
-      }
 
-      """
+    let formattedSource = apply(edits: edits, to: source)
+    XCTAssertEqual(
+      formattedSource.filter { !$0.isWhitespace },
+      source.filter { !$0.isWhitespace }
     )
+
+    let secondURI = DocumentURI(for: .swift)
+    testClient.openDocument(formattedSource, uri: secondURI)
+    let secondResponse = try await testClient.send(
+      DocumentFormattingRequest(
+        textDocument: TextDocumentIdentifier(secondURI),
+        options: options
+      )
+    )
+    XCTAssertEqual(secondResponse, [])
   }
 
-  func testFormattingNoEdits() async throws {
-    let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI(for: .swift)
+  func testFormattingOptionsConfigurationJSON() throws {
+    let snapshot = makeSnapshot("struct S {}\n")
 
-    testClient.openDocument(
-      """
-      struct S {
-        var foo: Int
-      }
-
-      """,
-      uri: uri
+    let spacesArgs = try swiftFormatArguments(
+      snapshot: snapshot,
+      textDocument: TextDocumentIdentifier(snapshot.uri),
+      options: FormattingOptions(tabSize: 3, insertSpaces: true)
     )
-
-    let response = try await testClient.send(
-      DocumentFormattingRequest(
-        textDocument: TextDocumentIdentifier(uri),
-        options: FormattingOptions(tabSize: 2, insertSpaces: true)
-      )
+    XCTAssertEqual(Array(spacesArgs.prefix(3)), ["format", "-", "--configuration"])
+    let spacesConfig = try XCTUnwrap(
+      JSONSerialization.jsonObject(with: Data(spacesArgs[3].utf8)) as? [String: Any]
     )
+    XCTAssertEqual(spacesConfig["version"] as? Int, 1)
+    XCTAssertEqual(spacesConfig["tabWidth"] as? Int, 3)
+    XCTAssertEqual(spacesConfig["indentation"] as? [String: Int], ["spaces": 3])
 
-    let edits = try XCTUnwrap(response)
-    XCTAssertEqual(edits.count, 0)
+    let tabsArgs = try swiftFormatArguments(
+      snapshot: snapshot,
+      textDocument: TextDocumentIdentifier(snapshot.uri),
+      options: FormattingOptions(tabSize: 4, insertSpaces: false)
+    )
+    let tabsConfig = try XCTUnwrap(
+      JSONSerialization.jsonObject(with: Data(tabsArgs[3].utf8)) as? [String: Any]
+    )
+    XCTAssertEqual(tabsConfig["version"] as? Int, 1)
+    XCTAssertEqual(tabsConfig["tabWidth"] as? Int, 4)
+    XCTAssertEqual(tabsConfig["indentation"] as? [String: Int], ["tabs": 1])
   }
 
   func testConfigFileOnDisk() async throws {
-    // We pick up an invalid swift-format configuration file and thus don't set the user-provided options.
-    let project = try await MultiFileTestProject(files: [
-      ".swift-format": """
-      {
-        "version": 1,
-        "indentation": {
-          "spaces": 1
-        }
-      }
-      """,
-      "test.swift": """
-      struct Root {
-      1️⃣var bar = 123
-      }
+    try await withTestScratchDir { scratchDir in
+      let configURL = scratchDir.appending(component: ".swift-format")
+      let fileURL = scratchDir.appending(component: "test.swift")
+      try await "{}".writeWithRetry(to: configURL)
+      try await "struct Root {}\n".writeWithRetry(to: fileURL)
 
-      """,
-    ])
-    let (uri, positions) = try project.openDocument("test.swift")
-
-    let response = try await project.testClient.send(
-      DocumentFormattingRequest(
-        textDocument: TextDocumentIdentifier(uri),
+      let snapshot = makeSnapshot("struct Root {}\n", uri: DocumentURI(fileURL))
+      let args = try swiftFormatArguments(
+        snapshot: snapshot,
+        textDocument: TextDocumentIdentifier(snapshot.uri),
         options: FormattingOptions(tabSize: 2, insertSpaces: true)
       )
-    )
-    XCTAssertEqual(
-      response,
-      [
-        TextEdit(range: Range(positions["1️⃣"]), newText: " ")
-      ]
-    )
+      XCTAssertEqual(args, ["format", "-", "--configuration", try configURL.filePath])
+    }
   }
 
   func testConfigFileInParentDirectory() async throws {
-    // We pick up an invalid swift-format configuration file and thus don't set the user-provided options.
-    let project = try await MultiFileTestProject(files: [
-      ".swift-format": """
-      {
-        "version": 1,
-        "indentation": {
-          "spaces": 1
-        }
-      }
-      """,
-      "sub/test.swift": """
-      struct Root {
-      1️⃣var bar = 123
-      }
+    try await withTestScratchDir { scratchDir in
+      let configURL = scratchDir.appending(component: ".swift-format")
+      let subDir = scratchDir.appending(component: "sub")
+      try FileManager.default.createDirectory(at: subDir, withIntermediateDirectories: true)
+      let fileURL = subDir.appending(component: "test.swift")
+      try await "{}".writeWithRetry(to: configURL)
+      try await "struct Root {}\n".writeWithRetry(to: fileURL)
 
-      """,
-    ])
-    let (uri, positions) = try project.openDocument("test.swift")
-
-    let response = try await project.testClient.send(
-      DocumentFormattingRequest(
-        textDocument: TextDocumentIdentifier(uri),
+      let snapshot = makeSnapshot("struct Root {}\n", uri: DocumentURI(fileURL))
+      let args = try swiftFormatArguments(
+        snapshot: snapshot,
+        textDocument: TextDocumentIdentifier(snapshot.uri),
         options: FormattingOptions(tabSize: 2, insertSpaces: true)
       )
-    )
-    XCTAssertEqual(
-      response,
-      [
-        TextEdit(range: Range(positions["1️⃣"]), newText: " ")
-      ]
-    )
+      XCTAssertEqual(args, ["format", "-", "--configuration", try configURL.filePath])
+    }
   }
 
   func testConfigFileInNestedDirectory() async throws {
-    // We pick up an invalid swift-format configuration file and thus don't set the user-provided options.
-    let project = try await MultiFileTestProject(files: [
-      ".swift-format": """
-      {
-        "version": 1,
-        "indentation": {
-          "spaces": 1
-        }
-      },
-      """,
-      "sub/.swift-format": """
-      {
-        "version": 1,
-        "indentation": {
-          "spaces": 3
-        }
-      }
-      """,
-      "sub/test.swift": """
-      struct Root {
-      1️⃣var bar = 123
-      }
+    try await withTestScratchDir { scratchDir in
+      let parentConfigURL = scratchDir.appending(component: ".swift-format")
+      let subDir = scratchDir.appending(component: "sub")
+      try FileManager.default.createDirectory(at: subDir, withIntermediateDirectories: true)
+      let nestedConfigURL = subDir.appending(component: ".swift-format")
+      let fileURL = subDir.appending(component: "test.swift")
+      try await "{}".writeWithRetry(to: parentConfigURL)
+      try await "{}".writeWithRetry(to: nestedConfigURL)
+      try await "struct Root {}\n".writeWithRetry(to: fileURL)
 
-      """,
-    ])
-    let (uri, positions) = try project.openDocument("test.swift")
-
-    let response = try await project.testClient.send(
-      DocumentFormattingRequest(
-        textDocument: TextDocumentIdentifier(uri),
+      let snapshot = makeSnapshot("struct Root {}\n", uri: DocumentURI(fileURL))
+      let args = try swiftFormatArguments(
+        snapshot: snapshot,
+        textDocument: TextDocumentIdentifier(snapshot.uri),
         options: FormattingOptions(tabSize: 2, insertSpaces: true)
       )
-    )
-    XCTAssertEqual(
-      response,
-      [
-        TextEdit(range: Range(positions["1️⃣"]), newText: "   ")
-      ]
-    )
+      XCTAssertEqual(args, ["format", "-", "--configuration", try nestedConfigURL.filePath])
+    }
   }
 
   func testInvalidConfigurationFile() async throws {
-    // We pick up an invalid swift-format configuration file and thus don't set the user-provided options.
-    // The swift-format default is 2 spaces.
     let project = try await MultiFileTestProject(files: [
       ".swift-format": "",
       "test.swift": """
       struct Root {
-      1️⃣var bar = 123
+      var bar = 123
       }
 
       """,
@@ -215,43 +187,26 @@ final class FormattingTests: SourceKitLSPTestCase {
     )
   }
 
-  func testInsertAndRemove() async throws {
-    let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI(for: .swift)
-
+  func testInsertAndRemove() {
     let source = """
       public extension Example {
         func function() {}
       }
 
       """
-    testClient.openDocument(source, uri: uri)
-
-    let response = try await testClient.send(
-      DocumentFormattingRequest(
-        textDocument: TextDocumentIdentifier(uri),
-        options: FormattingOptions(tabSize: 2, insertSpaces: true)
-      )
-    )
-
-    let edits = try XCTUnwrap(response)
-    let formattedSource = apply(edits: edits, to: source)
-
-    XCTAssertEqual(
-      formattedSource,
-      """
+    let target = """
       extension Example {
         public func function() {}
       }
 
       """
-    )
+
+    let edits = formattingEdits(from: makeSnapshot(source), to: target)
+    XCTAssertFalse(edits.isEmpty)
+    XCTAssertEqual(apply(edits: edits, to: source), target)
   }
 
-  func testMultiLineStringInsertion() async throws {
-    let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI(for: .swift)
-
+  func testMultiLineStringInsertion() {
     let source = #"""
       _ = [
         Node(
@@ -272,22 +227,7 @@ final class FormattingTests: SourceKitLSPTestCase {
       ]
 
       """#
-    testClient.openDocument(source, uri: uri)
-
-    let response = try await testClient.send(
-      DocumentFormattingRequest(
-        textDocument: TextDocumentIdentifier(uri),
-        options: FormattingOptions(tabSize: 2, insertSpaces: true)
-      )
-    )
-
-    let edits = try XCTUnwrap(response)
-    let formattedSource = apply(edits: edits, to: source)
-    XCTAssert(edits.allSatisfy { $0.newText.allSatisfy(\.isWhitespace) })
-
-    XCTAssertEqual(
-      formattedSource,
-      #"""
+    let target = #"""
       _ = [
         Node(
           documentation: """
@@ -307,7 +247,19 @@ final class FormattingTests: SourceKitLSPTestCase {
       ]
 
       """#
-    )
+
+    let edits = formattingEdits(from: makeSnapshot(source), to: target)
+    XCTAssert(edits.allSatisfy { $0.newText.allSatisfy(\.isWhitespace) })
+    XCTAssertEqual(apply(edits: edits, to: source), target)
+  }
+
+  func testFormattingEditsWithMultiByteUTF8Characters() {
+    let source = "let 🎉 =   1\n"
+    let target = "let 🎉 = 1\n"
+
+    let edits = formattingEdits(from: makeSnapshot(source), to: target)
+    XCTAssertFalse(edits.isEmpty)
+    XCTAssertEqual(apply(edits: edits, to: source), target)
   }
 
   func testSwiftFormatCrashing() async throws {
