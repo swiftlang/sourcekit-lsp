@@ -32,6 +32,7 @@ package let allSyntaxCodeActionProviders: [any SyntaxCodeActionProvider.Type] = 
     FormatRawStringLiteral.self,
     GenerateEnumCaseAsAccessors.self,
     GenerateEnumCaseIsAccessors.self,
+    GenerateMemberwiseInitializer.self,
     InlineVariable.self,
     InvertIfCondition.self,
     MigrateToNewIfLetSyntax.self,
@@ -49,5 +50,6 @@ package let allSyntaxCodeActionProviders: [any SyntaxCodeActionProvider.Type] = 
 
 package let supersededSourcekitdRefactoringActions: Set<String> = [
   "source.refactoring.kind.convert.to.computed.property",  // Superseded by ConvertStoredPropertyToComputed
+  "source.refactoring.kind.memberwise.init.local.refactoring",  // Superseded by GenerateMemberwiseInitializer
   "source.refactoring.kind.simplify.long.number.literal",  // Superseded by AddSeparatorsToIntegerLiteral
 ]
