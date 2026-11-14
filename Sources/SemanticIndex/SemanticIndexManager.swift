@@ -39,6 +39,17 @@ private struct OpaqueQueuedIndexTask: Equatable {
     self.task = task
   }
 
+  /// Elevate the priority of all `tasks` to `priority` at once.
+  ///
+  /// See `TaskScheduler.elevatePriority(of:to:)`.
+  static func elevatePriority(
+    of tasks: [OpaqueQueuedIndexTask],
+    to priority: TaskPriority,
+    in scheduler: TaskScheduler<AnyIndexTaskDescription>
+  ) async {
+    await scheduler.elevatePriority(of: tasks.map(\.task), to: priority)
+  }
+
   static func == (lhs: OpaqueQueuedIndexTask, rhs: OpaqueQueuedIndexTask) -> Bool {
     return lhs.task === rhs.task
   }
@@ -376,6 +387,19 @@ package final actor SemanticIndexManager {
     await waitForBuildGraphGenerationTasks()
 
     await fileOrBuildTargetChangedTasks.concurrentForEach { await $0.value.value }
+
+    // Awaiting the index tasks below elevates the priority of their preparation and index store
+    // update tasks, but those notice the elevation one by one and could thus start executing in a
+    // different order than they were scheduled in. E.g. a target could get prepared before the
+    // targets that depend on it, which would have prepared it as well. Elevate the queued tasks at
+    // once to keep their order.
+    var queuedTasks = inProgressPreparationTasks.values.map(\.task)
+    for inProgress in inProgressIndexTasks.values {
+      if case .updatingIndexStore(updateIndexStoreTask: let updateIndexStoreTask, indexTask: _) = inProgress.state {
+        queuedTasks.append(updateIndexStoreTask)
+      }
+    }
+    await OpaqueQueuedIndexTask.elevatePriority(of: queuedTasks, to: Task.currentPriority, in: indexTaskScheduler)
 
     await inProgressIndexTasks.concurrentForEach { (_, inProgress) in
       switch inProgress.state {

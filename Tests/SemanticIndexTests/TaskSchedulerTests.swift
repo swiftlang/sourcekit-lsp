@@ -166,6 +166,29 @@ final class TaskSchedulerTests: SourceKitLSPTestCase {
     XCTAssertEqual(Set(executionOrder.value.dropFirst(10)), Set((1...3).map(TaskID.highPriority)))
   }
 
+  func testTasksElevatedTogetherExecuteInSchedulingOrder() async throws {
+    // Low-priority tasks can't run until elevated. Elevated tasks run one at a time.
+    let taskScheduler = TaskScheduler<ClosureTaskDescription>(maxConcurrentTasksByPriority: [(.high, 1), (.low, 0)])
+    let executionOrder = ThreadSafeBox<[TaskID]>(initialValue: [])
+
+    var queuedTasks: [QueuedTask<ClosureTaskDescription>] = []
+    for i in 0..<10 {
+      let id = TaskID.lowPriority(i)
+      let taskDescription = ClosureTaskDescription(id: id) {
+        executionOrder.withLock { $0.append(id) }
+      }
+      queuedTasks.append(try await unwrap(taskScheduler.schedule(priority: .low, taskDescription)))
+    }
+
+    // The order of the tasks passed to `elevatePriority` doesn't matter.
+    await taskScheduler.elevatePriority(of: queuedTasks.reversed(), to: .high)
+
+    try await repeatUntilExpectedResult(sleepInterval: .milliseconds(10)) {
+      executionOrder.value.count == 10
+    }
+    XCTAssertEqual(executionOrder.value, (0..<10).map(TaskID.lowPriority))
+  }
+
   func testDependencyDeclarationIsRespected() async {
     await runTaskScheduler(
       scheduleTasks: { scheduler, taskExecutionRecorder in
