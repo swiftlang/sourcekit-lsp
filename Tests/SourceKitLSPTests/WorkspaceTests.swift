@@ -1191,6 +1191,7 @@ final class WorkspaceTests: SourceKitLSPTestCase {
     assertContains(options.compilerArguments, "-module-name")
     XCTAssertEqual(options.kind, .normal)
     XCTAssertNil(options.didPrepareTarget)
+    XCTAssertNotNil(options.target)
   }
 
   func testSourceKitOptionsAllowingFallback() async throws {
@@ -1376,6 +1377,7 @@ final class WorkspaceTests: SourceKitLSPTestCase {
     )
     assertContains(try XCTUnwrap(options).compilerArguments, "-DLIB")
     try XCTAssertEqual(XCTUnwrap(options).didPrepareTarget, false)
+    try XCTAssertEqual(XCTUnwrap(options).target, URI(string: "build://lib"))
   }
 
   func testBuildServerUsesStandardizedFileUrlsInsteadOfRealpath() async throws {
