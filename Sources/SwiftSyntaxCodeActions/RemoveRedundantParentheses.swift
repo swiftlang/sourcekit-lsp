@@ -272,7 +272,8 @@ package struct RemoveRedundantParentheses: SyntaxRefactoringProvider {
       .packElementType,
       .packExpansionType,
       .someOrAnyType,  // some P, any P
-      .suppressedType:  // ~Copyable
+      .suppressedType,  // ~Copyable
+      .yieldType:  // yield borrow T
       return false
     #if RESILIENT_LIBRARIES
     @unknown default:
