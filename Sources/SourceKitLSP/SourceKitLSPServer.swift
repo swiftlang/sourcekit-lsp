@@ -1573,7 +1573,8 @@ extension SourceKitLSPServer {
       workingDirectory: buildSettings.workingDirectory,
       kind: buildSettings.isFallback ? .fallback : .normal,
       didPrepareTarget: didPrepareTarget,
-      data: buildSettings.data
+      data: buildSettings.data,
+      target: target?.uri
     )
   }
 

@@ -813,6 +813,15 @@ export interface SourceKitOptionsResult {
    * interpreted by SourceKit-LSP.
    */
   data?: LSPAny
+
+  /**
+   * The target SourceKit-LSP used to look up the compiler arguments, identified by the URI the BSP server uses for it.
+   *
+   * This is the requested target, or the target SourceKit-LSP inferred for the document, which can be the target of a
+   * file that includes it. When `kind` is `fallback`, the build server didn't provide arguments for it. `nil` if
+   * SourceKit-LSP found no target for the document.
+   */
+  target?: DocumentURI
 }
 ```
 
