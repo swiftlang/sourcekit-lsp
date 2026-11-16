@@ -21,16 +21,14 @@ final class OnTypeFormattingTests: SourceKitLSPTestCase {
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
 
-    let positions = testClient.openDocument(
-      """
+    let source = """
       func foo() {
       if let SomeReallyLongVar = Some.More.Stuff(), let a = myfunc() {
       1️⃣// do stuff
       }
       }
-      """,
-      uri: uri
-    )
+      """
+    let positions = testClient.openDocument(source, uri: uri)
 
     let response = try await testClient.send(
       DocumentOnTypeFormattingRequest(
@@ -42,12 +40,22 @@ final class OnTypeFormattingTests: SourceKitLSPTestCase {
     )
 
     let edits = try XCTUnwrap(response)
-    XCTAssertEqual(
-      edits,
-      [
-        TextEdit(range: Range(positions["1️⃣"]), newText: "    ")
+    let (_, unmarkedSource) = extractMarkers(source)
+    let formattedSource = apply(edits: edits, to: unmarkedSource)
+    let expected = try await runSwiftFormat(
+      on: unmarkedSource,
+      arguments: [
+        "--configuration", #"{"version":1,"tabWidth":2,"indentation":{"spaces":2}}"#,
+        "--offsets", "78:89",
       ]
     )
+
+    XCTAssertEqual(formattedSource, expected)
+    XCTAssertNotEqual(expected, unmarkedSource)
+    XCTAssertTrue(
+      formattedSource.hasPrefix("func foo() {\nif let SomeReallyLongVar = Some.More.Stuff(), let a = myfunc() {\n")
+    )
+    XCTAssertTrue(formattedSource.hasSuffix("\n}\n}"))
   }
 
   func testFormatsFullLineAndDoesNotFormatNextLine() async throws {
@@ -74,17 +82,18 @@ final class OnTypeFormattingTests: SourceKitLSPTestCase {
     let edits = try XCTUnwrap(response)
     let (_, unmarkedSource) = extractMarkers(source)
     let formattedSource = apply(edits: edits, to: unmarkedSource)
+    let expected = try await runSwiftFormat(
+      on: unmarkedSource,
+      arguments: [
+        "--configuration", #"{"version":1,"tabWidth":4,"indentation":{"spaces":4}}"#,
+        "--offsets", "13:85",
+      ]
+    )
 
     XCTAssert(edits.allSatisfy { $0.newText.allSatisfy(\.isWhitespace) })
-    XCTAssertEqual(
-      formattedSource,
-      """
-      func foo() {
-          if let SomeReallyLongVar = Some.More.Stuff(), let a = myfunc() {
-      }
-      }
-      """
-    )
+    XCTAssertEqual(formattedSource, expected)
+    XCTAssertNotEqual(expected, unmarkedSource)
+    XCTAssertTrue(formattedSource.hasSuffix("\n}\n}"))
   }
 
   /// Should not remove empty lines when formatting is triggered on a new empty line.
