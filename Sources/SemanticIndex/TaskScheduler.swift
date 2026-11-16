@@ -537,6 +537,27 @@ package actor TaskScheduler<TaskDescription: TaskDescriptionProtocol> {
     return queuedTask
   }
 
+  /// Elevate the priority of `tasks` to `priority`.
+  ///
+  /// The tasks are elevated together, so the ones that were scheduled first still execute first,
+  /// regardless of their order in `tasks`.
+  ///
+  /// Awaiting the tasks from a higher-priority task elevates them as well, but each task only
+  /// notices that when it next polls its priority. Tasks elevated that way may thus start executing
+  /// in any order.
+  package func elevatePriority(of tasks: some Sequence<QueuedTask<TaskDescription>>, to priority: TaskPriority) {
+    var elevatedAnyTask = false
+    for task in tasks where task.priority < priority {
+      task.elevatePriority(to: priority)
+      elevatedAnyTask = true
+    }
+    guard elevatedAnyTask else {
+      return
+    }
+    pendingTasks.priorityDidChange()
+    schedulePoke(priority: priority)
+  }
+
   /// Spawn a task that calls `poke`, or escalate the priority of the one that was spawned and hasn't run yet.
   ///
   /// `poke` is not called directly because callers often schedule many tasks in a row and each `poke` walks the pending
