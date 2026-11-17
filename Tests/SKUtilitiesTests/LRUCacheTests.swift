@@ -15,6 +15,58 @@ import SKUtilities
 import XCTest
 
 final class LRUCacheTests: XCTestCase {
+  func testMissingReadDoesNotUseCapacity() {
+    var cache = LRUCache<Int, Int>(capacity: 1)
+    XCTAssertNil(cache[0])
+    cache[1] = 1
+    cache[2] = 2
+    XCTAssertEqual(cache.count, 1)
+    assertLRUCacheKeys(cache, expectedKeys: [2])
+  }
+
+  func testRepeatedMissingReadsDoNotDisplaceEviction() {
+    var cache = LRUCache<Int, Int>(capacity: 2)
+    for key in 100..<110 { XCTAssertNil(cache[key]) }
+    cache[1] = 1
+    cache[2] = 2
+    XCTAssertEqual(cache[1], 1)
+    cache[3] = 3
+    assertLRUCacheKeys(cache, expectedKeys: [1, 3])
+    XCTAssertEqual(cache.count, 2)
+    cache[4] = 4
+    assertLRUCacheKeys(cache, expectedKeys: [3, 4])
+  }
+
+  func testCachedNilValueStillBecomesMostRecentlyUsed() {
+    var cache = LRUCache<Int, Int?>(capacity: 2)
+    cache[1] = .some(nil)
+    cache[2] = .some(2)
+    XCTAssertTrue(cache[1] != nil)
+    cache[3] = .some(3)
+    assertLRUCacheKeys(cache, expectedKeys: [1, 3])
+  }
+
+  func testOverwritingValuePreservesRecencyAfterMiss() {
+    var cache = LRUCache<Int, Int>(capacity: 2)
+    cache[1] = 1
+    cache[2] = 2
+    XCTAssertNil(cache[9])
+    cache[1] = 10
+    cache[3] = 3
+    assertLRUCacheKeys(cache, expectedKeys: [1, 3])
+    XCTAssertEqual(cache[1], 10)
+  }
+
+  func testMissingReadDoesNotPreventLaterEviction() {
+    var cache = LRUCache<Int, Int>(capacity: 1)
+    cache[1] = 1
+    XCTAssertNil(cache[9])
+    cache[2] = 2
+    cache[3] = 3
+    assertLRUCacheKeys(cache, expectedKeys: [3])
+    XCTAssertEqual(cache.count, 1)
+  }
+
   func testGetValue() {
     var lruCache = LRUCache<Int, Int>(capacity: 5)
 
