@@ -27,6 +27,10 @@ import XCTest
 
 import class TSCBasic.Process
 
+/// Whether the build server in `testIndexFromPreviousSessionIsUsedBeforeBuildServerProvidesOutputPaths` omits output
+/// paths from `buildTarget/sources`.
+private let buildServerWithholdsOutputPaths = ThreadSafeBox<Bool>(initialValue: false)
+
 final class BackgroundIndexingTests: SourceKitLSPTestCase {
   func testBackgroundIndexingOfSingleFile() async throws {
     let project = try await SwiftPMTestProject(
@@ -2623,6 +2627,76 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
       enableBackgroundIndexing: true
     )
 
+    let symbols = try await project.testClient.send(WorkspaceSymbolsRequest(query: "myTestFu"))
+    XCTAssertEqual(symbols?.compactMap(\.symbolInformation?.name), ["myTestFunc()"])
+  }
+
+  func testIndexFromPreviousSessionIsUsedBeforeBuildServerProvidesOutputPaths() async throws {
+    final class BuildServer: CustomBuildServer {
+      let inProgressRequestsTracker = CustomBuildServerInProgressRequestTracker()
+      private let projectRoot: URL
+
+      required init(projectRoot: URL, connectionToSourceKitLSP: any LanguageServerProtocol.Connection) {
+        self.projectRoot = projectRoot
+      }
+
+      func initializeBuildRequest(_ request: InitializeBuildRequest) async throws -> InitializeBuildResponse {
+        return try initializationResponseSupportingBackgroundIndexing(
+          projectRoot: projectRoot,
+          outputPathsProvider: true
+        )
+      }
+
+      func buildTargetSourcesRequest(_ request: BuildTargetSourcesRequest) async throws -> BuildTargetSourcesResponse {
+        let outputPath =
+          buildServerWithholdsOutputPaths.value ? nil : fakeOutputPath(for: "test.swift", in: "dummy")
+        return BuildTargetSourcesResponse(items: [
+          SourcesItem(
+            target: .dummy,
+            sources: [
+              SourceItem(
+                uri: URI(projectRoot.appending(component: "test.swift")),
+                kind: .file,
+                generated: false,
+                dataKind: .sourceKit,
+                data: SourceKitSourceItemData(outputPath: outputPath).encodeToLSPAny()
+              )
+            ]
+          )
+        ])
+      }
+
+      func textDocumentSourceKitOptionsRequest(
+        _ request: TextDocumentSourceKitOptionsRequest
+      ) async throws -> TextDocumentSourceKitOptionsResponse? {
+        var arguments = [request.textDocument.uri.pseudoPath, "-o", fakeOutputPath(for: "test.swift", in: "dummy")]
+        if let defaultSDKPath {
+          arguments += ["-sdk", defaultSDKPath]
+        }
+        return TextDocumentSourceKitOptionsResponse(compilerArguments: arguments)
+      }
+    }
+
+    buildServerWithholdsOutputPaths.withLock { $0 = false }
+    defer { buildServerWithholdsOutputPaths.withLock { $0 = false } }
+    let files: [RelativeFileLocation: String] = ["test.swift": "func myTestFunc() {}"]
+
+    // Index the project, then shut down so that the index database is saved.
+    let previousSession = try await CustomBuildServerTestProject(
+      files: files,
+      buildServer: BuildServer.self,
+      enableBackgroundIndexing: true
+    )
+    _ = try await previousSession.testClient.send(ShutdownRequest())
+
+    // Reopen the project with a build server that doesn't provide output paths yet.
+    buildServerWithholdsOutputPaths.withLock { $0 = true }
+    let project = try await CustomBuildServerTestProject(
+      files: files,
+      buildServer: BuildServer.self,
+      pollIndex: false,
+      testScratchDir: previousSession.scratchDirectory
+    )
     let symbols = try await project.testClient.send(WorkspaceSymbolsRequest(query: "myTestFu"))
     XCTAssertEqual(symbols?.compactMap(\.symbolInformation?.name), ["myTestFunc()"])
   }

@@ -129,6 +129,8 @@ func createIndex(
           library: IndexStoreLibrary(dylibPath: libPath.filePath),
           delegate: indexDelegate,
           useExplicitOutputUnits: supportsOutputPaths,
+          // Answer from the units stored by the previous session while the build server provides no output paths.
+          allUnitsVisibleWithoutOutputPaths: supportsOutputPaths,
           prefixMappings: prefixMappings
         )
         logger.debug(
