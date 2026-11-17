@@ -296,6 +296,10 @@ def run_tests(swift_exec: str, args: argparse.Namespace) -> None:
     # Log with the highest log level to simplify debugging of CI failures.
     additional_env['SOURCEKIT_LSP_LOG_LEVEL'] = 'debug'
 
+    # Print a backtrace of all threads when a test process crashes. The backtracer is off by default
+    # on macOS. Suppress the warnings of SwiftPM's executables, for which it can't be enabled.
+    additional_env['SWIFT_BACKTRACE'] = 'enable=yes,interactive=no,threads=all,warnings=suppressed'
+
     bin_path = swiftpm_bin_path(swift_exec, swiftpm_args, additional_env=additional_env)
     tests = os.path.join(bin_path, 'sk-tests')
     print('Cleaning ' + tests)
