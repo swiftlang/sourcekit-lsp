@@ -21,16 +21,14 @@ final class RangeFormattingTests: SourceKitLSPTestCase {
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
 
-    let positions = testClient.openDocument(
-      """
+    let source = """
       func foo() {
       if let SomeReallyLongVar = Some.More.Stuff(), let a = myfunc() {
       1️⃣// do stuff2️⃣
       }
       }
-      """,
-      uri: uri
-    )
+      """
+    let positions = testClient.openDocument(source, uri: uri)
 
     let response = try await testClient.send(
       DocumentRangeFormattingRequest(
@@ -41,77 +39,94 @@ final class RangeFormattingTests: SourceKitLSPTestCase {
     )
 
     let edits = try XCTUnwrap(response)
-    XCTAssertEqual(
-      edits,
-      [
-        TextEdit(range: Range(positions["1️⃣"]), newText: "    ")
+    let (_, unmarkedSource) = extractMarkers(source)
+    let formattedSource = apply(edits: edits, to: unmarkedSource)
+    let expected = try await runSwiftFormat(
+      on: unmarkedSource,
+      arguments: [
+        "--configuration", #"{"version":1,"tabWidth":2,"indentation":{"spaces":2}}"#,
+        "--offsets", "78:88",
       ]
     )
+
+    XCTAssertEqual(formattedSource, expected)
+    XCTAssertNotEqual(expected, unmarkedSource)
+    XCTAssertTrue(
+      formattedSource.hasPrefix("func foo() {\nif let SomeReallyLongVar = Some.More.Stuff(), let a = myfunc() {\n")
+    )
+    XCTAssertTrue(formattedSource.hasSuffix("\n}\n}"))
   }
 
   func testOnlyFormatsSpecifiedColumns() async throws {
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
 
-    let positions = testClient.openDocument(
-      """
+    let source = """
       func foo() {
-      if let SomeReallyLongVar 1️⃣= 2️⃣    3️⃣Some.More.Stuff(), let a  =     myfunc() {
+      if let SomeReallyLongVar 1️⃣=     2️⃣Some.More.Stuff(), let a  =     myfunc() {
       // do stuff
       }
       }
-      """,
-      uri: uri
-    )
+      """
+    let positions = testClient.openDocument(source, uri: uri)
 
     let response = try await testClient.send(
       DocumentRangeFormattingRequest(
         textDocument: TextDocumentIdentifier(uri),
-        range: positions["1️⃣"]..<positions["3️⃣"],
+        range: positions["1️⃣"]..<positions["2️⃣"],
         options: FormattingOptions(tabSize: 2, insertSpaces: true)
       )
     )
 
     let edits = try XCTUnwrap(response)
-    XCTAssertEqual(
-      edits,
-      [
-        TextEdit(range: positions["2️⃣"]..<positions["3️⃣"], newText: "")
+    let (_, unmarkedSource) = extractMarkers(source)
+    let formattedSource = apply(edits: edits, to: unmarkedSource)
+    let expected = try await runSwiftFormat(
+      on: unmarkedSource,
+      arguments: [
+        "--configuration", #"{"version":1,"tabWidth":2,"indentation":{"spaces":2}}"#,
+        "--offsets", "38:43",
       ]
     )
+
+    XCTAssertEqual(formattedSource, expected)
+    XCTAssertNotEqual(expected, unmarkedSource)
+    XCTAssertTrue(formattedSource.contains("let a  =     myfunc() {"))
   }
 
   func testFormatsMultipleLines() async throws {
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI(for: .swift)
 
-    let positions = testClient.openDocument(
-      """
+    let source = """
       1️⃣func foo() {
-      2️⃣if let SomeReallyLongVar = Some.More.Stuff(), let a = myfunc() {
-      3️⃣// do stuff
-      4️⃣}
-      }5️⃣
-      """,
-      uri: uri
-    )
+      if let SomeReallyLongVar = Some.More.Stuff(), let a = myfunc() {
+      // do stuff
+      }
+      }2️⃣
+      """
+    let positions = testClient.openDocument(source, uri: uri)
 
     let response = try await testClient.send(
       DocumentRangeFormattingRequest(
         textDocument: TextDocumentIdentifier(uri),
-        range: positions["1️⃣"]..<positions["5️⃣"],
+        range: positions["1️⃣"]..<positions["2️⃣"],
         options: FormattingOptions(tabSize: 4, insertSpaces: true)
       )
     )
 
     let edits = try XCTUnwrap(response)
-    XCTAssertEqual(
-      edits,
-      [
-        TextEdit(range: Range(positions["2️⃣"]), newText: "    "),
-        TextEdit(range: Range(positions["3️⃣"]), newText: "        "),
-        TextEdit(range: Range(positions["4️⃣"]), newText: "    "),
+    let (_, unmarkedSource) = extractMarkers(source)
+    let formattedSource = apply(edits: edits, to: unmarkedSource)
+    let expected = try await runSwiftFormat(
+      on: unmarkedSource,
+      arguments: [
+        "--configuration", #"{"version":1,"tabWidth":4,"indentation":{"spaces":4}}"#,
+        "--offsets", "0:92",
       ]
     )
+
+    XCTAssertEqual(formattedSource, expected)
+    XCTAssertNotEqual(expected, unmarkedSource)
   }
 }

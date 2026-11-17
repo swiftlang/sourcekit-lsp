@@ -154,6 +154,11 @@ extension SwiftLanguageService {
     guard let line = snapshot.lineTable.line(at: req.position.line) else {
       return nil
     }
+    if line.allSatisfy(\.isWhitespace) {
+      // Do not invoke swift-format when on-type formatting is triggered on an empty or whitespace-only line (for
+      // example after typing `\n`), so excess blank lines or editor auto-indentation are not collapsed while typing.
+      return []
+    }
 
     let lineStartPosition = snapshot.position(of: line.startIndex, fromLine: req.position.line)
     let lineEndPosition = snapshot.position(of: line.endIndex, fromLine: req.position.line)
