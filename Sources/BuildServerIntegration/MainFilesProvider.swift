@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import Foundation
 @_spi(SourceKitLSP) package import LanguageServerProtocol
 
 /// A type that can provide the set of main files that include a particular file.
@@ -25,4 +26,31 @@ package protocol MainFilesProvider: Sendable {
   /// mainFilesContainingFile("foo.h") == Set(["foo.cpp", "bar.cpp"])
   /// ```
   func mainFiles(containing uri: DocumentURI, crossLanguage: Bool) async -> Set<DocumentURI>
+
+  /// Returns the files that the file at the given URI includes directly.
+  ///
+  /// ### Examples
+  ///
+  /// ```
+  /// files(includedBy: "foo.cpp") == Set(["foo.h", "bar.h"])
+  /// ```
+  func files(includedBy uri: DocumentURI) async -> Set<DocumentURI>
+}
+
+extension MainFilesProvider {
+  package func files(includedBy uri: DocumentURI) async -> Set<DocumentURI> {
+    return []
+  }
+}
+
+/// The lowercased path extensions of C, C++, Objective-C and Objective-C++ source files.
+package let cFamilySourceFileExtensions = ["c", "cc", "cp", "cpp", "cxx", "c++", "m", "mm"]
+
+extension DocumentURI {
+  /// Whether this is a C, C++, Objective-C or Objective-C++ source file, as opposed to a header or another file that is
+  /// only ever included.
+  package var isCFamilySourceFile: Bool {
+    let pathExtension = (self.pseudoPath as NSString).pathExtension.lowercased()
+    return cFamilySourceFileExtensions.contains(pathExtension)
+  }
 }

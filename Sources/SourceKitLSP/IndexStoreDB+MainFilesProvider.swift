@@ -44,4 +44,20 @@ extension UncheckedIndex: BuildServerIntegration.MainFilesProvider {
     logger.info("Main files for \(uri.forLogging): \(mainFiles)")
     return mainFiles
   }
+
+  /// - Important: This returns realpaths.
+  package func files(includedBy uri: DocumentURI) -> Set<DocumentURI> {
+    guard let filePath = orLog("File path to get included files", { try uri.fileURL?.filePath }) else {
+      return []
+    }
+    guard let underlyingIndexStoreDB = self.underlyingIndexStoreDB else {
+      logger.error("Not checking included files for URI because index has been closed")
+      return []
+    }
+    return Set(
+      underlyingIndexStoreDB.filesIncludedByFile(path: filePath)
+        .filter { FileManager.default.fileExists(atPath: $0) }
+        .map { DocumentURI(filePath: $0, isDirectory: false) }
+    )
+  }
 }

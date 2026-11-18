@@ -146,6 +146,51 @@ final class MainFilesProviderTests: SourceKitLSPTestCase {
     XCTAssertEqual(diag.message, "Unused variable 'fromMyFancyLibrary'")
   }
 
+  func testSharedHeaderUsesBuildSettingsOfSourceFileWithSameBaseName() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Sources/MyLibrary.h": """
+        void bridging(void) {
+          int VARIABLE_NAME = 1;
+        }
+        """,
+        "Sources/MyLibrary/include/dummy.h": "",
+        "Sources/MyLibrary/MyLibrary.c": """
+        #include "$TEST_DIR/Sources/MyLibrary.h"
+        """,
+        "Sources/MyFancyLibrary/include/dummy.h": "",
+        "Sources/MyFancyLibrary/MyFancyLibrary.c": """
+        #include "$TEST_DIR/Sources/MyLibrary.h"
+        """,
+      ],
+      manifest: """
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+            .target(
+              name: "MyLibrary",
+              cSettings: [.define("VARIABLE_NAME", to: "fromMyLibrary"), .unsafeFlags(["-Wunused-variable"])]
+            ),
+            .target(
+              name: "MyFancyLibrary",
+              cSettings: [.define("VARIABLE_NAME", to: "fromMyFancyLibrary"), .unsafeFlags(["-Wunused-variable"])]
+            )
+          ]
+        )
+        """,
+      enableBackgroundIndexing: true,
+      usePullDiagnostics: false
+    )
+
+    _ = try project.openDocument("MyLibrary.h", language: .c)
+
+    // 'MyFancyLibrary.c' is lexicographically first, but 'MyLibrary.c' includes the header and has its base name.
+    let diags = try await project.testClient.nextDiagnosticsNotification()
+    XCTAssertEqual(diags.diagnostics.count, 1)
+    let diag = try XCTUnwrap(diags.diagnostics.first)
+    XCTAssertEqual(diag.message, "Unused variable 'fromMyLibrary'")
+  }
+
   func testMainFileChangesIfIncludeIsAdded() async throws {
     let project = try await SwiftPMTestProject(
       files: [
