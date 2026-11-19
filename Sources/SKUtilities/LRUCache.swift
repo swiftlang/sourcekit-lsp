@@ -122,10 +122,12 @@ package struct LRUCache<Key: Hashable, Value> {
 
   package subscript(key: Key) -> Value? {
     mutating _read {
-      if cache[key] != nil {
-        addPriority(forKey: key)
+      guard let index = cache.index(forKey: key) else {
+        yield nil
+        return
       }
-      yield cache[key]
+      addPriority(forKey: key)
+      yield cache.values[index]
     }
     set {
       guard let newValue else {
