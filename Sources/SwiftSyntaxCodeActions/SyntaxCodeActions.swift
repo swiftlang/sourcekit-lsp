@@ -30,6 +30,7 @@ package let allSyntaxCodeActionProviders: [any SyntaxCodeActionProvider.Type] = 
     ConvertToSwitchStmt.self,
     ConvertStringConcatenationToStringInterpolation.self,
     ConvertZeroParameterFunctionToComputedProperty.self,
+    ExtractExpr.self,
     FormatRawStringLiteral.self,
     GenerateEnumCaseAsAccessors.self,
     GenerateEnumCaseIsAccessors.self,
@@ -54,4 +55,5 @@ package let supersededSourcekitdRefactoringActions: Set<String> = [
   "source.refactoring.kind.simplify.long.number.literal",  // Superseded by AddSeparatorsToIntegerLiteral
   "source.refactoring.kind.convert.to.switch.stmt",  // Superseded by ConvertToSwitchStmt
   "source.refactoring.kind.move.members.to.extension",  // Superseded by MoveMembersToExtension
+  "source.refactoring.kind.extract.expr",  // Superseded by ExtractExpr
 ]
