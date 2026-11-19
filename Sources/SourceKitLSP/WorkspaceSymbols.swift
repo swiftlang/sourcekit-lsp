@@ -469,7 +469,7 @@ extension SourceKitLSPServer {
   }
 
   /// Split an index module name into its module and optional group components.
-  private nonisolated static func splitModuleNameAndGroup(
+  nonisolated static func splitModuleNameAndGroup(
     _ fullModuleName: String
   ) -> (module: String, group: String?) {
     // A dotted index module name is ambiguous: `Foo.Bar` could be module `Foo` with group `Bar`, or a real

@@ -15,6 +15,7 @@ import BuildServerIntegration
 @_spi(SourceKitLSP) import LanguageServerProtocol
 @_spi(Testing) @_spi(SourceKitLSP) import SKLogging
 import SKTestSupport
+import SKUtilities
 import SwiftExtensions
 @_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
@@ -549,6 +550,40 @@ class DefinitionTests: SourceKitLSPTestCase {
     XCTAssertEqual(
       definitionFromInsideBaseName,
       .locations([Location(uri: project.fileURI, range: Range(project.positions["1️⃣"]))])
+    )
+  }
+
+  func testJumpToDefinitionOnSystemProtocolImplementation() async throws {
+    let project = try await IndexedSingleSwiftFileTestProject(
+      """
+      struct CompletionShell: RawRepresentable {
+        var 1️⃣rawValue3️⃣: String
+        init?(rawValue: String) { self.rawValue = rawValue }
+      }
+      let shell = CompletionShell(rawValue: "bash")!
+      let value = shell.2️⃣rawValue
+      """,
+      capabilities: ClientCapabilities(
+        experimental: [GetReferenceDocumentRequest.method: .dictionary(["supported": .bool(true)])]
+      ),
+      indexSystemModules: true
+    )
+
+    let response = try await project.testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(project.fileURI), position: project.positions["1️⃣"])
+    )
+    let location = try XCTUnwrap(response?.locations?.only)
+    XCTAssertEqual(location.uri.scheme, "sourcekit-lsp")
+    let document = try await project.testClient.send(GetReferenceDocumentRequest(uri: location.uri))
+    let line = try XCTUnwrap(LineTable(document.content).line(at: location.range.lowerBound.line))
+    XCTAssertTrue(line.contains("var rawValue:"), "Expected the protocol requirement, got: \(line)")
+
+    let usage = try await project.testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(project.fileURI), position: project.positions["2️⃣"])
+    )
+    XCTAssertEqual(
+      usage?.locations,
+      [Location(uri: project.fileURI, range: project.positions["1️⃣"]..<project.positions["3️⃣"])]
     )
   }
 
