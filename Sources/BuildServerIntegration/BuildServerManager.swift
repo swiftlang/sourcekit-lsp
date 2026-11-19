@@ -413,7 +413,10 @@ package actor BuildServerManager: QueueBasedMessageHandler {
 
   /// The files for which the delegate has requested change notifications, ie. the files for which the delegate wants to
   /// get `fileBuildSettingsChanged` and `filesDependenciesUpdated` callbacks.
-  private var watchedFiles: [DocumentURI: (mainFile: DocumentURI, language: Language)] = [:]
+  ///
+  /// For each, the file whose build settings it uses and the main file that compiles that file, see
+  /// `fileForBuildSettings(of:language:useCache:)`.
+  private var watchedFiles: [DocumentURI: (file: DocumentURI, mainFile: DocumentURI, language: Language)] = [:]
 
   private var connectionToClient: any BuildServerManagerConnectionToClient
 
@@ -1131,7 +1134,7 @@ package actor BuildServerManager: QueueBasedMessageHandler {
     if let target = await canonicalTarget(for: document) {
       return target
     }
-    let mainFile = await mainFile(for: document, language: language)
+    let mainFile = await self.mainFile(for: document, language: language)
     guard mainFile != document else {
       return nil
     }
@@ -1370,6 +1373,40 @@ package actor BuildServerManager: QueueBasedMessageHandler {
     fallbackAfterTimeout: Bool,
     allowInferenceFromRelatedFile: Bool = true
   ) async -> FileBuildSettings? {
+    guard
+      var (file, settings) = await fileAndBuildSettings(
+        for: document,
+        target: explicitlyRequestedTarget,
+        language: language,
+        fallbackAfterTimeout: fallbackAfterTimeout,
+        allowInferenceFromRelatedFile: allowInferenceFromRelatedFile
+      )
+    else {
+      return nil
+    }
+
+    if file != document {
+      // If the build settings are for another file, we need to patch them
+      // to reference `document` instead of `file`.
+      settings = settings.patching(newFile: document, originalFile: file)
+    }
+
+    await buildSettingsLogger.log(settings: settings, for: document)
+    return settings
+  }
+
+  /// Returns the file whose build settings the document uses, `fileForBuildSettings(of:language:)`, together with those
+  /// build settings.
+  ///
+  /// If that file is compiled only by including it in another file, such as a unity build file, its build settings are
+  /// that file's, with the file substituted for it.
+  package func fileAndBuildSettings(
+    for document: DocumentURI,
+    target explicitlyRequestedTarget: BuildTargetIdentifier? = nil,
+    language: Language?,
+    fallbackAfterTimeout: Bool,
+    allowInferenceFromRelatedFile: Bool = true
+  ) async -> (file: DocumentURI, settings: FileBuildSettings)? {
     if buildServerAdapter == nil {
       guard let language = language ?? Language(inferredFromFileExtension: document) else {
         return nil
@@ -1386,13 +1423,13 @@ package actor BuildServerManager: QueueBasedMessageHandler {
       // If there is no build server and we only have the fallback build server, we will never get real build settings.
       // Consider the build settings non-fallback.
       settings.isFallback = false
-      return settings
+      return (document, settings)
     }
 
     func mainFileAndSettings(
       basedOn document: DocumentURI
-    ) async -> (mainFile: DocumentURI, settings: FileBuildSettings)? {
-      let mainFile = await self.mainFile(for: document, language: language)
+    ) async -> (file: DocumentURI, mainFile: DocumentURI, settings: FileBuildSettings)? {
+      let (file, mainFile) = await self.fileForBuildSettings(of: document, language: language)
       let settings: FileBuildSettings? = await orLog("Getting build settings") { () -> FileBuildSettings? in
         let target: WithTimeoutResult<BuildTargetIdentifier?> =
           if let explicitlyRequestedTarget {
@@ -1466,31 +1503,23 @@ package actor BuildServerManager: QueueBasedMessageHandler {
       guard let settings else {
         return nil
       }
-      return (mainFile, settings)
+      return (file, mainFile, settings)
     }
 
-    var settings: FileBuildSettings?
-    var mainFile: DocumentURI?
-    if let mainFileAndSettings = await mainFileAndSettings(basedOn: document) {
-      (mainFile, settings) = mainFileAndSettings
-    }
-    if settings?.isFallback ?? true, let symlinkTarget = document.symlinkTarget,
-      let mainFileAndSettings = await mainFileAndSettings(basedOn: symlinkTarget)
+    var result = await mainFileAndSettings(basedOn: document)
+    if result?.settings.isFallback ?? true, let symlinkTarget = document.symlinkTarget,
+      let symlinkTargetResult = await mainFileAndSettings(basedOn: symlinkTarget)
     {
-      (mainFile, settings) = mainFileAndSettings
+      result = symlinkTargetResult
     }
-    guard var settings, let mainFile else {
+    guard let (file, mainFile, settings) = result else {
       return nil
     }
-
-    if mainFile != document {
-      // If the main file isn't the file itself, we need to patch the build settings
-      // to reference `document` instead of `mainFile`.
-      settings = settings.patching(newFile: document, originalFile: mainFile)
+    if mainFile != file {
+      // `file` is compiled only by including it in another file, such as a unity build file.
+      return (file, settings.patching(newFile: file, originalFile: mainFile))
     }
-
-    await buildSettingsLogger.log(settings: settings, for: document)
-    return settings
+    return (file, settings)
   }
 
   package func waitForUpToDateBuildGraph() async {
@@ -1623,8 +1652,8 @@ package actor BuildServerManager: QueueBasedMessageHandler {
   }
 
   package func registerForChangeNotifications(for uri: DocumentURI, language: Language) async {
-    let mainFile = await mainFile(for: uri, language: language)
-    self.watchedFiles[uri] = (mainFile, language)
+    let (file, mainFile) = await fileForBuildSettings(of: uri, language: language, useCache: false)
+    self.watchedFiles[uri] = (file, mainFile, language)
   }
 
   package func unregisterForChangeNotifications(for uri: DocumentURI) async {
@@ -1840,35 +1869,95 @@ package actor BuildServerManager: QueueBasedMessageHandler {
     )
   }
 
+  /// Returns the file whose build settings `document` uses, and the main file that compiles that file.
+  ///
+  /// The file is the first of:
+  /// 1. `document` itself, if it is a source file, is compiled, or no file includes it. A source file uses its own
+  ///    build settings even if the build compiles it only by including it in another file, such as a unity build file.
+  /// 2. For a header, a compiled file with the header's base name that includes it, such as `lib.c` for
+  ///    `include/lib.h`.
+  /// 3. A source file next to the header with its base name that includes it directly, such as a file that is compiled
+  ///    only through a unity build file.
+  /// 4. The lexicographically first main file that includes the header.
+  ///
+  /// Steps 2 and 3 give a header the build settings of the file it is written for rather than those of an unrelated
+  /// file that happens to include it, such as a test. The main file differs from the file if the build compiles the
+  /// file only by including it in another file.
+  ///
+  /// `language` is a hint of the document's language to speed up the lookup. Passing `nil` if the language is unknown
+  /// should always be safe. For files registered for change notifications, the result is cached unless `useCache` is
+  /// `false`.
+  package func fileForBuildSettings(
+    of document: DocumentURI,
+    language: Language?,
+    useCache: Bool = true
+  ) async -> (file: DocumentURI, mainFile: DocumentURI) {
+    if useCache, let watched = self.watchedFiles[document] {
+      // Performance optimization: We did already compute the files and have them cached. We can just return them.
+      return (watched.file, watched.mainFile)
+    }
+    if language == .swift {
+      // Swift doesn't have main files. Skip the main file provider query.
+      return (document, document)
+    }
+    // The main file that compiles `document`, which is also the result of step 4 for a header.
+    let mainFiles = await mainFiles(containing: document)
+    let mainFile: DocumentURI
+    if mainFiles.contains(document) {
+      // If the main files contain the file itself, prefer to use that one
+      mainFile = document
+    } else {
+      // Pick the lexicographically first main file if it exists.
+      // This makes sure that picking a main file is deterministic.
+      mainFile = mainFiles.min(by: { $0.pseudoPath < $1.pseudoPath }) ?? document
+    }
+    // 1. The document itself, if it is a source file, is compiled, or no file includes it.
+    if document.isCFamilySourceFile || mainFile == document {
+      return (document, mainFile)
+    }
+    guard let headerURL = document.fileURL else {
+      return (mainFile, mainFile)
+    }
+    let baseName = headerURL.deletingPathExtension().lastPathComponent
+    func hasBaseName(_ file: DocumentURI) -> Bool {
+      return file.isCFamilySourceFile && file.fileURL?.deletingPathExtension().lastPathComponent == baseName
+    }
+
+    // 2. A compiled file with the header's base name that includes it.
+    if let compiled = mainFiles.filter(hasBaseName).min(by: { $0.pseudoPath < $1.pseudoPath }) {
+      return (compiled, compiled)
+    }
+
+    // 3. A source file next to the header with its base name that includes it directly. The index reports included
+    // files by their realpaths.
+    guard let mainFilesProvider = await mainFilesProvider.value, let headerRealpath = try? headerURL.realpath else {
+      return (mainFile, mainFile)
+    }
+    for pathExtension in cFamilySourceFileExtensions {
+      let sibling = headerURL.deletingLastPathComponent().appending(component: "\(baseName).\(pathExtension)")
+      guard FileManager.default.fileExists(at: sibling) else {
+        continue
+      }
+      let siblingURI = DocumentURI(sibling)
+      if await mainFilesProvider.files(includedBy: siblingURI).contains(DocumentURI(headerRealpath)) {
+        return (siblingURI, await self.mainFile(for: siblingURI, language: nil))
+      }
+    }
+
+    // 4. The lexicographically first main file that includes the header.
+    return (mainFile, mainFile)
+  }
+
   /// Return the main file that should be used to get build settings for `uri`.
   ///
   /// For Swift or normal C files, this will be the file itself. For header files, we pick a main file that includes the
-  /// header since header files don't have build settings by themselves.
+  /// header since header files don't have build settings by themselves: the main file that compiles
+  /// `fileForBuildSettings(of:language:useCache:)`.
   ///
   /// `language` is a hint of the document's language to speed up the `main` file lookup. Passing `nil` if the language
   /// is unknown should always be safe.
   package func mainFile(for uri: DocumentURI, language: Language?, useCache: Bool = true) async -> DocumentURI {
-    if language == .swift {
-      // Swift doesn't have main files. Skip the main file provider query.
-      return uri
-    }
-    if useCache, let mainFile = self.watchedFiles[uri]?.mainFile {
-      // Performance optimization: We did already compute the main file and have
-      // it cached. We can just return it.
-      return mainFile
-    }
-
-    let mainFiles = await mainFiles(containing: uri)
-    if mainFiles.contains(uri) {
-      // If the main files contain the file itself, prefer to use that one
-      return uri
-    } else if let mainFile = mainFiles.min(by: { $0.pseudoPath < $1.pseudoPath }) {
-      // Pick the lexicographically first main file if it exists.
-      // This makes sure that picking a main file is deterministic.
-      return mainFile
-    } else {
-      return uri
-    }
+    return await fileForBuildSettings(of: uri, language: language, useCache: useCache).mainFile
   }
 
   /// Returns all main files that include the given document.
@@ -1969,18 +2058,18 @@ package actor BuildServerManager: QueueBasedMessageHandler {
     await self.filesDependenciesUpdatedDebouncer.scheduleCall(filesWithUpdatedDependencies)
   }
 
-  /// Checks if there are any files in `mainFileAssociations` where the main file
-  /// that we have stored has changed.
+  /// Checks if there are any files in `mainFileAssociations` where the main file, or the file whose build settings it
+  /// uses, that we have stored has changed.
   ///
   /// For all of these files, re-associate the file with the new main file and
   /// inform the delegate that the build settings for it might have changed.
   package func mainFilesChanged() async {
     var changedMainFileAssociations: Set<DocumentURI> = []
-    for (file, (oldMainFile, language)) in self.watchedFiles {
-      let newMainFile = await self.mainFile(for: file, language: language, useCache: false)
-      if newMainFile != oldMainFile {
-        self.watchedFiles[file] = (newMainFile, language)
-        changedMainFileAssociations.insert(file)
+    for (uri, watched) in self.watchedFiles {
+      let (newFile, newMainFile) = await self.fileForBuildSettings(of: uri, language: watched.language, useCache: false)
+      if newFile != watched.file || newMainFile != watched.mainFile {
+        self.watchedFiles[uri] = (newFile, newMainFile, watched.language)
+        changedMainFileAssociations.insert(uri)
       }
     }
 

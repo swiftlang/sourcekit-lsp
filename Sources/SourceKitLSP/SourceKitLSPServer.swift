@@ -1559,13 +1559,15 @@ extension SourceKitLSPServer {
     } else {
       didPrepareTarget = nil
     }
-    let buildSettings = await workspace.buildServerManager.buildSettingsInferredFromMainFile(
-      for: request.textDocument.uri,
-      target: target,
-      language: nil,
-      fallbackAfterTimeout: request.allowFallbackSettings
-    )
-    guard let buildSettings else {
+    // A header is parsed as part of compiling a file that includes it, with that file's build settings.
+    guard
+      let (file, buildSettings) = await workspace.buildServerManager.fileAndBuildSettings(
+        for: uri,
+        target: target,
+        language: nil,
+        fallbackAfterTimeout: request.allowFallbackSettings
+      )
+    else {
       throw ResponseError.unknown("Unable to determine build settings")
     }
     return SourceKitOptionsResponse(
@@ -1574,7 +1576,9 @@ extension SourceKitLSPServer {
       kind: buildSettings.isFallback ? .fallback : .normal,
       didPrepareTarget: didPrepareTarget,
       data: buildSettings.data,
-      target: target?.uri
+      target: target?.uri,
+      // Fallback build settings are synthesized rather than taken from a file whose build settings the document uses.
+      mainFile: buildSettings.isFallback ? nil : file
     )
   }
 
