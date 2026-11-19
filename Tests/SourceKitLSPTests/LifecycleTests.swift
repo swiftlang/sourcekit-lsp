@@ -16,6 +16,8 @@
 import SKLogging
 import SKOptions
 import SKTestSupport
+import SourceKitLSP
+@_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 import XCTest
 
 /// Tests that test the overall state of the SourceKit-LSP server, that's not really specific to any language
@@ -41,6 +43,62 @@ final class LifecycleTests: SourceKitLSPTestCase {
     }
     XCTAssertEqual(syncOptions.openClose, true)
     XCTAssertNotNil(initResult.capabilities.completionProvider)
+  }
+
+  func testTestClientIsDeallocatedWhenReleasedWithRequestInFlight() async throws {
+    // The test client shuts down the server in its deinit. That must happen when the test releases the client, not
+    // later on a background task while the next test is already running.
+    // Delay the reply so that the request's timeout task is still pending when the client is released.
+    let requestReplied = self.expectation(description: "Request replied")
+    weak var weakClient: TestSourceKitLSPClient?
+    do {
+      let testClient = try await TestSourceKitLSPClient(
+        hooks: Hooks(preHandleRequest: { request in
+          if request is SynchronizeRequest {
+            try? await Task.sleep(for: .seconds(1))
+          }
+        })
+      )
+      weakClient = testClient
+      testClient.send(SynchronizeRequest()) { _ in
+        requestReplied.fulfill()
+      }
+    }
+    XCTAssertNil(weakClient, "Test client was kept alive after it was released")
+    try await fulfillmentOfOrThrow(requestReplied)
+  }
+
+  func testTestClientDoesNotRetainCompletionHandlerAfterReply() async throws {
+    // A completion handler may capture the test client. Once the handler has run, the test client must drop it right
+    // away. Otherwise its captures, possibly the last reference to the client, are released later by a background task.
+    final class Sentinel: Sendable {
+      let onDeinit: @Sendable () -> Void
+      init(onDeinit: @escaping @Sendable () -> Void) { self.onDeinit = onDeinit }
+      deinit { onDeinit() }
+    }
+    let handlerTask = ThreadSafeBox<Int?>(initialValue: nil)
+    let handlerReleaseTask = ThreadSafeBox<Int?>(initialValue: nil)
+    weak var weakClient: TestSourceKitLSPClient?
+    do {
+      let testClient = try await TestSourceKitLSPClient()
+      weakClient = testClient
+      // Only the completion handler holds the sentinel. It records the task that releases the handler.
+      let sentinel = Sentinel { handlerReleaseTask.withLock { $0 = withUnsafeCurrentTask { $0?.hashValue } } }
+      testClient.send(SynchronizeRequest()) { [testClient, sentinel] _ in
+        withExtendedLifetime((testClient, sentinel)) {}
+        handlerTask.withLock { $0 = withUnsafeCurrentTask { $0?.hashValue } }
+      }
+      _ = consume sentinel
+      // `SynchronizeRequest` waits for all earlier requests to finish handling, including their reply.
+      try await testClient.send(SynchronizeRequest())
+    }
+    XCTAssertNotNil(handlerTask.value)
+    XCTAssertEqual(
+      handlerReleaseTask.value,
+      handlerTask.value,
+      "Completion handler was not released by the task that called it"
+    )
+    XCTAssertNil(weakClient, "Test client was kept alive by its completion handler")
   }
 
   func testEmptySourceKitLSPOptionsCanBeDecoded() {
