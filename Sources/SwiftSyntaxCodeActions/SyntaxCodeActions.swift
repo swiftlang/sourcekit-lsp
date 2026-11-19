@@ -29,6 +29,7 @@ package let allSyntaxCodeActionProviders: [any SyntaxCodeActionProvider.Type] = 
     ConvertStoredPropertyToComputed.self,
     ConvertStringConcatenationToStringInterpolation.self,
     ConvertToTernaryExpr.self,
+    ExpandTernaryExpr.self,
     ConvertZeroParameterFunctionToComputedProperty.self,
     FormatRawStringLiteral.self,
     GenerateEnumCaseAsAccessors.self,
@@ -52,4 +53,5 @@ package let supersededSourcekitdRefactoringActions: Set<String> = [
   "source.refactoring.kind.convert.to.computed.property",  // Superseded by ConvertStoredPropertyToComputed
   "source.refactoring.kind.simplify.long.number.literal",  // Superseded by AddSeparatorsToIntegerLiteral
   "source.refactoring.kind.convert.to.ternary.expr",  // Superseded by ConvertToTernaryExpr
+  "source.refactoring.kind.expand.ternary.expr",  // Superseded by ExpandTernaryExpr
 ]
