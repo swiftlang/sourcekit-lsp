@@ -287,26 +287,29 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
   ///
   /// This version of the `send` function should only be used if some action needs to be performed after the request is
   /// sent but before it returns a result.
+  ///
+  /// `completionHandler` must not hold the last reference to the test client: it is released on the task that replies
+  /// to the request, and the client's `deinit` would block that task waiting for the server to shut down.
   @discardableResult
   package func send<R: RequestType>(
     _ request: R,
     completionHandler: @Sendable @escaping (LSPResult<R.Response>) -> Void
   ) -> RequestID {
     let requestID = RequestID.number(Int(nextRequestID.wrappingAdd(1, ordering: .relaxed).oldValue))
-    let replyOutstanding = ThreadSafeBox<Bool?>(initialValue: true)
+    // Don't capture `self` or `completionHandler` in the timeout task. The task only finishes some time after it is
+    // cancelled. If it held the last reference to the client, `deinit` would shut down the server from that task, after
+    // the test has finished. Taking the handler out of the box also ensures it is called at most once.
+    let pendingHandler = ThreadSafeBox<(@Sendable (LSPResult<R.Response>) -> Void)?>(initialValue: completionHandler)
+    let server = self.server
     let timeoutTask = Task {
       try await Task.sleep(for: defaultTimeoutDuration)
-      if replyOutstanding.takeValue() ?? false {
-        completionHandler(
-          .failure(ResponseError.unknown("\(R.method) request timed out after \(defaultTimeoutDuration)"))
-        )
-      }
+      pendingHandler.takeValue()?(
+        .failure(ResponseError.unknown("\(R.method) request timed out after \(defaultTimeoutDuration)"))
+      )
       server.handle(CancelRequestNotification(id: requestID))
     }
     server.handle(request, id: requestID) { result in
-      if replyOutstanding.takeValue() ?? false {
-        completionHandler(result)
-      }
+      pendingHandler.takeValue()?(result)
       timeoutTask.cancel()
     }
     return requestID
