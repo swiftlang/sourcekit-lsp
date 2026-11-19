@@ -36,6 +36,7 @@ package let allSyntaxCodeActionProviders: [any SyntaxCodeActionProvider.Type] = 
     InlineVariable.self,
     InvertIfCondition.self,
     MigrateToNewIfLetSyntax.self,
+    MoveMembersToExtension.self,
     OpaqueParameterToGeneric.self,
     RemoveRedundantParentheses.self,
     RemoveSeparatorsFromIntegerLiteral.self,
@@ -52,4 +53,5 @@ package let supersededSourcekitdRefactoringActions: Set<String> = [
   "source.refactoring.kind.convert.to.computed.property",  // Superseded by ConvertStoredPropertyToComputed
   "source.refactoring.kind.simplify.long.number.literal",  // Superseded by AddSeparatorsToIntegerLiteral
   "source.refactoring.kind.convert.to.switch.stmt",  // Superseded by ConvertToSwitchStmt
+  "source.refactoring.kind.move.members.to.extension",  // Superseded by MoveMembersToExtension
 ]
