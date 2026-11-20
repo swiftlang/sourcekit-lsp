@@ -297,17 +297,65 @@ final class ConvertStoredPropertyToComputedTests: XCTestCase {
 
   func testRefactoringStoredPropertyMissingTypeAnnotation() throws {
     let baseline: DeclSyntax = "var foo = \"abc\""
-    let expected: DeclSyntax = "var foo: <#Type#>{ \"abc\" }"
+    let expected: DeclSyntax = "var foo: <#Type#> { \"abc\" }"
 
     try assertRefactorConvert(baseline, expected: expected)
   }
 
   func testRefactoringStoredPropertyWithTypeAnnotation() throws {
     let baseline: DeclSyntax = "var foo = \"abc\""
-    let expected: DeclSyntax = "var foo: String{ \"abc\" }"
+    let expected: DeclSyntax = "var foo: String { \"abc\" }"
 
     let context = ConvertStoredPropertyToComputed.Context(type: TypeSyntax(stringLiteral: "String"))
     try assertRefactorConvert(baseline, expected: expected, context: context)
+  }
+
+  func testRefactoringStoredPropertyWithAttribute() throws {
+    let baseline: DeclSyntax = "@State private var isOn: Bool = false"
+
+    try assertRefactorConvert(baseline, expected: nil)
+  }
+
+  func testRefactoringStoredPropertyWithSetterAccessModifier() throws {
+    let baseline: DeclSyntax = "private(set) var value: Int = 0"
+
+    try assertRefactorConvert(baseline, expected: nil)
+  }
+
+  func testRefactoringStoredPropertyWithTryInitializer() throws {
+    let baseline: DeclSyntax = "let number: Int = try fetchNumber()"
+
+    try assertRefactorConvert(baseline, expected: nil)
+  }
+
+  func testRefactoringStoredPropertyWithAwaitInitializer() throws {
+    let baseline: DeclSyntax = "let number: Int = await fetchNumber()"
+
+    try assertRefactorConvert(baseline, expected: nil)
+  }
+
+  func testRefactoringStoredPropertyWithTryInImmediatelyCalledClosure() throws {
+    let baseline: DeclSyntax = """
+      let number: Int = {
+        return try fetchNumber()
+      }()
+      """
+
+    try assertRefactorConvert(baseline, expected: nil)
+  }
+
+  func testRefactoringStoredPropertyWithOptionalTryInitializer() throws {
+    let baseline: DeclSyntax = "let number: Int? = try? fetchNumber()"
+    let expected: DeclSyntax = "var number: Int? { try? fetchNumber() }"
+
+    try assertRefactorConvert(baseline, expected: expected)
+  }
+
+  func testRefactoringStoredPropertyWithAwaitInNestedClosure() throws {
+    let baseline: DeclSyntax = "let task: Task<Int, Never> = Task { await fetchNumber() }"
+    let expected: DeclSyntax = "var task: Task<Int, Never> { Task { await fetchNumber() } }"
+
+    try assertRefactorConvert(baseline, expected: expected)
   }
 }
 
