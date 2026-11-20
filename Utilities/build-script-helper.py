@@ -263,6 +263,7 @@ def print_test_crash_reports(since: float) -> None:
             report_paths += [os.path.join(directory, name) for name in os.listdir(directory)]
         except OSError:
             pass
+    found_report = False
     for report_path in sorted(report_paths, key=os.path.basename):
         report_name = os.path.basename(report_path)
         if not report_name.startswith(('xctest', 'swiftpm-testing-helper')) or not report_name.endswith('.ips'):
@@ -274,8 +275,31 @@ def print_test_crash_reports(since: float) -> None:
                 report = report_file.read()
         except OSError:
             continue
+        found_report = True
         print(f'--- Crash report {report_path}')
         print(summarize_crash_report(report))
+    # DO NOT MERGE: Diagnose why no crash reports are printed in CI.
+    if not found_report:
+        print(f'--- No test crash reports found. Newest files in {reports_dir}:')
+        report_paths = [path for path in report_paths if os.path.isfile(path)]
+        for report_path in sorted(report_paths, key=os.path.getmtime, reverse=True)[:20]:
+            print(f'{time.ctime(os.path.getmtime(report_path))} {report_path}')
+    sys.stdout.flush()
+
+
+def print_crash_diagnostics_environment() -> None:
+    """
+    DO NOT MERGE: Print information about the macOS crash reporting environment of the CI machine.
+    """
+    if platform.system() != 'Darwin':
+        return
+    print('--- Crash diagnostics environment')
+    sys.stdout.flush()
+    subprocess.call(['sw_vers'])
+    path = '/usr/libexec/swift/swift-backtrace'
+    print(f'{path} exists: {os.path.exists(path)}')
+    reports_dir = os.path.expanduser('~/Library/Logs/DiagnosticReports')
+    print(f'{reports_dir} exists: {os.path.isdir(reports_dir)}')
     sys.stdout.flush()
 
 
@@ -298,7 +322,9 @@ def run_tests(swift_exec: str, args: argparse.Namespace) -> None:
 
     # Print a backtrace of all threads when a test process crashes. The backtracer is off by default
     # on macOS. Suppress the warnings of SwiftPM's executables, for which it can't be enabled.
-    additional_env['SWIFT_BACKTRACE'] = 'enable=yes,interactive=no,threads=all,warnings=suppressed'
+    # DO NOT MERGE: Show the backtracer's warnings to diagnose why it doesn't print backtraces in CI.
+    additional_env['SWIFT_BACKTRACE'] = 'enable=yes,interactive=no,threads=all'
+    print_crash_diagnostics_environment()
 
     bin_path = swiftpm_bin_path(swift_exec, swiftpm_args, additional_env=additional_env)
     tests = os.path.join(bin_path, 'sk-tests')

@@ -25,4 +25,8 @@ final class ByteStringTests: XCTestCase {
     }
   }
 
+  // DO NOT MERGE: Check whether crashes of test processes in CI produce backtraces and crash reports.
+  func testDeliberateCrashForCIDiagnostics() {
+    abort()
+  }
 }
