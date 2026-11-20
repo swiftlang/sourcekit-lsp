@@ -3146,6 +3146,144 @@ final class BackgroundIndexingTests: SourceKitLSPTestCase {
       ]
     )
   }
+
+  func testIndexMetalFileWithToolchainMetalDriver() async throws {
+    try SkipUnless.platformIsDarwin("The fake metal driver is a shell script")
+
+    actor BuildServer: CustomBuildServer {
+      let inProgressRequestsTracker = CustomBuildServerInProgressRequestTracker()
+      private let projectRoot: URL
+      private var shaderURL: URL { projectRoot.appending(component: "shader.metal") }
+
+      init(projectRoot: URL, connectionToSourceKitLSP: any Connection) {
+        self.projectRoot = projectRoot
+      }
+
+      func initializeBuildRequest(_ request: InitializeBuildRequest) async throws -> InitializeBuildResponse {
+        return try initializationResponseSupportingBackgroundIndexing(
+          projectRoot: projectRoot,
+          outputPathsProvider: false
+        )
+      }
+
+      func workspaceBuildTargetsRequest(
+        _ request: WorkspaceBuildTargetsRequest
+      ) async throws -> WorkspaceBuildTargetsResponse {
+        return WorkspaceBuildTargetsResponse(targets: [
+          BuildTarget(
+            id: .dummy,
+            languageIds: [.metal],
+            dependencies: [],
+            dataKind: .sourceKit,
+            data: SourceKitBuildTarget(toolchain: URI(projectRoot.appending(component: "fake-toolchain")))
+              .encodeToLSPAny()
+          )
+        ])
+      }
+
+      func buildTargetSourcesRequest(_ request: BuildTargetSourcesRequest) -> BuildTargetSourcesResponse {
+        return BuildTargetSourcesResponse(items: [
+          SourcesItem(
+            target: .dummy,
+            sources: [
+              SourceItem(
+                uri: URI(shaderURL),
+                kind: .file,
+                generated: false,
+                dataKind: .sourceKit,
+                data: SourceKitSourceItemData(language: .metal).encodeToLSPAny()
+              )
+            ]
+          )
+        ])
+      }
+
+      func textDocumentSourceKitOptionsRequest(
+        _ request: TextDocumentSourceKitOptionsRequest
+      ) async throws -> TextDocumentSourceKitOptionsResponse? {
+        // The fake metal driver forwards to clang, so interpret the file as C.
+        return TextDocumentSourceKitOptionsResponse(compilerArguments: [
+          "-x", "c",
+          "-fsyntax-only",
+          try shaderURL.filePath,
+        ])
+      }
+    }
+
+    let scratchDirectory = try testScratchDir()
+    let fakeToolchainPath = scratchDirectory.appending(component: "fake-toolchain")
+    let fakeMetal = fakeToolchainPath.appending(components: "usr", "bin", "metal")
+    let invocationLog = scratchDirectory.appending(component: "metal-invocation.txt")
+    let clang = try await unwrap(ToolchainRegistry.forTesting.default?.clang)
+
+    try FileManager.default.createDirectory(
+      at: fakeMetal.deletingLastPathComponent(),
+      withIntermediateDirectories: true
+    )
+    try """
+    #!/bin/sh
+    echo "$@" > '\(invocationLog.filePath)'
+    exec '\(clang.filePath)' "$@"
+    """.write(to: fakeMetal, atomically: true, encoding: .utf8)
+    try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeMetal.filePath)
+
+    let defaultToolchain = try await unwrap(ToolchainRegistry.forTesting.default)
+    let fakeToolchain = Toolchain(
+      identifier: "fake-metal",
+      displayName: "fake-metal",
+      path: fakeToolchainPath,
+      metal: fakeMetal
+    )
+
+    let project = try await CustomBuildServerTestProject(
+      files: [
+        "shader.metal": """
+        void 1️⃣myShaderFunc() {}
+        """
+      ],
+      buildServer: BuildServer.self,
+      options: .testDefault(experimentalFeatures: [.sourceKitOptionsRequest]),
+      toolchainRegistry: ToolchainRegistry(toolchains: [defaultToolchain, fakeToolchain]),
+      enableBackgroundIndexing: true,
+      testScratchDir: scratchDirectory
+    )
+    try await project.testClient.send(SynchronizeRequest(index: true))
+
+    let workspaceSymbols = try await project.testClient.send(WorkspaceSymbolsRequest(query: "myShaderFunc"))
+    XCTAssertEqual(
+      workspaceSymbols,
+      [
+        .symbolInformation(
+          SymbolInformation(
+            name: "myShaderFunc",
+            kind: .function,
+            location: try project.location(from: "1️⃣", to: "1️⃣", in: "shader.metal")
+          )
+        )
+      ]
+    )
+
+    // `sourceKitOptions` returns the build server's compiler arguments for Metal files without adjustments.
+    let sourceKitOptions = try await project.testClient.send(
+      SourceKitOptionsRequest(
+        textDocument: TextDocumentIdentifier(project.uri(for: "shader.metal")),
+        prepareTarget: false,
+        allowFallbackSettings: false
+      )
+    )
+    XCTAssertEqual(
+      sourceKitOptions.compilerArguments,
+      ["-x", "c", "-fsyntax-only", try project.uri(for: "shader.metal").pseudoPath]
+    )
+    XCTAssertEqual(sourceKitOptions.kind, .normal)
+
+    let invocation = try String(contentsOf: invocationLog, encoding: .utf8)
+    let indexStorePath = try scratchDirectory.appending(component: "index-store").filePath
+    XCTAssert(
+      invocation.contains("-index-store-path \(indexStorePath)"),
+      "Expected the index store path in the metal invocation: \(invocation)"
+    )
+  }
 }
 
 extension HoverResponseContents {
