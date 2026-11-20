@@ -49,19 +49,25 @@ package struct ConvertStoredPropertyToComputed: SyntaxRefactoringProvider, Resol
     guard !syntax.modifiers.contains(where: { $0.detail?.detail.text == "set" }) else {
       return false
     }
-    guard let initializer = syntax.bindings.only?.initializer else {
+    guard let initializer = syntax.bindings.only?.initializer, let getterBody = getterBody(of: initializer) else {
       return false
     }
     // `try` and `await` would require the getter to be `throws` or `async`.
-    return !EffectsFinder.containsEffects(getterBody(of: initializer))
+    return !EffectsFinder.containsEffects(getterBody)
   }
 
   /// The syntax that becomes the getter's body: the statements of an immediately-called closure or the initializer's
   /// value otherwise.
-  private static func getterBody(of initializer: InitializerClauseSyntax) -> Syntax {
+  ///
+  /// Returns `nil` if the initializer is an immediately-called closure that takes arguments because its statements
+  /// can't be used as the getter's body.
+  private static func getterBody(of initializer: InitializerClauseSyntax) -> Syntax? {
     if let functionExpression = initializer.value.as(FunctionCallExprSyntax.self),
       let closureExpression = functionExpression.calledExpression.as(ClosureExprSyntax.self)
     {
+      guard functionExpression.arguments.isEmpty else {
+        return nil
+      }
       return Syntax(closureExpression.statements)
     }
     return Syntax(initializer.value)

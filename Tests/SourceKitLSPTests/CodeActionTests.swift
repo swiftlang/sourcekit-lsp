@@ -4112,6 +4112,31 @@ final class CodeActionTests: SourceKitLSPTestCase {
     )
   }
 
+  func testConvertStoredPropertyToComputedNotOfferedForClosureWithArgumentsWithResolveSupport() async throws {
+    var capabilities = clientCapabilitiesWithCodeActionSupport
+    capabilities.textDocument?.codeAction?.resolveSupport = .init(properties: ["edit"])
+    let testClient = try await TestSourceKitLSPClient(capabilities: capabilities)
+    let uri = DocumentURI(for: .swift)
+    let positions = testClient.openDocument(
+      """
+      struct S {
+        1️⃣let value = { (x: Int) in x + 1 }(41)2️⃣
+      }
+      """,
+      uri: uri
+    )
+    let actions = try await testClient.send(
+      CodeActionRequest(
+        range: positions["1️⃣"]..<positions["2️⃣"],
+        context: CodeActionContext(),
+        textDocument: TextDocumentIdentifier(uri)
+      )
+    )
+    XCTAssertFalse(
+      actions?.codeActions?.contains(where: { $0.title == "Convert Stored Property to Computed Property" }) ?? false
+    )
+  }
+
   func testInlineVariableBasic() async throws {
     try await assertCodeActions(
       """
