@@ -21,3 +21,7 @@ Before implementing a new code action, contributors should first file a GitHub i
 Code actions should generally be implemented in [**sourcekit-lsp**](https://github.com/swiftlang/sourcekit-lsp/tree/main/Sources/SwiftSyntaxCodeActions), since they are primarily a language-server feature. They should be implemented as a type conforming to `SyntaxRefactoringCodeActionProvider` unless there is a clear reason to drop down to the more low-level `SyntaxCodeActionProvider`.
 
 They should only be implemented in [**swift-syntax**](https://github.com/swiftlang/swift-syntax/tree/main/Sources/SwiftRefactor) when there is a clear reason to do so, such as when the functionality needs to be reused outside of the language server.
+
+## Semantic information
+
+For actions that need semantic information, implement `ResolvableSyntaxRefactoringCodeActionProvider` and return `RefactoringContext.unresolved` from `refactoringContext(for:in:)`. This lists the action without an additional cursor-info request. Use the `symbolInfo` callback in `resolveContext(for:in:symbolInfo:)` to query the required positions when the client resolves the selected action. Resolution may fail if the semantic information shows that the action is not applicable. If an action cannot produce correct edits without semantic information, only offer it to clients that support resolving edits.
