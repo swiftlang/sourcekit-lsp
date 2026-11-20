@@ -97,6 +97,9 @@ public final class Toolchain: Sendable {
   /// The path to the clangd language server if available.
   package let clangd: URL?
 
+  /// The path to the Metal compiler driver if available.
+  package let metal: URL?
+
   /// The path to the Swift language server if available.
   package let sourcekitd: URL?
 
@@ -160,6 +163,7 @@ public final class Toolchain: Sendable {
     swiftFormat: URL? = nil,
     swiftPlay: URL? = nil,
     clangd: URL? = nil,
+    metal: URL? = nil,
     sourcekitd: URL? = nil,
     sourceKitClientPlugin: URL? = nil,
     sourceKitServicePlugin: URL? = nil,
@@ -174,6 +178,7 @@ public final class Toolchain: Sendable {
     self.swiftFormat = swiftFormat
     self.swiftPlay = swiftPlay
     self.clangd = clangd
+    self.metal = metal
     self.sourcekitd = sourcekitd
     self.sourceKitClientPlugin = sourceKitClientPlugin
     self.sourceKitServicePlugin = sourceKitServicePlugin
@@ -199,7 +204,7 @@ public final class Toolchain: Sendable {
     return isSuperset(for: \.clang) && isSuperset(for: \.swift) && isSuperset(for: \.swiftc)
       && isSuperset(for: \.swiftPlay) && isSuperset(for: \.swiftFormat) && isSuperset(for: \.sourceKitClientPlugin)
       && isSuperset(for: \.sourceKitServicePlugin) && isSuperset(for: \.clangd) && isSuperset(for: \.sourcekitd)
-      && isSuperset(for: \.libIndexStore)
+      && isSuperset(for: \.metal) && isSuperset(for: \.libIndexStore)
   }
 
   /// Same as `isSuperset` but returns `false` if both toolchains have the same set of tools.
@@ -214,6 +219,7 @@ public final class Toolchain: Sendable {
   /// ```
   /// bin/clang
   ///    /clangd
+  ///    /metal
   ///    /swiftc
   /// lib/libIndexStore.{so,dylib}
   /// ```
@@ -239,6 +245,7 @@ public final class Toolchain: Sendable {
     let toolchainPath: URL
     var clang: URL? = nil
     var clangd: URL? = nil
+    var metal: URL? = nil
     var swift: URL? = nil
     var swiftc: URL? = nil
     var swiftFormat: URL? = nil
@@ -281,6 +288,11 @@ public final class Toolchain: Sendable {
       let clangdPath = binPath.appending(component: "clangd\(execExt)")
       if FileManager.default.isExecutableFile(atPath: clangdPath.path) {
         clangd = clangdPath
+        foundAny = true
+      }
+      let metalPath = binPath.appending(component: "metal\(execExt)")
+      if FileManager.default.isExecutableFile(atPath: metalPath.path) {
+        metal = metalPath
         foundAny = true
       }
 
@@ -386,6 +398,7 @@ public final class Toolchain: Sendable {
       swiftFormat: swiftFormat,
       swiftPlay: swiftPlay,
       clangd: clangd,
+      metal: metal,
       sourcekitd: sourcekitd,
       sourceKitClientPlugin: sourceKitClientPlugin,
       sourceKitServicePlugin: sourceKitServicePlugin,

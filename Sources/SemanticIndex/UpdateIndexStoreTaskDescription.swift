@@ -202,7 +202,7 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
   }
 
   static func canIndex(language: Language) -> Bool {
-    return language.semanticKind != nil
+    return IndexCompilerKind(language) != nil
   }
 
   init(
@@ -407,7 +407,7 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
         continue
       }
       let startDate = Date()
-      switch language.semanticKind {
+      switch IndexCompilerKind(language) {
       case .swift:
         do {
           try await updateIndexStore(
@@ -428,6 +428,19 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
           do {
             try await updateIndexStore(
               forClangFile: indexFile.mainFile,
+              invocation: partition.invocation,
+              toolchain: toolchain
+            )
+          } catch {
+            logger.error("Updating index store for \(indexFile.mainFile.forLogging) failed: \(error.forLogging)")
+            BuildSettingsLogger.log(invocation: partition.invocation, for: [indexFile.mainFile])
+          }
+        }
+      case .metal:
+        for indexFile in partition.indexedFiles {
+          do {
+            try await updateIndexStore(
+              forMetalFile: indexFile.mainFile,
               invocation: partition.invocation,
               toolchain: toolchain
             )
@@ -596,6 +609,31 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     )
   }
 
+  /// Index a Metal file by running the toolchain's `metal` driver with the build server's compiler arguments.
+  ///
+  /// The arguments are passed through as the build server provides them, apart from the index store path.
+  private func updateIndexStore(
+    forMetalFile uri: DocumentURI,
+    invocation: UpdateIndexStorePartition.Invocation,
+    toolchain: Toolchain
+  ) async throws {
+    guard let metal = toolchain.metal else {
+      logger.error(
+        "Not updating index store for \(uri.forLogging) because toolchain \(toolchain.identifier) does not contain metal"
+      )
+      return
+    }
+
+    var args = [try metal.filePath] + invocation.compilerArguments
+    args = try await addOrReplaceIndexStorePath(in: args, for: [uri])
+
+    try await runIndexingProcess(
+      indexFiles: [uri],
+      invocation: invocation,
+      processArguments: args
+    )
+  }
+
   private func runIndexingProcess(
     indexFiles: [DocumentURI],
     invocation: UpdateIndexStorePartition.Invocation,
@@ -750,6 +788,25 @@ package struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
         }
       }
     return partitions + batchedPartitions
+  }
+}
+
+/// The compiler that background indexing runs to produce index data for a language.
+private enum IndexCompilerKind {
+  case swift
+  case clang
+  case metal
+
+  init?(_ language: Language) {
+    if language == .metal {
+      self = .metal
+      return
+    }
+    switch language.semanticKind {
+    case .swift: self = .swift
+    case .clang: self = .clang
+    case nil: return nil
+    }
   }
 }
 

@@ -986,6 +986,8 @@ package actor BuildServerManager: QueueBasedMessageHandler {
       return await toolchainRegistry.preferredToolchain(containing: [\.sourcekitd, \.swift, \.swiftc])
     case .c, .cpp, .objective_c, .objective_cpp:
       return await toolchainRegistry.preferredToolchain(containing: [\.clang, \.clangd])
+    case .metal:
+      return await toolchainRegistry.preferredToolchain(containing: [\.metal])
     default:
       return nil
     }
