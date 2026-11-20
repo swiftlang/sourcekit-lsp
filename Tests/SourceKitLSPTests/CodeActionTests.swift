@@ -4559,6 +4559,116 @@ final class CodeActionTests: SourceKitLSPTestCase {
       atMarker: "1️⃣"
     )
   }
+
+  func testCollapseNestedIfStmt() async throws {
+    // This also checks that sourcekitd's version of the refactoring action isn't reported in addition to the
+    // swift-syntax based one.
+    try await assertCodeActions(
+      """
+      func test(a: Int?) {1️⃣
+        2️⃣if let 3️⃣b = a {
+          // b must not be 5
+          if b != 5 {
+            print(b)
+          }
+        }4️⃣
+      }
+      """,
+      markers: ["2️⃣", "3️⃣"]
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Collapse Nested If Statements",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["4️⃣"],
+                  newText: """
+
+                      if let b = a, b != 5 {
+                        // b must not be 5
+                        print(b)
+                      }
+                    """
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testCollapseNestedIfStmtOnNestedIf() async throws {
+    try await assertCodeActions(
+      """
+      if a {1️⃣
+        2️⃣if b {
+          if c {
+            foo()
+          }
+        }3️⃣
+      }
+      """,
+      markers: ["2️⃣"]
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Collapse Nested If Statements",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["3️⃣"],
+                  newText: """
+
+                      if b, c {
+                        foo()
+                      }
+                    """
+                )
+              ]
+            ]
+          )
+        )
+      ]
+    }
+  }
+
+  func testCollapseNestedIfStmtNotOfferedInsideBody() async throws {
+    try await assertNoCodeAction(
+      titled: "Collapse Nested If Statements",
+      in: """
+        if a {
+          if b {
+            1️⃣foo()
+          }
+        }
+        """,
+      atMarker: "1️⃣"
+    )
+  }
+
+  func testCollapseNestedIfStmtNotOfferedWithElse() async throws {
+    try await assertNoCodeAction(
+      titled: "Collapse Nested If Statements",
+      in: """
+        1️⃣if a {
+          if b {
+            foo()
+          }
+        } else {
+          bar()
+        }
+        """,
+      atMarker: "1️⃣"
+    )
+  }
 }
 
 private extension CodeActionRequestResponse {

@@ -32,7 +32,7 @@ The specific refactorings available depend on what code is selected or where the
 |--------|---------|
 | **Expand Default** | Cursor on the `default` keyword in a switch over an enum |
 | **Expand Switch Cases** | Cursor on the `switch` keyword when switching over an enum with unhandled cases |
-| **Collapse Nested If Statements** | Cursor on the `if` keyword of an if-statement that contains only another if statement |
+| **Collapse Nested If Statements** | Cursor on the `if` keyword or a condition of an `if` statement whose body only contains another `if` statement, neither of which has an `else` |
 | **Convert To Do/Catch** | Cursor on the `try` keyword of a `try!` expression |
 | **Expand Ternary Expression** | Select an assignment where the right-hand side is a ternary expression |
 | **Convert To Ternary Expression** | Select an if/else that assigns or returns a value |
