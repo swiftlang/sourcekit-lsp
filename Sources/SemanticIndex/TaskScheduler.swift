@@ -303,12 +303,16 @@ package actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
           "Elevating priority of \(self.description.forLogging) from \(self.priority.rawValue) to \(targetPriority.rawValue)"
         )
       }
-      // Awaiting the result task from a higher-priority task will eventually update `priority` through
-      // `withTaskPriorityChangedHandler` but that might take a while because `withTaskPriorityChangedHandler` polls.
-      // Since we know that the priority will be elevated, set it now. That way we don't try to elevate it again.
+      // The escalation of the result task is reported through `withTaskPriorityChangedHandler`, which might take a
+      // while. Since we know that the priority will be elevated, set it now. That way we don't try to elevate it again.
       self.priority = targetPriority
-      Task(priority: targetPriority) {
-        await self.resultTask.value
+      if #available(macOS 26, iOS 26, macCatalyst 26, *) {
+        resultTask.escalatePriority(to: targetPriority)
+      } else {
+        // Awaiting the result task from a higher-priority task elevates its priority.
+        Task(priority: targetPriority) {
+          await self.resultTask.value
+        }
       }
     }
   }
