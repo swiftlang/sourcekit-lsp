@@ -23,6 +23,7 @@ import SwiftDiagnostics
 import SwiftExtensions
 import SwiftParserDiagnostics
 import SwiftSyntax
+import ToolchainRegistry
 @_spi(SourceKitLSP) import ToolsProtocolsSwiftExtensions
 
 import struct SourceKitLSP.Diagnostic
@@ -40,6 +41,7 @@ actor DiagnosticReportManager {
 
   private let sourcekitd: SourceKitD
   private let options: SourceKitLSPOptions
+  private let toolchain: Toolchain
   private let syntaxTreeManager: SyntaxTreeManager
   private let documentManager: DocumentManager
   private let clientHasDiagnosticsCodeDescriptionSupport: Bool
@@ -56,6 +58,7 @@ actor DiagnosticReportManager {
   init(
     sourcekitd: SourceKitD,
     options: SourceKitLSPOptions,
+    toolchain: Toolchain,
     syntaxTreeManager: SyntaxTreeManager,
     documentManager: DocumentManager,
     clientHasDiagnosticsCodeDescriptionSupport: Bool,
@@ -63,6 +66,7 @@ actor DiagnosticReportManager {
   ) {
     self.sourcekitd = sourcekitd
     self.options = options
+    self.toolchain = toolchain
     self.syntaxTreeManager = syntaxTreeManager
     self.documentManager = documentManager
     self.clientHasDiagnosticsCodeDescriptionSupport = clientHasDiagnosticsCodeDescriptionSupport
@@ -86,7 +90,12 @@ actor DiagnosticReportManager {
     let reportTask: ReportTask
     if let buildSettings, !buildSettings.isFallback {
       reportTask = ReportTask {
-        return try await self.requestReport(with: snapshot, compilerArgs: buildSettings.compilerArgs)
+        let report = try await self.requestReport(with: snapshot, compilerArgs: buildSettings.compilerArgs)
+        return try await self.addPackageManifestFeatureDiagnostics(
+          to: report,
+          snapshot: snapshot,
+          buildSettings: buildSettings
+        )
       }
     } else {
       logger.log(
@@ -97,7 +106,12 @@ actor DiagnosticReportManager {
       // Fall back to providing syntactic diagnostics from the built-in
       // swift-syntax. That's the best we can do for now.
       reportTask = ReportTask {
-        return try await self.requestFallbackReport(with: snapshot)
+        let report = try await self.requestFallbackReport(with: snapshot)
+        return try await self.addPackageManifestFeatureDiagnostics(
+          to: report,
+          snapshot: snapshot,
+          buildSettings: buildSettings
+        )
       }
     }
     setReportTask(for: snapshot.id, buildSettings: buildSettings, reportTask: reportTask)
@@ -230,6 +244,27 @@ actor DiagnosticReportManager {
     }
     let report = RelatedFullDocumentDiagnosticReport(items: diagnostics)
     return (report, cachable: true)
+  }
+
+  private func addPackageManifestFeatureDiagnostics(
+    to producedReport: (report: RelatedFullDocumentDiagnosticReport, cachable: Bool),
+    snapshot: DocumentSnapshot,
+    buildSettings: SwiftCompileCommand?
+  ) async throws -> (report: RelatedFullDocumentDiagnosticReport, cachable: Bool) {
+    var (report, cachable) = producedReport
+    guard let supportedFeatures = await toolchain.supportedSwiftFeatures else {
+      return (report, cachable)
+    }
+
+    let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
+    let featureDiagnostics = PackageManifestFeatureSupport.diagnostics(
+      in: snapshot,
+      syntaxTree: syntaxTree,
+      supportedFeatures: supportedFeatures,
+      swiftLanguageVersion: buildSettings?.swiftLanguageVersion
+    )
+    report.items += featureDiagnostics
+    return (report, cachable)
   }
 
   /// The reportTask for the given document snapshot and buildSettings.
