@@ -265,6 +265,7 @@ final class SwiftCompletionTests: SourceKitLSPTestCase {
   }
 
   func testCompletionExtendedItemsReturnsMoreThanDefaultLimit() async throws {
+    try XCTSkipIf(true, "Intermittently crashes with SIGILL: rdar://193351558")
     try await SkipUnless.sourcekitdSupportsPlugin()
 
     let memberCount = 250
