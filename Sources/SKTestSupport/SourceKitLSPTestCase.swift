@@ -19,6 +19,7 @@ public import XCTest
 open class SourceKitLSPTestCase: XCTestCase {
   override public static func setUp() {
     LoggingScope.configureDefaultLoggingSubsystem("org.swift.sourcekit-lsp.tests")
+    installCrashBacktraceHandler()
   }
 }
 
@@ -29,6 +30,7 @@ package struct ConfigureLoggingTrait: TestTrait, SuiteTrait, TestScoping {
     performing function: @concurrent @Sendable () async throws -> Void
   ) async throws {
     LoggingScope.configureDefaultLoggingSubsystem("org.swift.sourcekit-lsp.tests")
+    installCrashBacktraceHandler()
     try await function()
   }
 }
