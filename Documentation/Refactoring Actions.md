@@ -34,7 +34,7 @@ The specific refactorings available depend on what code is selected or where the
 | **Expand Switch Cases** | Cursor on the `switch` keyword when switching over an enum with unhandled cases |
 | **Collapse Nested If Statements** | Cursor on the `if` keyword of an if-statement that contains only another if statement |
 | **Convert To Do/Catch** | Cursor on the `try` keyword of a `try!` expression |
-| **Expand Ternary Expression** | Select an assignment where the right-hand side is a ternary expression |
+| **Expand Ternary Expression** | Cursor on a ternary expression that is a statement, initializes a variable, is assigned, or is returned or thrown |
 | **Convert To Ternary Expression** | Select an if/else that assigns or returns a value |
 | **Convert to guard** | Cursor on an `if-let` statement that guarantees an exit from the `if` block |
 | **Convert To IfLet Expression** | Select a guard-let statement |
