@@ -15,6 +15,7 @@ add_library(SwiftSyntaxCodeActions STATIC
   DeclModifierRemover.swift
   FormatRawStringLiteral.swift
   GenerateEnumCaseAccessors.swift
+  GenerateMemberwiseInitializer.swift
   IndentationRemover.swift
   InlineVariable.swift
   IntegerLiteralUtilities.swift
