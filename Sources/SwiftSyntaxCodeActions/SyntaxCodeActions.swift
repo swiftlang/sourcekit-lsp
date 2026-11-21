@@ -28,6 +28,8 @@ package let allSyntaxCodeActionProviders: [any SyntaxCodeActionProvider.Type] = 
     ConvertJSONToCodableStruct.self,
     ConvertStoredPropertyToComputed.self,
     ConvertStringConcatenationToStringInterpolation.self,
+    ConvertToTernaryExpr.self,
+    ExpandTernaryExpr.self,
     ConvertZeroParameterFunctionToComputedProperty.self,
     FormatRawStringLiteral.self,
     GenerateEnumCaseAsAccessors.self,
@@ -50,4 +52,6 @@ package let allSyntaxCodeActionProviders: [any SyntaxCodeActionProvider.Type] = 
 package let supersededSourcekitdRefactoringActions: Set<String> = [
   "source.refactoring.kind.convert.to.computed.property",  // Superseded by ConvertStoredPropertyToComputed
   "source.refactoring.kind.simplify.long.number.literal",  // Superseded by AddSeparatorsToIntegerLiteral
+  "source.refactoring.kind.convert.to.ternary.expr",  // Superseded by ConvertToTernaryExpr
+  "source.refactoring.kind.expand.ternary.expr",  // Superseded by ExpandTernaryExpr
 ]
