@@ -27,14 +27,17 @@ package let allSyntaxCodeActionProviders: [any SyntaxCodeActionProvider.Type] = 
     ConvertIntegerLiteral.self,
     ConvertJSONToCodableStruct.self,
     ConvertStoredPropertyToComputed.self,
+    ConvertToSwitchStmt.self,
     ConvertStringConcatenationToStringInterpolation.self,
     ConvertZeroParameterFunctionToComputedProperty.self,
+    ExtractExpr.self,
     FormatRawStringLiteral.self,
     GenerateEnumCaseAsAccessors.self,
     GenerateEnumCaseIsAccessors.self,
     InlineVariable.self,
     InvertIfCondition.self,
     MigrateToNewIfLetSyntax.self,
+    MoveMembersToExtension.self,
     OpaqueParameterToGeneric.self,
     RemoveRedundantParentheses.self,
     RemoveSeparatorsFromIntegerLiteral.self,
@@ -50,4 +53,7 @@ package let allSyntaxCodeActionProviders: [any SyntaxCodeActionProvider.Type] = 
 package let supersededSourcekitdRefactoringActions: Set<String> = [
   "source.refactoring.kind.convert.to.computed.property",  // Superseded by ConvertStoredPropertyToComputed
   "source.refactoring.kind.simplify.long.number.literal",  // Superseded by AddSeparatorsToIntegerLiteral
+  "source.refactoring.kind.convert.to.switch.stmt",  // Superseded by ConvertToSwitchStmt
+  "source.refactoring.kind.move.members.to.extension",  // Superseded by MoveMembersToExtension
+  "source.refactoring.kind.extract.expr",  // Superseded by ExtractExpr
 ]
