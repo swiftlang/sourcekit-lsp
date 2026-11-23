@@ -433,6 +433,69 @@ final class SwiftSignatureHelpTests: SourceKitLSPTestCase {
     XCTAssertEqual(seventhPosition.activeParameter, 0)
   }
 
+  func testSignatureHelpOnBlankLineInNestedCall() async throws {
+    try await SkipUnless.sourcekitdSupportsSignatureHelp()
+
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI(for: .swift)
+
+    let positions = testClient.openDocument(
+      """
+      struct Token {
+        init(type: Int, lexeme: String) {}
+      }
+
+      struct ScanStep {
+        init(token: Token?, next: Int) {}
+      }
+
+      func main() {
+        _ = ScanStep(
+          token: Token(
+            1️⃣
+          )
+        )
+        _ = ScanStep(
+          token: Token(
+            type: 1,
+            2️⃣
+          )
+        )
+        _ = ScanStep(
+          token: Token(
+            type: 1
+            3️⃣
+          )
+        )
+      }
+      """,
+      uri: uri
+    )
+
+    func getSignature(marker: String, line: UInt = #line) async throws -> SignatureInformation {
+      let result = try await testClient.send(
+        SignatureHelpRequest(
+          textDocument: TextDocumentIdentifier(uri),
+          position: positions[marker]
+        )
+      )
+
+      let signatureHelp = try XCTUnwrap(result, line: line)
+      let signature = try XCTUnwrap(signatureHelp.signatures.only, line: line)
+      XCTAssertEqual(signature.label, "init(type: Int, lexeme: String)", line: line)
+      return signature
+    }
+
+    let emptyArguments = try await getSignature(marker: "1️⃣")
+    XCTAssertEqual(emptyArguments.activeParameter, 0)
+
+    let afterTrailingComma = try await getSignature(marker: "2️⃣")
+    XCTAssertEqual(afterTrailingComma.activeParameter, 1)
+
+    let afterLastArgument = try await getSignature(marker: "3️⃣")
+    XCTAssertEqual(afterLastArgument.activeParameter, 0)
+  }
+
   func testSignatureHelpMultipleOverloads() async throws {
     try await SkipUnless.sourcekitdSupportsSignatureHelp()
 
