@@ -146,6 +146,32 @@ final class SwiftInterfaceTests: SourceKitLSPTestCase {
     )
   }
 
+  func testDefinitionOfStandardLibraryProtocolRequirement() async throws {
+    let project = try await IndexedSingleSwiftFileTestProject(
+      """
+      struct Shell: RawRepresentable {
+        var 1️⃣rawValue: String
+      }
+      """,
+      capabilities: ClientCapabilities(experimental: [
+        GetReferenceDocumentRequest.method: ["supported": true]
+      ]),
+      indexSystemModules: true,
+      extraCompilerArguments: Self.ignoreModuleSourceInfoFlags
+    )
+
+    let definition = try await project.testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(project.fileURI), position: project.positions["1️⃣"])
+    )
+    let location = try XCTUnwrap(definition?.locations?.only)
+    XCTAssertEqual(location.uri.scheme, "sourcekit-lsp")
+    let document = try await project.testClient.send(GetReferenceDocumentRequest(uri: location.uri))
+    let position = location.range.lowerBound
+    let index = LineTable(document.content).stringIndexOf(line: position.line, utf16Column: position.utf16index)
+    XCTAssert(document.content[..<index].hasSuffix("var "))
+    XCTAssert(document.content[index...].hasPrefix("rawValue:"))
+  }
+
   func testSwiftInterfaceAcrossModules() async throws {
     let project = try await SwiftPMTestProject(
       files: [

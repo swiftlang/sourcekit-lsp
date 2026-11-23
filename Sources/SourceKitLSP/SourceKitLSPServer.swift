@@ -1996,8 +1996,7 @@ extension SourceKitLSPServer {
         }
       }
 
-      // If the symbol's location is is where we initiated rename from, also show the declarations that the symbol
-      // overrides.
+      // If the request is on the declaration itself, also show the declarations that the symbol overrides.
       if let location = locations.only,
         let usr = symbol.usr,
         let index = await workspace.index(checkedFor: .deletedFiles),
@@ -2006,9 +2005,23 @@ extension SourceKitLSPServer {
         let baseUSRs = try index.occurrences(ofUSR: usr, roles: .overrideOf).flatMap {
           $0.relations.filter { $0.roles.contains(.overrideOf) }.map(\.symbol.usr)
         }
-        locations += try baseUSRs.compactMap {
+        locations += try await baseUSRs.asyncCompactMap {
           guard let baseDeclOccurrence = try index.primaryDefinitionOrDeclarationOccurrence(ofUSR: $0) else {
             return nil
+          }
+          if baseDeclOccurrence.location.isSwiftModuleFile {
+            let (module, group) = Self.splitModuleNameAndGroup(baseDeclOccurrence.location.moduleName)
+            let details = await orLog("Finding base declaration in generated interface") {
+              try await languageService.openGeneratedInterface(
+                document: req.textDocument.uri.buildSettingsFile,
+                moduleName: module,
+                groupName: group,
+                symbolUSR: baseDeclOccurrence.symbol.usr
+              )
+            }
+            if let details, let position = details.position {
+              return Location(uri: details.uri, range: Range(position))
+            }
           }
           return baseDeclOccurrence.location.lspLocation
         }
