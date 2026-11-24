@@ -46,6 +46,7 @@ final class LifecycleTests: SourceKitLSPTestCase {
   }
 
   func testTestClientIsDeallocatedWhenReleasedWithRequestInFlight() async throws {
+    try XCTSkipIf(true, "Flaky in CI (rdar://193462637)")
     // The test client shuts down the server in its deinit. That must happen when the test releases the client, not
     // later on a background task while the next test is already running.
     // Delay the reply so that the request's timeout task is still pending when the client is released.
@@ -69,6 +70,7 @@ final class LifecycleTests: SourceKitLSPTestCase {
   }
 
   func testTestClientDoesNotRetainCompletionHandlerAfterReply() async throws {
+    try XCTSkipIf(true, "Flaky in CI (rdar://193474364)")
     // A completion handler may capture the test client. Once the handler has run, the test client must drop it right
     // away. Otherwise its captures, possibly the last reference to the client, are released later by a background task.
     final class Sentinel: Sendable {
