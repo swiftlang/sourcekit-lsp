@@ -2006,9 +2006,29 @@ extension SourceKitLSPServer {
         let baseUSRs = try index.occurrences(ofUSR: usr, roles: .overrideOf).flatMap {
           $0.relations.filter { $0.roles.contains(.overrideOf) }.map(\.symbol.usr)
         }
-        locations += try baseUSRs.compactMap {
-          guard let baseDeclOccurrence = try index.primaryDefinitionOrDeclarationOccurrence(ofUSR: $0) else {
+        locations += try await baseUSRs.asyncCompactMap { baseUSR in
+          guard let baseDeclOccurrence = try index.primaryDefinitionOrDeclarationOccurrence(ofUSR: baseUSR) else {
             return nil
+          }
+          if baseDeclOccurrence.symbol.language == .swift,
+            baseDeclOccurrence.location.isSystem,
+            !baseDeclOccurrence.location.moduleName.isEmpty
+          {
+            let (moduleName, groupName) = Self.splitModuleNameAndGroup(baseDeclOccurrence.location.moduleName)
+            do {
+              return try await definitionInInterface(
+                moduleName: moduleName,
+                groupName: groupName,
+                symbolUSR: baseUSR,
+                originatorUri: req.textDocument.uri,
+                languageService: languageService
+              )
+            } catch is CancellationError {
+              throw CancellationError()
+            } catch {
+              try Task.checkCancellation()
+              logger.error("Failed to generate interface for protocol requirement: \(error.forLogging)")
+            }
           }
           return baseDeclOccurrence.location.lspLocation
         }
