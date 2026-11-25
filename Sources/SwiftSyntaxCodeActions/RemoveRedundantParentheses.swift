@@ -192,7 +192,7 @@ package struct RemoveRedundantParentheses: SyntaxRefactoringProvider {
       .genericSpecializationExpr, .ifExpr, .inOutExpr, .integerLiteralExpr,
       .keyPathExpr, .macroExpansionExpr, .missingExpr, .nilLiteralExpr,
       .packElementExpr, .packExpansionExpr, .patternExpr, .postfixIfConfigExpr,
-      .prefixOperatorExpr, .regexLiteralExpr, .simpleStringLiteralExpr,
+      .prefixOperatorExpr, .regexLiteralExpr, .sendExpr, .simpleStringLiteralExpr,
       .stringLiteralExpr, .superExpr, .switchExpr, .tryExpr, .tupleExpr,
       .typeExpr, .unresolvedAsExpr, .unresolvedIsExpr, .unresolvedTernaryExpr,
       .unsafeExpr:
@@ -313,6 +313,8 @@ package struct RemoveRedundantParentheses: SyntaxRefactoringProvider {
       return isSimpleExpression(awaitExpr.expression)
     case .unsafeExpr(let unsafeExpr):
       return isSimpleExpression(unsafeExpr.expression)
+    case .sendExpr(let sendExpr):
+      return isSimpleExpression(sendExpr.expression)
 
     case .tryExpr(let tryExpr):
       // Only try! and try? are simple; regular try is NOT simple
