@@ -32,15 +32,19 @@ private class StartOfArgumentFinder: SyntaxAnyVisitor {
   }
 
   override func visit(_ node: FunctionCallExprSyntax) -> SyntaxVisitorContinueKind {
-    return visit(arguments: node.arguments)
+    return visit(arguments: node.arguments, closingDelimiter: node.rightParen)
   }
 
   override func visit(_ node: SubscriptCallExprSyntax) -> SyntaxVisitorContinueKind {
-    return visit(arguments: node.arguments)
+    return visit(arguments: node.arguments, closingDelimiter: node.rightSquare)
   }
 
-  private func visit(arguments: LabeledExprListSyntax) -> SyntaxVisitorContinueKind {
-    guard (arguments.position...arguments.endPosition).contains(requestedPosition) else {
+  private func visit(arguments: LabeledExprListSyntax, closingDelimiter: TokenSyntax?) -> SyntaxVisitorContinueKind {
+    // Newlines and indentation before the closing delimiter are leading trivia of that delimiter and thus not part of
+    // `arguments`. Treat them as part of the argument list so that a position on a blank line before the closing
+    // delimiter resolves to this call instead of an enclosing call.
+    let argumentsEnd = closingDelimiter?.positionAfterSkippingLeadingTrivia ?? arguments.endPosition
+    guard (arguments.position...argumentsEnd).contains(requestedPosition) else {
       return .skipChildren
     }
 
@@ -50,7 +54,8 @@ private class StartOfArgumentFinder: SyntaxAnyVisitor {
     }
 
     for argument in arguments {
-      if (argument.position...argument.endPosition).contains(requestedPosition) {
+      let argumentEnd = argument.id == arguments.last?.id ? argumentsEnd : argument.endPosition
+      if (argument.position...argumentEnd).contains(requestedPosition) {
         if let trailingComma = argument.trailingComma,
           requestedPosition >= trailingComma.endPositionBeforeTrailingTrivia
         {
