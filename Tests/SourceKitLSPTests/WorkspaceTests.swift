@@ -1380,6 +1380,100 @@ final class WorkspaceTests: SourceKitLSPTestCase {
     try XCTAssertEqual(XCTUnwrap(options).target, URI(string: "build://lib"))
   }
 
+  func testSourceKitOptionsForFilesIncludedByUnityBuildFile() async throws {
+    final class BuildServer: CustomBuildServer {
+      let inProgressRequestsTracker = CustomBuildServerInProgressRequestTracker()
+      private let projectRoot: URL
+      private let libTarget = BuildTargetIdentifier(uri: try! URI(string: "build://lib"))
+
+      private var sources: [SourceItem] {
+        ["Unity.c", "Test.c"].map {
+          sourceItem(for: projectRoot.appending(component: $0), outputPath: fakeOutputPath(for: $0, in: "Lib"))
+        }
+      }
+
+      init(projectRoot: URL, connectionToSourceKitLSP: any LanguageServerProtocol.Connection) {
+        self.projectRoot = projectRoot
+      }
+
+      func initializeBuildRequest(_ request: InitializeBuildRequest) async throws -> InitializeBuildResponse {
+        return try initializationResponseSupportingBackgroundIndexing(
+          projectRoot: projectRoot,
+          outputPathsProvider: true
+        )
+      }
+
+      func workspaceBuildTargetsRequest(
+        _ request: WorkspaceBuildTargetsRequest
+      ) async throws -> WorkspaceBuildTargetsResponse {
+        WorkspaceBuildTargetsResponse(targets: [BuildTarget(id: libTarget, languageIds: [.c], dependencies: [])])
+      }
+
+      func buildTargetSourcesRequest(_ request: BuildTargetSourcesRequest) async throws -> BuildTargetSourcesResponse {
+        BuildTargetSourcesResponse(items: [SourcesItem(target: libTarget, sources: sources)])
+      }
+
+      func textDocumentSourceKitOptionsRequest(
+        _ request: TextDocumentSourceKitOptionsRequest
+      ) async throws -> TextDocumentSourceKitOptionsResponse? {
+        let sourceInfo = try XCTUnwrap(sources.first(where: { $0.uri == request.textDocument.uri }))
+        return TextDocumentSourceKitOptionsResponse(compilerArguments: [
+          sourceInfo.uri.pseudoPath, "-index-unit-output-path", try XCTUnwrap(sourceInfo.sourceKitData?.outputPath),
+          sourceInfo.uri.pseudoPath.hasSuffix("Unity.c") ? "-DUNITY" : "-DTEST",
+        ])
+      }
+    }
+
+    let project = try await CustomBuildServerTestProject(
+      files: [
+        "A.h": "void a(void);",
+        "A.c": """
+        #include "A.h"
+        void a(void) {}
+        """,
+        "Unity.c": """
+        #include "A.c"
+        """,
+        "Test.c": """
+        #include "A.h"
+        """,
+      ],
+      buildServer: BuildServer.self,
+      options: .testDefault(experimentalFeatures: [.sourceKitOptionsRequest]),
+      enableBackgroundIndexing: true
+    )
+
+    func options(for file: String) async throws -> SourceKitOptionsResponse {
+      return try await project.testClient.send(
+        SourceKitOptionsRequest(
+          textDocument: TextDocumentIdentifier(try project.uri(for: file)),
+          prepareTarget: false,
+          allowFallbackSettings: false
+        )
+      )
+    }
+    let aSource = try project.uri(for: "A.c")
+
+    // `A.h` is parsed as part of `A.c`, the source file that includes it and has its base name, with the build settings
+    // `A.c` gets from `Unity.c`. `Test.c`, which also includes `A.h`, is the lexicographically first main file.
+    let header = try await options(for: "A.h")
+    XCTAssertEqual(header.mainFile, aSource)
+    assertContains(header.compilerArguments, aSource.pseudoPath)
+    assertContains(header.compilerArguments, "-DUNITY")
+    XCTAssertEqual(header.target, try URI(string: "build://lib"))
+
+    // `A.c` is compiled itself, with the build settings of `Unity.c`, which includes it.
+    let source = try await options(for: "A.c")
+    XCTAssertEqual(source.mainFile, aSource)
+    assertContains(source.compilerArguments, aSource.pseudoPath)
+    XCTAssertFalse(source.compilerArguments.contains(try project.uri(for: "Unity.c").pseudoPath))
+    assertContains(source.compilerArguments, "-DUNITY")
+
+    let test = try await options(for: "Test.c")
+    XCTAssertEqual(test.mainFile, try project.uri(for: "Test.c"))
+    assertContains(test.compilerArguments, "-DTEST")
+  }
+
   func testBuildServerUsesStandardizedFileUrlsInsteadOfRealpath() async throws {
     try SkipUnless.platformIsDarwin("The realpath vs standardized path difference only exists on macOS")
 

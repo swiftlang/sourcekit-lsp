@@ -245,6 +245,26 @@ final class BuildServerManagerTests: SourceKitLSPTestCase {
     await assertEqual(manager.cachedMainFile(for: d), nil)
   }
 
+  func testChangeOfFileForBuildSettingsIsReported() async throws {
+    let header = DocumentURI(filePath: "/lib.h", isDirectory: false)
+    let otherSource = DocumentURI(filePath: "/a.c", isDirectory: false)
+    let source = DocumentURI(filePath: "/lib.c", isDirectory: false)
+    let mainFiles = ManualMainFilesProvider([header: [otherSource], otherSource: [otherSource], source: [source]])
+    let (manager, _) = try await createBuildServerManager(mainFilesProvider: mainFiles)
+    let delegate = await RecordingDelegate(manager)
+
+    await manager.registerForChangeNotifications(for: header, language: .c)
+    await assertEqual(manager.cachedMainFile(for: header), otherSource)
+
+    // `lib.c` starts including the header. `a.c`, which sorts first, still includes it too.
+    await mainFiles.updateMainFiles(for: header, to: [otherSource, source])
+    await manager.mainFilesChanged()
+
+    await assertEqual(manager.cachedMainFile(for: header), source)
+    let changedFiles = await delegate.fileBuildSettingsChangedFiles
+    XCTAssert(changedFiles.contains(header))
+  }
+
   func testCachedCompilerArgumentsShareStringStorage() async throws {
     let a = try DocumentURI(string: "bsm:a.swift")
     let b = try DocumentURI(string: "bsm:b.swift")
@@ -507,6 +527,23 @@ final class BuildServerManagerTests: SourceKitLSPTestCase {
 }
 
 // MARK: Helper Classes for Testing
+
+/// A `BuildServerManagerDelegate` that records the files whose build settings changed.
+private actor RecordingDelegate: BuildServerManagerDelegate {
+  var fileBuildSettingsChangedFiles: Set<DocumentURI> = []
+
+  init(_ manager: BuildServerManager) async {
+    await manager.setDelegate(self)
+  }
+
+  func fileBuildSettingsChanged(_ changedFiles: Set<DocumentURI>) async {
+    fileBuildSettingsChangedFiles.formUnion(changedFiles)
+  }
+
+  func filesDependenciesUpdated(_ changedFiles: Set<DocumentURI>) async {}
+
+  func buildTargetsChanged(_ changedTargets: Set<BuildTargetIdentifier>?) async {}
+}
 
 /// A simple `MainFilesProvider` that wraps a dictionary, for testing.
 private final actor ManualMainFilesProvider: MainFilesProvider {
