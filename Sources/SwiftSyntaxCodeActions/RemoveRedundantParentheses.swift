@@ -192,7 +192,7 @@ package struct RemoveRedundantParentheses: SyntaxRefactoringProvider {
       .genericSpecializationExpr, .ifExpr, .inOutExpr, .integerLiteralExpr,
       .keyPathExpr, .macroExpansionExpr, .missingExpr, .nilLiteralExpr,
       .packElementExpr, .packExpansionExpr, .patternExpr, .postfixIfConfigExpr,
-      .prefixOperatorExpr, .regexLiteralExpr, .simpleStringLiteralExpr,
+      .prefixOperatorExpr, .regexLiteralExpr, .sendExpr, .simpleStringLiteralExpr,
       .stringLiteralExpr, .superExpr, .switchExpr, .tryExpr, .tupleExpr,
       .typeExpr, .unresolvedAsExpr, .unresolvedIsExpr, .unresolvedTernaryExpr,
       .unsafeExpr:
@@ -212,6 +212,8 @@ package struct RemoveRedundantParentheses: SyntaxRefactoringProvider {
       return macroExpansion.trailingClosure != nil || !macroExpansion.additionalTrailingClosures.isEmpty
     case .subscriptCallExpr(let subscriptCall):
       return subscriptCall.trailingClosure != nil || !subscriptCall.additionalTrailingClosures.isEmpty
+    case .sendExpr(let sendExpr):
+      return hasTrailingClosure(sendExpr.expression)
     default:
       return false
     }
@@ -354,6 +356,7 @@ package struct RemoveRedundantParentheses: SyntaxRefactoringProvider {
       .postfixIfConfigExpr,
       .postfixOperatorExpr,
       .prefixOperatorExpr,
+      .sendExpr,
       .sequenceExpr,
       .switchExpr,
       .ternaryExpr,
