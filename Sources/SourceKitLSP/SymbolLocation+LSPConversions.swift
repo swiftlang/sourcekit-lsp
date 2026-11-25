@@ -14,6 +14,11 @@ import IndexStoreDB
 package import LanguageServerProtocol
 
 extension SymbolLocation {
+  /// Whether the index points to a Swift module file instead of a source declaration.
+  var isSwiftModuleFile: Bool {
+    path.hasSuffix(".swiftinterface") || path.hasSuffix(".swiftmodule")
+  }
+
   /// The LSP `DocumentURI` corresponding to this index location's file path, or `nil` if `path` is empty.
   package var uri: DocumentURI? {
     guard !path.isEmpty else { return nil }
