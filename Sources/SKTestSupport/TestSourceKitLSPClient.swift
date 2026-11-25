@@ -164,6 +164,9 @@ package final class TestSourceKitLSPClient: MessageHandler, Sendable {
     preInitialization: ((TestSourceKitLSPClient) -> Void)? = nil,
     cleanUp: @Sendable @escaping () -> Void = {}
   ) async throws {
+    // Not all test classes inherit from `SourceKitLSPTestCase`, but almost all tests create a
+    // `TestSourceKitLSPClient`.
+    installCrashBacktraceHandler()
     var options =
       if let options {
         options
