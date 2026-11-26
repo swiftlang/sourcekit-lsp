@@ -15,6 +15,7 @@ add_library(SwiftLanguageService STATIC
   ExpandMacroCommand.swift
   FoldingRange.swift
   GeneratedInterfaceManager.swift
+  InferredIsolationInfo.swift
   InlayHints.swift
   InlayHintManager.swift
   InlayHintResolve.swift
