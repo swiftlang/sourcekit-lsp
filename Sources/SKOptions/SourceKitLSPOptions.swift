@@ -368,7 +368,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable, LSPAnyCodable {
 
   /// Options related to logging, changing SourceKit-LSP’s logging behavior on non-Apple platforms.
   ///
-  /// On Apple platforms, logging is done through the [system log](Diagnose%20Bundle.md#Enable%20Extended%20Logging).
+  /// On Apple platforms, logging is done through the [system log](Enable%20Extended%20Logging.md).
   /// These options can only be set globally and not per workspace.
   private var logging: LoggingOptions?
   public var loggingOrDefault: LoggingOptions {
@@ -423,8 +423,8 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable, LSPAnyCodable {
   /// Experimental features that are enabled.
   public var experimentalFeatures: Set<ExperimentalFeature>? = nil
 
-  /// The time that `SwiftLanguageService` should wait after an edit before starting to compute diagnostics and
-  /// sending a `PublishDiagnosticsNotification`.
+  /// The time, in seconds, that `SwiftLanguageService` should wait after an edit before starting to compute
+  /// diagnostics and sending a `PublishDiagnosticsNotification`.
   public var swiftPublishDiagnosticsDebounceDuration: Double? = nil
 
   public var swiftPublishDiagnosticsDebounceDurationOrDefault: Duration {
@@ -434,8 +434,8 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable, LSPAnyCodable {
     return .seconds(1)
   }
 
-  /// When a task is started that should be displayed to the client as a work done progress, how many milliseconds to
-  /// wait before actually starting the work done progress. This prevents flickering of the work done progress in the
+  /// When a task is started that should be displayed to the client as a work done progress, how many seconds to wait
+  /// before actually starting the work done progress. This prevents flickering of the work done progress in the
   /// client for short-lived index tasks which end within this duration.
   public var workDoneProgressDebounceDuration: Double? = nil
 
@@ -446,7 +446,8 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable, LSPAnyCodable {
     return .seconds(1)
   }
 
-  /// The maximum duration that a sourcekitd request should be allowed to execute before being declared as timed out.
+  /// The maximum duration, in seconds, that a sourcekitd request should be allowed to execute before being declared as
+  /// timed out.
   ///
   /// In general, editors should cancel requests that they are no longer interested in, but in case editors don't cancel
   /// requests, this ensures that a long-running non-cancelled request is not blocking sourcekitd and thus most semantic
@@ -463,8 +464,9 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable, LSPAnyCodable {
     return .seconds(120)
   }
 
-  /// If a request to sourcekitd or clangd exceeds this timeout, we assume that the semantic service provider is hanging
-  /// for some reason and won't recover. To restore semantic functionality, we terminate and restart it.
+  /// If a request to sourcekitd or clangd exceeds this timeout (in seconds), we assume that the semantic service
+  /// provider is hanging for some reason and won't recover. To restore semantic functionality, we terminate and
+  /// restart it.
   public var semanticServiceRestartTimeout: Double? = nil
 
   public var semanticServiceRestartTimeoutOrDefault: Duration {
@@ -474,7 +476,7 @@ public struct SourceKitLSPOptions: Sendable, Codable, Equatable, LSPAnyCodable {
     return .seconds(300)
   }
 
-  /// Duration how long to wait for responses to `workspace/buildTargets` or `buildTarget/sources` request by the build
+  /// Number of seconds to wait for responses to `workspace/buildTargets` or `buildTarget/sources` request by the build
   /// server before defaulting to an empty response.
   public var buildServerWorkspaceRequestsTimeout: Double? = nil
 
