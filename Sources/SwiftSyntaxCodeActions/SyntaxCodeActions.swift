@@ -20,6 +20,7 @@ package let allSyntaxCodeActionProviders: [any SyntaxCodeActionProvider.Type] = 
     AddExplicitEnumRawValues.self,
     AddSeparatorsToIntegerLiteral.self,
     ApplyDeMorganLaw.self,
+    CollapseNestedIfStmt.self,
     ConvertCommentToDocComment.self,
     ConvertComputedPropertyToStored.self,
     ConvertComputedPropertyToZeroParameterFunction.self,
@@ -48,6 +49,7 @@ package let allSyntaxCodeActionProviders: [any SyntaxCodeActionProvider.Type] = 
 }()
 
 package let supersededSourcekitdRefactoringActions: Set<String> = [
+  "source.refactoring.kind.collapse.nested.ifstmt",  // Superseded by CollapseNestedIfStmt
   "source.refactoring.kind.convert.to.computed.property",  // Superseded by ConvertStoredPropertyToComputed
   "source.refactoring.kind.simplify.long.number.literal",  // Superseded by AddSeparatorsToIntegerLiteral
 ]

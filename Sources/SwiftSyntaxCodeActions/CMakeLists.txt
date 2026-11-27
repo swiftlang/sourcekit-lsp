@@ -3,6 +3,7 @@ add_library(SwiftSyntaxCodeActions STATIC
   AddExplicitEnumRawValues.swift
   AddSeparatorsToIntegerLiteral.swift
   ApplyDeMorganLaw.swift
+  CollapseNestedIfStmt.swift
   ConvertCommentToDocComment.swift
   ConvertComputedPropertyToStored.swift
   ConvertComputedPropertyToZeroParameterFunction.swift
