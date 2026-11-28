@@ -29,7 +29,7 @@ The Icarus source is located within [its repository](https://github.com/panicinc
 
 ## Sublime Text
 
-Before using SourceKit-LSP with Sublime Text, you will need to install the [LSP](https://packagecontrol.io/packages/LSP), [LSP-SourceKit](https://github.com/sublimelsp/LSP-SourceKit) and [Swift-Next](https://github.com/Swift-Next/Swift-Next) packages from Package Control. Then toggle the server on by typing in command palette `LSP: Enable Language Server Globally` or `LSP: Enable Language Server in Project`.
+Before using SourceKit-LSP with Sublime Text, you will need to install the [LSP](https://packagecontrol.io/packages/LSP), [LSP-SourceKit](https://github.com/sublimelsp/LSP-SourceKit) and [Swift](https://packagecontrol.io/packages/Swift) or [Swift-Next](https://github.com/Swift-Next/Swift-Next) packages from Package Control. Then toggle the server on by typing in command palette `LSP: Enable Language Server Globally` or `LSP: Enable Language Server in Project`.
 
 ## Theia Cloud IDE
 
