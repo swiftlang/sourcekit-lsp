@@ -20,6 +20,7 @@ add_library(SwiftLanguageService STATIC
   InlayHintResolve.swift
   MacroExpansion.swift
   OpenInterface.swift
+  PackageManifestFeatureSupport.swift
   PlaygroundDiscovery.swift
   SwiftPlaygroundsScanner.swift
   RefactoringEdit.swift
