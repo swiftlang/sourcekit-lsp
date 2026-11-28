@@ -268,7 +268,6 @@ package struct RemoveRedundantParentheses: SyntaxRefactoringProvider {
     case .attributedType,  // @escaping, @Sendable, etc.
       .compositionType,  // A & B
       .functionType,  // (A) -> B
-      .namedOpaqueReturnType,
       .packElementType,
       .packExpansionType,
       .someOrAnyType,  // some P, any P
